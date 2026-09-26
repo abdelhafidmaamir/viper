@@ -4,15 +4,8 @@
 import { SC_CY, W } from './layout.js';
 import { ctx } from './canvas.js';
 import { BLEU, OMBRE, OR } from './palette.js';
-import {
-  glypheGens,
-  manche,
-  pulseS,
-  pulseV,
-  reglages,
-  scoreSerpent,
-  scoreViewers,
-} from '../scripts/game.js';
+import { glypheGens } from './frame.js';
+import { manche, pulseS, pulseV, reglages, scoreSerpent, scoreViewers } from '../scripts/game.js';
 
 // Mode de base, sans un mot : l'anneau du plateau est le METRE DE VICTOIRE GLOBAL. Il compte la
 // progression sur tout le run, des grades deja faits jusqu'au dernier. Il monte a chaque bouchee et

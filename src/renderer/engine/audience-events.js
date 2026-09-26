@@ -12,13 +12,13 @@ import {
   VIE_COUT,
   coupeDe,
 } from './rules.js';
+import { noterCadeau } from './gift-feedback.js';
 import {
   charger,
   corps,
   couperDuel,
   eclat,
   manche,
-  noterCadeau,
   px,
   ranger,
   semerPour,

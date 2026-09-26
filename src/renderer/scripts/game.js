@@ -1,27 +1,8 @@
 // Vipere Live, base minimale : un serpent IA qui mange et grandit dans la foret. Rien d'autre.
 // Vitesse constante, se toucher tue toujours, aucun texte sur le canvas, aucun son de fond.
 
-import {
-  W,
-  H,
-  COLS,
-  ROWS,
-  SR_X,
-  SR_Y,
-  SR_W,
-  SR_H,
-  Z_CADEAUX,
-  Z_BANNIERE,
-  Z_FIL,
-  Z_SAISIE,
-  CELL,
-  X0,
-  Y0,
-  OX,
-  WF,
-  changerFormat,
-} from '../engine/layout.js';
-import { canvas, ctx, lierCanvas, setCtx } from '../engine/canvas.js';
+import { W, H, COLS, ROWS, CELL, X0, Y0, OX, WF, changerFormat } from '../engine/layout.js';
+import { canvas, ctx, lierCanvas } from '../engine/canvas.js';
 import {
   armerSon,
   basculerSon,
@@ -31,37 +12,12 @@ import {
   sonPose,
   sonPret,
 } from '../engine/audio.js';
-import {
-  CADEAUX_DUEL,
-  EFFET_LABEL,
-  peindreDefileCadeaux,
-  peindreLegendeDuel,
-} from '../engine/gift-panel.js';
-import { peindreFin } from '../engine/end-screen.js';
-import { peindreDebugIA, peindreMaquetteLive } from '../engine/debug-overlay.js';
-import { peindreCoquille, peindreEtincelles, peindreHalos } from '../engine/effects.js';
-import { peindreScore, personne } from '../engine/scoreboard.js';
-import { peindreDuel, peindreStatutsDuel } from '../engine/duel-hud.js';
-import {
-  DONS,
-  annoncer,
-  annoncerSerie,
-  dejaDonne,
-  dire,
-  donsManche,
-  nomCamp,
-  oublierDonsManche,
-  peindreBandeau,
-  sauve,
-} from '../engine/announcements.js';
-import { BLEU, OMBRE, OR } from '../engine/palette.js';
-import { peindreOffrandes, peindreRochers, peindreRonces } from '../engine/board-items.js';
+import { annoncerSerie, oublierDonsManche, sauve } from '../engine/announcements.js';
+import { OMBRE, OR } from '../engine/palette.js';
 import {
   ADULTE_DUEL,
   ALERTE,
-  BOUCLIER_COUT,
   CHASSE_DUEL,
-  COUPE_COUT,
   COUPE_FRAC,
   DEPART_DUEL,
   ECLOSION,
@@ -77,11 +33,9 @@ import {
   SORTIE,
   SURGE_FACT,
   SURSIS_DUEL,
-  TEMPO_COUT,
   TRAINE,
   VIEROCHER,
   VIERONCE,
-  VIE_COUT,
   VITESSE,
 } from '../engine/rules.js';
 import { cadence, forcerLong, longMax, majPalier, palier, souffle } from '../engine/crowd.js';
@@ -96,6 +50,8 @@ import {
 import { etatScene, finirScene, lancerScene, scene } from '../engine/scenes.js';
 import { majTension, tension } from '../engine/tension.js';
 import { recevoirEvenement } from '../engine/audience-events.js';
+import { oublierCadeaux } from '../engine/gift-feedback.js';
+import { dessiner } from '../engine/frame.js';
 
 let ajusterCanvas = null;
 
@@ -415,8 +371,7 @@ window.recevoirEvenement = recevoirEvenement;
 function nouvelleManche() {
   appliquerFormat();
   reglages.avantage = 0; // le coup de pouce est un geste ponctuel, jamais un reglage qui traine
-  retourCadeaux = [[], []];
-  bandeauCadeau = [null, null];
+  oublierCadeaux();
   oublierDonsManche();
   if (reglages.ambianceAuto) {
     const ms = [
@@ -1287,310 +1242,6 @@ function avancerCorps(dt) {
   while (avance >= 1) {
     avance -= 1;
     if (!pas()) return;
-  }
-}
-
-function peindreCourse() {
-  return;
-}
-
-// Le vide entre les deux silhouettes se creuse en `destination-out`. Sur le canvas principal ce
-// mode trouerait l'image entiere, fond compris, puisque le compteur est dessine par-dessus tout.
-// Le glyphe est donc cuit une seule fois dans un sprite hors ecran, ou le decoupage ne concerne
-// que lui. Bonus : il est paye une fois pour toute la partie et non a chaque image.
-const GENS_RS = 48;
-let spriteGens = null;
-export function glypheGens(x, y, r) {
-  if (!spriteGens) {
-    const s = document.createElement('canvas');
-    s.width = s.height = 2 * GENS_RS;
-    const avant = setCtx(s.getContext('2d'));
-    try {
-      ctx.translate(GENS_RS, GENS_RS);
-      const R = GENS_RS * 0.66;
-      ctx.fillStyle = BLEU;
-      personne(R * 0.86, -R * 0.16, R * 0.74);
-      ctx.globalCompositeOperation = 'destination-out';
-      ctx.lineWidth = R * 0.3;
-      ctx.strokeStyle = '#000';
-      ctx.fillStyle = '#000';
-      personne(-R * 0.3, 0, R * 0.96);
-      ctx.stroke();
-      ctx.globalCompositeOperation = 'source-over';
-      ctx.fillStyle = BLEU;
-      personne(-R * 0.3, 0, R * 0.86);
-    } finally {
-      setCtx(avant);
-    }
-    spriteGens = s;
-  }
-  const k = r / (GENS_RS * 0.66),
-    w = 2 * GENS_RS * k;
-  ctx.drawImage(spriteGens, x - w / 2, y - w / 2, w, w);
-}
-
-export let dtRendu = 0.016;
-
-export let retourCadeaux = [[], []],
-  bandeauCadeau = [null, null]; // [camp][ligne] = {t, pseudo, n} ; bandeau = {t, texte}
-export function noterCadeau(i, valeur, pseudo, n, avatar) {
-  const k =
-    valeur >= VIE_COUT
-      ? 4
-      : valeur >= BOUCLIER_COUT
-        ? 3
-        : valeur >= COUPE_COUT
-          ? 2
-          : valeur >= TEMPO_COUT
-            ? 1
-            : 0;
-  const r = retourCadeaux[i][k] || (retourCadeaux[i][k] = { t: -9, pseudo: '', n: 0 });
-  r.t = t;
-  r.pseudo = String(pseudo || '');
-  r.n += Math.max(1, n || 1);
-  const c = CADEAUX_DUEL[i === 0 ? 'or' : 'ombre'][k];
-  const premier = !!(r.pseudo && !dejaDonne[r.pseudo]);
-  if (r.pseudo) {
-    dejaDonne[r.pseudo] = 1;
-    const dm =
-      donsManche[r.pseudo] || (donsManche[r.pseudo] = { camp: i === 0 ? 'or' : 'ombre', total: 0 });
-    dm.total += (valeur || 0) * Math.max(1, n || 1);
-    dm.camp = i === 0 ? 'or' : 'ombre';
-  }
-  if (r.pseudo && donsManche[r.pseudo] && avatar) donsManche[r.pseudo].avatar = avatar;
-  if (c)
-    annoncer({
-      genre: 'cadeau',
-      pseudo: r.pseudo,
-      avatar,
-      texte: dire(premier ? 'premier' : 'cadeau', {
-        c: nomCamp(i === 0 ? 'or' : 'ombre'),
-        q: DONS[k] || c.effet,
-      }),
-      camp: i === 0 ? 'or' : 'ombre',
-      effet: EFFET_LABEL[c.effet],
-    });
-  bandeauCadeau[i] = {
-    t,
-    texte:
-      (r.pseudo && reglages.nomsDonateurs !== false ? r.pseudo + '  >  ' : '') + (c ? c.effet : ''),
-  };
-}
-let ipsLisse = 60,
-  pireDt = 0,
-  pireT = 0,
-  pireAffiche = 0;
-// Point du rail du timer a la distance s du haut-centre, dans le sens horaire (le sens ou le trait
-// rouge est dessine). Meme geometrie que ctx.roundRect(x,y,w,h,r).
-export function pointRail(x, y, w, h, r, s) {
-  const droit = w / 2 - r,
-    q = (Math.PI * r) / 2,
-    cote = h - 2 * r,
-    bas = w - 2 * r;
-  const arc = (cx, cy, a0, u) => ({
-    x: cx + r * Math.cos(a0 + (u * Math.PI) / 2),
-    y: cy + r * Math.sin(a0 + (u * Math.PI) / 2),
-  });
-  if (s < droit) return { x: x + w / 2 + s, y };
-  s -= droit;
-  if (s < q) return arc(x + w - r, y + r, -Math.PI / 2, s / q);
-  s -= q;
-  if (s < cote) return { x: x + w, y: y + r + s };
-  s -= cote;
-  if (s < q) return arc(x + w - r, y + h - r, 0, s / q);
-  s -= q;
-  if (s < bas) return { x: x + w - r - s, y: y + h };
-  s -= bas;
-  if (s < q) return arc(x + r, y + h - r, Math.PI / 2, s / q);
-  s -= q;
-  if (s < cote) return { x, y: y + h - r - s };
-  s -= cote;
-  if (s < q) return arc(x + r, y + r, Math.PI, s / q);
-  s -= q;
-  return { x: x + r + Math.min(s, droit), y };
-}
-function peindreManche() {
-  if (!manche) return;
-  peindreDuel(dtRendu);
-  return;
-}
-
-// Mode fluide : on masque la propriete shadowBlur du canevas principal (elle devient sans effet), et on la
-// rend quand le mode est coupe. Une seule bascule, aucun des 47 endroits qui posent un flou n'est touche.
-let fluideActif = false;
-function reglerFluide() {
-  const veut = !!reglages.fluide;
-  if (veut === fluideActif || !ctx) return;
-  if (veut)
-    Object.defineProperty(ctx, 'shadowBlur', {
-      set() {},
-      get() {
-        return 0;
-      },
-      configurable: true,
-    });
-  else delete ctx.shadowBlur;
-  fluideActif = veut;
-}
-function dessiner(dt) {
-  reglerFluide();
-  const a = amb(),
-    tete = trace.length ? trace[0] : { x: W / 2, y: H / 2 };
-  const e = {
-    t,
-    dt,
-    W,
-    H,
-    cell: CELL,
-    x0: X0,
-    y0: Y0,
-    cols: COLS,
-    rows: ROWS,
-    tete,
-    monde: 0,
-    mondeSorte: null,
-    silence: 0,
-    heure: reglages.heure,
-    meteo: reglages.meteo,
-    meteoNet: !!(manche && manche.etat === 'en cours' && manche.t < 0.3 && reglages.ambianceAuto),
-    avance:
-      reglages.avanceForcee !== undefined
-        ? reglages.avanceForcee
-        : manche
-          ? Math.min(1, (manche.t || 0) / Math.max(1, reglages.dureeDuel || reglages.duree))
-          : 0,
-    progression: 0,
-    tension: tension,
-    reduit: !!(window.matchMedia && window.matchMedia('(prefers-reduced-motion: reduce)').matches),
-  };
-  if (!a) {
-    ctx.fillStyle = '#141e17';
-    ctx.fillRect(0, 0, W, H);
-    return;
-  }
-  // En 16:9 l'ambiance couvre tout le cadre (les cotes compris) : on lui passe la largeur totale et on la
-  // decale de la marge ; le jeu et le HUD, eux, restent dessines dans la composition verticale intacte.
-  const enCadre = (f) => {
-    if (!OX) return f(e);
-    const sW = e.W,
-      sX = e.x0,
-      sT = e.tete;
-    e.W = WF;
-    e.x0 = X0 + OX;
-    e.tete = { x: sT.x + OX, y: sT.y };
-    ctx.save();
-    ctx.translate(-OX, 0);
-    try {
-      return f(e);
-    } finally {
-      ctx.restore();
-      e.W = sW;
-      e.x0 = sX;
-      e.tete = sT;
-    }
-  };
-  enCadre((e2) => a.peindreFond(ctx, e2));
-  ctx.save();
-  peindreCourse();
-  peindreOffrandes();
-  peindreRochers();
-  peindreRonces();
-
-  for (let _i = 0; _i < corps.length; _i++) {
-    charger(_i);
-    a.peindreSerpent(ctx, trace, CELL, {
-      ...e,
-      teinte: corps[actif].teinte,
-    });
-    if (corps[actif].bouclierT > 0 && trace.length) {
-      // bouclier actif : bulle autour de la tete, qui respire, et qui s'affine sur les 3 dernieres secondes
-      const h = trace[0],
-        bt = corps[actif].bouclierT,
-        fin = Math.min(1, bt / 3);
-      const rgb = actif === 0 ? '242,197,124' : '180,212,222';
-      const R = CELL * (0.62 + 0.04 * Math.sin(t * 5));
-      ctx.save();
-      ctx.globalAlpha = 0.35 + 0.45 * fin;
-      const g = ctx.createRadialGradient(h.x, h.y, R * 0.55, h.x, h.y, R);
-      g.addColorStop(0, 'rgba(' + rgb + ',0)');
-      g.addColorStop(0.8, 'rgba(' + rgb + ',0.35)');
-      g.addColorStop(1, 'rgba(' + rgb + ',0)');
-      ctx.fillStyle = g;
-      ctx.beginPath();
-      ctx.arc(h.x, h.y, R, 0, Math.PI * 2);
-      ctx.fill();
-      ctx.lineWidth = 2.5;
-      ctx.strokeStyle = 'rgba(255,255,255,' + (0.5 + 0.4 * fin) + ')';
-      ctx.shadowColor = 'rgba(' + rgb + ',0.9)';
-      ctx.shadowBlur = 14;
-      ctx.beginPath();
-      ctx.arc(h.x, h.y, R * 0.86, 0, Math.PI * 2);
-      ctx.stroke();
-      ctx.restore();
-    }
-    if (couvee) peindreCoquille(couvee.t / ECLOSION);
-    ranger();
-  }
-  charger(0);
-  if (reglages.debugIA) peindreDebugIA();
-  // Mesure de fluidite (calque Debug IA seulement) : images par seconde lissees et pire image des 2 dernieres secondes
-  ipsLisse += ((dt > 0 ? 1 / dt : 60) - ipsLisse) * 0.05;
-  pireT += dt;
-  if (dt > pireDt) pireDt = dt;
-  if (pireT > 2) {
-    pireAffiche = pireDt;
-    pireDt = 0;
-    pireT = 0;
-  }
-  if (reglages.debugIA) {
-    ctx.save();
-    ctx.font = 'bold 22px sans-serif';
-    ctx.textAlign = 'left';
-    ctx.fillStyle = 'rgba(0,0,0,0.6)';
-    ctx.fillRect(20, 20, 330, 34);
-    ctx.fillStyle = ipsLisse < 50 ? '#ff6a5a' : '#9be28a';
-    ctx.fillText(
-      Math.round(ipsLisse) + ' ips   pire image ' + Math.round(pireAffiche * 1000) + ' ms',
-      28,
-      45,
-    );
-    ctx.restore();
-  }
-  peindreHalos();
-  peindreEtincelles();
-  ctx.restore();
-  dtRendu = dt;
-  peindreManche();
-  enCadre((e2) => a.peindreAvant(ctx, e2));
-  peindreScore();
-  const avecCadeaux = reglages.plateforme !== 'neutre';
-  if (avecCadeaux) peindreStatutsDuel();
-  // affichageCadeaux : 'defile' (bandeaux qui defilent, avec le pattern visible/cache), 'complet' (ancienne legende), 'aucun' (rien)
-  if (avecCadeaux) {
-    const mA = reglages.affichageCadeaux || 'complet';
-    if (mA === 'defile') peindreDefileCadeaux();
-    else if (mA === 'complet') peindreLegendeDuel();
-  }
-  // Ecran de fin du duel, peint APRES le score et la legende (Abdel : « your grey veil just apply to gift and do
-  // not consider the whole screen, make it smoother ») : un seul voile, plein ecran, et le classement devant tout.
-  if (manche && manche.etat !== 'en cours') peindreFin();
-  peindreBandeau();
-  if (reglages.maquette) peindreMaquetteLive();
-  enCadre((e2) => a.maj(dt, e2));
-  if (reglages.zones) {
-    ctx.save();
-    ctx.globalAlpha = 0.2;
-    // ce que l'interface TikTok recouvre, aux positions MESUREES sur la capture d'Abdel
-    ctx.fillStyle = '#f0f';
-    ctx.fillRect(0, 0, W, SR_Y);
-    ctx.fillRect(0, SR_Y + SR_H, W, H - SR_Y - SR_H);
-    ctx.fillStyle = '#ff0';
-    [Z_CADEAUX, Z_BANNIERE, Z_FIL, Z_SAISIE].forEach((z) => ctx.fillRect(z.x, z.y, z.w, z.h));
-    ctx.globalAlpha = 0.9;
-    ctx.strokeStyle = '#0f0';
-    ctx.lineWidth = 3;
-    ctx.strokeRect(SR_X + 2, SR_Y, SR_W - 4, SR_H);
-    ctx.restore();
   }
 }
 
