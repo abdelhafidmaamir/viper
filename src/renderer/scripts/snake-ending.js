@@ -1,15 +1,15 @@
-/* fin-serpent.js : le serpent de fin de manche, heureux ou triste.
-   Tout est procédural, déterministe, tracé au canvas 2D. Aucune dépendance.
-   Unités internes : R vaut 250, le contexte est mis à l'échelle R/250 en entrée. */
+/* snake-ending.js : end-of-round snake, happy or sad.
+   Fully procedural and deterministic, drawn with 2D canvas. No external dependencies.
+   Internal units: R is 250; callers scale the context to R/250 before calling. */
 (function () {
   'use strict';
   var TAU = Math.PI * 2,
     R = 250;
-  var CORPS = '#d9e7cc',
-    TETE = '#e8f1dc',
-    OEIL = '#1b2a1f',
-    OR = '#F2C57C',
-    BLEU = '#8FA8D8';
+  var BODY = '#d9e7cc',
+    HEAD = '#e8f1dc',
+    EYE = '#1b2a1f',
+    GOLD = '#F2C57C',
+    BLUE = '#8FA8D8';
 
   function cl(x, a, b) {
     return x < a ? a : x > b ? b : x;
@@ -17,9 +17,9 @@
   function sm(x) {
     x = cl(x, 0, 1);
     return x * x * (3 - 2 * x);
-  } /* smoothstep, rien ne démarre net */
+  } /* smoothstep: no hard starts */
   function el(x) {
-    /* sortie élastique, pour le rebond */
+    /* elastic ease-out, for the bounce-back */
     if (x <= 0) return 0;
     if (x >= 1) return 1;
     return 1 + Math.pow(2, -10 * x) * Math.sin((x * 10 - 0.75) * (TAU / 3));
@@ -28,21 +28,21 @@
     var x = Math.sin(i * 127.1 + 311.7) * 43758.5453;
     return x - Math.floor(x);
   }
-  function fr(x) {
+  function fraction(x) {
     return x - Math.floor(x);
   }
-  /* impulsion périodique : 0 avant t0, puis une bosse de largeur `dur` toutes les `per` secondes */
-  function pulse(t, t0, per, dur) {
+  /* periodic pulse: zero before t0, then a sine bump of width `duration` every `per` seconds */
+  function pulse(t, t0, per, duration) {
     if (t < t0) return 0;
-    var ph = fr((t - t0) / per) * per;
-    return ph < dur ? Math.sin((Math.PI * ph) / dur) : 0;
+    var ph = fraction((t - t0) / per) * per;
+    return ph < duration ? Math.sin((Math.PI * ph) / duration) : 0;
   }
 
-  /* ---------- géométrie du corps, une fonction paramétrique par état ---------- */
+  /* ---------- body geometry, one parametric path function per state ---------- */
 
-  /* Heureux : queue au centre d'une spirale, le cou se dresse hors du dernier tour,
-     la tête se penche vers l'intérieur comme un point d'interrogation. */
-  function pHeureux(s, t) {
+  /* Happy: tail at the center of a spiral, neck rises out of the last loop,
+     head curls inward like a question mark. */
+  function pathHappy(s, t) {
     var K = TAU * 1.55,
       th = K - s * K,
       r = R * (0.14 + 0.44 * s);
@@ -50,47 +50,44 @@
       y = Math.sin(th) * r + R * 0.08;
     var q = sm((s - 0.72) / 0.28);
     q = q * q;
-    var lev =
-      0.56 * el((t - 0.9) / 1.3) + 0.03 * Math.sin(t * 2.4); /* montée élastique puis respiration */
-    y -= R * lev * q;
-    x += R * 0.12 * q; /* le cou reste hors de la spirale */
+    var lift =
+      0.56 * el((t - 0.9) / 1.3) + 0.03 * Math.sin(t * 2.4); /* elastic rise, then breathing */
+    y -= R * lift * q;
+    x += R * 0.12 * q; /* keeps the neck outside the spiral */
     var p = sm((s - 0.9) / 0.1);
     p = p * p;
     x -=
       R *
       (0.2 + 0.04 * Math.sin(t * 2.4 + 1)) *
       p *
-      sm((t - 1.4) / 1); /* la tête se penche, en retard sur le cou */
+      sm((t - 1.4) / 1); /* head tilts, lagging behind the neck */
     var w =
       Math.sin(s * 9 - t * 3.2) *
       R *
       0.024 *
-      Math.sin(Math.PI * s); /* ondulation de la queue vers la tête */
+      Math.sin(Math.PI * s); /* lateral wave, tail to head */
     return { x: x, y: y, w: w };
   }
 
-  /* Triste : corps allongé au sol, dos à peine bombé, cou qui se soulève un peu
-     puis retombe. Le soupir gonfle et relâche le cou lentement. */
-  function pTriste(s, t) {
-    var dr = sm((t - 1.9) / 1.5); /* la tête s'abaisse après l'entrée */
-    var sig = soupir(t);
+  /* Sad: body flat on the ground, back barely arched, neck rises slightly then
+     droops. Sighing swells and relaxes the neck slowly. */
+  function pathSad(s, t) {
+    var dr = sm((t - 1.9) / 1.5); /* head lowers after entry */
+    var sighAmount = sigh(t);
     var x = -0.72 * R + s * 1.34 * R;
     var y = 0.2 * R - 0.09 * R * Math.sin(Math.PI * cl(s / 0.62, 0, 1));
     var n = sm((s - 0.56) / 0.3);
-    y -= R * (0.55 - 0.14 * dr + 0.06 * sig) * n * n;
+    y -= R * (0.55 - 0.14 * dr + 0.06 * sighAmount) * n * n;
     var d = sm((s - 0.84) / 0.16);
     d = d * d;
-    y += R * (0.4 - 0.05 * sig) * d * dr;
+    y += R * (0.4 - 0.05 * sighAmount) * d * dr;
     x -= R * 0.06 * d * dr;
     var w =
-      Math.sin(s * 6 - t * 1.1) *
-      R *
-      0.018 *
-      Math.sin(Math.PI * s); /* ondulation lente et lourde */
+      Math.sin(s * 6 - t * 1.1) * R * 0.018 * Math.sin(Math.PI * s); /* slow, heavy lateral wave */
     return { x: x, y: y, w: w };
   }
-  /* Nul : serpent de gauche qui se dresse vers le centre, nez à nez avec son miroir ;
-     regard neutre, petit hochement synchrone (maquette A1 validée par Abdel, 2026-09-18). */
+  /* Draw: left snake rises toward center, face to face with its mirror;
+     neutral gaze, small synchronous nod. */
   function pFace(s, t) {
     var x = -1.0 * R + s * 0.72 * R,
       y = 0.22 * R - 0.06 * R * Math.sin(Math.PI * cl(s / 0.6, 0, 1));
@@ -102,15 +99,15 @@
     var w = Math.sin(s * 7 - t * 1.4) * R * 0.02 * Math.sin(Math.PI * s);
     return { x: x, y: y, w: w };
   }
-  function soupir(t) {
-    /* inspiration courte, expiration longue */
+  function sigh(t) {
+    /* short inhale, long exhale */
     if (t < 3) return 0;
-    var ph = fr((t - 3) / 5.5);
+    var ph = fraction((t - 3) / 5.5);
     return ph < 0.3 ? sm(ph / 0.3) : 1 - sm((ph - 0.3) / 0.7);
   }
 
-  /* échantillonne la courbe jusqu'à `e`, décale par l'ondulation, trace un seul trait lissé */
-  function corps(g, fn, t, e) {
+  /* samples the curve up to `e`, offsets by the lateral wave, draws a single smooth stroke */
+  function paintBody(g, fn, t, e) {
     var N = 56,
       pts = [],
       i,
@@ -148,29 +145,29 @@
     return { x: m.x, y: m.y, dx: dx / L, dy: dy / L };
   }
 
-  /* ---------- tête, yeux, langue ---------- */
+  /* ---------- head, eyes, tongue ---------- */
 
-  function tete(g, h, a, coul) {
+  function paintHead(g, h, a, color) {
     g.globalAlpha = a;
-    g.fillStyle = coul || TETE;
+    g.fillStyle = color || HEAD;
     g.beginPath();
     g.arc(h.x, h.y, 23, 0, TAU);
     g.fill();
   }
 
-  /* les yeux vivent dans le repère de la tête : x vers l'avant, y en travers */
-  function yeux(g, h, heureux, t, a) {
+  /* eyes live in the head's local frame: x toward front, y lateral */
+  function paintEyes(g, h, happy, t, a) {
     var px = -h.dy,
       py = h.dx,
       ang = Math.atan2(h.dy, h.dx),
       i,
       ex,
       ey;
-    var clig = heureux ? pulse(t, 2.2, 3.7, 0.24) : pulse(t, 3.4, 5.2, 0.6);
-    var ouv = heureux ? sm((t - 1.6) / 0.8) : 1; /* les yeux se plissent une fois dressé */
+    var blink = happy ? pulse(t, 2.2, 3.7, 0.24) : pulse(t, 3.4, 5.2, 0.6);
+    var eyeOpen = happy ? sm((t - 1.6) / 0.8) : 1; /* eyes squint once the head has risen */
     g.globalAlpha = a;
-    g.strokeStyle = OEIL;
-    g.fillStyle = OEIL;
+    g.strokeStyle = EYE;
+    g.fillStyle = EYE;
     g.lineWidth = 2.4;
     g.lineCap = 'round';
     for (i = -1; i <= 1; i += 2) {
@@ -179,34 +176,34 @@
       g.save();
       g.translate(ex, ey);
       g.rotate(ang);
-      if (heureux === 'neutre') {
-        /* nul : point rond, clignement vertical */
-        g.scale(1, 1 - 0.85 * clig);
+      if (happy === 'neutral') {
+        /* draw state: round dot, vertical blink */
+        g.scale(1, 1 - 0.85 * blink);
         g.beginPath();
         g.arc(0, 0, 3.5, 0, TAU);
         g.fill();
-      } else if (heureux) {
-        g.scale(1 - 0.85 * clig, 1);
-        if (ouv < 0.5) {
+      } else if (happy) {
+        g.scale(1 - 0.85 * blink, 1);
+        if (eyeOpen < 0.5) {
           g.beginPath();
-          g.arc(0, 0, 3.5 * (1 - 0.3 * clig) + 0.01, 0, TAU);
+          g.arc(0, 0, 3.5 * (1 - 0.3 * blink) + 0.01, 0, TAU);
           g.fill();
         } else {
           g.beginPath();
           g.arc(-1.6, 0, 4.4, -1.15, 1.15);
           g.stroke();
-        } /* arc bombé vers l'avant : sourire */
+        } /* forward-facing arc: smile */
       } else {
-        g.scale(1, 1 - 0.7 * clig);
+        g.scale(1, 1 - 0.7 * blink);
         g.beginPath();
         g.arc(2.2, 0, 4.4, Math.PI - 1.05, Math.PI + 1.05);
-        g.stroke(); /* arc tombant, mi-clos */
+        g.stroke(); /* drooping arc, half-closed */
       }
       g.restore();
     }
   }
 
-  function langue(g, h, t, a) {
+  function paintTongue(g, h, t, a) {
     var L = pulse(t, 2.6, 3.4, 0.5);
     if (L <= 0) return;
     var bx = h.x + h.dx * 21,
@@ -218,7 +215,7 @@
       fx = h.dx * 6 * L,
       fy = h.dy * 6 * L;
     g.globalAlpha = a * sm(L * 3);
-    g.strokeStyle = OR;
+    g.strokeStyle = GOLD;
     g.lineWidth = 2.4;
     g.lineCap = 'round';
     g.beginPath();
@@ -231,39 +228,39 @@
     g.stroke();
   }
 
-  /* ---------- accents : halo, étincelles, goutte ---------- */
+  /* ---------- accents: halo, sparks, tear ---------- */
 
-  function halo(g, coul, a, ray) {
-    var gr = g.createRadialGradient(0, 0, ray * 0.1, 0, 0, ray);
-    gr.addColorStop(0, coul);
+  function halo(g, color, a, radius) {
+    var gr = g.createRadialGradient(0, 0, radius * 0.1, 0, 0, radius);
+    gr.addColorStop(0, color);
     gr.addColorStop(1, 'rgba(0,0,0,0)');
     g.globalAlpha = a;
     g.fillStyle = gr;
     g.beginPath();
-    g.arc(0, 0, ray, 0, TAU);
+    g.arc(0, 0, radius, 0, TAU);
     g.fill();
   }
 
-  function etincelles(g, t, u, coul) {
-    var ent = sm((t - 1.4) / 1),
+  function paintSparks(g, t, u, color) {
+    var entryFade = sm((t - 1.4) / 1),
       i,
       ph,
       x,
       y,
       a,
       r;
-    if (ent <= 0) return;
-    g.fillStyle = coul || OR;
+    if (entryFade <= 0) return;
+    g.fillStyle = color || GOLD;
     for (i = 0; i < 8; i++) {
-      ph = fr(t / 2.8 + hs(i));
+      ph = fraction(t / 2.8 + hs(i));
       x = (hs(i + 10) - 0.5) * 1.5 * R + 0.05 * R * Math.sin(t * 1.3 + i);
       y = 0.55 * R - ph * 1.15 * R;
-      a = Math.sin(Math.PI * ph) * ent * u * (0.5 + 0.5 * hs(i + 30));
+      a = Math.sin(Math.PI * ph) * entryFade * u * (0.5 + 0.5 * hs(i + 30));
       r = 2.2 + 2 * hs(i + 20);
       g.globalAlpha = a * 0.25;
       g.beginPath();
       g.arc(x, y, r * 3, 0, TAU);
-      g.fill(); /* halo doux sans shadowBlur */
+      g.fill(); /* soft halo, no shadowBlur */
       g.globalAlpha = a;
       g.beginPath();
       g.arc(x, y, r, 0, TAU);
@@ -271,10 +268,10 @@
     }
   }
 
-  /* la goutte naît sous l'oeil extérieur, grossit, se détache, tombe et s'efface */
-  function goutte(g, h, t, u) {
+  /* tear forms under the outer eye, grows, detaches, falls and fades */
+  function paintTear(g, h, t, u) {
     if (t < 3.6) return;
-    var ph = fr((t - 3.6) / 6.5),
+    var ph = fraction((t - 3.6) / 6.5),
       px = -h.dy,
       py = h.dx;
     var ox = h.x + h.dx * 9 + px * 8 + 2,
@@ -294,7 +291,7 @@
       a = 1 - sm((f - 0.55) / 0.45);
     } else return;
     g.globalAlpha = u * a * 0.85;
-    g.fillStyle = BLEU;
+    g.fillStyle = BLUE;
     g.beginPath();
     g.arc(ox, y, r, 0, TAU);
     g.fill();
@@ -302,17 +299,17 @@
     g.fillStyle = '#ffffff';
     g.beginPath();
     g.arc(ox - r * 0.3, y - r * 0.3, r * 0.28, 0, TAU);
-    g.fill(); /* reflet, la goutte est froide et brillante */
+    g.fill(); /* highlight; the tear is cold and glossy */
   }
 
-  /* ---------- entrée publique ---------- */
+  /* ---------- public API ---------- */
 
-  function peindre(g, o) {
+  function paint(g, o) {
     if (!g || typeof g.save !== 'function') return;
     g.save();
     try {
       o = o || {};
-      var heureux = o.etat !== 'triste';
+      var happy = o.state !== 'sad';
       var t = +o.t;
       if (!(t >= 0)) t = 0;
       var cx = +o.cx || 0,
@@ -326,11 +323,11 @@
         e,
         h,
         aT,
-        sig;
-      /* o.teinte (couleur CSS) et o.rgb ('r,g,b') : en duel, le serpent de fin porte la couleur du camp
-         vainqueur. Corps, tete, halo, lueur et etincelles suivent ; sans teinte, rendu inchange. */
-      var corpsCoul = o.teinte || CORPS,
-        teteCoul = o.teinte || TETE,
+        sighAmount;
+      /* o.tint (CSS color) and o.rgb ('r,g,b'): in duel mode the ending snake takes the winning
+         team's color; body, head, halo, glow and sparks follow. Without a tint, rendering is unchanged. */
+      var bodyColor = o.tint || BODY,
+        headColor = o.tint || HEAD,
         rgb = o.rgb || '242,197,124';
 
       g.translate(cx, cy);
@@ -338,7 +335,7 @@
       g.lineCap = 'round';
       g.lineJoin = 'round';
 
-      if (heureux) {
+      if (happy) {
         e = sm(t / 1.6);
         aT = sm((e - 0.86) / 0.14);
         halo(
@@ -348,50 +345,50 @@
           R * 1.15,
         );
         g.save();
-        g.scale(1 + 0.012 * Math.sin(t * 1.6), 1 + 0.012 * Math.sin(t * 1.6)); /* respiration */
+        g.scale(1 + 0.012 * Math.sin(t * 1.6), 1 + 0.012 * Math.sin(t * 1.6)); /* breathing */
         g.globalAlpha = u;
-        g.strokeStyle = corpsCoul;
+        g.strokeStyle = bodyColor;
         g.lineWidth = 38;
         g.shadowColor = 'rgba(' + rgb + ',0.55)';
-        g.shadowBlur = 28 * sm((t - 1) / 1.5); /* seul shadowBlur de l'image */
-        h = corps(g, pHeureux, t, e);
+        g.shadowBlur = 28 * sm((t - 1) / 1.5); /* only shadowBlur in the render */
+        h = paintBody(g, pathHappy, t, e);
         g.shadowBlur = 0;
         if (aT > 0) {
-          tete(g, h, u * aT, teteCoul);
-          yeux(g, h, true, t, u * aT);
-          langue(g, h, t, u * aT);
+          paintHead(g, h, u * aT, headColor);
+          paintEyes(g, h, true, t, u * aT);
+          paintTongue(g, h, t, u * aT);
         }
         g.restore();
-        etincelles(g, t, u, o.teinte);
+        paintSparks(g, t, u, o.tint);
       } else {
         e = sm(t / 2.2);
         aT = sm((e - 0.86) / 0.14);
-        sig = soupir(t);
-        /* triste teinte (match nul en duel : les deux serpents, chacun sa couleur) ; sans teinte, bleu froid */
-        var rgbT = o.teinte ? rgb : '143,168,216';
-        halo(g, 'rgba(' + rgbT + ',0.12)', u * (0.75 + 0.25 * sig) * sm(t / 2.5), R * 1.1);
+        sighAmount = sigh(t);
+        /* sad tint (draw in duel: each snake keeps its own color); without a tint, cold blue */
+        var rgbSad = o.tint ? rgb : '143,168,216';
+        halo(g, 'rgba(' + rgbSad + ',0.12)', u * (0.75 + 0.25 * sighAmount) * sm(t / 2.5), R * 1.1);
         g.globalAlpha = u;
-        g.strokeStyle = corpsCoul;
-        g.lineWidth = 38 * (1 + 0.06 * sig); /* le soupir gonfle le corps */
-        g.shadowColor = 'rgba(' + rgbT + ',0.35)';
+        g.strokeStyle = bodyColor;
+        g.lineWidth = 38 * (1 + 0.06 * sighAmount); /* sigh swells the body */
+        g.shadowColor = 'rgba(' + rgbSad + ',0.35)';
         g.shadowBlur = 22 * sm((t - 1.5) / 1.5);
-        h = corps(g, pTriste, t, e);
+        h = paintBody(g, pathSad, t, e);
         g.shadowBlur = 0;
         if (aT > 0) {
-          tete(g, h, u * aT, o.teinte ? teteCoul : undefined);
-          yeux(g, h, false, t, u * aT);
-          goutte(g, h, t, u * aT);
+          paintHead(g, h, u * aT, o.tint ? headColor : undefined);
+          paintEyes(g, h, false, t, u * aT);
+          paintTear(g, h, t, u * aT);
         }
       }
     } catch (err) {
-      /* un raté d'animation ne doit jamais casser la fin de manche */
+      /* an animation error must never break the end-of-round */
     }
     g.restore();
   }
 
-  /* Match nul en duel : les deux serpents face à face, chacun sa couleur, et le mot DRAW au-dessus.
-     o : t, cx, cy, R, u, or:{teinte,rgb}, ombre:{teinte,rgb}. Gauche = or, droite = son miroir. */
-  function peindreNul(g, o) {
+  /* Draw result in duel: two snakes face to face, each with its own color, and the word DRAW above.
+     o: t, cx, cy, R, u, gold:{tint,rgb}, shadow:{tint,rgb}. Left is gold, right is its mirror. */
+  function paintDraw(g, o) {
     if (!g || typeof g.save !== 'function') return;
     g.save();
     try {
@@ -409,34 +406,34 @@
         i,
         c,
         h;
-      var camps = [
-        o.or || { teinte: OR, rgb: '242,197,124' },
-        o.ombre || { teinte: BLEU, rgb: '143,168,216' },
+      var teams = [
+        o.gold || { tint: GOLD, rgb: '242,197,124' },
+        o.shadow || { tint: BLUE, rgb: '143,168,216' },
       ];
       g.translate(+o.cx || 0, +o.cy || 0);
       g.scale(k, k);
       g.lineCap = 'round';
       g.lineJoin = 'round';
-      halo(g, 'rgba(' + camps[0].rgb + ',0.16)', u * sm(t / 2), R * 0.9);
-      halo(g, 'rgba(' + camps[1].rgb + ',0.16)', u * sm(t / 2), R * 0.9);
+      halo(g, 'rgba(' + teams[0].rgb + ',0.16)', u * sm(t / 2), R * 0.9);
+      halo(g, 'rgba(' + teams[1].rgb + ',0.16)', u * sm(t / 2), R * 0.9);
       for (i = 0; i < 2; i++) {
-        c = camps[i];
+        c = teams[i];
         g.save();
         if (i === 1) g.scale(-1, 1);
         g.globalAlpha = u;
-        g.strokeStyle = c.teinte;
+        g.strokeStyle = c.tint;
         g.lineWidth = 38;
         g.shadowColor = 'rgba(' + c.rgb + ',0.5)';
         g.shadowBlur = 26 * sm((t - 1) / 1.5);
-        h = corps(g, pFace, t, e);
+        h = paintBody(g, pFace, t, e);
         g.shadowBlur = 0;
         if (aT > 0) {
-          tete(g, h, u * aT, c.teinte);
-          yeux(g, h, 'neutre', t, u * aT);
+          paintHead(g, h, u * aT, c.tint);
+          paintEyes(g, h, 'neutral', t, u * aT);
         }
         g.restore();
       }
-      var a = sm((t - 2.2) / 0.8); /* DRAW une fois les têtes dressées */
+      var a = sm((t - 2.2) / 0.8); /* DRAW fades in once the heads have risen */
       if (a > 0) {
         g.globalAlpha = u * a;
         g.textAlign = 'center';
@@ -444,19 +441,19 @@
         g.font = '700 78px system-ui, "Segoe UI", sans-serif';
         g.letterSpacing = '14px';
         var gr = g.createLinearGradient(-120, 0, 120, 0);
-        gr.addColorStop(0, camps[0].teinte);
-        gr.addColorStop(1, camps[1].teinte);
+        gr.addColorStop(0, teams[0].tint);
+        gr.addColorStop(1, teams[1].tint);
         g.fillStyle = gr;
         g.fillText('DRAW', 7, -R * 0.62 + R * 0.03 * (1 - a));
       }
     } catch (err) {
-      /* un raté d'animation ne doit jamais casser la fin de manche */
+      /* an animation error must never break the end-of-round */
     }
     g.restore();
   }
 
-  window.FinSerpent = {
-    peindre: peindre,
-    peindreNul: peindreNul,
+  window.SnakeEnding = {
+    paint: paint,
+    paintDraw: paintDraw,
   };
 })();

@@ -1,155 +1,160 @@
 // Audience events: turns gifts, likes, joins and viewer milestones from the live bridges into
 // board effects for the team they back.
 
-import { PALIERS_VUE, annoncer, dire, likesPar, paliersVus } from './announcements.js';
-import { compter } from './crowd.js';
 import {
-  BOUCLIER_COUT,
-  BOUCLIER_DUR,
-  COUPE_COUT,
-  TEMPO_COUT,
-  TEMPO_DUR,
-  VIE_COUT,
-  coupeDe,
+  VIEWER_THRESHOLDS,
+  addAnnouncement,
+  phrase,
+  likesByViewer,
+  seenThresholds,
+} from './announcements.js';
+import { countEvents } from './crowd.js';
+import {
+  SHIELD_COST,
+  SHIELD_DURATION,
+  CUT_COST,
+  BOOST_COST,
+  BOOST_DURATION,
+  LIFE_COST,
+  cutLength,
 } from './rules.js';
-import { noterCadeau } from './gift-feedback.js';
+import { recordGift } from './gift-feedback.js';
 import {
-  charger,
-  corps,
-  couperDuel,
-  eclat,
-  manche,
+  loadBody,
+  bodies,
+  cutDuel,
+  burst,
+  round,
   px,
-  ranger,
-  semerPour,
-  serpent,
+  storeBody,
+  plantSeedFor,
+  snake,
 } from '../scripts/game.js';
 
 // Entry point for every audience event (gifts, likes, joins, viewer counts) from the live bridges.
-export function recevoirEvenement(ev) {
+export function receiveEvent(ev) {
   const e = ev || {},
     n = Math.max(1, Math.min(parseInt(e.n) || 1, 20));
-  if (e.type === 'spectateurs') {
+  if (e.type === 'viewers') {
     const tot = parseInt(e.total) || 0;
-    let haut = 0;
-    for (const pl of PALIERS_VUE) {
-      if (tot >= pl && !paliersVus[pl]) {
-        paliersVus[pl] = 1;
-        haut = pl;
+    let highestTier = 0;
+    for (const pl of VIEWER_THRESHOLDS) {
+      if (tot >= pl && !seenThresholds[pl]) {
+        seenThresholds[pl] = 1;
+        highestTier = pl;
       }
     }
-    if (haut) annoncer({ genre: 'palier', pseudo: '', texte: dire('palier', { n: haut }) });
+    if (highestTier)
+      addAnnouncement({ kind: 'tier', nickname: '', text: phrase('tier', { n: highestTier }) });
     return 0;
   }
-  if (e.type === 'arrivee' || e.type === 'partage' || e.type === 'abonne') {
-    annoncer({
-      genre: e.type,
-      pseudo: String(e.pseudo || ''),
+  if (e.type === 'join' || e.type === 'share' || e.type === 'follow') {
+    addAnnouncement({
+      kind: e.type,
+      nickname: String(e.nickname || ''),
       avatar: e.avatar,
-      texte: dire(e.type),
+      text: phrase(e.type),
     });
     return 0;
   }
-  if (e.type === 'like' && e.pseudo) {
-    const lp = String(e.pseudo);
-    likesPar[lp] = (likesPar[lp] || 0) + n;
-    if (likesPar[lp] >= 10) {
-      annoncer({
-        genre: 'like',
-        pseudo: lp,
+  if (e.type === 'like' && e.nickname) {
+    const liker = String(e.nickname);
+    likesByViewer[liker] = (likesByViewer[liker] || 0) + n;
+    if (likesByViewer[liker] >= 10) {
+      addAnnouncement({
+        kind: 'like',
+        nickname: liker,
         avatar: e.avatar,
-        texte: dire('like', { n: likesPar[lp] }),
+        text: phrase('like', { n: likesByViewer[liker] }),
       });
-      likesPar[lp] = 0;
+      likesByViewer[liker] = 0;
     }
   }
-  // Camp : explicite (regie), sinon par le NOM du cadeau TikTok (Abdel : « red 1 coin rose gives one
-  // point to Or, white 1 coin gives 1 point to the other ») : 'rose' -> Or, tout autre cadeau -> Ombre.
-  // Sans camp ni nom : tirage au sort (public simule).
-  const nom = String(e.nom || e.cadeau || e.gift || '').toLowerCase();
-  // Rose rouge ('rose') -> Or ; rose blanche (TikTok la nomme 'Rosa', ou 'rose blanche'/'white rose') -> Ombre.
-  // A 10 coins (Abdel) : une rose a 10 -> tempo Or, le 'Dyno' a 10 -> tempo Ombre : tout nom contenant 'rose' -> Or.
-  const v = e.valeur || 0;
-  // Cadeaux du camp Or par nom : rose (10), donut (30) ; tout le reste (Dyno, Capybara...) est Ombre.
-  const roseRouge =
-    v >= TEMPO_COUT
-      ? /rose|bouquet|bagel|donut|doughnut|teddy|bear/.test(nom)
-      : /^rose( rouge| red)?$/.test(nom.trim());
+  // Team: explicit from the control room, or inferred from the TikTok gift name: 'rose' -> gold,
+  // any other gift -> shadow. No team and no name: random draw (simulated audience).
+  const giftName = String(e.name || e.gift || e.gift || '').toLowerCase();
+  // Red rose ('rose') -> gold; white rose (TikTok calls it 'Rosa' or 'white rose') -> shadow.
+  // At 10 coins any name containing 'rose' -> gold.
+  const v = e.value || 0;
+  // Gold team gifts by name: rose (10), donut (30); everything else (Dyno, Capybara...) is shadow.
+  const isGoldGift =
+    v >= BOOST_COST
+      ? /rose|bouquet|bagel|donut|doughnut|teddy|bear/.test(giftName)
+      : /^rose( rouge| red)?$/.test(giftName.trim());
   const i =
-    e.camp === 'ombre'
+    e.team === 'shadow'
       ? 1
-      : e.camp === 'or'
+      : e.team === 'gold'
         ? 0
-        : nom
-          ? roseRouge
+        : giftName
+          ? isGoldGift
             ? 0
             : 1
           : Math.random() < 0.5
             ? 0
             : 1;
-  compter(e.type === 'cadeau' ? n * 3 : n);
-  // Le like ne donne plus de poussee de vitesse en duel (Abdel, 2026-09-19 : « this is not a feature
-  // anymore, remove it »). Il compte toujours pour l'affluence (compter, plus haut), rien d'autre.
+  countEvents(e.type === 'gift' ? n * 3 : n);
+  // Likes no longer grant a speed boost. They still count toward cadence (above), nothing else.
   if (e.type === 'like') return 0;
-  if (e.type === 'cadeau') {
-    noterCadeau(i, e.valeur || 0, e.pseudo, n, e.avatar);
-    if ((e.valeur || 0) >= VIE_COUT) {
-      // vie : quand une coupe devrait tuer le serpent, elle le laisse a 3 anneaux
-      const av = corps[i].vies;
-      corps[i].vies += n;
-      corps[i].viePar = String(e.pseudo || '');
-      corps[i].vieAvatar = e.avatar;
-      charger(i);
-      if (serpent.length) {
-        const tp = px(serpent[0].x, serpent[0].y);
-        eclat(tp.x, tp.y, 18, 'rodeur');
+  if (e.type === 'gift') {
+    recordGift(i, e.value || 0, e.nickname, n, e.avatar);
+    if ((e.value || 0) >= LIFE_COST) {
+      // life: when a cut would kill the snake, it survives at 3 segments instead
+      const prevLives = bodies[i].lives;
+      bodies[i].lives += n;
+      bodies[i].lifeBy = String(e.nickname || '');
+      bodies[i].lifeAvatar = e.avatar;
+      loadBody(i);
+      if (snake.length) {
+        const headPos = px(snake[0].x, snake[0].y);
+        burst(headPos.x, headPos.y, 18, 'neutral-burst');
       }
-      ranger();
-      charger(0); // vie : eclat rouge, comme le coeur
-      return corps[i].vies - av;
+      storeBody();
+      loadBody(0); // life: red burst, like a heart
+      return bodies[i].lives - prevLives;
     }
-    if ((e.valeur || 0) >= BOUCLIER_COUT) {
-      // bouclier : BOUCLIER_DUR secondes d'immunite aux coupes et aux collisions (Abdel : actif 15 s)
-      corps[i].bouclierT += BOUCLIER_DUR * n;
-      corps[i].bouclierPar = String(e.pseudo || '');
-      corps[i].bouclierAvatar = e.avatar;
-      charger(i);
-      if (serpent.length) {
-        const tp = px(serpent[0].x, serpent[0].y);
-        eclat(tp.x, tp.y, 18, 'coquille');
+    if ((e.value || 0) >= SHIELD_COST) {
+      // shield: SHIELD_DURATION seconds of immunity to cuts and collisions
+      bodies[i].shieldTime += SHIELD_DURATION * n;
+      bodies[i].shieldBy = String(e.nickname || '');
+      bodies[i].shieldAvatar = e.avatar;
+      loadBody(i);
+      if (snake.length) {
+        const headPos = px(snake[0].x, snake[0].y);
+        burst(headPos.x, headPos.y, 18, 'shell');
       }
-      ranger();
-      charger(0);
+      storeBody();
+      loadBody(0);
       return n;
     }
-    if ((e.valeur || 0) >= TEMPO_COUT && (e.valeur || 0) < COUPE_COUT) {
-      // tempo paye : TEMPO_DUR secondes de poussee sur SON serpent, cumulable (Abdel : le cadeau a 10 coins)
-      corps[i].surgeT += TEMPO_DUR * n;
-      charger(i);
-      if (serpent.length) {
-        const tp = px(serpent[0].x, serpent[0].y);
-        eclat(tp.x, tp.y, 16, 'coquille');
+    if ((e.value || 0) >= BOOST_COST && (e.value || 0) < CUT_COST) {
+      // paid boost: BOOST_DURATION seconds of speed on its snake, stackable
+      bodies[i].boostTime += BOOST_DURATION * n;
+      loadBody(i);
+      if (snake.length) {
+        const headPos = px(snake[0].x, snake[0].y);
+        burst(headPos.x, headPos.y, 16, 'shell');
       }
-      ranger();
-      charger(0);
+      storeBody();
+      loadBody(0);
       return n;
     }
-    if ((e.valeur || 0) >= COUPE_COUT) {
-      // coupe : 15 % de la longueur adverse, n fois
+    if ((e.value || 0) >= CUT_COST) {
+      // cut: 15% of the rival's length, applied n times
       let total = 0;
       for (let q = 0; q < n; q++) {
-        if (!(manche && manche.etat === 'en cours')) break;
-        total += couperDuel(1 - i, coupeDe(corps[1 - i].serpent.length), i);
+        if (!(round && round.state === 'playing')) break;
+        total += cutDuel(1 - i, cutLength(bodies[1 - i].snake.length), i);
       }
-      charger(0);
+      loadBody(0);
       return total;
     }
-    // bon marche : semer n baies pour le camp i
-    let pose = 0;
-    for (let q = 0; q < n; q++) pose += semerPour(i, e.pseudo);
-    charger(0);
-    return pose;
+    // cheap gift: plant n berries for team i
+    let placed = 0;
+    for (let q = 0; q < n; q++) placed += plantSeedFor(i, e.nickname);
+    loadBody(0);
+    return placed;
   }
-  // commentaire/partage : cadence seulement
+  // comment/share: cadence only
   return 0;
 }

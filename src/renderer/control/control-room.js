@@ -1,127 +1,128 @@
 (function () {
   'use strict';
   if (!('BroadcastChannel' in window)) {
-    document.body.innerHTML = '<p>BroadcastChannel indisponible dans ce navigateur.</p>';
+    document.body.innerHTML = '<p>BroadcastChannel not available in this browser.</p>';
     return;
   }
-  var canal = new BroadcastChannel('vipere-duel'),
-    dernierSigne = 0;
-  canal.onmessage = function (ev) {
-    var e = (ev.data || {}).etat;
+  var channel = new BroadcastChannel('viper-duel'),
+    lastSignal = 0;
+  channel.onmessage = function (ev) {
+    var e = (ev.data || {}).state;
     if (!e) return;
-    dernierSigne = Date.now();
+    lastSignal = Date.now();
     Array.prototype.forEach.call(document.querySelectorAll('[data-m]'), function (x) {
-      var on = x.getAttribute('data-m') === (e.meteo || 'pluie');
+      var on = x.getAttribute('data-m') === (e.weather || 'rain');
       x.style.borderColor = on ? 'var(--accent)' : '';
       x.style.color = on ? 'var(--accent)' : '';
     });
-    document.getElementById('ambianceAuto').checked = !!e.ambianceAuto;
+    document.getElementById('autoAmbience').checked = !!e.autoAmbience;
     Array.prototype.forEach.call(document.querySelectorAll('[data-c]'), function (x) {
-      var on = x.getAttribute('data-c') === (e.classement || 'aucun');
+      var on = x.getAttribute('data-c') === (e.ranking || 'none');
       x.style.borderColor = on ? 'var(--accent)' : '';
       x.style.color = on ? 'var(--accent)' : '';
     });
     Array.prototype.forEach.call(document.querySelectorAll('[data-b]'), function (x) {
-      var on = x.getAttribute('data-b') === (e.bandeau || 'aucun');
+      var on = x.getAttribute('data-b') === (e.banner || 'none');
       x.style.borderColor = on ? 'var(--accent)' : '';
       x.style.color = on ? 'var(--accent)' : '';
     });
-    var rn = document.getElementById('nomsDonateurs');
-    if (rn && document.activeElement !== rn && e.nomsDonateurs !== undefined)
-      rn.checked = !!e.nomsDonateurs;
+    var rn = document.getElementById('donorNames');
+    if (rn && document.activeElement !== rn && e.donorNames !== undefined)
+      rn.checked = !!e.donorNames;
     Array.prototype.forEach.call(document.querySelectorAll('[data-r]'), function (x) {
-      var on = x.getAttribute('data-r') === e.retourCadeau;
+      var on = x.getAttribute('data-r') === e.giftFeedback;
       x.style.borderColor = on ? 'var(--accent)' : '';
       x.style.color = on ? 'var(--accent)' : '';
     });
-    var cf = document.getElementById('fluide');
-    if (cf && document.activeElement !== cf) cf.checked = !!e.fluide;
-    if (e.plateforme) {
-      var neutre = e.plateforme === 'neutre';
-      document.getElementById('pfEtat').textContent =
-        'actif : ' + (neutre ? 'Neutre (cadeaux caches)' : 'TikTok (cadeaux affiches)');
-      document.getElementById('pfNeutre').style.borderColor = neutre ? 'var(--accent)' : '';
-      document.getElementById('pfNeutre').style.color = neutre ? 'var(--accent)' : '';
-      document.getElementById('pfTiktok').style.borderColor = neutre ? '' : 'var(--accent)';
-      document.getElementById('pfTiktok').style.color = neutre ? '' : 'var(--accent)';
+    var cf = document.getElementById('smooth');
+    if (cf && document.activeElement !== cf) cf.checked = !!e.smooth;
+    if (e.platform) {
+      var isNeutral = e.platform === 'neutral';
+      document.getElementById('platformState').textContent =
+        'active: ' + (isNeutral ? 'Neutral (gifts hidden)' : 'TikTok (gifts shown)');
+      document.getElementById('platformNeutral').style.borderColor = isNeutral
+        ? 'var(--accent)'
+        : '';
+      document.getElementById('platformNeutral').style.color = isNeutral ? 'var(--accent)' : '';
+      document.getElementById('platformTiktok').style.borderColor = isNeutral
+        ? ''
+        : 'var(--accent)';
+      document.getElementById('platformTiktok').style.color = isNeutral ? '' : 'var(--accent)';
     }
-    if (window.__fouleEtat) window.__fouleEtat(e.foule || null);
-    if (window.__syncPouce) window.__syncPouce(e.avantage || 0);
-    if (window.__syncSuper) window.__syncSuper(!!e.superIA);
+    if (window.__crowdState) window.__crowdState(e.crowd || null);
+    if (window.__syncThumb) window.__syncThumb(e.advantage || 0);
+    if (window.__syncSuper) window.__syncSuper(!!e.superAi);
     if (window.__syncScene) window.__syncScene(e.scene || null, !!e.underdog);
-    var p = e.pont || {};
-    document.getElementById('vpont').className = 'voyant' + (p.connecte ? ' ok' : '');
-    /* en live (pont connecte), les boutons de test sont bloques : leurs faux pseudos ne doivent jamais passer a l'antenne */
-    Array.prototype.forEach.call(
-      document.querySelectorAll('[data-t],#testClassement'),
-      function (b) {
-        b.disabled = !!p.connecte;
-        b.title = p.connecte ? 'Bloque pendant le live : le pont TikFinity est connecte' : '';
-      },
-    );
-    document.getElementById('epont').textContent = p.connecte
-      ? 'connecte a ' + p.url
-      : 'deconnecte';
-    document.getElementById('plog').textContent =
-      (p.dernier || 'en attente') +
+    var p = e.bridge || {};
+    document.getElementById('bridgeLight').className = 'light' + (p.connected ? ' ok' : '');
+    /* while live (bridge connected), test buttons are disabled: fake nicknames must never reach the broadcast */
+    Array.prototype.forEach.call(document.querySelectorAll('[data-t],#testRanking'), function (b) {
+      b.disabled = !!p.connected;
+      b.title = p.connected ? 'Locked while live: TikFinity bridge is connected' : '';
+    });
+    document.getElementById('bridgeStatus').textContent = p.connected
+      ? 'connected to ' + p.url
+      : 'disconnected';
+    document.getElementById('bridgeLog').textContent =
+      (p.last || 'waiting') +
       '\n' +
-      (p.evenements || 0) +
-      ' evenements, ' +
-      (p.cadeaux || 0) +
-      ' cadeaux' +
-      (p.erreur ? '\nerreur : ' + p.erreur : '');
+      (p.events || 0) +
+      ' events, ' +
+      (p.gifts || 0) +
+      ' gifts' +
+      (p.error ? '\nerror: ' + p.error : '');
     var d = e.duel;
-    document.getElementById('etat').textContent = d
-      ? 'Or ' +
-        ((d.or && d.or.longueur) || 0) +
-        ' anneaux, Ombre ' +
-        ((d.ombre && d.ombre.longueur) || 0) +
-        ' anneaux\nchrono ' +
+    document.getElementById('state').textContent = d
+      ? 'Gold ' +
+        ((d.gold && d.gold.length) || 0) +
+        ' rings, Shadow ' +
+        ((d.shadow && d.shadow.length) || 0) +
+        ' rings\ntimer ' +
         Math.round(d.t || 0) +
         ' s' +
-        (d.vainqueur ? '\nfin : ' + d.vainqueur : '') +
-        (e.mesures && e.mesures.erreurs ? '\nerreurs moteur : ' + e.mesures.erreurs : '')
-      : 'pas de duel en cours';
+        (d.winner ? '\nend: ' + d.winner : '') +
+        (e.metrics && e.metrics.errors ? '\nengine errors: ' + e.metrics.errors : '')
+      : 'no active duel';
   };
-  /* la fenetre jeu emet toutes les 500 ms : sans signe depuis 2 s, voyant rouge */
+  /* game window emits every 500 ms: no signal for 2 s turns the indicator red */
   setInterval(function () {
-    var ok = Date.now() - dernierSigne < 2000;
-    document.getElementById('vjeu').className = 'voyant' + (ok ? ' ok' : '');
-    document.getElementById('ejeu').textContent = ok
-      ? 'fenetre jeu en ligne'
-      : 'aucun signe de la fenetre jeu (est-elle ouverte ?)';
+    var ok = Date.now() - lastSignal < 2000;
+    document.getElementById('gameLight').className = 'light' + (ok ? ' ok' : '');
+    document.getElementById('gameStatus').textContent = ok
+      ? 'game window online'
+      : 'no signal from the game window (is it open?)';
   }, 500);
-  document.getElementById('fluide').onchange = function () {
-    canal.postMessage({ cmd: 'reglage', nom: 'fluide', valeur: this.checked });
+  document.getElementById('smooth').onchange = function () {
+    channel.postMessage({ cmd: 'setting', name: 'smooth', value: this.checked });
   };
-  document.getElementById('pfTiktok').onclick = function () {
-    canal.postMessage({ cmd: 'reglage', nom: 'plateforme', valeur: 'tiktok' });
+  document.getElementById('platformTiktok').onclick = function () {
+    channel.postMessage({ cmd: 'setting', name: 'platform', value: 'tiktok' });
   };
-  document.getElementById('pfNeutre').onclick = function () {
-    canal.postMessage({ cmd: 'reglage', nom: 'plateforme', valeur: 'neutre' });
+  document.getElementById('platformNeutral').onclick = function () {
+    channel.postMessage({ cmd: 'setting', name: 'platform', value: 'neutral' });
   };
-  document.getElementById('manche').onclick = function () {
-    canal.postMessage({ cmd: 'manche' });
+  document.getElementById('round').onclick = function () {
+    channel.postMessage({ cmd: 'round' });
   };
-  /* Super admin : section visible seulement avec ?admin=1 dans l'URL de la regie */
+  /* Admin section: visible only with ?admin=1 in the control room URL */
   if (/[?&]admin=1/.test(location.search)) {
     var admin = document.getElementById('admin'),
-      pouce = document.getElementById('pouce');
+      thumbSlider = document.getElementById('thumb');
     admin.hidden = false;
-    function direPouce(v) {
-      document.getElementById('pouceEtat').textContent =
-        v === 0 ? 'neutre (0)' : v > 0 ? 'Or +' + v : 'Ombre +' + -v;
+    function showThumb(v) {
+      document.getElementById('thumbState').textContent =
+        v === 0 ? 'neutral (0)' : v > 0 ? 'Gold +' + v : 'Shadow +' + -v;
     }
-    var dbg = document.getElementById('debugIA');
+    var dbg = document.getElementById('aiDebug');
     dbg.onchange = function () {
-      canal.postMessage({ cmd: 'reglage', nom: 'debugIA', valeur: dbg.checked });
+      channel.postMessage({ cmd: 'setting', name: 'aiDebug', value: dbg.checked });
     };
     Array.prototype.forEach.call(document.querySelectorAll('[data-r]'), function (b) {
       b.onclick = function () {
-        canal.postMessage({
-          cmd: 'reglage',
-          nom: 'retourCadeau',
-          valeur: b.getAttribute('data-r'),
+        channel.postMessage({
+          cmd: 'setting',
+          name: 'giftFeedback',
+          value: b.getAttribute('data-r'),
         });
         Array.prototype.forEach.call(document.querySelectorAll('[data-r]'), function (x) {
           x.style.borderColor = x === b ? 'var(--accent)' : '';
@@ -131,10 +132,10 @@
     });
     Array.prototype.forEach.call(document.querySelectorAll('[data-a]'), function (b) {
       b.onclick = function () {
-        canal.postMessage({
-          cmd: 'reglage',
-          nom: 'affichageCadeaux',
-          valeur: b.getAttribute('data-a'),
+        channel.postMessage({
+          cmd: 'setting',
+          name: 'giftDisplay',
+          value: b.getAttribute('data-a'),
         });
         Array.prototype.forEach.call(document.querySelectorAll('[data-a]'), function (x) {
           x.style.borderColor = x === b ? 'var(--accent)' : '';
@@ -144,250 +145,282 @@
     });
     Array.prototype.forEach.call(document.querySelectorAll('[data-f]'), function (b) {
       b.onclick = function () {
-        canal.postMessage({ cmd: 'reglage', nom: 'format', valeur: b.getAttribute('data-f') });
+        channel.postMessage({ cmd: 'setting', name: 'format', value: b.getAttribute('data-f') });
         Array.prototype.forEach.call(document.querySelectorAll('[data-f]'), function (x) {
           x.style.borderColor = x === b ? 'var(--accent)' : '';
           x.style.color = x === b ? 'var(--accent)' : '';
         });
       };
     });
-    var dv = document.getElementById('defileVisi'),
-      dc = document.getElementById('defileCache');
+    var dv = document.getElementById('scrollVisible'),
+      dc = document.getElementById('scrollHidden');
     if (dv)
       dv.onchange = function () {
-        canal.postMessage({ cmd: 'reglage', nom: 'defileVisi', valeur: parseInt(dv.value, 10) });
+        channel.postMessage({
+          cmd: 'setting',
+          name: 'scrollVisible',
+          value: parseInt(dv.value, 10),
+        });
       };
     if (dc)
       dc.onchange = function () {
-        canal.postMessage({ cmd: 'reglage', nom: 'defileCache', valeur: parseInt(dc.value, 10) });
+        channel.postMessage({
+          cmd: 'setting',
+          name: 'scrollHidden',
+          value: parseInt(dc.value, 10),
+        });
       };
     Array.prototype.forEach.call(document.querySelectorAll('[data-b]'), function (b) {
       b.onclick = function () {
-        canal.postMessage({ cmd: 'reglage', nom: 'bandeau', valeur: b.getAttribute('data-b') });
+        channel.postMessage({ cmd: 'setting', name: 'banner', value: b.getAttribute('data-b') });
       };
     });
     var TESTS = {
-      arrivee: { type: 'arrivee', pseudo: 'lea_gold' },
-      cadeauOr: { type: 'cadeau', n: 1, valeur: 30, nom: 'bagel', camp: 'or', pseudo: 'karim.or' },
-      cadeauOm: {
-        type: 'cadeau',
+      join: { type: 'join', nickname: 'lea_gold' },
+      giftGold: {
+        type: 'gift',
         n: 1,
-        valeur: 100,
-        nom: 'hand heart',
-        camp: 'ombre',
-        pseudo: 'zoe_moon',
+        value: 30,
+        name: 'bagel',
+        team: 'gold',
+        nickname: 'karim.or',
       },
-      like: { type: 'like', n: 50, pseudo: 'soleil92' },
-      partage: { type: 'partage', pseudo: 'nox' },
-      palier: { type: 'spectateurs', total: 52 },
+      giftShadow: {
+        type: 'gift',
+        n: 1,
+        value: 100,
+        name: 'hand heart',
+        team: 'shadow',
+        nickname: 'zoe_moon',
+      },
+      like: { type: 'like', n: 50, nickname: 'soleil92' },
+      share: { type: 'share', nickname: 'nox' },
+      tier: { type: 'viewers', total: 52 },
     };
     Array.prototype.forEach.call(document.querySelectorAll('[data-t]'), function (b) {
       b.onclick = function () {
-        canal.postMessage({ cmd: 'evenement', ev: TESTS[b.getAttribute('data-t')] });
+        channel.postMessage({ cmd: 'event', ev: TESTS[b.getAttribute('data-t')] });
       };
     });
     Array.prototype.forEach.call(document.querySelectorAll('[data-c]'), function (b) {
       b.onclick = function () {
-        canal.postMessage({ cmd: 'reglage', nom: 'classement', valeur: b.getAttribute('data-c') });
+        channel.postMessage({
+          cmd: 'setting',
+          name: 'ranking',
+          value: b.getAttribute('data-c'),
+        });
       };
     });
-    document.getElementById('testClassement').onclick = function () {
+    document.getElementById('testRanking').onclick = function () {
       [
-        ['or', 100, 'teddy bear', 'karim.or'],
-        ['or', 30, 'bagel', 'lea_gold'],
-        ['ombre', 20, 'perfume', 'nox'],
-        ['ombre', 100, 'hand heart', 'zoe_moon'],
-        ['ombre', 30, 'capybara', 'zoe_moon'],
-        ['or', 10, 'rose 10', 'soleil92'],
+        ['gold', 100, 'teddy bear', 'karim.or'],
+        ['gold', 30, 'bagel', 'lea_gold'],
+        ['shadow', 20, 'perfume', 'nox'],
+        ['shadow', 100, 'hand heart', 'zoe_moon'],
+        ['shadow', 30, 'capybara', 'zoe_moon'],
+        ['gold', 10, 'rose 10', 'soleil92'],
       ].forEach(function (g) {
-        canal.postMessage({
-          cmd: 'evenement',
-          ev: { type: 'cadeau', n: 1, valeur: g[1], nom: g[2], camp: g[0], pseudo: g[3] },
+        channel.postMessage({
+          cmd: 'event',
+          ev: { type: 'gift', n: 1, value: g[1], name: g[2], team: g[0], nickname: g[3] },
         });
       });
       setTimeout(function () {
-        canal.postMessage({ cmd: 'finTest', camp: 'ombre' });
+        channel.postMessage({ cmd: 'endTest', team: 'shadow' });
       }, 1500);
     };
     Array.prototype.forEach.call(document.querySelectorAll('[data-m]'), function (b) {
       b.onclick = function () {
-        canal.postMessage({ cmd: 'reglage', nom: 'meteo', valeur: b.getAttribute('data-m') });
+        channel.postMessage({ cmd: 'setting', name: 'weather', value: b.getAttribute('data-m') });
       };
     });
     Array.prototype.forEach.call(document.querySelectorAll('[data-h]'), function (b) {
       b.onclick = function () {
-        canal.postMessage({
-          cmd: 'reglage',
-          nom: 'heure',
-          valeur: parseFloat(b.getAttribute('data-h')),
+        channel.postMessage({
+          cmd: 'setting',
+          name: 'hour',
+          value: parseFloat(b.getAttribute('data-h')),
         });
       };
     });
-    document.getElementById('ambianceAuto').onchange = function () {
-      canal.postMessage({ cmd: 'reglage', nom: 'ambianceAuto', valeur: this.checked });
+    document.getElementById('autoAmbience').onchange = function () {
+      channel.postMessage({ cmd: 'setting', name: 'autoAmbience', value: this.checked });
     };
-    var nd = document.getElementById('nomsDonateurs');
+    var nd = document.getElementById('donorNames');
     nd.onchange = function () {
-      canal.postMessage({ cmd: 'reglage', nom: 'nomsDonateurs', valeur: nd.checked });
+      channel.postMessage({ cmd: 'setting', name: 'donorNames', value: nd.checked });
     };
-    var sup = document.getElementById('superIA');
+    var sup = document.getElementById('superAi');
     sup.onchange = function () {
-      canal.postMessage({ cmd: 'reglage', nom: 'superIA', valeur: sup.checked });
+      channel.postMessage({ cmd: 'setting', name: 'superAi', value: sup.checked });
     };
     window.__syncSuper = function (on) {
-      document.getElementById('vsuper').className = 'voyant' + (on ? ' ok' : '');
+      document.getElementById('superLight').className = 'light' + (on ? ' ok' : '');
       if (document.activeElement !== sup && sup.checked !== !!on) sup.checked = !!on;
     };
     var ud = document.getElementById('underdog');
     ud.onchange = function () {
-      canal.postMessage({ cmd: 'reglage', nom: 'underdog', valeur: ud.checked });
+      channel.postMessage({ cmd: 'setting', name: 'underdog', value: ud.checked });
     };
     Array.prototype.forEach.call(document.querySelectorAll('[data-s]'), function (b) {
       b.onclick = function () {
-        canal.postMessage({ cmd: 'scene', nom: b.getAttribute('data-s') });
+        channel.postMessage({ cmd: 'scene', name: b.getAttribute('data-s') });
       };
     });
     document.getElementById('sceneStop').onclick = function () {
-      canal.postMessage({ cmd: 'sceneStop' });
-      /* reset local immediat : les pastilles et le bouton illumine s'eteignent sans attendre le
-         prochain retour d'etat du jeu (qui n'arrive que 500 ms plus tard) */
-      sceneLocal = null;
+      channel.postMessage({ cmd: 'sceneStop' });
+      /* Reset locally at once: badges and the lit button clear without waiting for the next game
+         state message, which arrives up to 500 ms later. */
+      currentScene = null;
       eff.hidden = true;
       efO.innerHTML = '';
       efOm.innerHTML = '';
-      peindreScene();
+      paintScene();
     };
-    /* Retour visuel de la scene en cours : bouton actif surligne, jauge qui se vide, chrono, effet par camp.
-       La fenetre jeu remonte etat.scene toutes les 500 ms ; on lit cette valeur et on peint la regie.
-       Rien de tout ca ne va a l'ecran du jeu. */
-    var LIB = {
+    /* Visual feedback for the active scene: active button highlighted, gauge draining, timer, per-team effect badges.
+       The game window pushes state.scene every 500 ms; control room reads and repaints.
+       None of this reaches the game screen. */
+    var LABELS = {
       ballet: 'Ballet',
-      course: 'Course a la baie',
-      chasseOr: 'Or chasse Ombre',
-      chasseOm: 'Ombre chasse Or',
+      race: 'Berry race',
+      huntGold: 'Gold hunts Shadow',
+      huntShadow: 'Shadow hunts Gold',
     };
-    function pastilles(bloc) {
-      if (!bloc || !Object.keys(bloc).length) return '<span class="note">au naturel</span>';
+    function renderBadges(effects) {
+      if (!effects || !Object.keys(effects).length) return '<span class="note">none</span>';
       var out = [],
-        chaud = function (t) {
-          return '<span class="pastille chaud">' + t + '</span>';
+        hotBadge = function (t) {
+          return '<span class="badge hot">' + t + '</span>';
         },
-        froid = function (t) {
-          return '<span class="pastille froid">' + t + '</span>';
+        coldBadge = function (t) {
+          return '<span class="badge cold">' + t + '</span>';
         },
-        plat = function (t) {
-          return '<span class="pastille">' + t + '</span>';
+        plainBadge = function (t) {
+          return '<span class="badge">' + t + '</span>';
         };
-      if (bloc.posture === 'attaque') out.push(chaud('attaque'));
-      else if (bloc.posture === 'defense') out.push(froid('defense'));
-      else if (bloc.posture === 'neutre') out.push(plat('neutre'));
-      if (bloc.pA || bloc.pD) out.push(plat('portees ' + (bloc.pA || 12) + '/' + (bloc.pD || 10)));
-      if (bloc.chasse != null) out.push(chaud('chasse ' + Math.round(bloc.chasse * 100) + '%'));
-      if (bloc.flair != null) out.push(plat('flair ' + Math.round(bloc.flair * 100) + '%'));
-      if (bloc.imprudence != null) out.push(plat('audace ' + Math.round(bloc.imprudence * 100)));
-      if (bloc.courseBaie) out.push(froid('course baie'));
-      if (bloc.attirer) out.push(chaud('cible tete adverse'));
-      if (bloc.repousser) out.push(froid('fuit tete adverse'));
-      if (bloc.nePasTuer) out.push(froid('sans coup fatal'));
-      if (bloc.encercler) out.push(chaud('orbite dist 2'));
-      if (bloc.piegeImmediat) out.push(chaud('piege !'));
+      if (effects.stance === 'attack') out.push(hotBadge('attack'));
+      else if (effects.stance === 'defense') out.push(coldBadge('defense'));
+      else if (effects.stance === 'neutral') out.push(plainBadge('neutral'));
+      if (effects.pA || effects.pD)
+        out.push(plainBadge('range ' + (effects.pA || 12) + '/' + (effects.pD || 10)));
+      if (effects.hunt != null) out.push(hotBadge('hunt ' + Math.round(effects.hunt * 100) + '%'));
+      if (effects.flair != null)
+        out.push(plainBadge('flair ' + Math.round(effects.flair * 100) + '%'));
+      if (effects.recklessness != null)
+        out.push(plainBadge('recklessness ' + Math.round(effects.recklessness * 100)));
+      if (effects.berryRace) out.push(coldBadge('berry race'));
+      if (effects.lure) out.push(hotBadge('target opponent head'));
+      if (effects.repel) out.push(coldBadge('flee opponent head'));
+      if (effects.noKill) out.push(coldBadge('no lethal blow'));
+      if (effects.encircle) out.push(hotBadge('orbit dist 2'));
+      if (effects.immediateTrap) out.push(hotBadge('trap!'));
       return out.join('');
     }
-    var etat = document.getElementById('sceneEtat'),
-      eff = document.getElementById('sceneEffet'),
-      efO = document.getElementById('effetOr'),
-      efOm = document.getElementById('effetOm'),
-      vud = document.getElementById('vunderdog');
-    /* la fenetre jeu emet toutes les 500 ms : on interpole entre deux ticks pour une jauge fluide */
-    var sceneLocal = null,
+    var sceneStatusEl = document.getElementById('sceneState'),
+      eff = document.getElementById('sceneEffect'),
+      efO = document.getElementById('effectGold'),
+      efOm = document.getElementById('effectShadow'),
+      vud = document.getElementById('underdogLight');
+    /* game window emits every 500 ms: interpolate between ticks for a smooth gauge */
+    var currentScene = null,
       sceneUdOn = false,
       sceneStamp = 0;
     window.__syncScene = function (sc, udOn) {
       sceneUdOn = !!udOn;
       sceneStamp = Date.now();
-      sceneLocal = sc
-        ? { nom: sc.nom, duree: sc.duree || 0, restant: sc.restant, or: sc.or, ombre: sc.ombre }
+      currentScene = sc
+        ? {
+            name: sc.name,
+            duration: sc.duration || 0,
+            remaining: sc.remaining,
+            gold: sc.gold,
+            shadow: sc.shadow,
+          }
         : null;
-      vud.className = 'voyant' + (udOn ? ' ok' : '');
+      vud.className = 'light' + (udOn ? ' ok' : '');
       if (document.activeElement !== ud && ud.checked !== !!udOn) ud.checked = !!udOn;
       if (sc) {
         eff.hidden = false;
-        efO.innerHTML = pastilles(sc.or);
-        efOm.innerHTML = pastilles(sc.ombre);
+        efO.innerHTML = renderBadges(sc.gold);
+        efOm.innerHTML = renderBadges(sc.shadow);
       } else {
         eff.hidden = true;
         efO.innerHTML = '';
         efOm.innerHTML = '';
       }
     };
-    function peindreScene() {
-      /* remise a zero puis rallumage du bouton actif */
+    function paintScene() {
+      /* clear all buttons, then re-highlight the active one */
       Array.prototype.forEach.call(document.querySelectorAll('button[data-s]'), function (b) {
-        b.classList.remove('actif');
-        b.querySelector('.jauge').style.width = '0';
+        b.classList.remove('active');
+        b.querySelector('.gauge').style.width = '0';
         b.querySelector('.cd').textContent = '';
       });
-      if (sceneLocal) {
-        var restant = Math.max(0, sceneLocal.restant - (Date.now() - sceneStamp) / 1000);
-        var b = document.querySelector('button[data-s="' + sceneLocal.nom + '"]');
+      if (currentScene) {
+        var remaining = Math.max(0, currentScene.remaining - (Date.now() - sceneStamp) / 1000);
+        var b = document.querySelector('button[data-s="' + currentScene.name + '"]');
         if (b) {
-          b.classList.add('actif');
-          var fraction = sceneLocal.duree
-            ? Math.max(0, Math.min(1, restant / sceneLocal.duree))
+          b.classList.add('active');
+          var fraction = currentScene.duration
+            ? Math.max(0, Math.min(1, remaining / currentScene.duration))
             : 0;
-          b.querySelector('.jauge').style.width = (fraction * 100).toFixed(1) + '%';
-          b.querySelector('.cd').textContent = Math.ceil(restant) + 's';
+          b.querySelector('.gauge').style.width = (fraction * 100).toFixed(1) + '%';
+          b.querySelector('.cd').textContent = Math.ceil(remaining) + 's';
         }
-        etat.innerHTML =
+        sceneStatusEl.innerHTML =
           '<b>' +
-          (LIB[sceneLocal.nom] || sceneLocal.nom) +
-          '</b> en cours, ' +
-          Math.ceil(restant) +
-          ' s restantes' +
-          (sceneUdOn ? ' &middot; underdog actif' : '');
+          (LABELS[currentScene.name] || currentScene.name) +
+          '</b> active, ' +
+          Math.ceil(remaining) +
+          ' s remaining' +
+          (sceneUdOn ? ' &middot; underdog active' : '');
       } else {
-        etat.textContent = 'aucune scene en cours' + (sceneUdOn ? ' (underdog actif en fond)' : '');
+        sceneStatusEl.textContent =
+          'no active scene' + (sceneUdOn ? ' (underdog running in background)' : '');
       }
     }
-    setInterval(peindreScene, 100);
-    pouce.oninput = function () {
-      var v = +pouce.value;
-      canal.postMessage({ cmd: 'reglage', nom: 'avantage', valeur: v });
-      direPouce(v);
+    setInterval(paintScene, 100);
+    thumbSlider.oninput = function () {
+      var v = +thumbSlider.value;
+      channel.postMessage({ cmd: 'setting', name: 'advantage', value: v });
+      showThumb(v);
     };
-    /* la fenetre jeu remet a 0 a chaque manche : la glissiere suit son etat reel */
-    window.__syncPouce = function (v) {
-      if (document.activeElement !== pouce && +pouce.value !== v) {
-        pouce.value = v;
-        direPouce(v);
+    /* game window resets to 0 each round: slider follows the real state */
+    window.__syncThumb = function (v) {
+      if (document.activeElement !== thumbSlider && +thumbSlider.value !== v) {
+        thumbSlider.value = v;
+        showThumb(v);
       }
     };
   }
-  document.getElementById('pgo').onclick = function () {
-    canal.postMessage({ cmd: 'pont-demarrer', url: document.getElementById('purl').value.trim() });
+  document.getElementById('bridgeStart').onclick = function () {
+    channel.postMessage({
+      cmd: 'bridge-start',
+      url: document.getElementById('bridgeUrl').value.trim(),
+    });
   };
-  document.getElementById('pstop').onclick = function () {
-    canal.postMessage({ cmd: 'pont-arreter' });
+  document.getElementById('bridgeStop').onclick = function () {
+    channel.postMessage({ cmd: 'bridge-stop' });
   };
-  /* Public simule : meme reglage que regie-base.js (gestes par minute, 95 % de likes, 5 % de cadeaux,
-     et pour un cadeau en duel : 1 sur 60 vie, 1 sur 30 bouclier, 1 sur 15 vol, 1 sur 8 tempo, sinon rose).
-     Les evenements passent par le canal, comme un vrai spectateur. */
+  /* Simulated audience: events/min with 95% likes and 5% gifts. For a duel gift:
+     1-in-60 life, 1-in-30 shield, 1-in-15 steal, 1-in-8 boost, otherwise rose.
+     Events pass through the channel, same path as a real viewer. */
   (function () {
-    var DENSITES = [
-        ['Personne', 0],
-        ['Calme', 12],
-        ['Anime', 100],
-        ['Foule', 550],
+    var DENSITY_LEVELS = [
+        ['None', 0],
+        ['Quiet', 12],
+        ['Lively', 100],
+        ['Crowd', 550],
       ],
-      PART = { like: 0.95, cad: 0.05 };
-    var NOMS = {
+      SHARES = { like: 0.95, gifts: 0.05 };
+    var NAMES = {
       1: ['rose', 'rosa'],
       10: ['rose 10', 'dyno'],
       20: ['bouquet', 'perfume'],
       30: ['bagel', 'capybara'],
       100: ['teddy bear', 'hand heart'],
     };
-    var PSEUDOS = [
+    var NICKNAMES = [
       'lea_m',
       'karim.dz',
       'nox',
@@ -405,173 +438,173 @@
       'kenji',
       'nora',
     ];
-    var boite = document.getElementById('foule'),
-      etat = document.getElementById('fouleEtat'),
-      flux = null,
-      envoyes = { like: 0, cad: 0 },
-      choix = 0;
-    /* Deux comportements : « Bataille d'equipes » (public-simule.js : deux equipes qui regardent la partie et
-       depensent avec tactique) ou « Hasard » (l'ancien tirage aveugle). Bataille par defaut. */
-    var bataille = true,
-      cerveau = window.VipereFoule ? window.VipereFoule.creer() : null,
-      dernierTour = 0;
-    var bB = document.getElementById('fmBataille'),
-      bH = document.getElementById('fmHasard'),
-      zone = document.getElementById('fouleEquipes');
-    function marquerMode() {
+    var audienceBox = document.getElementById('crowd'),
+      audienceStatusEl = document.getElementById('crowdState'),
+      intervalHandle = null,
+      sent = { like: 0, gifts: 0 },
+      densityIndex = 0;
+    /* Two modes: "Team Battle" (simulated-audience.js: two teams watching and spending tactically)
+       or "Random" (blind random draw). Team Battle by default. */
+    var teamBattle = true,
+      audienceBrain = window.ViperCrowd ? window.ViperCrowd.create() : null,
+      lastTick = 0;
+    var battleButton = document.getElementById('crowdBattle'),
+      randomButton = document.getElementById('crowdRandom'),
+      zone = document.getElementById('crowdTeams');
+    function markMode() {
       [
-        [bB, bataille],
-        [bH, !bataille],
+        [battleButton, teamBattle],
+        [randomButton, !teamBattle],
       ].forEach(function (p) {
         p[0].style.borderColor = p[1] ? 'var(--accent)' : '';
         p[0].style.color = p[1] ? 'var(--accent)' : '';
       });
-      zone.hidden = !(bataille && choix > 0);
+      zone.hidden = !(teamBattle && densityIndex > 0);
     }
-    bB.onclick = function () {
-      bataille = true;
-      marquerMode();
-      relancer();
+    battleButton.onclick = function () {
+      teamBattle = true;
+      markMode();
+      restart();
     };
-    bH.onclick = function () {
-      bataille = false;
-      marquerMode();
-      relancer();
+    randomButton.onclick = function () {
+      teamBattle = false;
+      markMode();
+      restart();
     };
-    window.__fouleEtat = function (e) {
-      if (!bataille || !cerveau || !choix) return;
+    window.__crowdState = function (e) {
+      if (!teamBattle || !audienceBrain || !densityIndex) return;
       var now = Date.now(),
-        dt = dernierTour ? Math.min(1.5, (now - dernierTour) / 1000) : 0.5;
-      dernierTour = now;
-      cerveau.tick(e, dt).forEach(function (ev) {
-        canal.postMessage({ cmd: 'evenement', ev: ev });
+        dt = lastTick ? Math.min(1.5, (now - lastTick) / 1000) : 0.5;
+      lastTick = now;
+      audienceBrain.tick(e, dt).forEach(function (ev) {
+        channel.postMessage({ cmd: 'event', ev: ev });
       });
-      var v = cerveau.vue(),
-        N = { tempo: 'tempo', vol: 'vol', bouclier: 'bouclier', vie: 'vie' };
-      var ligne = function (c) {
+      var v = audienceBrain.view(),
+        N = { boost: 'boost', steal: 'steal', shield: 'shield', life: 'life' };
+      var formatLine = function (c) {
         return (
-          Math.round(v[c].depense) +
-          ' pieces | ' +
+          Math.round(v[c].spend) +
+          ' coins | ' +
           Object.keys(N)
             .map(function (k) {
-              return N[k] + ' ' + v.comptes[c][k];
+              return N[k] + ' ' + v.counts[c][k];
             })
             .join(', ')
         );
       };
-      document.getElementById('fvOr').style.width = Math.round(v.or.ferveur * 100) + '%';
-      document.getElementById('fvOm').style.width = Math.round(v.ombre.ferveur * 100) + '%';
-      document.getElementById('fdOr').textContent = ligne('or');
-      document.getElementById('fdOm').textContent = ligne('ombre');
-      document.getElementById('fouleJournal').textContent = v.journal.length
-        ? v.journal.join(String.fromCharCode(10))
-        : 'en attente du premier cadeau';
+      document.getElementById('fervorGold').style.width = Math.round(v.gold.fervor * 100) + '%';
+      document.getElementById('fervorShadow').style.width = Math.round(v.shadow.fervor * 100) + '%';
+      document.getElementById('spendGold').textContent = formatLine('gold');
+      document.getElementById('spendShadow').textContent = formatLine('shadow');
+      document.getElementById('crowdLog').textContent = v.log.length
+        ? v.log.join(String.fromCharCode(10))
+        : 'waiting for the first gift';
     };
-    function dire() {
-      var g = DENSITES[choix][1];
-      etat.textContent = g
-        ? DENSITES[choix][0] +
-          ' (hasard) : environ ' +
-          Math.round(g * PART.cad) +
-          ' cadeaux par minute, tires au sort. Envoyes : ' +
-          envoyes.cad +
-          ' cadeaux.'
-        : 'Personne : aucun spectateur simule.';
+    function showStatus() {
+      var g = DENSITY_LEVELS[densityIndex][1];
+      audienceStatusEl.textContent = g
+        ? DENSITY_LEVELS[densityIndex][0] +
+          ' (random): about ' +
+          Math.round(g * SHARES.gifts) +
+          ' gifts per minute, drawn at random. Sent: ' +
+          sent.gifts +
+          ' gifts.'
+        : 'None: no simulated viewer.';
     }
-    function relancer() {
-      if (flux) clearInterval(flux);
-      flux = null;
-      envoyes = { like: 0, cad: 0 };
-      dire();
-      marquerMode();
-      if (cerveau) cerveau.regler(bataille ? choix : 0);
-      var g = DENSITES[choix][1];
+    function restart() {
+      if (intervalHandle) clearInterval(intervalHandle);
+      intervalHandle = null;
+      sent = { like: 0, gifts: 0 };
+      showStatus();
+      markMode();
+      if (audienceBrain) audienceBrain.configure(teamBattle ? densityIndex : 0);
+      var g = DENSITY_LEVELS[densityIndex][1];
       if (!g) return;
-      if (bataille && cerveau) {
-        etat.textContent =
-          DENSITES[choix][0] +
-          " : deux equipes se battent pour leur serpent. La barre est la ferveur de l'equipe, le journal dit pourquoi elle depense.";
+      if (teamBattle && audienceBrain) {
+        audienceStatusEl.textContent =
+          DENSITY_LEVELS[densityIndex][0] +
+          ': two teams support their snake. The bar shows team fervor; the log explains why they spend.';
         return;
       }
-      flux = setInterval(function () {
-        var camp = Math.random() < 0.5 ? 'or' : 'ombre',
-          pseudo = PSEUDOS[Math.floor(Math.random() * PSEUDOS.length)];
-        /* plus de likes simules : le like n'a plus d'effet en duel (Abdel, 2026-09-19) */
-        if (Math.random() < (g * PART.cad) / 240) {
+      intervalHandle = setInterval(function () {
+        var team = Math.random() < 0.5 ? 'gold' : 'shadow',
+          nickname = NICKNAMES[Math.floor(Math.random() * NICKNAMES.length)];
+        /* simulated likes removed: likes have no effect in duel mode */
+        if (Math.random() < (g * SHARES.gifts) / 240) {
           var r = Math.random(),
             v = r < 1 / 60 ? 100 : r < 1 / 30 ? 30 : r < 1 / 15 ? 20 : r < 1 / 8 ? 10 : 1;
-          canal.postMessage({
-            cmd: 'evenement',
+          channel.postMessage({
+            cmd: 'event',
             ev: {
-              type: 'cadeau',
+              type: 'gift',
               n: 1,
-              valeur: v,
-              nom: NOMS[v][camp === 'or' ? 0 : 1],
-              pseudo: pseudo,
-              camp: camp,
+              value: v,
+              name: NAMES[v][team === 'gold' ? 0 : 1],
+              nickname: nickname,
+              team: team,
             },
           });
-          envoyes.cad++;
+          sent.gifts++;
         }
-        dire();
+        showStatus();
       }, 250);
     }
-    DENSITES.forEach(function (d, i) {
+    DENSITY_LEVELS.forEach(function (d, i) {
       var b = document.createElement('button');
       b.textContent = d[0];
       b.onclick = function () {
-        choix = i;
-        Array.prototype.forEach.call(boite.children, function (x, k) {
+        densityIndex = i;
+        Array.prototype.forEach.call(audienceBox.children, function (x, k) {
           x.style.borderColor = k === i ? 'var(--accent)' : '';
           x.style.color = k === i ? 'var(--accent)' : '';
         });
-        relancer();
+        restart();
       };
-      boite.appendChild(b);
+      audienceBox.appendChild(b);
     });
-    boite.children[0].style.borderColor = 'var(--accent)';
-    boite.children[0].style.color = 'var(--accent)';
-    marquerMode();
+    audienceBox.children[0].style.borderColor = 'var(--accent)';
+    audienceBox.children[0].style.color = 'var(--accent)';
+    markMode();
   })();
   document.getElementById('likes').onclick = function () {
-    canal.postMessage({
-      cmd: 'brut',
-      message: { event: 'like', data: { likeCount: 50, uniqueId: 'regie' } },
+    channel.postMessage({
+      cmd: 'raw',
+      message: { event: 'like', data: { likeCount: 50, uniqueId: 'control-room' } },
     });
   };
-  /* cadeaux : data-g = nom|diamants|repeat ; une rafale envoie un message intermediaire puis le final */
+  /* gifts: data-g = name|diamonds|repeat; a streak sends one intermediate message then the final */
   Array.prototype.forEach.call(document.querySelectorAll('[data-g]'), function (b) {
     b.onclick = function () {
       var p = b.getAttribute('data-g').split('|'),
-        nom = p[0],
+        settingName = p[0],
         v = +p[1],
         n = +p[2];
       if (n > 1)
-        canal.postMessage({
-          cmd: 'brut',
+        channel.postMessage({
+          cmd: 'raw',
           message: {
             event: 'gift',
             data: {
-              giftName: nom,
+              giftName: settingName,
               diamondCount: v,
               giftType: 1,
               repeatCount: n - 2 > 0 ? n - 2 : 1,
               repeatEnd: false,
-              uniqueId: 'regie',
+              uniqueId: 'control-room',
             },
           },
         });
-      canal.postMessage({
-        cmd: 'brut',
+      channel.postMessage({
+        cmd: 'raw',
         message: {
           event: 'gift',
           data: {
-            giftName: nom,
+            giftName: settingName,
             diamondCount: v,
             giftType: 1,
             repeatCount: n,
             repeatEnd: true,
-            uniqueId: 'regie',
+            uniqueId: 'control-room',
           },
         },
       });

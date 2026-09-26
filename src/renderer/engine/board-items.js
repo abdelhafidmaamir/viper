@@ -3,39 +3,45 @@
 
 import { ctx, setCtx } from './canvas.js';
 import { CELL } from './layout.js';
-import { lueurBaie, teinteBaie } from './palette.js';
-import { ALERTE, GERME, RONCE_ALERTE, VIEROCHER, VIERONCE } from './rules.js';
-import { baies, graines, px, reglages, rochers, ronces } from '../scripts/game.js';
+import { berryGlow, berryTint } from './palette.js';
+import {
+  STONE_WARNING,
+  SEED_GROW_TIME,
+  BRAMBLE_WARNING,
+  STONE_LIFE,
+  BRAMBLE_LIFE,
+} from './rules.js';
+import { berries, seeds, px, settings, stones, brambles } from '../scripts/game.js';
 
-// Ce que les spectateurs offrent : la graine tombe, l'ombre se resserre, la baie s'ouvre.
-const BAIE_RS = 58,
-  BAIE_N = 48,
-  cacheBaie = new Map();
+// What viewers offer: the seed falls, the shadow closes in, the berry opens.
+const BERRY_SPRITE_R = 58,
+  BERRY_FRAMES = 48,
+  berryCache = new Map();
 
-function spriteBaie(ph, camp) {
-  const cle = ph + 'd' + (camp || '');
-  let s = cacheBaie.get(cle);
+function berrySprite(phase, team) {
+  const key = phase + 'd' + (team || '');
+  let s = berryCache.get(key);
   if (s) return s;
-  const si = Math.sin((ph / BAIE_N) * Math.PI * 2),
-    bat = 1 + 0.09 * si;
+  const sinVal = Math.sin((phase / BERRY_FRAMES) * Math.PI * 2),
+    beatScale = 1 + 0.09 * sinVal;
   s = document.createElement('canvas');
-  s.width = 2 * BAIE_RS;
-  s.height = 2 * BAIE_RS;
-  const avant = setCtx(s.getContext('2d'));
-  ctx.translate(BAIE_RS, BAIE_RS);
+  s.width = 2 * BERRY_SPRITE_R;
+  s.height = 2 * BERRY_SPRITE_R;
+  const prev = setCtx(s.getContext('2d'));
+  ctx.translate(BERRY_SPRITE_R, BERRY_SPRITE_R);
   try {
-    ctx.globalAlpha = 0.35 + 0.15 * si;
-    ctx.strokeStyle = teinteBaie(camp);
+    ctx.globalAlpha = 0.35 + 0.15 * sinVal;
+    ctx.strokeStyle = berryTint(team);
     ctx.lineWidth = 2;
     ctx.beginPath();
-    ctx.arc(0, 0, 24 * bat, 0, Math.PI * 2);
+    ctx.arc(0, 0, 24 * beatScale, 0, Math.PI * 2);
     ctx.stroke();
     ctx.globalAlpha = 1;
-    ctx.shadowColor = lueurBaie(0.9, camp);
+    ctx.shadowColor = berryGlow(0.9, team);
     ctx.shadowBlur = 26;
-    ctx.fillStyle = teinteBaie(camp);
+    ctx.fillStyle = berryTint(team);
     ctx.beginPath();
-    ctx.arc(0, 0, 17 * bat, 0, Math.PI * 2);
+    ctx.arc(0, 0, 17 * beatScale, 0, Math.PI * 2);
     ctx.fill();
     ctx.shadowBlur = 0;
     ctx.fillStyle = 'rgba(255,246,228,0.55)';
@@ -43,31 +49,31 @@ function spriteBaie(ph, camp) {
     ctx.arc(-5, -5, 5, 0, Math.PI * 2);
     ctx.fill();
   } finally {
-    setCtx(avant);
+    setCtx(prev);
   }
-  cacheBaie.set(cle, s);
+  berryCache.set(key, s);
   return s;
 }
 
-export function peindreOffrandes() {
-  graines.forEach((g) => {
+export function paintOfferings() {
+  seeds.forEach((g) => {
     const p = px(g.x, g.y),
-      u = Math.min(1, g.t / GERME),
-      chute = Math.min(1, u / 0.7);
-    if (chute < 1) {
-      const y = p.y - CELL * 3.2 * (1 - chute) * (1 - chute);
+      u = Math.min(1, g.t / SEED_GROW_TIME),
+      fall = Math.min(1, u / 0.7);
+    if (fall < 1) {
+      const y = p.y - CELL * 3.2 * (1 - fall) * (1 - fall);
       ctx.save();
-      ctx.globalAlpha = 0.22 + 0.3 * chute;
+      ctx.globalAlpha = 0.22 + 0.3 * fall;
       ctx.fillStyle = '#0b120d';
       ctx.beginPath();
-      ctx.ellipse(p.y ? p.x : p.x, p.y + 6, 10 + 8 * chute, 3 + 2 * chute, 0, 0, Math.PI * 2);
+      ctx.ellipse(p.y ? p.x : p.x, p.y + 6, 10 + 8 * fall, 3 + 2 * fall, 0, 0, Math.PI * 2);
       ctx.fill();
       ctx.globalAlpha = 1;
-      ctx.shadowColor = lueurBaie(0.8, g.camp);
+      ctx.shadowColor = berryGlow(0.8, g.team);
       ctx.shadowBlur = 20;
-      ctx.fillStyle = teinteBaie(g.camp);
+      ctx.fillStyle = berryTint(g.team);
       ctx.beginPath();
-      ctx.arc(p.x, y, 5 + 3 * chute, 0, Math.PI * 2);
+      ctx.arc(p.x, y, 5 + 3 * fall, 0, Math.PI * 2);
       ctx.fill();
       ctx.restore();
     } else {
@@ -80,30 +86,36 @@ export function peindreOffrandes() {
       ctx.moveTo(p.x, p.y + 12);
       ctx.lineTo(p.x, p.y + 12 - 14 * s);
       ctx.stroke();
-      ctx.shadowColor = lueurBaie(0.9, g.camp);
+      ctx.shadowColor = berryGlow(0.9, g.team);
       ctx.shadowBlur = 24;
-      ctx.fillStyle = teinteBaie(g.camp);
+      ctx.fillStyle = berryTint(g.team);
       ctx.beginPath();
       ctx.arc(p.x, p.y, 16 * s, 0, Math.PI * 2);
       ctx.fill();
       ctx.restore();
     }
   });
-  baies.forEach((b) => {
+  berries.forEach((b) => {
     const p = px(b.x, b.y);
-    // Toutes les baies battent au meme rythme, decale par leur age : leur dessin ne depend donc
-    // que de la phase du battement. On en garde 48 images, partagees par toutes les baies du
-    // plateau. C'est ici que se joue la vraie depense : `shadowBlur` est l'operation la plus
-    // chere du canvas 2D, et elle etait payee une fois PAR BAIE ET PAR IMAGE. Elle est desormais
-    // cuite dans le sprite, payee 48 fois pour toute la partie.
-    const ph = ((Math.round(((b.t * 3.4) / (Math.PI * 2)) * BAIE_N) % BAIE_N) + BAIE_N) % BAIE_N;
-    ctx.drawImage(spriteBaie(ph, b.camp), Math.round(p.x) - BAIE_RS, Math.round(p.y) - BAIE_RS);
+    // All berries beat at the same rhythm, offset by their age: the drawing depends only
+    // on the beat phase. 48 frames are shared by all berries on the board.
+    // This is where the real cost lies: `shadowBlur` is the most expensive canvas 2D
+    // operation, and it was paid once PER BERRY PER FRAME. It is now baked into the
+    // sprite, paid 48 times for the entire match.
+    const phase =
+      ((Math.round(((b.t * 3.4) / (Math.PI * 2)) * BERRY_FRAMES) % BERRY_FRAMES) + BERRY_FRAMES) %
+      BERRY_FRAMES;
+    ctx.drawImage(
+      berrySprite(phase, b.team),
+      Math.round(p.x) - BERRY_SPRITE_R,
+      Math.round(p.y) - BERRY_SPRITE_R,
+    );
   });
 }
 
-// Les rochers de Moon : rien ne tombe du ciel. La terre se bombe une seconde, la mousse se
-// souleve, et la pierre sort du sol. L'avertissement reste lisible, le geste devient vegetal.
-export function bosse(x, y, rx, ry, force) {
+// Stone emergence: nothing falls from the sky. The ground bulges, moss lifts,
+// then the stone rises out of the soil. The warning stays readable; the gesture feels organic.
+export function bump(x, y, rx, ry, force) {
   const g = ctx.createRadialGradient(x, y - ry * 0.35, rx * 0.12, x, y, rx);
   g.addColorStop(0, 'rgba(58,70,56,' + 0.55 * force + ')');
   g.addColorStop(0.55, 'rgba(35,45,36,' + 0.5 * force + ')');
@@ -118,43 +130,43 @@ export function bosse(x, y, rx, ry, force) {
   ctx.restore();
 }
 
-// Les plaques de terre : l'ecorce du sol se fend en quartiers qui basculent vers l'exterieur.
-// Chacune pivote autour de son bord interne, donc la pierre a l'air de forcer le sol, pas de glisser.
-export function plaques(x, y, ouv, j) {
+// Soil plates: the ground surface splits into wedges that tilt outward.
+// Each rotates around its inner edge, so the stone appears to force through, not slide.
+export function plates(x, y, opening, j) {
   for (let i = 0; i < 4; i++) {
     const an = (i / 4) * Math.PI * 2 + j * 0.21,
       r0 = 9,
-      r1 = 20 + 13 * ouv;
-    const bas = 0.34 + 0.06 * ((i + j + 8) % 3); // quartiers inegaux, aucun n'est le miroir d'un autre
+      r1 = 20 + 13 * opening;
+    const baseRatio = 0.34 + 0.06 * ((i + j + 8) % 3); // unequal wedges, none is the mirror of another
     ctx.save();
     ctx.translate(x, y);
     ctx.scale(1, 0.46);
     ctx.rotate(an);
     ctx.beginPath();
-    ctx.moveTo(r0, -r0 * bas);
-    ctx.lineTo(r1, -r1 * bas * 0.9);
-    ctx.lineTo(r1, r1 * bas * 0.9);
-    ctx.lineTo(r0, r0 * bas);
+    ctx.moveTo(r0, -r0 * baseRatio);
+    ctx.lineTo(r1, -r1 * baseRatio * 0.9);
+    ctx.lineTo(r1, r1 * baseRatio * 0.9);
+    ctx.lineTo(r0, r0 * baseRatio);
     ctx.closePath();
-    ctx.fillStyle = 'rgba(31,40,32,' + (0.62 + 0.28 * ouv) + ')';
+    ctx.fillStyle = 'rgba(31,40,32,' + (0.62 + 0.28 * opening) + ')';
     ctx.fill();
-    ctx.strokeStyle = 'rgba(150,180,140,' + 0.26 * ouv + ')';
+    ctx.strokeStyle = 'rgba(150,180,140,' + 0.26 * opening + ')';
     ctx.lineWidth = 1.6;
     ctx.stroke();
     ctx.restore();
   }
 }
 
-// La fissure : trois branches noires qui s'ouvrent depuis le centre avant que rien ne depasse.
-export function fissure(x, y, ouv, j) {
+// Crack: three dark branches opening from the center before anything breaks the surface.
+export function crack(x, y, opening, j) {
   ctx.save();
   ctx.translate(x, y);
   ctx.scale(1, 0.46);
-  ctx.strokeStyle = 'rgba(6,10,7,' + 0.75 * Math.min(1, ouv * 2) + ')';
+  ctx.strokeStyle = 'rgba(6,10,7,' + 0.75 * Math.min(1, opening * 2) + ')';
   ctx.lineCap = 'round';
   for (let i = 0; i < 3; i++) {
     const an = (i / 3) * Math.PI * 2 + j * 0.4,
-      L = 13 + 20 * ouv;
+      L = 13 + 20 * opening;
     ctx.lineWidth = 3.2 - 1.1 * i * 0.4;
     ctx.beginPath();
     ctx.moveTo(0, 0);
@@ -169,68 +181,68 @@ export function fissure(x, y, ouv, j) {
   ctx.restore();
 }
 
-// Une motte arrachee au flanc de la pierre : elle devale, tombe, et se tasse au pied.
-function motte(x, y, k, i, j) {
+// A clod torn from the stone's flank: it rolls, falls, and settles at the base.
+function clod(x, y, k, i, j) {
   if (k <= 0 || k >= 1) return;
-  const cote = i % 2 ? 1 : -1,
+  const side = i % 2 ? 1 : -1,
     d = 8 + 5 * ((i + j + 5) % 3);
-  const px2 = x + cote * d * (0.4 + 0.6 * k),
+  const px2 = x + side * d * (0.4 + 0.6 * k),
     py2 = y - 16 + 34 * k * k;
   ctx.globalAlpha = Math.min(1, (1 - k) * 2.2);
   ctx.fillStyle = '#2a3529';
   ctx.beginPath();
-  ctx.ellipse(px2, py2, 3.4 - 1.2 * k, 2.8 - 1 * k, cote * k * 2.4, 0, Math.PI * 2);
+  ctx.ellipse(px2, py2, 3.4 - 1.2 * k, 2.8 - 1 * k, side * k * 2.4, 0, Math.PI * 2);
   ctx.fill();
   ctx.globalAlpha = 1;
 }
 
-// Le grain hache, meme principe que l'ambiance : un bruit deterministe, donc une pierre a
-// toujours exactement la meme forme et la meme mousse tant qu'elle est au meme endroit.
-const HACHE = (i, d) => {
+// Grain hash, same principle as ambience: deterministic noise, so a stone always has
+// exactly the same shape and moss as long as it stays at the same position.
+const HASH = (i, d) => {
   const v = Math.sin((i + 1) * 12.9898 + (d + 7) * 78.233) * 43758.5453;
   return v - Math.floor(v);
 };
 
-// Une seule lumiere pour tout ce qui est pose au sol, calquee sur les cles de l'ambiance : elle
-// vient de la gauche au lever, du zenith a midi, de la droite au coucher, et la nuit elle est
-// faible et froide. Sans elle, un objet reste un aplat colle sur une image peinte.
-export function lumiere() {
-  const h = (((reglages.heure || 0) % 1) + 1) % 1;
-  const jour = Math.max(0, Math.min(1, (Math.cos((h - 0.5) * Math.PI * 2) + 0.35) / 1.35));
+// A single light for everything on the ground, derived from the ambience keys: it comes
+// from the left at sunrise, from zenith at noon, from the right at sunset, and is dim
+// and cold at night. Without it, an object looks like a flat sticker on a painted image.
+export function light() {
+  const h = (((settings.hour || 0) % 1) + 1) % 1;
+  const daylight = Math.max(0, Math.min(1, (Math.cos((h - 0.5) * Math.PI * 2) + 0.35) / 1.35));
   const an = Math.PI * (-0.82 + 0.62 * Math.min(1, Math.max(0, (h - 0.2) / 0.58)));
-  const chaud = [248, 226, 186],
-    froid = [164, 192, 214];
-  const te = chaud.map((c, i) => Math.round(c + (froid[i] - c) * (1 - jour)));
-  return { x: Math.cos(an), y: Math.sin(an), k: 0.28 + 0.72 * jour, te: te.join(',') };
+  const warm = [248, 226, 186],
+    cool = [164, 192, 214];
+  const tint = warm.map((c, i) => Math.round(c + (cool[i] - c) * (1 - daylight)));
+  return { x: Math.cos(an), y: Math.sin(an), k: 0.28 + 0.72 * daylight, tint: tint.join(',') };
 }
 
-// La pierre : une silhouette irreguliere a onze sommets, deux plans casses net, une fissure
-// eclairee d'un cote, du grain, de la mousse du cote du jour, et un liseret de lumiere qui ne
-// court que sur les aretes tournees vers la source.
-function pointsRocher(j, ech) {
+// Stone: an irregular silhouette with eleven vertices, two sharp facet planes, a crack
+// lit on one side, grain, moss on the lit side, and a light rim running only
+// on edges facing the light source.
+function stonePoints(j, scale) {
   const n = 11,
-    R = 23 * (ech || 1),
+    R = 23 * (scale || 1),
     pts = [];
   for (let i = 0; i < n; i++) {
     const an = (i / n) * Math.PI * 2 - Math.PI / 2;
-    const r = R * (0.8 + 0.28 * HACHE(i, j));
+    const r = R * (0.8 + 0.28 * HASH(i, j));
     pts.push({ x: Math.cos(an) * r, y: Math.sin(an) * r * 0.9 + 2, an: an });
   }
   return pts;
 }
 
-function traceRocher(pts) {
+function traceStone(pts) {
   ctx.beginPath();
   ctx.moveTo(pts[0].x, pts[0].y);
   for (let i = 1; i < pts.length; i++) ctx.lineTo(pts[i].x, pts[i].y);
   ctx.closePath();
 }
 
-function corpsRocher(j) {
-  const L = lumiere(),
-    pts = pointsRocher(j);
-  // le corps : un degrade oriente par la lumiere, du flanc eclaire au flanc dans l'ombre
-  traceRocher(pts);
+function stoneBody(j) {
+  const L = light(),
+    pts = stonePoints(j);
+  // body: a gradient oriented by the light, from the lit flank to the shadow flank
+  traceStone(pts);
   const g = ctx.createLinearGradient(-26 * L.x, -26 * L.y, 26 * L.x, 26 * L.y);
   g.addColorStop(0, '#7c8798');
   g.addColorStop(0.44, '#4f5a6c');
@@ -238,9 +250,9 @@ function corpsRocher(j) {
   ctx.fillStyle = g;
   ctx.fill();
   ctx.save();
-  traceRocher(pts);
+  traceStone(pts);
   ctx.clip();
-  // le plan du dessus, casse net : c'est lui qui donne le volume, pas une facette plus claire
+  // top facet, sharply broken: it gives the volume, not a lighter surface
   ctx.beginPath();
   ctx.moveTo(-28, -4 + 1.5 * j);
   ctx.lineTo(-5, -16);
@@ -250,11 +262,11 @@ function corpsRocher(j) {
   ctx.lineTo(-28, -34);
   ctx.closePath();
   const g2 = ctx.createLinearGradient(0, -26, 0, 2);
-  g2.addColorStop(0, 'rgba(' + L.te + ',' + 0.34 * L.k + ')');
-  g2.addColorStop(1, 'rgba(' + L.te + ',0)');
+  g2.addColorStop(0, 'rgba(' + L.tint + ',' + 0.34 * L.k + ')');
+  g2.addColorStop(1, 'rgba(' + L.tint + ',0)');
   ctx.fillStyle = g2;
   ctx.fill();
-  // la fissure, creusee d'un trait sombre et relevee d'un trait clair du cote du jour
+  // crack: carved with a dark stroke, highlighted with a light stroke on the lit side
   ctx.strokeStyle = 'rgba(14,18,24,0.72)';
   ctx.lineWidth = 1.9;
   ctx.lineCap = 'round';
@@ -262,41 +274,41 @@ function corpsRocher(j) {
   ctx.moveTo(-6 + 2 * j, -15);
   ctx.quadraticCurveTo(2, -2, -2 + j, 17);
   ctx.stroke();
-  ctx.strokeStyle = 'rgba(' + L.te + ',' + 0.2 * L.k + ')';
+  ctx.strokeStyle = 'rgba(' + L.tint + ',' + 0.2 * L.k + ')';
   ctx.lineWidth = 1;
   ctx.beginPath();
   ctx.moveTo(-6 + 2 * j - 1.4 * L.x, -15 - 1.4 * L.y);
   ctx.quadraticCurveTo(2 - 1.4 * L.x, -2 - 1.4 * L.y, -2 + j - 1.4 * L.x, 17 - 1.4 * L.y);
   ctx.stroke();
-  // le grain : quatorze eclats, moitie sombres moitie clairs, toujours les memes
+  // grain: fourteen flecks, half dark half light, always the same
   for (let i = 0; i < 14; i++) {
-    const an = HACHE(i, j) * Math.PI * 2,
-      r = HACHE(i + 9, j) * 19;
-    ctx.globalAlpha = 0.09 + 0.09 * HACHE(i + 3, j);
+    const an = HASH(i, j) * Math.PI * 2,
+      r = HASH(i + 9, j) * 19;
+    ctx.globalAlpha = 0.09 + 0.09 * HASH(i + 3, j);
     ctx.fillStyle = i % 2 ? '#0d1218' : '#a9b5c5';
     ctx.beginPath();
-    ctx.arc(Math.cos(an) * r, Math.sin(an) * r * 0.88, 0.8 + 1.2 * HACHE(i + 5, j), 0, Math.PI * 2);
+    ctx.arc(Math.cos(an) * r, Math.sin(an) * r * 0.88, 0.8 + 1.2 * HASH(i + 5, j), 0, Math.PI * 2);
     ctx.fill();
   }
   ctx.globalAlpha = 1;
-  // la mousse : trois touffes sur le dessus, du cote eclaire, avec leur pointe plus claire
+  // moss: three tufts on top, on the lit side, with a lighter tip
   for (let i = 0; i < 3; i++) {
-    const an = -Math.PI / 2 + (HACHE(i + 2, j) - 0.5) * 1.6,
-      r = 9 + 6 * HACHE(i + 7, j);
+    const an = -Math.PI / 2 + (HASH(i + 2, j) - 0.5) * 1.6,
+      r = 9 + 6 * HASH(i + 7, j);
     const x = Math.cos(an) * r + L.x * 4,
       y = Math.sin(an) * r * 0.8;
     ctx.fillStyle = 'rgba(78,110,66,0.58)';
     ctx.beginPath();
-    ctx.ellipse(x, y, 4 + 2.6 * HACHE(i, j), 2.3 + 1.2 * HACHE(i + 1, j), an, 0, Math.PI * 2);
+    ctx.ellipse(x, y, 4 + 2.6 * HASH(i, j), 2.3 + 1.2 * HASH(i + 1, j), an, 0, Math.PI * 2);
     ctx.fill();
     ctx.fillStyle = 'rgba(148,182,126,0.26)';
     ctx.beginPath();
-    ctx.ellipse(x - L.x * 1.2, y - 1.4, 2.4 + 1.3 * HACHE(i, j), 1.2, an, 0, Math.PI * 2);
+    ctx.ellipse(x - L.x * 1.2, y - 1.4, 2.4 + 1.3 * HASH(i, j), 1.2, an, 0, Math.PI * 2);
     ctx.fill();
   }
   ctx.restore();
-  // le liseret : seulement les aretes dont la normale regarde la lumiere
-  ctx.strokeStyle = 'rgba(' + L.te + ',' + 0.46 * L.k + ')';
+  // rim: only edges whose normal faces the light
+  ctx.strokeStyle = 'rgba(' + L.tint + ',' + 0.46 * L.k + ')';
   ctx.lineWidth = 2.1;
   ctx.lineJoin = 'round';
   for (let i = 0; i < pts.length; i++) {
@@ -305,7 +317,7 @@ function corpsRocher(j) {
       mx = (p.x + q.x) / 2,
       my = (p.y + q.y) / 2;
     const n = Math.hypot(mx, my) || 1;
-    if ((mx / n) * L.x + (my / n) * L.y > 0.15) continue; // arete a l'ombre, pas de liseret
+    if ((mx / n) * L.x + (my / n) * L.y > 0.15) continue; // edge in shadow, no rim
     ctx.beginPath();
     ctx.moveTo(p.x, p.y);
     ctx.lineTo(q.x, q.y);
@@ -313,99 +325,100 @@ function corpsRocher(j) {
   }
 }
 
-// Cache de pierres. Le corps d'une pierre ne depend que de sa variante `j` et de la lumiere,
-// jamais de sa position ni de son animation de sortie, qui sont des transformations posees par
-// l'appelant. On le peignait entierement a chaque image, pour chaque pierre : deux degrades, un
-// clip, quatorze eclats de grain, six ellipses de mousse et onze aretes de liseret. Mesure au
-// profileur, `routines/profil-rendu.js` : 2170 des 4582 operations canvas par image, soit 47 %.
-// On le peint donc une fois par variante et par palier de lumiere, dans un canvas hors ecran.
-const ROC_RS = 40,
-  cacheRocher = new Map();
+// Stone sprite cache. A stone's body depends only on its variant `j` and the light,
+// never on its position or emergence animation, which are transforms applied by the caller.
+// It was previously repainted entirely each frame, per stone: two gradients, a clip,
+// fourteen grain flecks, six moss ellipses and eleven rim edges. Measured by profiler at
+// `routines/profil-rendu.js`: 2170 of 4582 canvas operations per frame, i.e. 47%.
+// It is now painted once per variant and per light level into an offscreen canvas.
+const STONE_SPRITE_R = 40,
+  stoneCache = new Map();
 
-let cacheRocherCle = null;
+let stoneCacheKey = null;
 
-function spriteRocher(j) {
-  const cle = Math.round(((((reglages.heure || 0) % 1) + 1) % 1) * 180);
-  if (cle !== cacheRocherCle) {
-    cacheRocher.clear();
-    cacheRocherCle = cle;
+function stoneSprite(j) {
+  const key = Math.round(((((settings.hour || 0) % 1) + 1) % 1) * 180);
+  if (key !== stoneCacheKey) {
+    stoneCache.clear();
+    stoneCacheKey = key;
   }
-  let s = cacheRocher.get(j);
+  let s = stoneCache.get(j);
   if (s) return s;
   s = document.createElement('canvas');
-  s.width = 2 * ROC_RS;
-  s.height = 2 * ROC_RS;
-  const avant = setCtx(s.getContext('2d'));
-  ctx.translate(ROC_RS, ROC_RS);
+  s.width = 2 * STONE_SPRITE_R;
+  s.height = 2 * STONE_SPRITE_R;
+  const prev = setCtx(s.getContext('2d'));
+  ctx.translate(STONE_SPRITE_R, STONE_SPRITE_R);
   try {
-    corpsRocher(j);
+    stoneBody(j);
   } finally {
-    setCtx(avant);
+    setCtx(prev);
   }
-  cacheRocher.set(j, s);
+  stoneCache.set(j, s);
   return s;
 }
 
-// Remplace un appel a corpsRocher : meme dessin, meme origine, une seule operation canvas.
-function poserRocher(j) {
-  ctx.drawImage(spriteRocher(j), -ROC_RS, -ROC_RS);
+// Replaces a stoneBody call: same drawing, same origin, a single canvas operation.
+function placeStone(j) {
+  ctx.drawImage(stoneSprite(j), -STONE_SPRITE_R, -STONE_SPRITE_R);
 }
 
-export function peindreRochers() {
-  rochers.forEach((r) => {
+export function paintStones() {
+  stones.forEach((r) => {
     const p = px(r.x, r.y),
       j = ((r.x * 13 + r.y * 7) % 7) - 3;
-    if (r.t < ALERTE) {
-      const u = r.t / ALERTE,
-        lev = u * u * (3 - 2 * u); // le bombement, doux aux deux bouts
-      // Elle perce tot, et sa montee a un ressaut : elle force, elle glisse d'un cheveu vers 60 %,
-      // puis elle passe. C'est ce temps mort qui la rend pesante au lieu de jaillir.
-      const sor = Math.max(0, (u - 0.18) / 0.82);
-      let emer = sor * sor * (3 - 2 * sor);
-      emer -=
-        0.085 * Math.max(0, Math.sin(Math.min(1, Math.max(0, (sor - 0.46) / 0.26)) * Math.PI));
-      emer = Math.max(0, Math.min(1, emer));
+    if (r.t < STONE_WARNING) {
+      const u = r.t / STONE_WARNING,
+        rise = u * u * (3 - 2 * u); // smoothstep bulge
+      // Stone breaks early and the rise has a hitch: it pushes, slips slightly around 60%,
+      // then breaks through. That pause makes it feel heavy rather than springing.
+      const exitProgress = Math.max(0, (u - 0.18) / 0.82);
+      let emergeAmount = exitProgress * exitProgress * (3 - 2 * exitProgress);
+      emergeAmount -=
+        0.085 *
+        Math.max(0, Math.sin(Math.min(1, Math.max(0, (exitProgress - 0.46) / 0.26)) * Math.PI));
+      emergeAmount = Math.max(0, Math.min(1, emergeAmount));
       ctx.save();
-      // l'ombre portee du monticule, qui s'allonge a mesure qu'il monte
-      ctx.globalAlpha = 0.3 * lev;
+      // drop shadow of the mound, lengthening as it rises
+      ctx.globalAlpha = 0.3 * rise;
       ctx.fillStyle = '#050907';
       ctx.beginPath();
-      ctx.ellipse(p.x + 6 * lev, p.y + 13, 26 * lev + 6, 8 * lev + 2, 0, 0, Math.PI * 2);
+      ctx.ellipse(p.x + 6 * rise, p.y + 13, 26 * rise + 6, 8 * rise + 2, 0, 0, Math.PI * 2);
       ctx.fill();
       ctx.globalAlpha = 1;
-      // la terre qui se souleve, puis se fend
-      bosse(p.x, p.y + 6, 20 + 14 * lev, 9 + 9 * lev, lev);
-      fissure(p.x, p.y + 4, lev, j);
-      // la pierre sort du sol : on ne montre que ce qui depasse la ligne de terre
-      if (emer > 0.001) {
+      // ground lifting, then cracking
+      bump(p.x, p.y + 6, 20 + 14 * rise, 9 + 9 * rise, rise);
+      crack(p.x, p.y + 4, rise, j);
+      // stone emerges: clip to show only what rises above ground level
+      if (emergeAmount > 0.001) {
         ctx.save();
         ctx.beginPath();
         ctx.rect(p.x - 42, p.y - 48, 84, 48 + 12);
         ctx.clip();
-        ctx.translate(p.x, p.y + 34 * (1 - emer));
-        ctx.rotate((1 - emer) * 0.22 * (j > 0 ? 1 : -1));
-        ctx.scale(0.86 + 0.14 * emer, 0.86 + 0.14 * emer);
-        poserRocher(j);
+        ctx.translate(p.x, p.y + 34 * (1 - emergeAmount));
+        ctx.rotate((1 - emergeAmount) * 0.22 * (j > 0 ? 1 : -1));
+        ctx.scale(0.86 + 0.14 * emergeAmount, 0.86 + 0.14 * emergeAmount);
+        placeStone(j);
         ctx.restore();
       }
-      // les quartiers de sol basculent par-dessus le pied de la pierre : c'est elle qui force
-      plaques(p.x, p.y + 5, lev, j);
-      // les mottes arrachees devalent le flanc pendant la sortie
-      for (let i = 0; i < 3; i++) motte(p.x, p.y, (emer - (0.3 + 0.16 * i)) / 0.42, i, j);
+      // soil plates tip over the stone's base: the stone is forcing through
+      plates(p.x, p.y + 5, rise, j);
+      // clods torn free roll down the flank during emergence
+      for (let i = 0; i < 3; i++) clod(p.x, p.y, (emergeAmount - (0.3 + 0.16 * i)) / 0.42, i, j);
       ctx.restore();
       return;
     }
-    // une fois sortie, elle se cale : un tassement sec, vers le bas seulement, jamais de rebond
-    const d = r.t - ALERTE,
+    // once emerged, a sharp settle: downward only, no bounce
+    const d = r.t - STONE_WARNING,
       k = d < 0.18 ? Math.sin((d / 0.18) * Math.PI) : 0;
     const sx = 1 + 0.05 * k,
       sy = 1 - 0.08 * k;
-    const f = r.t > VIEROCHER - 2 ? (VIEROCHER - r.t) / 2 : 1;
+    const f = r.t > STONE_LIFE - 2 ? (STONE_LIFE - r.t) / 2 : 1;
     ctx.save();
-    // la terre remuee reste visible au pied, puis se tasse
+    // disturbed earth remains visible at the base, then settles
     ctx.globalAlpha = f * (d < 1.4 ? 1 - d / 1.4 : 0) * 0.8;
-    if (ctx.globalAlpha > 0.01) bosse(p.x, p.y + 8, 30, 14, 0.7);
-    // l'anneau de poussiere chassee par le choc
+    if (ctx.globalAlpha > 0.01) bump(p.x, p.y + 8, 30, 14, 0.7);
+    // ring of dust thrown by the impact
     if (d < 0.45) {
       const q = d / 0.45;
       ctx.globalAlpha = f * (1 - q) * 0.42;
@@ -423,42 +436,42 @@ export function peindreRochers() {
     ctx.globalAlpha = f;
     ctx.translate(p.x, p.y);
     ctx.scale(sx, sy);
-    poserRocher(j);
+    placeStone(j);
     ctx.restore();
   });
 }
 
-// La ronce : une liane, pas un trait. Le corps est un contour rempli, epais a la racine et fin a
-// la pointe, avec son ombre de contact au sol, un ruban de lumiere du cote de la source, des
-// feuilles a nervure et des epines crochues qui n'apparaissent que sur la part qui tue.
-function pointsRonce(R) {
+// Bramble: a vine, not a line. The body is a filled outline, thick at the root and thin at
+// the tip, with a contact shadow on the ground, a light ribbon on the source side,
+// veined leaves and hooked thorns that appear only on the lethal segment.
+function bramblePoints(R) {
   const pts = [];
   R.seg.forEach((g, i) => {
     const p = px(g.x, g.y),
-      u = Math.min(1, g.t / RONCE_ALERTE),
-      ouv = u * u * (3 - 2 * u);
+      u = Math.min(1, g.t / BRAMBLE_WARNING),
+      opening = u * u * (3 - 2 * u);
     const v = R.seg[i - 1] || R.seg[i + 1];
-    if (!v || ouv >= 1) {
-      pts.push({ x: p.x, y: p.y, dur: u >= 1, ouv: ouv, i: i });
+    if (!v || opening >= 1) {
+      pts.push({ x: p.x, y: p.y, duration: u >= 1, eyeOpen: opening, i: i });
       return;
     }
     const q = px(v.x, v.y);
     pts.push({
-      x: q.x + (p.x - q.x) * ouv,
-      y: q.y + (p.y - q.y) * ouv,
-      dur: false,
-      ouv: ouv,
+      x: q.x + (p.x - q.x) * opening,
+      y: q.y + (p.y - q.y) * opening,
+      duration: false,
+      eyeOpen: opening,
       i: i,
     });
   });
   return pts;
 }
 
-// Le contour de la tige : on longe la ligne d'un cote, on revient de l'autre, la demi-epaisseur
-// decroit vers la pointe. C'est ce qui fait une plante plutot qu'un tuyau d'epaisseur constante.
-function contourRonce(pts, ep, dx, dy) {
+// Stem outline: traverse the line on one side, return on the other; half-thickness
+// decreases toward the tip. This makes it read as a plant, not a constant-width tube.
+function brambleOutline(pts, thickness, dx, dy) {
   const n = pts.length;
-  const nor = (i) => {
+  const normal = (i) => {
     const a = pts[Math.max(0, i - 1)],
       b = pts[Math.min(n - 1, i + 1)];
     const vx = b.x - a.x,
@@ -467,10 +480,10 @@ function contourRonce(pts, ep, dx, dy) {
     return { x: -vy / l, y: vx / l };
   };
   const e = (i) =>
-    ep * (1 - 0.52 * (i / Math.max(1, n - 1))) * Math.min(1, 0.35 + 0.65 * pts[i].ouv);
+    thickness * (1 - 0.52 * (i / Math.max(1, n - 1))) * Math.min(1, 0.35 + 0.65 * pts[i].eyeOpen);
   ctx.beginPath();
   for (let i = 0; i < n; i++) {
-    const u = nor(i),
+    const u = normal(i),
       w = e(i);
     const x = pts[i].x + u.x * w + (dx || 0),
       y = pts[i].y + u.y * w + (dy || 0);
@@ -478,23 +491,23 @@ function contourRonce(pts, ep, dx, dy) {
     else ctx.moveTo(x, y);
   }
   for (let i = n - 1; i >= 0; i--) {
-    const u = nor(i),
+    const u = normal(i),
       w = e(i);
     ctx.lineTo(pts[i].x - u.x * w + (dx || 0), pts[i].y - u.y * w + (dy || 0));
   }
   ctx.closePath();
 }
 
-export function feuille(x, y, an, L, clair, f, ouv) {
+export function leaf(x, y, an, L, bright, f, opening) {
   ctx.save();
   ctx.translate(x, y);
   ctx.rotate(an);
-  ctx.globalAlpha = f * Math.min(1, ouv * 1.2);
+  ctx.globalAlpha = f * Math.min(1, opening * 1.2);
   ctx.beginPath();
   ctx.moveTo(0, 0);
   ctx.quadraticCurveTo(L * 0.5, -L * 0.34, L, 0);
   ctx.quadraticCurveTo(L * 0.5, L * 0.34, 0, 0);
-  ctx.fillStyle = clair ? '#46603a' : '#2c3d25';
+  ctx.fillStyle = bright ? '#46603a' : '#2c3d25';
   ctx.fill();
   ctx.strokeStyle = 'rgba(158,190,138,0.30)';
   ctx.lineWidth = 0.9;
@@ -505,38 +518,38 @@ export function feuille(x, y, an, L, clair, f, ouv) {
   ctx.restore();
 }
 
-function epine(x, y, an, L, te, f) {
+function thorn(x, y, an, L, tint, f) {
   ctx.save();
   ctx.translate(x, y);
   ctx.rotate(an);
   ctx.globalAlpha = f * 0.92;
   ctx.beginPath();
   ctx.moveTo(0, -2.4);
-  ctx.quadraticCurveTo(L * 0.72, -L * 0.3, L, -L * 0.06); // le crochet, courbe vers l'arriere
+  ctx.quadraticCurveTo(L * 0.72, -L * 0.3, L, -L * 0.06); // hook, curved backward
   ctx.quadraticCurveTo(L * 0.52, L * 0.12, 0, 2.4);
   ctx.closePath();
   const g = ctx.createLinearGradient(0, 0, L, 0);
   g.addColorStop(0, '#5d7a4c');
-  g.addColorStop(1, 'rgba(' + te + ',0.92)');
+  g.addColorStop(1, 'rgba(' + tint + ',0.92)');
   ctx.fillStyle = g;
   ctx.fill();
   ctx.restore();
 }
 
-// Cache de ronces. Le dessin d'une liane ne depend que de ses noeuds, de leur ouverture, de son
-// effacement `f` et de la lumiere : jamais du temps qui passe. Or il etait entierement refait a
-// chaque image, deux feuilles et trois epines par noeud, chacune avec son save, sa rotation et
-// ses courbes. Mesure au profileur : 1406 des 4582 operations canvas par image, soit 31 %.
-// Une ronce posee ne bouge plus, donc son sprite ne se repeint qu'a l'ouverture et a la mort.
-// Le decalage est entier, pour que la recopie soit au pixel pres et non reechantillonnee.
-const RON_M = 26;
+// Bramble sprite cache. A vine's drawing depends only on its nodes, their opening, its
+// fade `f` and the light: never on time passing. It was fully rebuilt each frame:
+// two leaves and three thorns per node, each with its own save, rotation and curves.
+// Measured by profiler: 1406 of 4582 canvas operations per frame, i.e. 31%.
+// A settled bramble no longer moves, so its sprite is repainted only on opening and on death.
+// The offset is integer so the blit is pixel-exact and not resampled.
+const BRAMBLE_MARGIN = 26;
 
-export function peindreRonces() {
-  const L = lumiere();
-  const cleL = Math.round(((((reglages.heure || 0) % 1) + 1) % 1) * 180);
-  ronces.forEach((R) => {
-    const f = R.t > VIERONCE - 2 ? (VIERONCE - R.t) / 2 : 1;
-    const pts = pointsRonce(R);
+export function paintBrambles() {
+  const L = light();
+  const lightKey = Math.round(((((settings.hour || 0) % 1) + 1) % 1) * 180);
+  brambles.forEach((R) => {
+    const f = R.t > BRAMBLE_LIFE - 2 ? (BRAMBLE_LIFE - R.t) / 2 : 1;
+    const pts = bramblePoints(R);
     if (pts.length < 1) return;
     let ax = Infinity,
       ay = Infinity,
@@ -548,41 +561,41 @@ export function peindreRonces() {
       if (p.y < ay) ay = p.y;
       if (p.y > by) by = p.y;
     }
-    const ox = Math.floor(ax - RON_M),
-      oy = Math.floor(ay - RON_M);
-    let sig = cleL + '|' + f.toFixed(2) + '|' + ox + '|' + oy + '|' + pts.length;
-    for (const q of pts) sig += '|' + Math.round(q.ouv * 24) + (q.dur ? 'd' : '');
-    if (R.sig !== sig) {
+    const ox = Math.floor(ax - BRAMBLE_MARGIN),
+      oy = Math.floor(ay - BRAMBLE_MARGIN);
+    let signature = lightKey + '|' + f.toFixed(2) + '|' + ox + '|' + oy + '|' + pts.length;
+    for (const q of pts) signature += '|' + Math.round(q.eyeOpen * 24) + (q.duration ? 'd' : '');
+    if (R.sig !== signature) {
       const c = document.createElement('canvas');
-      c.width = Math.max(1, Math.ceil(bx + RON_M) - ox);
-      c.height = Math.max(1, Math.ceil(by + RON_M) - oy);
-      const avant = setCtx(c.getContext('2d'));
+      c.width = Math.max(1, Math.ceil(bx + BRAMBLE_MARGIN) - ox);
+      c.height = Math.max(1, Math.ceil(by + BRAMBLE_MARGIN) - oy);
+      const prev = setCtx(c.getContext('2d'));
       ctx.translate(-ox, -oy);
       try {
-        corpsRonce(pts, f, L, R);
+        brambleBody(pts, f, L, R);
       } finally {
-        setCtx(avant);
+        setCtx(prev);
       }
       R.sprite = c;
-      R.sig = sig;
+      R.sig = signature;
     }
     ctx.drawImage(R.sprite, ox, oy);
   });
 }
 
-function corpsRonce(pts, f, L, R) {
+function brambleBody(pts, f, L, R) {
   ctx.save();
   ctx.lineJoin = 'round';
   ctx.lineCap = 'round';
-  // l'ombre de contact : la meme tige, decalee au sol, floue par un degre d'alpha
+  // contact shadow: same stem shifted onto the ground, blurred by an alpha step
   ctx.globalAlpha = f * 0.42;
   ctx.fillStyle = '#070c07';
-  contourRonce(pts, 8.5, 2.5, 6);
+  brambleOutline(pts, 8.5, 2.5, 6);
   ctx.fill();
   ctx.globalAlpha = f * 0.22;
-  contourRonce(pts, 11, 3.5, 9);
+  brambleOutline(pts, 11, 3.5, 9);
   ctx.fill();
-  // le corps, degrade le long de la liane : sombre a la racine, plus vert vers la pointe vive
+  // body, gradient along the vine: dark at the root, greener toward the live tip
   ctx.globalAlpha = f;
   const q0 = pts[0],
     q1 = pts[pts.length - 1];
@@ -590,34 +603,34 @@ function corpsRonce(pts, f, L, R) {
   gb.addColorStop(0, '#1b2616');
   gb.addColorStop(0.55, '#26331d');
   gb.addColorStop(1, '#354823');
-  contourRonce(pts, 8);
+  brambleOutline(pts, 8);
   ctx.fillStyle = gb;
   ctx.fill();
-  // le ruban de lumiere, du cote de la source, plus fin que le corps
+  // light ribbon on the source side, narrower than the body
   ctx.globalAlpha = f * (0.3 + 0.34 * L.k);
-  contourRonce(pts, 3.1, L.x * 2.6, L.y * 2.6);
-  ctx.fillStyle = 'rgba(' + L.te + ',0.55)';
+  brambleOutline(pts, 3.1, L.x * 2.6, L.y * 2.6);
+  ctx.fillStyle = 'rgba(' + L.tint + ',0.55)';
   ctx.fill();
-  // les feuilles : deux par noeud, jamais symetriques, la claire du cote du jour
+  // leaves: two per node, never symmetric, the bright one on the lit side
   pts.forEach((p, i) => {
     const v = pts[i - 1] || pts[i + 1] || p;
     const an = Math.atan2(p.y - v.y, p.x - v.x),
-      h = HACHE(i, R.seg.length);
+      h = HASH(i, R.seg.length);
     for (let k = 0; k < 2; k++) {
-      const cote = k ? 1 : -1;
-      const ec = an + cote * (0.78 + 0.34 * h);
-      const clair = Math.cos(ec) * L.x + Math.sin(ec) * L.y < 0;
-      feuille(p.x, p.y, ec, 8.5 + 3.5 * HACHE(i + k, 3), clair, f, p.ouv);
+      const side = k ? 1 : -1;
+      const leafAngle = an + side * (0.78 + 0.34 * h);
+      const bright = Math.cos(leafAngle) * L.x + Math.sin(leafAngle) * L.y < 0;
+      leaf(p.x, p.y, leafAngle, 8.5 + 3.5 * HASH(i + k, 3), bright, f, p.eyeOpen);
     }
   });
-  // les epines : uniquement sur la part dure. Elles sont le seul signal que ca tue.
+  // thorns: only on the live segment. They are the only signal that it kills.
   pts.forEach((p, i) => {
-    if (!p.dur) return;
+    if (!p.duration) return;
     const v = pts[i - 1] || pts[i + 1] || p;
     const an = Math.atan2(p.y - v.y, p.x - v.x);
     for (let k = 0; k < 3; k++) {
-      const ec = an + (k === 1 ? -Math.PI / 2 : Math.PI / 2) + (k - 1) * 0.38;
-      epine(p.x, p.y, ec, 7.5 + 2 * HACHE(i + k, 5), L.te, f);
+      const leafAngle = an + (k === 1 ? -Math.PI / 2 : Math.PI / 2) + (k - 1) * 0.38;
+      thorn(p.x, p.y, leafAngle, 7.5 + 2 * HASH(i + k, 5), L.tint, f);
     }
   });
   ctx.restore();

@@ -21,28 +21,28 @@ function fakeStorage(initial: Record<string, string> = {}) {
 
 function fakeDeps(storage = fakeStorage()) {
   const game = {
-    reglages: {
+    settings: {
       mode: 'base',
-      plateforme: 'tiktok',
-      nomsDonateurs: true,
-      fluide: false,
-      meteo: 'pluie',
-      avantage: 0,
+      platform: 'tiktok',
+      donorNames: true,
+      smooth: false,
+      weather: 'rain',
+      advantage: 0,
     } as unknown as GameSettings,
-    nouvelleManche: vi.fn(),
-    reglerHeure: vi.fn(),
-    lancerScene: vi.fn(),
+    newRound: vi.fn(),
+    setHour: vi.fn(),
+    launchScene: vi.fn(),
     stopScene: vi.fn(),
     scene: vi.fn(() => null),
-    finirTest: vi.fn(),
-    mesures: vi.fn(() => ({ erreurs: 0, derniereErreur: null, t: 0 })),
+    endTest: vi.fn(),
+    metrics: vi.fn(() => ({ errors: 0, lastError: null, t: 0 })),
     duel: vi.fn((): DuelSnapshot | null => null),
   } satisfies GameApi;
   const bridge = {
-    demarrer: vi.fn(),
-    arreter: vi.fn(),
-    traiter: vi.fn(),
-    etat: vi.fn(() => ({ connecte: false })),
+    start: vi.fn(),
+    stop: vi.fn(),
+    process: vi.fn(),
+    state: vi.fn(() => ({ connected: false })),
   } satisfies TikFinityBridge;
   const deps = {
     game,
@@ -57,26 +57,46 @@ function fakeDeps(storage = fakeStorage()) {
 describe('restorePreferences', () => {
   it('applies stored values that depart from the defaults', () => {
     const { deps, game } = fakeDeps(
-      fakeStorage({ 'vipere-plateforme': 'neutre', 'vipere-noms': '0', 'vipere-fluide': '1' }),
+      fakeStorage({ 'viper-platform': 'neutral', 'viper-donor-names': '0', 'viper-smooth': '1' }),
     );
     restorePreferences(deps);
-    expect(game.reglages).toMatchObject({
-      plateforme: 'neutre',
-      nomsDonateurs: false,
-      fluide: true,
+    expect(game.settings).toMatchObject({
+      platform: 'neutral',
+      donorNames: false,
+      smooth: true,
     });
   });
 
   it('ignores unknown or default-equivalent values', () => {
     const { deps, game } = fakeDeps(
-      fakeStorage({ 'vipere-plateforme': 'youtube', 'vipere-noms': '1', 'vipere-fluide': '0' }),
+      fakeStorage({ 'viper-platform': 'youtube', 'viper-donor-names': '1', 'viper-smooth': '0' }),
     );
     restorePreferences(deps);
-    expect(game.reglages).toMatchObject({
-      plateforme: 'tiktok',
-      nomsDonateurs: true,
-      fluide: false,
+    expect(game.settings).toMatchObject({
+      platform: 'tiktok',
+      donorNames: true,
+      smooth: false,
     });
+  });
+
+  it('reads choices saved under the pre-rename keys and encodings', () => {
+    const { deps, game } = fakeDeps(
+      fakeStorage({ 'vipere-plateforme': 'neutre', 'vipere-noms': '0', 'vipere-fluide': '1' }),
+    );
+    restorePreferences(deps);
+    expect(game.settings).toMatchObject({
+      platform: 'neutral',
+      donorNames: false,
+      smooth: true,
+    });
+  });
+
+  it('prefers the current key over the legacy one', () => {
+    const { deps, game } = fakeDeps(
+      fakeStorage({ 'viper-platform': 'tiktok', 'vipere-plateforme': 'neutre' }),
+    );
+    restorePreferences(deps);
+    expect(game.settings.platform).toBe('tiktok');
   });
 
   it('survives a storage that throws', () => {
@@ -95,55 +115,55 @@ describe('restorePreferences', () => {
 describe('applyCommand', () => {
   it('routes audience events and raw bridge messages', () => {
     const { deps, bridge } = fakeDeps();
-    applyCommand({ cmd: 'evenement', ev: { type: 'like', n: 3 } }, deps);
-    applyCommand({ cmd: 'brut', message: { event: 'gift' } }, deps);
+    applyCommand({ cmd: 'event', ev: { type: 'like', n: 3 } }, deps);
+    applyCommand({ cmd: 'raw', message: { event: 'gift' } }, deps);
     expect(deps.receiveEvent).toHaveBeenCalledWith({ type: 'like', n: 3 });
-    expect(bridge.traiter).toHaveBeenCalledWith({ event: 'gift' });
+    expect(bridge.process).toHaveBeenCalledWith({ event: 'gift' });
   });
 
   it('starts and stops the bridge', () => {
     const { deps, bridge } = fakeDeps();
-    applyCommand({ cmd: 'pont-demarrer', url: 'ws://localhost:21213/' }, deps);
-    applyCommand({ cmd: 'pont-arreter' }, deps);
-    expect(bridge.demarrer).toHaveBeenCalledWith('ws://localhost:21213/');
-    expect(bridge.arreter).toHaveBeenCalledOnce();
+    applyCommand({ cmd: 'bridge-start', url: 'ws://localhost:21213/' }, deps);
+    applyCommand({ cmd: 'bridge-stop' }, deps);
+    expect(bridge.start).toHaveBeenCalledWith('ws://localhost:21213/');
+    expect(bridge.stop).toHaveBeenCalledOnce();
   });
 
   it('starts a new duel round', () => {
     const { deps, game } = fakeDeps();
-    applyCommand({ cmd: 'manche' }, deps);
-    expect(game.reglages.mode).toBe('duel');
-    expect(game.nouvelleManche).toHaveBeenCalledOnce();
+    applyCommand({ cmd: 'round' }, deps);
+    expect(game.settings.mode).toBe('duel');
+    expect(game.newRound).toHaveBeenCalledOnce();
   });
 
   it('applies known settings and persists the ones that survive a restart', () => {
     const { deps, game, storage } = fakeDeps();
-    applyCommand({ cmd: 'reglage', nom: 'meteo', valeur: 'neige' }, deps);
-    applyCommand({ cmd: 'reglage', nom: 'plateforme', valeur: 'neutre' }, deps);
-    applyCommand({ cmd: 'reglage', nom: 'nomsDonateurs', valeur: false }, deps);
-    expect(game.reglages).toMatchObject({ meteo: 'neige', plateforme: 'neutre' });
+    applyCommand({ cmd: 'setting', name: 'weather', value: 'snow' }, deps);
+    applyCommand({ cmd: 'setting', name: 'platform', value: 'neutral' }, deps);
+    applyCommand({ cmd: 'setting', name: 'donorNames', value: false }, deps);
+    expect(game.settings).toMatchObject({ weather: 'snow', platform: 'neutral' });
     expect(Object.fromEntries(storage.data)).toEqual({
-      'vipere-plateforme': 'neutre',
-      'vipere-noms': '0',
+      'viper-platform': 'neutral',
+      'viper-donor-names': '0',
     });
   });
 
   it('ignores settings the engine does not have, including inherited names', () => {
     const { deps, game } = fakeDeps();
-    applyCommand({ cmd: 'reglage', nom: '__proto__', valeur: { polluted: true } }, deps);
-    applyCommand({ cmd: 'reglage', nom: 'unknown', valeur: 1 }, deps);
-    expect(game.reglages).not.toHaveProperty('unknown');
-    expect(Object.getPrototypeOf(game.reglages)).toBe(Object.prototype);
+    applyCommand({ cmd: 'setting', name: '__proto__', value: { polluted: true } }, deps);
+    applyCommand({ cmd: 'setting', name: 'unknown', value: 1 }, deps);
+    expect(game.settings).not.toHaveProperty('unknown');
+    expect(Object.getPrototypeOf(game.settings)).toBe(Object.prototype);
   });
 
   it('drives staged scenes and test endings', () => {
     const { deps, game } = fakeDeps();
-    applyCommand({ cmd: 'scene', nom: 'face', duree: 15 }, deps);
+    applyCommand({ cmd: 'scene', name: 'face', duration: 15 }, deps);
     applyCommand({ cmd: 'sceneStop' }, deps);
-    applyCommand({ cmd: 'finTest', camp: 'ombre' }, deps);
-    expect(game.lancerScene).toHaveBeenCalledWith('face', 15);
+    applyCommand({ cmd: 'endTest', team: 'shadow' }, deps);
+    expect(game.launchScene).toHaveBeenCalledWith('face', 15);
     expect(game.stopScene).toHaveBeenCalledOnce();
-    expect(game.finirTest).toHaveBeenCalledWith('ombre');
+    expect(game.endTest).toHaveBeenCalledWith('shadow');
   });
 });
 
@@ -152,16 +172,16 @@ describe('snapshot', () => {
     const { deps, game } = fakeDeps();
     game.duel.mockReturnValue({
       t: 42,
-      vainqueur: null,
-      or: { longueur: 9 },
-      ombre: { longueur: 12 },
+      winner: null,
+      gold: { length: 9 },
+      shadow: { length: 12 },
     });
     expect(snapshot(deps)).toMatchObject({
-      pont: { connecte: false },
-      plateforme: 'tiktok',
-      nomsDonateurs: true,
-      duel: { t: 42, vainqueur: null, or: { longueur: 9 }, ombre: { longueur: 12 } },
-      mesures: { erreurs: 0 },
+      bridge: { connected: false },
+      platform: 'tiktok',
+      donorNames: true,
+      duel: { t: 42, winner: null, gold: { length: 9 }, shadow: { length: 12 } },
+      metrics: { errors: 0 },
     });
   });
 
@@ -213,9 +233,9 @@ describe('linkControlRoom', () => {
     const { channel, deliver } = fakeChannel();
     linkControlRoom(deps, channel);
 
-    for (const payload of [null, 'manche', { cmd: 'unknown' }, { etat: {} }]) deliver(payload);
+    for (const payload of [null, 'round', { cmd: 'unknown' }, { state: {} }]) deliver(payload);
 
-    expect(game.nouvelleManche).not.toHaveBeenCalled();
+    expect(game.newRound).not.toHaveBeenCalled();
   });
 
   it('logs a failing command and keeps listening', () => {
@@ -228,9 +248,9 @@ describe('linkControlRoom', () => {
     linkControlRoom(deps, channel);
 
     deliver({ cmd: 'sceneStop' });
-    deliver({ cmd: 'manche' });
+    deliver({ cmd: 'round' });
 
     expect(logged).toHaveBeenCalledWith('[control] "sceneStop" failed', expect.any(Error));
-    expect(game.nouvelleManche).toHaveBeenCalledOnce();
+    expect(game.newRound).toHaveBeenCalledOnce();
   });
 });

@@ -12,61 +12,67 @@ beforeAll(() => {
 const GIFT_VALUES = [1, 10, 20, 30, 100] as const;
 
 const WEATHERS = [
-  'pluie',
-  'neige',
-  'automne',
-  'ete',
-  'printemps',
-  'orage',
-  'etoiles',
-  'aurore',
-  'lucioles',
-  'braises',
-  'brume',
+  'rain',
+  'snow',
+  'autumn',
+  'summer',
+  'spring',
+  'storm',
+  'stars',
+  'aurora',
+  'fireflies',
+  'embers',
+  'mist',
 ] as const;
 
 /** Plays `seconds` of duel at 60 fps under a steady stream of audience events, drawing every frame. */
 function playDuel(seconds: number): void {
   const frames = Math.round(seconds * 60);
   for (let i = 1; i <= frames; i++) {
-    if (i % 23 === 0) sim.send({ type: 'like', n: 2, pseudo: 'viewer' });
-    if (i % 53 === 0) sim.send({ type: 'partage', pseudo: 'viewer' });
+    if (i % 23 === 0) sim.send({ type: 'like', n: 2, nickname: 'viewer' });
+    if (i % 53 === 0) sim.send({ type: 'share', nickname: 'viewer' });
     if (i % 97 === 0) {
       const valeur = GIFT_VALUES[(i / 97) % GIFT_VALUES.length];
-      sim.send({ type: 'cadeau', camp: i % 2 ? 'or' : 'ombre', valeur, pseudo: 'fan', n: 1 });
+      sim.send({
+        type: 'gift',
+        team: i % 2 ? 'gold' : 'shadow',
+        value: valeur,
+        nickname: 'fan',
+        n: 1,
+      });
     }
-    sim.game.reglages.heure = (i / frames) % 1;
+    sim.game.settings.hour = (i / frames) % 1;
     sim.frame();
   }
 }
 
 function startRound(settings: Record<string, unknown>): void {
-  Object.assign(sim.game.reglages, { mode: 'duel' }, settings);
-  sim.game.nouvelleManche();
+  Object.assign(sim.game.settings, { mode: 'duel' }, settings);
+  sim.game.newRound();
 }
 
 describe('duel render loop', () => {
-  it.each(['vertical', 'horizontal'])('plays 60 s in %s format without an error', (format) => {
+  it.each(['portrait', 'landscape'])('plays 60 s in %s format without an error', (format) => {
     startRound({ format });
     const callsBefore = sim.drawCalls();
 
     playDuel(60);
 
-    expect(sim.game.mesures()).toMatchObject({ erreurs: 0, derniereErreur: null });
+    expect(sim.game.metrics()).toMatchObject({ errors: 0, lastError: null });
     expect(sim.drawCalls()).toBeGreaterThan(callsBefore);
   });
 
-  it.each(['defile', 'complet', 'aucun'])('draws the "%s" gift panel', (affichageCadeaux) => {
-    startRound({ affichageCadeaux });
+  it.each(['scroll', 'full', 'none'])('draws the "%s" gift panel', (affichageCadeaux) => {
+    startRound({ giftDisplay: affichageCadeaux });
     playDuel(10);
-    expect(sim.game.mesures().erreurs).toBe(0);
+    expect(sim.game.metrics().errors).toBe(0);
   });
 
   it.each(WEATHERS)('renders the "%s" weather in both formats', (meteo) => {
-    for (const format of ['vertical', 'horizontal']) {
-      startRound({ ambianceAuto: false, meteo, format });
+    for (const format of ['portrait', 'landscape']) {
+      startRound({ autoAmbience: false, weather: meteo, format });
       playDuel(5);
     }
-    expect(sim.game.mesures()).toMatchObject({ erreurs: 0, derniereErreur: null });
+    expect(sim.game.metrics()).toMatchObject({ errors: 0, lastError: null });
   });
 });

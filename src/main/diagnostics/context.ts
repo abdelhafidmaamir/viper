@@ -36,22 +36,22 @@ export const json = (value: unknown): string => `${JSON.stringify(value, null, 2
 
 /** Maps the app orientation to the renderer's format setting. */
 export const formatOf = (orientation: Orientation): GameSettings['format'] =>
-  orientation === 'landscape' ? 'horizontal' : 'vertical';
+  orientation === 'landscape' ? 'landscape' : 'portrait';
 
 /**
  * Each weather at an hour that shows it off (snow in the morning light, embers at dusk, aurora
  * at night), so a per-weather measurement exercises its most expensive layers.
  */
 export const WEATHER_SHOWCASE: readonly (readonly [weather: string, hour: number])[] = [
-  ['pluie', 0.5],
-  ['neige', 0.36],
-  ['automne', 0.78],
-  ['printemps', 0.36],
-  ['ete', 0.5],
-  ['orage', 0.02],
-  ['braises', 0.78],
-  ['aurore', 0.02],
-  ['etoiles', 0.02],
-  ['lucioles', 0.02],
-  ['brume', 0.22],
+  ['rain', 0.5],
+  ['snow', 0.36],
+  ['autumn', 0.78],
+  ['spring', 0.36],
+  ['summer', 0.5],
+  ['storm', 0.02],
+  ['embers', 0.78],
+  ['aurora', 0.02],
+  ['stars', 0.02],
+  ['fireflies', 0.02],
+  ['mist', 0.22],
 ];

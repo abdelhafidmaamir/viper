@@ -1,5 +1,5 @@
 <!doctype html>
-<html lang="fr">
+<html lang="en">
   <head>
     <meta charset="utf-8" />
     <title>Viper Duel | Control Room</title>
@@ -7,45 +7,45 @@
     <script type="module" src="./control/main.ts"></script>
   </head>
   <body>
-<h1>Vipere Duel, regie</h1>
-<div class="note">Cette fenetre n'apparait pas dans le live. Elle pilote la fenetre jeu (vipere-duel.html) ouverte a cote, par canal local.</div>
+<h1>Viper Duel, Control Room</h1>
+<div class="note">This window is not visible on stream. It controls the game window opened alongside it, via a local channel.</div>
 
 <section>
-  <h2>Fenetre jeu</h2>
-  <div class="note"><span class="voyant" id="vjeu"></span><span id="ejeu">aucun signe de la fenetre jeu</span></div>
-  <pre id="etat">en attente</pre>
-  <div class="rangee"><button id="manche">Nouvelle manche</button></div>
+  <h2>Game Window</h2>
+  <div class="note"><span class="light" id="gameLight"></span><span id="gameStatus">no signal from the game window</span></div>
+  <pre id="state">waiting</pre>
+  <div class="line"><button id="round">New Round</button></div>
 </section>
 
 <section>
-  <h2>Plateforme du live</h2>
-  <div class="note">Change l'habillage de la fenetre jeu. Neutre cache la legende des cadeaux TikTok et les colonnes de statuts : il ne reste que le duel. Le choix est garde au prochain lancement.</div>
-  <div class="rangee"><button id="pfTiktok">TikTok (cadeaux affiches)</button><button id="pfNeutre">Neutre, YouTube (gameplay seul)</button></div>
-  <div class="note" id="pfEtat">?</div>
-  <label class="ligne"><input type="checkbox" id="fluide"> Mode fluide : sans halos flous (mesure dans l'exe, plateau charge : 28 images par seconde avec, 45 sans)</label>
+  <h2>Live Platform</h2>
+  <div class="note">Changes the game window skin. Neutral hides the TikTok gift legend and status columns, leaving only the duel. The choice is saved for the next launch.</div>
+  <div class="line"><button id="platformTiktok">TikTok (gifts shown)</button><button id="platformNeutral">Neutral, YouTube (gameplay only)</button></div>
+  <div class="note" id="platformState">?</div>
+  <label class="row"><input type="checkbox" id="smooth"> Smooth mode: no blur halos (measured in the exe, busy board: 28 fps with, 45 without)</label>
 </section>
 
 <section>
-  <h2>Pont TikFinity</h2>
-  <div class="note"><span class="voyant" id="vpont"></span><span id="epont">?</span></div>
-  <div class="ligne"><input type="text" id="purl" value="ws://localhost:21213/" spellcheck="false"></div>
-  <div class="rangee"><button id="pgo">Connecter</button><button id="pstop">Couper</button></div>
-  <pre id="plog">?</pre>
+  <h2>TikFinity Bridge</h2>
+  <div class="note"><span class="light" id="bridgeLight"></span><span id="bridgeStatus">?</span></div>
+  <div class="row"><input type="text" id="bridgeUrl" value="ws://localhost:21213/" spellcheck="false"></div>
+  <div class="line"><button id="bridgeStart">Connect</button><button id="bridgeStop">Disconnect</button></div>
+  <pre id="bridgeLog">?</pre>
 </section>
 
 <section>
-  <h2>Simulateur (messages bruts Event API, sans TikFinity)</h2>
-  <div class="note">Camp Or</div>
-  <div class="rangee">
-    <button class="or" data-g="Rose|1|1">Rose 1</button>
-    <button class="or" data-g="Rose|1|5">Rafale 5 roses</button>
-    <button class="or" data-g="Rose|10|1">Rose 10</button>
-    <button class="or" data-g="Bouquet|20|1">Bouquet 20</button>
-    <button class="or" data-g="Bagel|30|1">Bagel 30</button>
-    <button class="or" data-g="Teddy Bear|100|1">Teddy 100</button>
+  <h2>Simulator (raw Event API messages, without TikFinity)</h2>
+  <div class="note">Gold team</div>
+  <div class="line">
+    <button class="gold" data-g="Rose|1|1">Rose 1</button>
+    <button class="gold" data-g="Rose|1|5">Rafale 5 roses</button>
+    <button class="gold" data-g="Rose|10|1">Rose 10</button>
+    <button class="gold" data-g="Bouquet|20|1">Bouquet 20</button>
+    <button class="gold" data-g="Bagel|30|1">Bagel 30</button>
+    <button class="gold" data-g="Teddy Bear|100|1">Teddy 100</button>
   </div>
-  <div class="note">Camp Ombre</div>
-  <div class="rangee">
+  <div class="note">Shadow team</div>
+  <div class="line">
     <button data-g="Rosa|1|1">Rosa 1</button>
     <button data-g="Rosa|1|5">Rafale 5 Rosa</button>
     <button data-g="Dyno|10|1">Dyno 10</button>
@@ -53,73 +53,73 @@
     <button data-g="Capybara|30|1">Capybara 30</button>
     <button data-g="Hand Heart|100|1">Hand Heart 100</button>
   </div>
-  <div class="note">Autres</div>
-  <div class="rangee"><button id="likes">Likes x50</button></div>
-  <h2 style="margin-top:8px">Public simule</h2>
-  <div class="note">Les quatre affluences de l'ancienne regie. De faux spectateurs envoient likes et cadeaux au hasard, moitie Or, moitie Ombre, tant que ce n'est pas remis sur Personne. Les likes ne donnent plus de vitesse : seuls les cadeaux agissent.</div>
-  <div class="rangee" id="foule"></div>
-  <div class="rangee"><button id="fmBataille">Bataille d'equipes</button><button id="fmHasard">Hasard</button></div>
-  <div class="note" id="fouleEtat">Personne : aucun spectateur simule.</div>
-  <div id="fouleEquipes" hidden>
-    <div class="effet" style="grid-template-columns:auto 1fr auto">
-      <span class="camp or">Or</span><span style="align-self:center;height:6px;border-radius:3px;background:var(--filet);overflow:hidden"><span id="fvOr" style="display:block;height:100%;width:25%;background:var(--or);transition:width .4s"></span></span><span id="fdOr">0 pieces</span>
-      <span class="camp om">Ombre</span><span style="align-self:center;height:6px;border-radius:3px;background:var(--filet);overflow:hidden"><span id="fvOm" style="display:block;height:100%;width:25%;background:var(--accent);transition:width .4s"></span></span><span id="fdOm">0 pieces</span>
+  <div class="note">Other</div>
+  <div class="line"><button id="likes">Likes x50</button></div>
+  <h2 style="margin-top:8px">Simulated Audience</h2>
+  <div class="note">The four crowd levels from the previous control room. Fake viewers send likes and gifts at random, half Gold, half Shadow, until reset to None. Likes no longer affect speed: only gifts have an effect.</div>
+  <div class="line" id="crowd"></div>
+  <div class="line"><button id="crowdBattle">Bataille d'equipes</button><button id="crowdRandom">Hasard</button></div>
+  <div class="note" id="crowdState">None: no simulated viewer.</div>
+  <div id="crowdTeams" hidden>
+    <div class="effect" style="grid-template-columns:auto 1fr auto">
+      <span class="team gold">Gold</span><span style="align-self:center;height:6px;border-radius:3px;background:var(--filet);overflow:hidden"><span id="fervorGold" style="display:block;height:100%;width:25%;background:var(--or);transition:width .4s"></span></span><span id="spendGold">0 coins</span>
+      <span class="team shadow">Shadow</span><span style="align-self:center;height:6px;border-radius:3px;background:var(--filet);overflow:hidden"><span id="fervorShadow" style="display:block;height:100%;width:25%;background:var(--accent);transition:width .4s"></span></span><span id="spendShadow">0 coins</span>
     </div>
-    <pre id="fouleJournal" style="margin-top:6px">en attente du premier cadeau</pre>
+    <pre id="crowdLog" style="margin-top:6px">waiting for the first gift</pre>
   </div>
 </section>
 
 <section id="admin" hidden>
-  <h2>Super admin</h2>
-  <div class="note">Coup de pouce IA, invisible a l'ecran. Remis a 0 a chaque nouvelle manche.</div>
-  <div class="ligne"><span style="color:var(--accent)">Ombre</span>
-    <input type="range" id="pouce" min="-100" max="100" value="0" step="5" style="flex:1;accent-color:var(--accent)">
+  <h2>Super Admin</h2>
+  <div class="note">Hidden boost, invisible on screen. Reset to 0 at each new round.</div>
+  <div class="row"><span style="color:var(--accent)">Ombre</span>
+    <input type="range" id="thumb" min="-100" max="100" value="0" step="5" style="flex:1;accent-color:var(--accent)">
     <span style="color:var(--or)">Or</span></div>
-  <div class="note" id="pouceEtat">neutre (0)</div>
-  <div class="note">Debug IA : trajet vise, rayons de vue, pas candidats notes, couronne evitee, flash vert garde / rouge change. A couper avant l'antenne.</div>
-  <label class="ligne"><input type="checkbox" id="debugIA"> Debug IA sur le plateau</label>
+  <div class="note" id="thumbState">neutral (0)</div>
+  <div class="note">Debug: target path, view rays, scored candidate moves, avoided ring, green flash = kept / red = changed. Turn off before going live.</div>
+  <label class="row"><input type="checkbox" id="aiDebug"> Debug overlay on the board</label>
 
-  <h2 style="margin-top:8px">Retour visuel des cadeaux (prototype a valider)</h2>
-  <div class="note">S'applique a la vraie legende du bas. Envoie un cadeau avec les boutons du simulateur pour voir chaque version. G1 ligne illuminee, donateur et trait qui se vide. G2 anneau autour de l'image. G3 pastille compteur. G4 bandeau donateur au-dessus.</div>
-  <div class="rangee" id="retours"><button data-r="aucun">Aucun</button><button data-r="G1">G1</button><button data-r="G2">G2</button><button data-r="G3">G3</button><button data-r="G4">G4</button></div>
-  <div class="note">Affichage des cadeaux : "Defile ON" = les deux bandeaux (effet sans prix, pattern visible/cache ci-dessous). "Defile OFF" = aucun affichage. "Complet" = ancienne legende avec prix, tests hors live seulement.</div>
-  <div class="note">Format d'image (applique a la prochaine manche) : vertical 9:16 pour TikTok, horizontal 16:9 pour YouTube. Meme plateau, meme grille, HUD dans les flancs.</div>
-  <div class="rangee" id="formats"><button data-f="vertical">Vertical 9:16 (TikTok)</button><button data-f="horizontal">Horizontal 16:9 (YouTube)</button></div>
-  <div class="rangee" id="affichages"><button data-a="defile">Defile ON (live-safe)</button><button data-a="aucun">Defile OFF (rien)</button><button data-a="complet">Complet (prix, hors live)</button></div>
-  <div class="ligne" id="patternDefile">Pattern defile :
-    <label>visible <select id="defileVisi"><option>4</option><option>6</option><option selected>8</option><option>10</option><option>12</option><option>15</option><option>20</option></select> s</label>
-    <label>cache <select id="defileCache"><option>0</option><option>6</option><option>8</option><option>10</option><option selected>12</option><option>15</option><option>20</option><option>30</option></select> s</label>
+  <h2 style="margin-top:8px">Gift Visual Feedback (prototype to validate)</h2>
+  <div class="note">Applies to the real legend at the bottom. Send a gift with the simulator buttons to see each version. G1 lit row, donor and draining bar. G2 ring around the image. G3 counter badge. G4 donor banner above.</div>
+  <div class="line" id="feedbackModes"><button data-r="none">None</button><button data-r="G1">G1</button><button data-r="G2">G2</button><button data-r="G3">G3</button><button data-r="G4">G4</button></div>
+  <div class="note">Gift display: "Scroll ON" = two banners (effect without price, visible/hidden pattern below). "Scroll OFF" = no display. "Full" = old legend with prices, off-stream testing only.</div>
+  <div class="note">Image format (applied on next round): portrait 9:16 for TikTok, landscape 16:9 for YouTube. Same board, same grid, HUD in the sides.</div>
+  <div class="line" id="formats"><button data-f="portrait">Portrait 9:16 (TikTok)</button><button data-f="landscape">Landscape 16:9 (YouTube)</button></div>
+  <div class="line" id="giftDisplays"><button data-a="scroll">Scroll ON (live-safe)</button><button data-a="none">Scroll OFF (none)</button><button data-a="full">Full (prices, off-stream)</button></div>
+  <div class="row" id="scrollPattern">Scroll pattern:
+    <label>visible <select id="scrollVisible"><option>4</option><option>6</option><option selected>8</option><option>10</option><option>12</option><option>15</option><option>20</option></select> s</label>
+    <label>hidden <select id="scrollHidden"><option>0</option><option>6</option><option>8</option><option>10</option><option selected>12</option><option>15</option><option>20</option><option>30</option></select> s</label>
   </div>
-  <div class="note">Bandeau d'activite en haut (prototype) : version, puis boutons de test</div>
-  <div class="rangee"><button data-b="aucun">Aucun</button><button data-b="P1">P1 orbite</button><button data-b="P2">P2 porteur</button><button data-b="P3">P3 mascotte</button></div>
-  <div class="rangee"><button data-t="arrivee">Test arrivee</button><button data-t="cadeauOr">Test cadeau Or</button><button data-t="cadeauOm">Test cadeau Ombre</button><button data-t="like">Test likes</button><button data-t="partage">Test partage</button><button data-t="palier">Test 50 spectateurs</button></div>
-  <div class="note">Ambiance de la foret (prototype) : meteo, heure, ou tirage automatique a chaque manche</div>
-  <div class="rangee"><button data-m="pluie">Pluie</button><button data-m="neige">Neige</button><button data-m="automne">Automne</button><button data-m="ete">Ete</button><button data-m="printemps">Printemps</button><button data-m="orage">Orage</button><button data-m="etoiles">Etoiles filantes</button><button data-m="aurore">Aurore</button><button data-m="lucioles">Lucioles</button><button data-m="braises">Braises</button><button data-m="brume">Brume</button></div>
-  <div class="rangee"><button data-h="0.02">Nuit</button><button data-h="0.22">Lever</button><button data-h="0.5">Jour</button><button data-h="0.78">Coucher</button><label class="ligne"><input type="checkbox" id="ambianceAuto"> Auto par manche</label></div>
-  <div class="note">Classement des donateurs sur l'ecran de fin (prototype) : version, puis test (5 dons puis fin de manche)</div>
-  <div class="rangee"><button data-c="aucun">Aucun</button><button data-c="C1">C1 podium</button><button data-c="C2">C2 deux camps</button><button data-c="C3">C3 MVP</button><button data-c="M1">M1 couronne</button><button data-c="M2">M2 serpent</button><button data-c="M3">M3 podium</button><button id="testClassement">Tester</button></div>
-  <label class="ligne"><input type="checkbox" id="nomsDonateurs" checked> Afficher le nom des spectateurs sur les cadeaux</label>
-  <h2 style="margin-top:8px">Super IA</h2>
-  <div class="note">Recherche adverse type echecs : chaque serpent simule ses coups et les reponses de l'autre plusieurs pas a l'avance, et joue le territoire. Appliquee aux deux camps. Suspendue pendant une scene.</div>
-  <label class="ligne"><span class="voyant" id="vsuper"></span><input type="checkbox" id="superIA"> Super IA (les deux serpents)</label>
-  <h2 style="margin-top:8px">Mise en scene</h2>
-  <div class="note">Un clic force une situation invisible a l'ecran. Elle dure quelques secondes puis rend la main a l'IA. Underdog reste allume tant qu'on ne l'eteint pas.</div>
-  <div class="rangee">
-    <button data-s="ballet">Ballet<span class="jauge"></span><span class="cd"></span></button>
-    <button data-s="course">Course a la baie<span class="jauge"></span><span class="cd"></span></button>
+  <div class="note">Activity banner at the top (prototype): version, then test buttons</div>
+  <div class="line"><button data-b="none">None</button><button data-b="P1">P1 orbit</button><button data-b="P2">P2 carrier</button><button data-b="P3">P3 mascot</button></div>
+  <div class="line"><button data-t="join">Test join</button><button data-t="giftGold">Test Gold gift</button><button data-t="giftShadow">Test Shadow gift</button><button data-t="like">Test likes</button><button data-t="share">Test share</button><button data-t="tier">Test 50 viewers</button></div>
+  <div class="note">Forest ambiance (prototype): weather, time of day, or automatic draw each round</div>
+  <div class="line"><button data-m="rain">Rain</button><button data-m="snow">Snow</button><button data-m="autumn">Autumn</button><button data-m="summer">Summer</button><button data-m="spring">Spring</button><button data-m="storm">Storm</button><button data-m="stars">Shooting stars</button><button data-m="aurora">Aurora</button><button data-m="fireflies">Fireflies</button><button data-m="embers">Embers</button><button data-m="mist">Mist</button></div>
+  <div class="line"><button data-h="0.02">Night</button><button data-h="0.22">Sunrise</button><button data-h="0.5">Day</button><button data-h="0.78">Sunset</button><label class="row"><input type="checkbox" id="autoAmbience"> Auto per round</label></div>
+  <div class="note">Donor ranking on the end screen (prototype): version, then test (5 gifts then end of round)</div>
+  <div class="line"><button data-c="none">None</button><button data-c="C1">C1 podium</button><button data-c="C2">C2 two teams</button><button data-c="C3">C3 MVP</button><button data-c="M1">M1 crown</button><button data-c="M2">M2 snake</button><button data-c="M3">M3 podium</button><button id="testRanking">Test</button></div>
+  <label class="row"><input type="checkbox" id="donorNames" checked> Show viewer names on gifts</label>
+  <h2 style="margin-top:8px">Super AI</h2>
+  <div class="note">Chess-style lookahead: each snake simulates its moves and the opponent's replies several steps ahead, and plays for territory. Applied to both teams. Paused during a scene.</div>
+  <label class="row"><span class="light" id="superLight"></span><input type="checkbox" id="superAi"> Super AI (both snakes)</label>
+  <h2 style="margin-top:8px">Staging</h2>
+  <div class="note">A click forces a situation invisible on screen. It lasts a few seconds then hands back control. Underdog stays on until turned off.</div>
+  <div class="line">
+    <button data-s="ballet">Ballet<span class="gauge"></span><span class="cd"></span></button>
+    <button data-s="race">Berry race<span class="gauge"></span><span class="cd"></span></button>
   </div>
-  <div class="rangee">
-    <button class="or" data-s="chasseOr">Or chasse Ombre<span class="jauge"></span><span class="cd"></span></button>
-    <button data-s="chasseOm">Ombre chasse Or<span class="jauge"></span><span class="cd"></span></button>
+  <div class="line">
+    <button class="gold" data-s="huntGold">Gold hunts Shadow<span class="gauge"></span><span class="cd"></span></button>
+    <button data-s="huntShadow">Shadow hunts Gold<span class="gauge"></span><span class="cd"></span></button>
   </div>
-  <div class="rangee">
-    <label class="ligne" style="flex:1"><span class="voyant" id="vunderdog"></span><input type="checkbox" id="underdog"> Underdog (aide au plus court, invisible)</label>
-    <button id="sceneStop">Couper la scene</button>
+  <div class="line">
+    <label class="row" style="flex:1"><span class="light" id="underdogLight"></span><input type="checkbox" id="underdog"> Underdog (helps the shorter snake, invisible)</label>
+    <button id="sceneStop">Stop scene</button>
   </div>
-  <div class="note" id="sceneEtat">aucune scene en cours</div>
-  <div class="effet" id="sceneEffet" hidden>
-    <span class="camp or">Or</span><span id="effetOr">-</span>
-    <span class="camp om">Ombre</span><span id="effetOm">-</span>
+  <div class="note" id="sceneState">no active scene</div>
+  <div class="effect" id="sceneEffect" hidden>
+    <span class="team gold">Gold</span><span id="effectGold">-</span>
+    <span class="team shadow">Shadow</span><span id="effectShadow">-</span>
   </div>
 </section>
   </body>

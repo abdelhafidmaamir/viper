@@ -14,7 +14,12 @@ export const drawCalls: Diagnostic = async ({ game, orientation, options, write 
       window.__viperKit.startDuel(settings);
       window.__viperKit.startCrowd(3);
     },
-    { format: formatOf(orientation), dureeDuel: 600, ambianceAuto: false, meteo: options.weather },
+    {
+      format: formatOf(orientation),
+      duelDuration: 600,
+      autoAmbience: false,
+      weather: options.weather,
+    },
   );
   await delay(options.settleSeconds * 1000);
 

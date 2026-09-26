@@ -211,18 +211,18 @@ function fakeCanvas(width: number, height: number, recorder: DrawRecorder): Fake
 
 /** Renderer API surface the suites use (French names until the engine is migrated). */
 export interface GameUnderTest {
-  reglages: Record<string, unknown>;
-  nouvelleManche(): void;
-  avancer(dt: number): void;
-  remettreScore(): void;
-  razMoments(): void;
-  finirTest(team: 'or' | 'ombre'): void;
-  reglerHeure(hour: number): void;
-  lancerScene(name: string, seconds: number): void;
+  settings: Record<string, unknown>;
+  newRound(): void;
+  advance(dt: number): void;
+  resetScore(): void;
+  resetMoments(): void;
+  endTest(team: 'gold' | 'shadow'): void;
+  setHour(hour: number): void;
+  launchScene(name: string, seconds: number): void;
   stopScene(): void;
-  manches(): { camp: string; duree: number }[];
-  score(): { serpent: number; viewers: number };
-  mesures(): { erreurs: number; derniereErreur: string | null };
+  rounds(): { team: string; duration: number }[];
+  score(): { snake: number; viewers: number };
+  metrics(): { errors: number; lastError: string | null };
   duel(): unknown;
 }
 
@@ -309,10 +309,10 @@ export function bootGame({ seed, record = false }: BootOptions = {}): BootedGame
   for (const file of GAME_SCRIPTS) require(path.join(SCRIPTS, file));
 
   const scope = globalThis as unknown as {
-    VipereBase: GameUnderTest;
-    recevoirEvenement(event: Record<string, unknown>): unknown;
+    Viper: GameUnderTest;
+    receiveEvent(event: Record<string, unknown>): unknown;
   };
-  const game = scope.VipereBase;
+  const game = scope.Viper;
 
   return {
     game,
@@ -322,18 +322,18 @@ export function bootGame({ seed, record = false }: BootOptions = {}): BootedGame
       Math.random = seededRandom(next);
     },
     send: (event) => {
-      scope.recevoirEvenement(event);
+      scope.receiveEvent(event);
     },
     frame(dt = 1 / 60) {
       clockMs += dt * 1000;
-      game.avancer(dt);
+      game.advance(dt);
       const draw = pendingFrames.pop();
       pendingFrames.length = 0;
       draw?.(clockMs);
     },
     step(dt = 1 / 30) {
       clockMs += dt * 1000;
-      game.avancer(dt);
+      game.advance(dt);
       pendingFrames.length = 0;
     },
   };

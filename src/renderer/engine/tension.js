@@ -1,88 +1,90 @@
 // Tension: how cornered the leading snake is, from reachable space, length and dead cells nearby.
 // Sampled ten times a second, rising fast and easing slowly; the camera and HUD read it.
 
-import { palier } from './crowd.js';
-import { roncesDures } from './hazards.js';
+import { tier } from './crowd.js';
+import { activeBrambles } from './hazards.js';
 import { COLS, ROWS } from './layout.js';
-import { ALERTE } from './rules.js';
-import { autre, rochers, serpent } from '../scripts/game.js';
+import { STONE_WARNING } from './rules.js';
+import { rival, stones, snake } from '../scripts/game.js';
 
-// La tension, ce qui resserre l'image. L'avancement de la manche ne dit rien du risque :
-// on peut etre a une baie de gagner en pleine ouverture, ou coince des la deuxieme. Trois
-// choses la nourrissent : l'espace encore atteignable depuis la tete, la longueur du serpent,
-// et les cases mortes qui la touchent. Elle monte vite, elle redescend lentement.
+// Tension drives the camera tightening. Round progress says nothing about risk: a snake can be one
+// berry from winning in open space, or cornered at the second. Three factors feed it: reachable
+// space from the head, snake length, and dead cells adjacent to the head.
 export let tension = 0,
-  tensionCible = 0,
-  tensionT = 0;
+  tensionTarget = 0,
+  tensionTimer = 0;
 
-// la tension se remesure dix fois par seconde, puis se lisse : vite vers le haut, lentement vers le bas
-export function majTension(dt) {
-  tensionT -= dt;
-  if (tensionT <= 0) {
-    tensionT = 0.1;
-    tensionCible = mesurerTension();
+// Remeasured ten times a second, then smoothed: rises fast, eases slowly.
+export function updateTension(dt) {
+  tensionTimer -= dt;
+  if (tensionTimer <= 0) {
+    tensionTimer = 0.1;
+    tensionTarget = measureTension();
   }
-  tension += (tensionCible - tension) * Math.min(1, dt * (tensionCible > tension ? 3.5 : 0.9));
+  tension += (tensionTarget - tension) * Math.min(1, dt * (tensionTarget > tension ? 3.5 : 0.9));
 }
 
-export function mesurerTension() {
-  if (!serpent.length) return 0;
-  const tete = serpent[0],
-    mur = new Set();
-  for (let i = 0; i < serpent.length - 1; i++) mur.add(serpent[i].x + ',' + serpent[i].y);
-  const a = autre();
-  if (a) a.serpent.forEach((s) => mur.add(s.x + ',' + s.y));
-  rochers.forEach((r) => {
-    if (r.t >= ALERTE) mur.add(r.x + ',' + r.y);
+export function measureTension() {
+  if (!snake.length) return 0;
+  const head = snake[0],
+    wall = new Set();
+  for (let i = 0; i < snake.length - 1; i++) wall.add(snake[i].x + ',' + snake[i].y);
+  const a = rival();
+  if (a) a.snake.forEach((s) => wall.add(s.x + ',' + s.y));
+  stones.forEach((r) => {
+    if (r.t >= STONE_WARNING) wall.add(r.x + ',' + r.y);
   });
-  roncesDures().forEach((g) => mur.add(g.x + ',' + g.y));
+  activeBrambles().forEach((g) => wall.add(g.x + ',' + g.y));
   const VOISINS = [
     [1, 0],
     [-1, 0],
     [0, 1],
     [0, -1],
   ];
-  // 1. on remplit tout ce qui est atteignable depuis la tete, le plateau est petit
-  const vus = new Set([tete.x + ',' + tete.y]);
-  let file = [tete],
+  // 1. flood-fill from the head; the board is small enough for BFS every sample
+  const visited = new Set([head.x + ',' + head.y]);
+  let queue = [head],
     n = 0;
-  while (file.length) {
-    const suiv = [];
-    for (const c of file) {
+  while (queue.length) {
+    const nextCells = [];
+    for (const c of queue) {
       for (const d of VOISINS) {
         const x = c.x + d[0],
           y = c.y + d[1],
           k = x + ',' + y;
-        if (x < 0 || y < 0 || x >= COLS || y >= ROWS || vus.has(k) || mur.has(k)) continue;
-        vus.add(k);
+        if (x < 0 || y < 0 || x >= COLS || y >= ROWS || visited.has(k) || wall.has(k)) continue;
+        visited.add(k);
         n++;
-        suiv.push({ x, y });
+        nextCells.push({ x, y });
       }
     }
-    file = suiv;
+    queue = nextCells;
   }
-  const libres = Math.max(1, COLS * ROWS - mur.size);
-  // ce qui est coupe : le serpent s'est enferme dans une poche du plateau
-  const coupe = 1 - Math.min(1, n / libres);
-  // ce qui est etroit : meme sans poche, il ne reste plus de quoi manoeuvrer
-  const etroit = 1 - Math.min(1, n / (serpent.length * 2 + 16));
-  // la longueur seule, qui pese meme quand tout est ouvert
-  const longueur = Math.min(1, serpent.length / (COLS * ROWS * 0.3));
-  // ce qui touche deja la tete : mur, corps ou rocher pose
-  let morts = 0;
+  const totalFree = Math.max(1, COLS * ROWS - wall.size);
+  // cutOff: snake walled into a pocket of the board
+  const cutOff = 1 - Math.min(1, n / totalFree);
+  // narrow: even without a pocket, not enough room left to manoeuvre
+  const narrow = 1 - Math.min(1, n / (snake.length * 2 + 16));
+  // lengthFactor: length alone, which weighs even in open space
+  const lengthFactor = Math.min(1, snake.length / (COLS * ROWS * 0.3));
+  // stuckFactor: head neighbours blocked by wall, body or stone
+  let blockedCount = 0;
   for (const d of VOISINS) {
-    const x = tete.x + d[0],
-      y = tete.y + d[1];
-    if (x < 0 || y < 0 || x >= COLS || y >= ROWS || mur.has(x + ',' + y)) morts++;
+    const x = head.x + d[0],
+      y = head.y + d[1];
+    if (x < 0 || y < 0 || x >= COLS || y >= ROWS || wall.has(x + ',' + y)) blockedCount++;
   }
-  const colle = Math.min(1, morts / 3);
-  // les pierres posees : chacune retire une case et ferme une ligne de fuite
-  const pierres = Math.min(
+  const stuckFactor = Math.min(1, blockedCount / 3);
+  // stoneRatio: each active stone removes a cell and closes an escape lane
+  const stoneRatio = Math.min(
     1,
-    rochers.filter((r) => r.t >= ALERTE).length / Math.max(1, palier.maxRochers),
+    stones.filter((r) => r.t >= STONE_WARNING).length / Math.max(1, tier.maxStones),
   );
   return Math.max(
     0,
-    Math.min(1, 0.3 * coupe + 0.25 * etroit + 0.28 * longueur + 0.1 * colle + 0.07 * pierres),
+    Math.min(
+      1,
+      0.3 * cutOff + 0.25 * narrow + 0.28 * lengthFactor + 0.1 * stuckFactor + 0.07 * stoneRatio,
+    ),
   );
 }

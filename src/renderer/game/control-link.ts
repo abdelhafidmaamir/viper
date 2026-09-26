@@ -15,35 +15,44 @@ export interface GameLinkDeps {
   readonly storage: Pick<Storage, 'getItem' | 'setItem'>;
 }
 
-type PersistedSetting = 'plateforme' | 'nomsDonateurs' | 'fluide';
+type PersistedSetting = 'platform' | 'donorNames' | 'smooth';
 
 /**
- * Settings that survive a restart. The storage keys and encodings are those of the shipped
- * build, so existing installs keep their choices. Decoding is deliberately one-sided: only a
- * value that departs from the engine default is applied.
+ * Settings that survive a restart. Decoding is deliberately one-sided: only a value that departs
+ * from the engine default is applied. `legacyKey` is where builds before the English rename
+ * stored the same choice, read once when the current key is empty so existing installs keep it.
  */
 const PERSISTED: Readonly<
   Record<
     PersistedSetting,
     {
       readonly key: string;
+      readonly legacyKey: string;
       readonly encode: (value: unknown) => string;
       readonly decode: (stored: string | null) => GameSettings[PersistedSetting] | undefined;
     }
   >
 > = {
-  plateforme: {
-    key: 'vipere-plateforme',
+  platform: {
+    key: 'viper-platform',
+    legacyKey: 'vipere-plateforme',
     encode: String,
-    decode: (stored) => (stored === 'neutre' || stored === 'tiktok' ? stored : undefined),
+    decode: (stored) =>
+      stored === 'neutral' || stored === 'neutre'
+        ? 'neutral'
+        : stored === 'tiktok'
+          ? stored
+          : undefined,
   },
-  nomsDonateurs: {
-    key: 'vipere-noms',
+  donorNames: {
+    key: 'viper-donor-names',
+    legacyKey: 'vipere-noms',
     encode: (value) => (value ? '1' : '0'),
     decode: (stored) => (stored === '0' ? false : undefined),
   },
-  fluide: {
-    key: 'vipere-fluide',
+  smooth: {
+    key: 'viper-smooth',
+    legacyKey: 'vipere-fluide',
     encode: (value) => (value ? '1' : '0'),
     decode: (stored) => (stored === '1' ? true : undefined),
   },
@@ -62,85 +71,86 @@ function safely<T>(action: () => T): T | undefined {
 
 export function restorePreferences({ game, storage }: GameLinkDeps): void {
   for (const name of Object.keys(PERSISTED) as PersistedSetting[]) {
-    const { key, decode } = PERSISTED[name];
-    const value = decode(safely(() => storage.getItem(key)) ?? null);
-    if (value !== undefined) Object.assign(game.reglages, { [name]: value });
+    const { key, legacyKey, decode } = PERSISTED[name];
+    const stored = safely(() => storage.getItem(key) ?? storage.getItem(legacyKey)) ?? null;
+    const value = decode(stored);
+    if (value !== undefined) Object.assign(game.settings, { [name]: value });
   }
 }
 
 export function applyCommand(command: ControlCommand, deps: GameLinkDeps): void {
   const { game, bridge } = deps;
   switch (command.cmd) {
-    case 'evenement':
+    case 'event':
       deps.receiveEvent(command.ev ?? ({} as AudienceEvent));
       return;
-    case 'brut':
-      bridge.traiter(command.message ?? null);
+    case 'raw':
+      bridge.process(command.message ?? null);
       return;
-    case 'pont-demarrer':
-      bridge.demarrer(command.url);
+    case 'bridge-start':
+      bridge.start(command.url);
       return;
-    case 'pont-arreter':
-      bridge.arreter();
+    case 'bridge-stop':
+      bridge.stop();
       return;
-    case 'manche':
-      game.reglages.mode = 'duel';
-      game.nouvelleManche();
+    case 'round':
+      game.settings.mode = 'duel';
+      game.newRound();
       return;
-    case 'reglage': {
-      const { nom, valeur } = command;
+    case 'setting': {
+      const { name, value } = command;
       // Own keys only: `in` would accept inherited names such as __proto__.
-      if (!Object.hasOwn(game.reglages, nom)) return;
-      Object.assign(game.reglages, { [nom]: valeur });
-      if (isPersisted(nom)) {
-        const { key, encode } = PERSISTED[nom];
+      if (!Object.hasOwn(game.settings, name)) return;
+      Object.assign(game.settings, { [name]: value });
+      if (isPersisted(name)) {
+        const { key, encode } = PERSISTED[name];
         safely(() => {
-          deps.storage.setItem(key, encode(valeur));
+          deps.storage.setItem(key, encode(value));
         });
       }
       return;
     }
     case 'scene':
-      game.lancerScene(command.nom, command.duree);
+      game.launchScene(command.name, command.duration);
       return;
     case 'sceneStop':
       game.stopScene();
       return;
-    case 'finTest':
-      game.finirTest?.(command.camp);
+    case 'endTest':
+      game.endTest?.(command.team);
       return;
   }
 }
 
 export function snapshot({ game, bridge, readCrowd }: GameLinkDeps): GameState {
-  const settings = game.reglages;
+  const settings = game.settings;
   const duel = game.duel();
   return {
-    pont: bridge.etat(),
-    avantage: settings.avantage || 0,
+    bridge: bridge.state(),
+    advantage: settings.advantage || 0,
     underdog: settings.underdog,
-    foule: readCrowd(),
-    plateforme: settings.plateforme,
-    fluide: settings.fluide,
-    retourCadeau: settings.retourCadeau,
-    bandeau: settings.bandeau,
-    classement: settings.classement,
-    meteo: settings.meteo,
-    ambianceAuto: settings.ambianceAuto,
-    heure: settings.heure,
-    nomsDonateurs: settings.nomsDonateurs,
-    superIA: settings.superIA,
-    debugIA: settings.debugIA,
+    crowd: readCrowd(),
+    platform: settings.platform,
+    smooth: settings.smooth,
+    giftFeedback: settings.giftFeedback,
+    banner: settings.banner,
+    ranking: settings.ranking,
+    weather: settings.weather,
+    autoAmbience: settings.autoAmbience,
+    hour: settings.hour,
+    donorNames: settings.donorNames,
+    superAi: settings.superAi,
+    aiDebug: settings.aiDebug,
     scene: game.scene(),
     duel: duel
       ? {
           t: duel.t,
-          vainqueur: duel.vainqueur,
-          or: { longueur: duel.or?.longueur },
-          ombre: { longueur: duel.ombre?.longueur },
+          winner: duel.winner,
+          gold: { length: duel.gold?.length },
+          shadow: { length: duel.shadow?.length },
         }
       : null,
-    mesures: { erreurs: game.mesures().erreurs },
+    metrics: { errors: game.metrics().errors },
   };
 }
 
@@ -174,7 +184,7 @@ export function linkControlRoom(
   });
 
   const timer = setInterval(() => {
-    channel.postMessage({ etat: snapshot(deps) });
+    channel.postMessage({ state: snapshot(deps) });
   }, STATE_INTERVAL_MS);
 
   return () => {

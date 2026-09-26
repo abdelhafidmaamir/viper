@@ -9,51 +9,51 @@ import {
   W,
   X0,
   Y0,
-  Z_BANNIERE,
-  Z_CADEAUX,
-  Z_FIL,
-  Z_SAISIE,
+  Z_BANNER,
+  Z_GIFTS,
+  Z_COMMENTS,
+  Z_INPUT,
 } from './layout.js';
-import { pilule } from './scoreboard.js';
+import { pill } from './scoreboard.js';
 import { ctx } from './canvas.js';
 import {
-  actif,
-  charger,
-  corps,
+  activeIndex,
+  loadBody,
+  bodies,
   dir,
-  dirProchaine,
-  memoireIA,
+  nextDir,
+  aiMemory,
   px,
-  ranger,
-  serpent,
+  storeBody,
+  snake,
   t,
 } from '../scripts/game.js';
 
-export function peindreMaquetteLive() {
+export function paintLiveMockup() {
   ctx.save();
-  const GRIS = 'rgba(255,255,255,0.20)',
-    SOMBRE = 'rgba(0,0,0,0.42)',
-    CLAIR = 'rgba(255,255,255,0.34)';
+  const GRAY = 'rgba(255,255,255,0.20)',
+    DARK = 'rgba(0,0,0,0.42)',
+    LIGHT = 'rgba(255,255,255,0.34)';
 
-  // 1. le haut : voile sombre, pastille de l'hote, bouton Suivre, compteur, croix
+  // 1. Top area: dark veil, host avatar, Follow button, viewer counter, close button.
   ctx.fillStyle = 'rgba(0,0,0,0.30)';
   ctx.fillRect(0, 0, W, SR_Y);
-  ctx.fillStyle = CLAIR;
+  ctx.fillStyle = LIGHT;
   ctx.beginPath();
   ctx.arc(84, 150, 42, 0, Math.PI * 2);
   ctx.fill();
-  pilule(138, 126, 190, 26, CLAIR, 8); // le pseudo
-  pilule(138, 160, 96, 18, GRIS, 7); // les abonnes
-  pilule(404, 122, 150, 58, 'rgba(232,64,84,0.80)'); // + Suivre
-  pilule(740, 124, 180, 54, SOMBRE); // les avatars et le nombre de spectateurs
-  ctx.fillStyle = CLAIR;
+  pill(138, 126, 190, 26, LIGHT, 8); // nickname
+  pill(138, 160, 96, 18, GRAY, 7); // follower count
+  pill(404, 122, 150, 58, 'rgba(232,64,84,0.80)'); // + Suivre
+  pill(740, 124, 180, 54, DARK); // avatars and viewer count
+  ctx.fillStyle = LIGHT;
   [768, 806].forEach((x) => {
     ctx.beginPath();
     ctx.arc(x, 151, 21, 0, Math.PI * 2);
     ctx.fill();
   });
-  pilule(840, 142, 56, 18, CLAIR, 7);
-  ctx.strokeStyle = CLAIR;
+  pill(840, 142, 56, 18, LIGHT, 7);
+  ctx.strokeStyle = LIGHT;
   ctx.lineWidth = 5;
   ctx.lineCap = 'round';
   ctx.beginPath();
@@ -62,42 +62,41 @@ export function peindreMaquetteLive() {
   ctx.moveTo(1038, 134);
   ctx.lineTo(1002, 170);
   ctx.stroke();
-  // la seconde rangee : classement, galerie, recherche
-  pilule(30, 216, 368, 42, SOMBRE, 12);
-  pilule(414, 216, 236, 42, SOMBRE, 12);
-  pilule(666, 216, 384, 42, SOMBRE, 12);
+  // Second row: ranking, gallery, search.
+  pill(30, 216, 368, 42, DARK, 12);
+  pill(414, 216, 236, 42, DARK, 12);
+  pill(666, 216, 384, 42, DARK, 12);
 
-  // 2. la colonne de widgets cadeaux, a droite : c'est elle qui borne le compteur par le bas
-  const Z = Z_CADEAUX;
+  // 2. Gift widget column, right side; defines the lower bound of the viewer counter.
+  const Z = Z_GIFTS;
   ctx.fillStyle = 'rgba(0,0,0,0.34)';
   ctx.beginPath();
   ctx.roundRect(Z.x, Z.y, Z.w, Z.h, 16);
   ctx.fill();
   for (let i = 0; i < 5; i++) {
     const y = Z.y + 22 + i * 66;
-    pilule(Z.x + 16, y, 52, 52, CLAIR, 14); // l'icone du cadeau
-    pilule(Z.x + 82, y + 10, 190, 16, GRIS, 8); // le libelle
-    pilule(Z.x + 82, y + 32, 120, 14, GRIS, 7);
+    pill(Z.x + 16, y, 52, 52, LIGHT, 14); // gift icon
+    pill(Z.x + 82, y + 10, 190, 16, GRAY, 8); // gift label
+    pill(Z.x + 82, y + 32, 120, 14, GRAY, 7);
   }
 
-  // 3. la banniere de cadeau, puis le fil de commentaires, puis la barre de saisie
-  const B = Z_BANNIERE;
+  // 3. Gift banner, then comment feed, then input bar.
+  const B = Z_BANNER;
   ctx.fillStyle = 'rgba(0,0,0,0.38)';
   ctx.beginPath();
   ctx.roundRect(B.x, B.y, B.w, B.h, B.h / 2);
   ctx.fill();
-  ctx.fillStyle = CLAIR;
+  ctx.fillStyle = LIGHT;
   ctx.beginPath();
   ctx.arc(B.x + 50, B.y + B.h / 2, 34, 0, Math.PI * 2);
   ctx.fill();
-  pilule(B.x + 98, B.y + 22, 210, 20, CLAIR, 8);
-  pilule(B.x + 98, B.y + 54, 140, 16, GRIS, 7);
-  pilule(B.x + 430, B.y + 28, 120, 40, CLAIR, 10);
-  const F = Z_FIL;
-  // 4 commentaires et demi a la fois, compte par Abdel sur un vrai live : le plus ancien est
-  // coupe net par le haut du fil, il ne s'affiche jamais en entier. On decoupe donc a la zone
-  // et on demarre la premiere bulle a cheval sur son bord, sinon la maquette ment sur la
-  // hauteur reellement occupee et sur l'aspect du fil.
+  pill(B.x + 98, B.y + 22, 210, 20, LIGHT, 8);
+  pill(B.x + 98, B.y + 54, 140, 16, GRAY, 7);
+  pill(B.x + 430, B.y + 28, 120, 40, LIGHT, 10);
+  const F = Z_COMMENTS;
+  // 4.5 comments visible at once; the oldest is cropped at the feed's top edge and never fully
+  // visible. The clip region starts there and the first bubble straddles the boundary, so the
+  // mockup accurately reflects the real occupied height and feed appearance.
   ctx.save();
   ctx.beginPath();
   ctx.rect(F.x, F.y, F.w, F.h);
@@ -109,24 +108,24 @@ export function peindreMaquetteLive() {
     ctx.beginPath();
     ctx.roundRect(F.x + 20, y, lg, 86, 22);
     ctx.fill();
-    ctx.fillStyle = CLAIR;
+    ctx.fillStyle = LIGHT;
     ctx.beginPath();
     ctx.arc(F.x + 58, y + 43, 26, 0, Math.PI * 2);
     ctx.fill();
-    pilule(F.x + 98, y + 20, lg * 0.34, 16, CLAIR, 7);
-    pilule(F.x + 98, y + 50, lg * 0.62, 16, GRIS, 7);
+    pill(F.x + 98, y + 20, lg * 0.34, 16, LIGHT, 7);
+    pill(F.x + 98, y + 50, lg * 0.62, 16, GRAY, 7);
   }
   ctx.restore();
-  const S = Z_SAISIE;
-  pilule(S.x + 24, S.y, 560, S.h, 'rgba(0,0,0,0.42)', 28);
-  pilule(S.x + 52, S.y + 38, 260, 22, GRIS, 10);
+  const S = Z_INPUT;
+  pill(S.x + 24, S.y, 560, S.h, 'rgba(0,0,0,0.42)', 28);
+  pill(S.x + 52, S.y + 38, 260, 22, GRAY, 10);
   ctx.fillStyle = 'rgba(0,0,0,0.42)';
   [648, 744, 840, 936].forEach((x) => {
     ctx.beginPath();
     ctx.arc(x, S.y + S.h / 2, 44, 0, Math.PI * 2);
     ctx.fill();
   });
-  ctx.fillStyle = CLAIR;
+  ctx.fillStyle = LIGHT;
   [648, 744, 840, 936].forEach((x) => {
     ctx.beginPath();
     ctx.arc(x, S.y + S.h / 2, 20, 0, Math.PI * 2);
@@ -135,25 +134,25 @@ export function peindreMaquetteLive() {
   ctx.restore();
 }
 
-// Calque de debug IA (super admin). Par serpent, dans la couleur de son camp : trajet vers la baie
-// visee, rayons de vue (losanges de Manhattan 12 attaque, 10 defense), pas candidats notes, couronne
-// adverse evitee, etiquette posture/raison/poche, flash garde (vert) ou change (rouge) a chaque case.
-export function peindreDebugIA() {
-  for (let i = 0; i < corps.length; i++) {
-    charger(i);
-    const g = memoireIA.debug,
-      h = serpent[0];
+// AI debug layer (super-admin only). Per snake, in team color: path to target berry, sight diamonds
+// (Manhattan radius 12 attack, 10 defense), scored candidate steps, opponent crown cells avoided,
+// stance/reason/pocket label, keep (green) or change (red) flash on each cell transition.
+export function paintAiDebug() {
+  for (let i = 0; i < bodies.length; i++) {
+    loadBody(i);
+    const g = aiMemory.debug,
+      h = snake[0];
     if (!g || !h) {
-      ranger();
+      storeBody();
       continue;
     }
     const rgb = i === 0 ? '242,197,124' : '180,212,222',
       c = (a) => 'rgba(' + rgb + ',' + a + ')',
       p = px(h.x, h.y);
     ctx.save();
-    // 2. rayons de vue
-    const losange = (r, alpha, tiret) => {
-      ctx.setLineDash(tiret);
+    // 2. Sight diamonds.
+    const drawLozenge = (r, alpha, dashPattern) => {
+      ctx.setLineDash(dashPattern);
       ctx.strokeStyle = c(alpha);
       ctx.lineWidth = 2;
       ctx.beginPath();
@@ -167,28 +166,28 @@ export function peindreDebugIA() {
     ctx.beginPath();
     ctx.rect(X0, Y0, COLS * CELL, ROWS * CELL);
     ctx.clip();
-    // Super IA : territoire de Voronoi teinte par camp (vu par Or, peint une fois), et la reponse
-    // que ce serpent PREDIT chez l'adversaire (pointille blanc partant de la tete adverse)
-    if (g.superIA) {
-      const S = g.superIA,
-        advC = corps[1 - i];
-      if (i === 0 && S.vor)
-        for (let n = 0; n < S.vor.length; n++) {
-          const l = S.vor[n];
+    // Super AI: Voronoi territory tinted by team (gold's view, painted once), plus the predicted
+    // opponent path (white dashes from the opponent's head).
+    if (g.superAi) {
+      const S = g.superAi,
+        opponentBody = bodies[1 - i];
+      if (i === 0 && S.voronoi)
+        for (let n = 0; n < S.voronoi.length; n++) {
+          const l = S.voronoi[n];
           if (l !== 1 && l !== 2) continue;
           const vx = n % COLS,
             vy = (n - vx) / COLS;
           ctx.fillStyle = l === 1 ? 'rgba(242,197,124,0.10)' : 'rgba(180,212,222,0.10)';
           ctx.fillRect(X0 + vx * CELL + 2, Y0 + vy * CELL + 2, CELL - 4, CELL - 4);
         }
-      if (S.adv && S.adv.length && advC && advC.serpent[0]) {
-        const o0 = px(advC.serpent[0].x, advC.serpent[0].y);
+      if (S.rival && S.rival.length && opponentBody && opponentBody.snake[0]) {
+        const o0 = px(opponentBody.snake[0].x, opponentBody.snake[0].y);
         ctx.setLineDash([5, 6]);
         ctx.strokeStyle = 'rgba(255,255,255,0.7)';
         ctx.lineWidth = 2.5;
         ctx.beginPath();
         ctx.moveTo(o0.x, o0.y);
-        S.adv.forEach((q) => {
+        S.rival.forEach((q) => {
           const o = px(q.x, q.y);
           ctx.lineTo(o.x, o.y);
         });
@@ -196,32 +195,31 @@ export function peindreDebugIA() {
         ctx.setLineDash([]);
       }
     }
-    // Ligne de direction facon Rocket League : trait plein = pas en cours (dir), trait pointille
-    // blanc = intent decide par l'IA pour la prochaine case (dirProchaine), s'il differe.
-    // Trajectoire anticipee facon indicateur de balle Rocket League : simulation greedy des 10
-    // prochains pas. A chaque case, on prend la direction qui minimise la distance a la cible (baie
-    // visee par l'IA, ou tete adverse s'il n'y en a pas), en evitant le corps. Le premier pas
-    // respecte dirProchaine (l'intent decide). Resultat : une ligne courbe reelle, pas un rail.
+    // Direction line (Rocket League style): solid = current step (dir); white dashes = AI's committed
+    // intent for the next cell (nextDir) when it differs. Projected path (Rocket League ball indicator
+    // style): greedy simulation over 10 steps, each choosing the direction that minimizes distance to
+    // the target berry (or opponent head when no berry), avoiding the body. The first step follows
+    // nextDir. Result: a real curved line, not a straight rail.
     const pts = [{ x: p.x, y: p.y }];
-    const autreC = corps[1 - actif];
-    const cibleAnt = g.cible || (autreC && autreC.serpent[0]);
+    const otherBody = bodies[1 - activeIndex];
+    const aiTarget = g.target || (otherBody && otherBody.snake[0]);
     let hx = h.x,
       hy = h.y,
       dx = dir.x,
       dy = dir.y;
-    const occ = new Set(serpent.map((s) => s.y * COLS + s.x));
-    // Super IA : la ligne est la VRAIE variante principale calculee par la recherche, pas une estimation
-    const pvSuper = !!(g.superIA && g.route && g.route.length);
-    if (pvSuper)
+    const occ = new Set(snake.map((s) => s.y * COLS + s.x));
+    // Super AI: the line is the principal variation the search computed, not an estimate.
+    const hasAiRoute = !!(g.superAi && g.route && g.route.length);
+    if (hasAiRoute)
       g.route.forEach((q) => {
         const o = px(q.x, q.y);
         pts.push({ x: o.x, y: o.y });
       });
-    for (let k = 0; k < 10 && !pvSuper; k++) {
-      // premier pas : on impose dirProchaine ; ensuite : la direction qui rapproche le plus de la cible
+    for (let k = 0; k < 10 && !hasAiRoute; k++) {
+      // First step: force nextDir; subsequent steps: direction that closes distance to target most.
       let best = null;
       if (k === 0) {
-        best = { x: dirProchaine.x, y: dirProchaine.y };
+        best = { x: nextDir.x, y: nextDir.y };
         const nx = hx + best.x,
           ny = hy + best.y;
         if (nx < 0 || ny < 0 || nx >= COLS || ny >= ROWS || occ.has(ny * COLS + nx)) best = null;
@@ -237,7 +235,7 @@ export function peindreDebugIA() {
             ny = hy + cand.y;
           if (nx < 0 || ny < 0 || nx >= COLS || ny >= ROWS) continue;
           if (occ.has(ny * COLS + nx)) continue;
-          const d = cibleAnt ? Math.abs(cibleAnt.x - nx) + Math.abs(cibleAnt.y - ny) : k;
+          const d = aiTarget ? Math.abs(aiTarget.x - nx) + Math.abs(aiTarget.y - ny) : k;
           if (d < bestD) {
             bestD = d;
             best = cand;
@@ -260,7 +258,7 @@ export function peindreDebugIA() {
     ctx.moveTo(pts[0].x, pts[0].y);
     for (let k = 1; k < pts.length; k++) ctx.lineTo(pts[k].x, pts[k].y);
     ctx.stroke();
-    // pointe a l'extremite
+    // Arrowhead at the end.
     const a = pts[pts.length - 2] || pts[0],
       b = pts[pts.length - 1];
     const ddx = b.x - a.x,
@@ -275,18 +273,18 @@ export function peindreDebugIA() {
     ctx.moveTo(b.x, b.y);
     ctx.lineTo(b.x - ux * tp + uy * tp * 0.6, b.y - uy * tp - ux * tp * 0.6);
     ctx.stroke();
-    // petits points aux cases anticipees
+    // Dots at each projected cell.
     ctx.fillStyle = c(0.85);
     for (let k = 1; k < pts.length; k++) {
       ctx.beginPath();
       ctx.arc(pts[k].x, pts[k].y, 4, 0, Math.PI * 2);
       ctx.fill();
     }
-    if (!g.superIA) losange(g.porteeAttaque || 12, g.posture === 'attaque' ? 0.55 : 0.22, [10, 8]);
-    if (!g.superIA) losange(g.porteeDefense || 10, g.posture === 'defense' ? 0.55 : 0.22, [3, 6]);
-    // 4. couronne adverse evitee
+    if (!g.superAi) drawLozenge(g.attackRange || 12, g.stance === 'attack' ? 0.55 : 0.22, [10, 8]);
+    if (!g.superAi) drawLozenge(g.defenseRange || 10, g.stance === 'defense' ? 0.55 : 0.22, [3, 6]);
+    // 4. Opponent crown cells avoided.
     ctx.setLineDash([]);
-    (memoireIA.dbgEviter || []).forEach((q) => {
+    (aiMemory.dbgAvoid || []).forEach((q) => {
       const o = px(q.x, q.y),
         r = CELL / 2 - 3;
       ctx.fillStyle = 'rgba(255,90,90,0.10)';
@@ -300,30 +298,30 @@ export function peindreDebugIA() {
       }
       ctx.stroke();
     });
-    // 1. baie visee : cerclee (le trajet est deja peint plus haut, en trajectoire anticipee)
-    if (g.cible) {
-      const o = px(g.cible.x, g.cible.y);
+    // 1. Target berry: outlined (path already drawn as the projected trajectory above).
+    if (g.target) {
+      const o = px(g.target.x, g.target.y);
       ctx.strokeStyle = c(0.95);
       ctx.lineWidth = 3;
       ctx.beginPath();
       ctx.arc(o.x, o.y, CELL * 0.48, 0, Math.PI * 2);
       ctx.stroke();
     }
-    // 3. pas candidats : fleche notee, croix si refuse
+    // 3. Candidate steps: scored arrow, red cross if refused.
     const notes = Object.keys(g.scores)
       .map((k) => g.scores[k])
       .filter((v) => typeof v === 'number');
     const mx = notes.length ? Math.max(...notes) : 0,
       mn = notes.length ? Math.min(...notes) : 0;
-    Object.keys(g.scores).forEach((cle) => {
-      const v = g.scores[cle],
-        [dx, dy] = cle.split(',').map(Number),
+    Object.keys(g.scores).forEach((key) => {
+      const v = g.scores[key],
+        [dx, dy] = key.split(',').map(Number),
         o = { x: p.x + dx * CELL * 0.95, y: p.y + dy * CELL * 0.95 };
-      const choisi = g.choix && g.choix.x === dx && g.choix.y === dy;
+      const chosen = g.choice && g.choice.x === dx && g.choice.y === dy;
       if (typeof v === 'number' || v === 'ok') {
         const f = typeof v === 'number' ? (mx > mn ? (v - mn) / (mx - mn) : 1) : 0.5;
-        ctx.strokeStyle = choisi ? 'rgba(255,255,255,0.95)' : c(0.3 + 0.5 * f);
-        ctx.lineWidth = choisi ? 5 : 1.5 + 3 * f;
+        ctx.strokeStyle = chosen ? 'rgba(255,255,255,0.95)' : c(0.3 + 0.5 * f);
+        ctx.lineWidth = chosen ? 5 : 1.5 + 3 * f;
         ctx.beginPath();
         ctx.moveTo(p.x + dx * CELL * 0.35, p.y + dy * CELL * 0.35);
         ctx.lineTo(o.x, o.y);
@@ -349,8 +347,8 @@ export function peindreDebugIA() {
         ctx.stroke();
       }
     });
-    // 6. flash au franchissement : garde (vert) ou change (rouge)
-    const fl = memoireIA.dbgFlash;
+    // 6. Cell-transition flash: keep (green) or change (red).
+    const fl = aiMemory.dbgFlash;
     if (fl && t - fl.t < 0.35) {
       const o = px(fl.x, fl.y),
         u = (t - fl.t) / 0.35;
@@ -363,13 +361,13 @@ export function peindreDebugIA() {
       ctx.stroke();
     }
     ctx.restore();
-    // Super IA : barre d'evaluation facon echecs au-dessus du plateau (part d'Or a gauche), une seule fois
-    if (g.superIA && i === 0) {
-      const S = g.superIA,
+    // Super AI: chess-style evaluation bar above the board (gold's share on the left), drawn once per frame.
+    if (g.superAi && i === 0) {
+      const S = g.superAi,
         bx = X0,
         by = Y0 - 34,
         bw = COLS * CELL,
-        part = Math.max(0.04, Math.min(0.96, 0.5 + S.valeur / 300));
+        part = Math.max(0.04, Math.min(0.96, 0.5 + S.value / 300));
       ctx.save();
       ctx.fillStyle = 'rgba(180,212,222,0.85)';
       ctx.fillRect(bx, by, bw, 10);
@@ -380,30 +378,30 @@ export function peindreDebugIA() {
       ctx.font = 'bold 14px sans-serif';
       ctx.textAlign = 'left';
       ctx.fillText(
-        'Super IA   prof ' +
-          S.prof +
+        'Super AI   depth ' +
+          S.depth +
           '   ' +
-          S.noeuds +
-          ' noeuds   eval Or ' +
-          (S.valeur > 0 ? '+' : '') +
-          S.valeur.toFixed(0) +
-          '   territoire ' +
-          S.terrMoi +
+          S.nodes +
+          ' nodes   eval gold ' +
+          (S.value > 0 ? '+' : '') +
+          S.value.toFixed(0) +
+          '   territory ' +
+          S.ownTerritory +
           ' / ' +
-          S.terrLui,
+          S.rivalTerritory,
         bx,
         by - 8,
       );
       ctx.restore();
     }
-    // 5. etiquette (hors clip, au-dessus de la tete)
+    // 5. Label (outside the clip, above the head).
     const txt =
-      (g.posture || 'neutre') +
+      (g.stance || 'neutral') +
       ' | ' +
-      (g.raison || '?') +
-      ' | poche ' +
-      (g.poche != null ? g.poche : '?') +
-      (g.piege != null ? ' | adv ' + g.piege : '');
+      (g.reason || '?') +
+      ' | pocket ' +
+      (g.pocket != null ? g.pocket : '?') +
+      (g.trap != null ? ' | trap ' + g.trap : '');
     ctx.save();
     ctx.font = 'bold 15px sans-serif';
     ctx.textAlign = 'center';
@@ -414,7 +412,7 @@ export function peindreDebugIA() {
     ctx.fillStyle = c(1);
     ctx.fillText(txt, p.x, ey);
     ctx.restore();
-    ranger();
+    storeBody();
   }
-  charger(0);
+  loadBody(0);
 }

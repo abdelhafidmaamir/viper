@@ -16,34 +16,34 @@ let sim: BootedGame;
 
 /** Gift values that trigger each duel effect: none, speed, steal, shield, extra life. */
 const GIFTS = [
-  { valeur: 1, nom: 'rose' },
-  { valeur: 10, nom: 'dyno' },
-  { valeur: 20, nom: 'perfume' },
-  { valeur: 30, nom: 'bagel' },
-  { valeur: 100, nom: 'hand heart' },
+  { value: 1, name: 'rose' },
+  { value: 10, name: 'dyno' },
+  { value: 20, name: 'perfume' },
+  { value: 30, name: 'bagel' },
+  { value: 100, name: 'hand heart' },
 ] as const;
 
 /** A scripted audience: same events at the same frames on every run. */
 function playScripted(seconds: number): void {
   const frames = Math.round(seconds * 60);
   for (let i = 1; i <= frames; i++) {
-    if (i % 29 === 0) sim.send({ type: 'like', n: 3, pseudo: `viewer${String(i % 7)}` });
+    if (i % 29 === 0) sim.send({ type: 'like', n: 3, nickname: `viewer${String(i % 7)}` });
     if (i % 131 === 0) {
       sim.send({
-        type: 'arrivee',
-        pseudo: `newcomer${String(i)}`,
+        type: 'join',
+        nickname: `newcomer${String(i)}`,
         avatar: `https://cdn.test/${String(i)}.webp`,
       });
     }
-    if (i % 173 === 0) sim.send({ type: 'partage', pseudo: 'sharer' });
+    if (i % 173 === 0) sim.send({ type: 'share', nickname: 'sharer' });
     if (i % 83 === 0) {
       const gift = GIFTS[(i / 83) % GIFTS.length];
       sim.send({
-        type: 'cadeau',
+        type: 'gift',
         n: 1,
         ...gift,
-        camp: i % 2 ? 'or' : 'ombre',
-        pseudo: `fan${String(i % 5)}`,
+        team: i % 2 ? 'gold' : 'shadow',
+        nickname: `fan${String(i % 5)}`,
         avatar: `https://cdn.test/fan${String(i % 5)}.webp`,
       });
     }
@@ -52,25 +52,25 @@ function playScripted(seconds: number): void {
 }
 
 const WEATHERS = [
-  ['pluie', 0.5],
-  ['neige', 0.36],
-  ['automne', 0.78],
-  ['printemps', 0.36],
-  ['ete', 0.5],
-  ['orage', 0.02],
-  ['braises', 0.78],
-  ['aurore', 0.02],
-  ['etoiles', 0.02],
-  ['lucioles', 0.02],
-  ['brume', 0.22],
+  ['rain', 0.5],
+  ['snow', 0.36],
+  ['autumn', 0.78],
+  ['spring', 0.36],
+  ['summer', 0.5],
+  ['storm', 0.02],
+  ['embers', 0.78],
+  ['aurora', 0.02],
+  ['stars', 0.02],
+  ['fireflies', 0.02],
+  ['mist', 0.22],
 ] as const;
 
 function state(): string {
   const { game } = sim;
   return JSON.stringify({
     score: game.score(),
-    rounds: game.manches(),
-    metrics: game.mesures(),
+    rounds: game.rounds(),
+    metrics: game.metrics(),
     duel: game.duel(),
   });
 }
@@ -85,106 +85,106 @@ beforeAll(() => {
 describe('engine characterisation (seed 20260926)', () => {
   // Segments share one session and must run in order; each asserts its own digest.
   it('portrait duel under a scripted audience', () => {
-    Object.assign(sim.game.reglages, {
+    Object.assign(sim.game.settings, {
       mode: 'duel',
-      format: 'vertical',
-      ambianceAuto: false,
-      meteo: 'pluie',
+      format: 'portrait',
+      autoAmbience: false,
+      weather: 'rain',
     });
-    sim.game.nouvelleManche();
-    sim.game.reglerHeure(0.5);
+    sim.game.newRound();
+    sim.game.setHour(0.5);
     playScripted(10);
     expect({ draw: sim.digest(), state: state() }).toMatchSnapshot();
   });
 
   it('landscape duel with weather and time of day changes', () => {
-    Object.assign(sim.game.reglages, { format: 'horizontal', meteo: 'neige' });
-    sim.game.nouvelleManche();
-    sim.game.reglerHeure(0.36);
+    Object.assign(sim.game.settings, { format: 'landscape', weather: 'snow' });
+    sim.game.newRound();
+    sim.game.setHour(0.36);
     playScripted(4);
-    Object.assign(sim.game.reglages, { meteo: 'orage' });
-    sim.game.reglerHeure(0.02);
+    Object.assign(sim.game.settings, { weather: 'storm' });
+    sim.game.setHour(0.02);
     playScripted(4);
     expect({ draw: sim.digest(), state: state() }).toMatchSnapshot();
   });
 
   it('end screen with the round ranking', () => {
     for (const gift of GIFTS) {
-      sim.send({ type: 'cadeau', n: 1, ...gift, camp: 'or', pseudo: 'karim.or' });
+      sim.send({ type: 'gift', n: 1, ...gift, team: 'gold', nickname: 'karim.or' });
     }
-    sim.game.finirTest('ombre');
+    sim.game.endTest('shadow');
     playScripted(3);
     expect({ draw: sim.digest(), state: state() }).toMatchSnapshot();
   });
 
   it('MVP ranking variant on the end screen', () => {
-    Object.assign(sim.game.reglages, { classement: 'M1' });
-    sim.game.nouvelleManche();
+    Object.assign(sim.game.settings, { ranking: 'M1' });
+    sim.game.newRound();
     playScripted(2);
-    sim.game.finirTest('or');
+    sim.game.endTest('gold');
     playScripted(3);
-    Object.assign(sim.game.reglages, { classement: 'C3' });
+    Object.assign(sim.game.settings, { ranking: 'C3' });
     expect({ draw: sim.digest(), state: state() }).toMatchSnapshot();
   });
 
   it('full gift legend, neutral platform and fluid mode', () => {
-    Object.assign(sim.game.reglages, { affichageCadeaux: 'complet', fluide: true });
-    sim.game.nouvelleManche();
+    Object.assign(sim.game.settings, { giftDisplay: 'full', smooth: true });
+    sim.game.newRound();
     playScripted(3);
-    Object.assign(sim.game.reglages, { plateforme: 'neutre', affichageCadeaux: 'aucun' });
+    Object.assign(sim.game.settings, { platform: 'neutral', giftDisplay: 'none' });
     playScripted(1);
-    Object.assign(sim.game.reglages, {
-      plateforme: 'tiktok',
-      affichageCadeaux: 'defile',
-      fluide: false,
+    Object.assign(sim.game.settings, {
+      platform: 'tiktok',
+      giftDisplay: 'scroll',
+      smooth: false,
     });
     expect({ draw: sim.digest(), state: state() }).toMatchSnapshot();
   });
 
   it('staged scenes with the underdog boost', () => {
-    Object.assign(sim.game.reglages, { underdog: true });
-    sim.game.nouvelleManche();
+    Object.assign(sim.game.settings, { underdog: true });
+    sim.game.newRound();
     for (const scene of [
       'face',
       'ballet',
-      'course',
-      'chasseOr',
-      'chasseOm',
+      'race',
+      'huntGold',
+      'huntShadow',
       'piegeOr',
       'piegeOm',
     ]) {
-      sim.game.lancerScene(scene, 1);
+      sim.game.launchScene(scene, 1);
       playScripted(1);
     }
     sim.game.stopScene();
-    Object.assign(sim.game.reglages, { underdog: false });
+    Object.assign(sim.game.settings, { underdog: false });
     expect({ draw: sim.digest(), state: state() }).toMatchSnapshot();
   });
 
   it('search AI on both sides with the debug overlay', () => {
     // The search runs on a time budget; 0.2 ms of simulated clock keeps it deterministic and fast.
-    Object.assign(globalThis, { VIPERE_SUPER_MS: 0.2 });
-    Object.assign(sim.game.reglages, { superIA: true, debugIA: true });
-    sim.game.nouvelleManche();
+    Object.assign(globalThis, { VIPER_SUPER_MS: 0.2 });
+    Object.assign(sim.game.settings, { superAi: true, aiDebug: true });
+    sim.game.newRound();
     playScripted(1);
-    Object.assign(sim.game.reglages, { superIA: false, debugIA: false });
+    Object.assign(sim.game.settings, { superAi: false, aiDebug: false });
     expect({ draw: sim.digest(), state: state() }).toMatchSnapshot();
   });
 
   it('every weather, landscape', () => {
-    Object.assign(sim.game.reglages, { format: 'horizontal' });
-    sim.game.nouvelleManche();
+    Object.assign(sim.game.settings, { format: 'landscape' });
+    sim.game.newRound();
     for (const [meteo, hour] of WEATHERS) {
-      Object.assign(sim.game.reglages, { meteo });
-      sim.game.reglerHeure(hour);
+      Object.assign(sim.game.settings, { weather: meteo });
+      sim.game.setHour(hour);
       playScripted(1);
     }
     expect({ draw: sim.digest(), state: state() }).toMatchSnapshot();
   });
 
   it('long headless session: rules, AI and scoring', () => {
-    Object.assign(sim.game.reglages, { format: 'vertical', dureeDuel: 120 });
-    sim.game.nouvelleManche();
+    Object.assign(sim.game.settings, { format: 'portrait', duelDuration: 120 });
+    sim.game.newRound();
     for (let t = 0; t < 3 * 60; t += 1 / 30) sim.step(1 / 30);
     expect(state()).toMatchSnapshot();
   });

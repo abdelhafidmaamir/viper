@@ -1,23 +1,23 @@
 // Team and effect colours shared by every painter.
 
-export const OR = '#F2C57C';
+export const GOLD = '#F2C57C';
 
-// Duel : la nourriture ne peut pas etre or (couleur du camp Or) : vert tendre, distinct des deux
-// camps et du fond de foret (Abdel, 2026-09-18). En base elle reste or.
-const BAIE_VERT = '#9BE28A',
-  BAIE_VERT_A = (a) => 'rgba(155,226,138,' + a + ')';
+// Berry color cannot be gold (team gold's color): soft green, distinct from both teams and the forest floor.
+const BERRY_GREEN = '#9BE28A',
+  BERRY_GREEN_ALPHA = (a) => 'rgba(155,226,138,' + a + ')';
 
-export const teinteBaie = (camp) => (camp === 'or' ? OR : camp === 'ombre' ? OMBRE : BAIE_VERT);
+export const berryTint = (team) =>
+  team === 'gold' ? GOLD : team === 'shadow' ? SHADOW : BERRY_GREEN;
 
-export const lueurBaie = (a, camp) =>
-  camp === 'or'
+export const berryGlow = (a, team) =>
+  team === 'gold'
     ? 'rgba(242,197,124,' + a + ')'
-    : camp === 'ombre'
+    : team === 'shadow'
       ? 'rgba(180,212,222,' + a + ')'
-      : BAIE_VERT_A(a);
+      : BERRY_GREEN_ALPHA(a);
 
-export const OMBRE = '#b4d4de'; // couleur du second serpent (a verifier au contraste)
+export const SHADOW = '#b4d4de'; // color of the second snake (verify contrast)
 
-export const BLEU = '#8FA8D8',
-  ROUGE = '#D64A42',
-  COQUILLE = '#F6F3EA';
+export const BLUE = '#8FA8D8',
+  RED = '#D64A42',
+  SHELL = '#F6F3EA';

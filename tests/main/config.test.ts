@@ -37,7 +37,7 @@ describe('parseConfig', () => {
       name: 'frame-timing',
       options: {
         outDir: 'diagnostics',
-        weather: 'pluie',
+        weather: 'rain',
         hour: 0.5,
         settleSeconds: 25,
         allWeathers: false,
@@ -50,7 +50,7 @@ describe('parseConfig', () => {
       '--diagnostic',
       'cpu-profile',
       '--out=perf',
-      '--weather=neige',
+      '--weather=snow',
       '--hour',
       '0.36',
       '--settle=5',
@@ -60,7 +60,7 @@ describe('parseConfig', () => {
       name: 'cpu-profile',
       options: {
         outDir: 'perf',
-        weather: 'neige',
+        weather: 'snow',
         hour: 0.36,
         settleSeconds: 5,
         allWeathers: true,

@@ -56,13 +56,13 @@ section {
   font-size: 11px;
   overflow-wrap: anywhere;
 }
-.ligne {
+.row {
   display: flex;
   flex-wrap: wrap;
   gap: 6px;
   align-items: center;
 }
-.rangee {
+.line {
   display: flex;
   flex-wrap: wrap;
   gap: 5px;
@@ -85,10 +85,10 @@ button:hover {
   border-color: var(--accent);
   color: var(--accent);
 }
-button.or {
+button.gold {
   border-color: #5c4a2e;
 }
-button.or:hover {
+button.gold:hover {
   border-color: var(--or);
   color: var(--or);
 }
@@ -112,7 +112,7 @@ pre {
   white-space: pre-wrap;
   overflow-wrap: anywhere;
 }
-.voyant {
+.light {
   display: inline-block;
   width: 10px;
   height: 10px;
@@ -121,10 +121,10 @@ pre {
   vertical-align: -1px;
   margin-right: 6px;
 }
-.voyant.ok {
+.light.ok {
   background: #7ac07a;
 }
-/* Etat visuel d'une scene en cours : le bouton correspondant s'illumine et sa base se remplit d'un liseret qui se vide au rythme du chrono. */
+/* Active scene visual: the matching button lights up and its base fills with a bar that drains in sync with the countdown. */
 button[data-s] {
   position: relative;
   overflow: hidden;
@@ -133,17 +133,17 @@ button[data-s] {
     color 0.15s,
     background 0.15s;
 }
-button[data-s].actif {
+button[data-s].active {
   border-color: var(--accent);
   color: var(--accent);
   background: rgba(180, 212, 222, 0.06);
 }
-button[data-s].actif.or {
+button[data-s].active.gold {
   border-color: var(--or);
   color: var(--or);
   background: rgba(242, 197, 124, 0.06);
 }
-button[data-s] .jauge {
+button[data-s] .gauge {
   position: absolute;
   left: 0;
   bottom: 0;
@@ -152,7 +152,7 @@ button[data-s] .jauge {
   width: 0;
   transition: width 0.2s linear;
 }
-button[data-s].or .jauge {
+button[data-s].gold .gauge {
   background: var(--or);
 }
 button[data-s] .cd {
@@ -165,10 +165,10 @@ button[data-s] .cd {
   color: inherit;
   opacity: 0;
 }
-button[data-s].actif .cd {
+button[data-s].active .cd {
   opacity: 1;
 }
-.effet {
+.effect {
   display: grid;
   grid-template-columns: auto 1fr;
   gap: 4px 8px;
@@ -177,16 +177,16 @@ button[data-s].actif .cd {
     monospace;
   color: var(--attenue);
 }
-.effet .camp {
+.effect .team {
   font-weight: 600;
 }
-.effet .camp.or {
+.effect .team.gold {
   color: var(--or);
 }
-.effet .camp.om {
+.effect .team.shadow {
   color: var(--accent);
 }
-.pastille {
+.badge {
   display: inline-block;
   padding: 1px 6px;
   margin: 0 3px 2px 0;
@@ -194,11 +194,11 @@ button[data-s].actif .cd {
   border-radius: 10px;
   font-size: 10.5px;
 }
-.pastille.chaud {
+.badge.hot {
   border-color: var(--or);
   color: var(--or);
 }
-.pastille.froid {
+.badge.cold {
   border-color: var(--accent);
   color: var(--accent);
 }

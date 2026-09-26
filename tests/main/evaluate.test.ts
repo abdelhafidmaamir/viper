@@ -61,17 +61,17 @@ describe('installPageKit', () => {
   it('starts a duel with the requested settings', async () => {
     let rounds = 0;
     const game = {
-      reglages: { mode: 'base', meteo: 'pluie' },
-      nouvelleManche: () => {
+      settings: { mode: 'base', weather: 'rain' },
+      newRound: () => {
         rounds++;
       },
     };
-    const { contents, sandbox } = pageContents({ VipereBase: game });
+    const { contents, sandbox } = pageContents({ Viper: game });
     await evaluate(contents, installPageKit);
 
-    (sandbox.__viperKit as PageKit).startDuel({ format: 'horizontal', meteo: 'neige' });
+    (sandbox.__viperKit as PageKit).startDuel({ format: 'landscape', weather: 'snow' });
 
-    expect(game.reglages).toEqual({ mode: 'duel', meteo: 'neige', format: 'horizontal' });
+    expect(game.settings).toEqual({ mode: 'duel', weather: 'snow', format: 'landscape' });
     expect(rounds).toBe(1);
   });
 
