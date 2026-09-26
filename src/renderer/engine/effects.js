@@ -2,9 +2,9 @@
 
 import { CELL } from './layout.js';
 import { ctx } from './canvas.js';
-import { COQUILLE, OMBRE, OR, ROUGE, teinteBaie } from './palette.js';
-import { ECLOSION, SORTIE, TRAINE } from './rules.js';
-import { couvee, etincelles, halos, px } from '../scripts/game.js';
+import { SHELL, SHADOW, GOLD, RED, berryTint } from './palette.js';
+import { HATCH_TIME, EMERGE_TIME, TRAIL_TIME } from './rules.js';
+import { egg, sparks, halos, px } from '../scripts/game.js';
 
 // Anime la naissance du serpent : un oeuf se pose, se fend et eclate.
 // Appeler a chaque image avec u de 0 a 1. Purement visuel, aucun effet de bord.
@@ -20,13 +20,13 @@ export const bruit = (i, d) => {
 };
 
 export function peindreCoquille(u) {
-  const p = px(couvee.x, couvee.y),
-    t = couvee.t;
+  const p = px(egg.x, egg.y),
+    t = egg.t;
   const RX = CELL * 0.5,
     RY = CELL * 0.66;
-  const S = SORTIE; // instant de la rupture, en fraction de l'animation
+  const S = EMERGE_TIME; // instant de la rupture, en fraction de l'animation
   const av = Math.min(1, u / S); // avant la rupture
-  const ap = Math.max(0, (u - S) / (1 + TRAINE / ECLOSION - S)); // apres, jusqu'a l'effacement complet
+  const ap = Math.max(0, (u - S) / (1 + TRAIL_TIME / HATCH_TIME - S)); // apres, jusqu'a l'effacement complet
 
   ctx.save();
   ctx.translate(p.x, p.y);
@@ -135,7 +135,7 @@ export function peindreCoquille(u) {
       ctx.translate(x, y);
       ctx.rotate(tour * T);
       ctx.globalAlpha = al;
-      ctx.fillStyle = COQUILLE;
+      ctx.fillStyle = SHELL;
       ctx.shadowColor = 'rgba(246,243,234,0.5)';
       ctx.shadowBlur = 10;
       const w = RX * (0.3 + 0.22 * bruit(i, 11)),
@@ -183,7 +183,7 @@ export function peindreCoquille(u) {
     ctx.closePath();
     const g = ctx.createLinearGradient(-rx, -ry, rx * 0.7, ry);
     g.addColorStop(0, '#FFFFFC');
-    g.addColorStop(0.55, COQUILLE);
+    g.addColorStop(0.55, SHELL);
     g.addColorStop(1, '#D9D5C8');
     ctx.fillStyle = g;
     ctx.shadowColor = 'rgba(246,243,234,0.45)';
@@ -247,22 +247,22 @@ export function peindreHalos() {
 
 export function peindreEtincelles() {
   ctx.save();
-  etincelles.forEach((e) => {
+  sparks.forEach((e) => {
     const u = 1 - e.t / e.duree,
       r = e.r === undefined ? 1 : e.r,
       a = e.a === undefined ? 1 : e.a;
     ctx.globalAlpha = u * u * u * 0.9 * a;
     ctx.fillStyle =
       e.teinte === 'offerte'
-        ? teinteBaie()
+        ? berryTint()
         : e.teinte === 'offerte-or'
-          ? OR
+          ? GOLD
           : e.teinte === 'offerte-ombre'
-            ? OMBRE
+            ? SHADOW
             : e.teinte === 'rodeur'
-              ? ROUGE
+              ? RED
               : e.teinte === 'coquille'
-                ? COQUILLE
+                ? SHELL
                 : e.teinte === 'poussiere'
                   ? '#6b7383'
                   : '#cfe3c6';

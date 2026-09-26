@@ -1,61 +1,69 @@
 // Gift feedback: remembers the latest donor per gift line and per team, for the legend highlight
 // and the donor banner. Cleared at every round.
 
-import { DONS, annoncer, dejaDonne, dire, donsManche, nomCamp } from './announcements.js';
-import { CADEAUX_DUEL, EFFET_LABEL } from './gift-panel.js';
-import { BOUCLIER_COUT, COUPE_COUT, TEMPO_COUT, VIE_COUT } from './rules.js';
-import { reglages, t } from '../scripts/game.js';
+import {
+  EFFECT_ACTIONS,
+  addAnnouncement,
+  alreadyDonated,
+  phrase,
+  roundDonations,
+  teamName,
+} from './announcements.js';
+import { DUEL_GIFTS, EFFECT_LABEL } from './gift-panel.js';
+import { SHIELD_COST, CUT_COST, BOOST_COST, LIFE_COST } from './rules.js';
+import { settings, t } from '../scripts/game.js';
 
-export let retourCadeaux = [[], []],
-  bandeauCadeau = [null, null]; // [camp][ligne] = {t, pseudo, n} ; bandeau = {t, texte}
+export let giftFeedback = [[], []],
+  giftBanner = [null, null]; // [camp][ligne] = {t, pseudo, n} ; bandeau = {t, texte}
 
 // [camp][ligne] = {t, pseudo, n} ; bandeau = {t, texte}
 /** Clears the per-round gift feedback. */
-export function oublierCadeaux() {
-  retourCadeaux = [[], []];
-  bandeauCadeau = [null, null];
+export function clearGiftFeedback() {
+  giftFeedback = [[], []];
+  giftBanner = [null, null];
 }
 
-export function noterCadeau(i, valeur, pseudo, n, avatar) {
+export function recordGift(i, value, nickname, n, avatar) {
   const k =
-    valeur >= VIE_COUT
+    value >= LIFE_COST
       ? 4
-      : valeur >= BOUCLIER_COUT
+      : value >= SHIELD_COST
         ? 3
-        : valeur >= COUPE_COUT
+        : value >= CUT_COST
           ? 2
-          : valeur >= TEMPO_COUT
+          : value >= BOOST_COST
             ? 1
             : 0;
-  const r = retourCadeaux[i][k] || (retourCadeaux[i][k] = { t: -9, pseudo: '', n: 0 });
+  const r = giftFeedback[i][k] || (giftFeedback[i][k] = { t: -9, pseudo: '', n: 0 });
   r.t = t;
-  r.pseudo = String(pseudo || '');
+  r.pseudo = String(nickname || '');
   r.n += Math.max(1, n || 1);
-  const c = CADEAUX_DUEL[i === 0 ? 'or' : 'ombre'][k];
-  const premier = !!(r.pseudo && !dejaDonne[r.pseudo]);
+  const c = DUEL_GIFTS[i === 0 ? 'or' : 'ombre'][k];
+  const isFirst = !!(r.pseudo && !alreadyDonated[r.pseudo]);
   if (r.pseudo) {
-    dejaDonne[r.pseudo] = 1;
-    const dm =
-      donsManche[r.pseudo] || (donsManche[r.pseudo] = { camp: i === 0 ? 'or' : 'ombre', total: 0 });
-    dm.total += (valeur || 0) * Math.max(1, n || 1);
-    dm.camp = i === 0 ? 'or' : 'ombre';
+    alreadyDonated[r.pseudo] = 1;
+    const donorRecord =
+      roundDonations[r.pseudo] ||
+      (roundDonations[r.pseudo] = { camp: i === 0 ? 'or' : 'ombre', total: 0 });
+    donorRecord.total += (value || 0) * Math.max(1, n || 1);
+    donorRecord.camp = i === 0 ? 'or' : 'ombre';
   }
-  if (r.pseudo && donsManche[r.pseudo] && avatar) donsManche[r.pseudo].avatar = avatar;
+  if (r.pseudo && roundDonations[r.pseudo] && avatar) roundDonations[r.pseudo].avatar = avatar;
   if (c)
-    annoncer({
+    addAnnouncement({
       genre: 'cadeau',
       pseudo: r.pseudo,
       avatar,
-      texte: dire(premier ? 'premier' : 'cadeau', {
-        c: nomCamp(i === 0 ? 'or' : 'ombre'),
-        q: DONS[k] || c.effet,
+      texte: phrase(isFirst ? 'premier' : 'cadeau', {
+        c: teamName(i === 0 ? 'or' : 'ombre'),
+        q: EFFECT_ACTIONS[k] || c.effet,
       }),
       camp: i === 0 ? 'or' : 'ombre',
-      effet: EFFET_LABEL[c.effet],
+      effet: EFFECT_LABEL[c.effet],
     });
-  bandeauCadeau[i] = {
+  giftBanner[i] = {
     t,
     texte:
-      (r.pseudo && reglages.nomsDonateurs !== false ? r.pseudo + '  >  ' : '') + (c ? c.effet : ''),
+      (r.pseudo && settings.nomsDonateurs !== false ? r.pseudo + '  >  ' : '') + (c ? c.effet : ''),
   };
 }

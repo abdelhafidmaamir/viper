@@ -1,7 +1,7 @@
 // Director scenes: short scripted situations the control room can trigger (face-off, chase, ballet,
 // trap, race). A scene overrides AI levers while it runs and is invisible on the broadcast.
 
-import { corps } from '../scripts/game.js';
+import { bodies } from '../scripts/game.js';
 
 // Scène courante (super admin) : {nom, restant, ...params}. Chaque tick d'IA la lit ; à zéro,
 // on rend la main à l'IA normale. Définies dans SCENES ci-dessous.
@@ -11,10 +11,10 @@ export let scene = null;
 // tout effet qu'elle a pu poser sur les corps (invincibilité du ballet, mémoire IA de posture, de
 // fatigue, d'attente) redevient normal. Les fruits, les rochers et le score restent, ils n'appartiennent
 // pas à la scène. L'interrupteur underdog n'est pas touché, c'est un choix explicite séparé.
-export function finirScene() {
+export function endScene() {
   scene = null;
 
-  corps.forEach((c) => {
+  bodies.forEach((c) => {
     c.invincT = 0; // ballet : invincibilité poussée à chaque tick, on la coupe net
     if (c.memoireIA) {
       c.memoireIA.posture = null; // la posture forcée s'oublie, elle sera recalculée
@@ -28,7 +28,7 @@ export function finirScene() {
 }
 
 /** Snapshot of the running scene for the control room, or null. */
-export function etatScene() {
+export function sceneState() {
   return (
     scene && {
       nom: scene.nom,
@@ -41,10 +41,10 @@ export function etatScene() {
 }
 
 /** Starts a scene by name; an unknown name is ignored. */
-export function lancerScene(nom, duree) {
-  const d = SCENES[nom];
+export function launchScene(sceneName, duration) {
+  const d = SCENES[sceneName];
   if (!d) return;
-  scene = { nom, restant: duree || d.duree, or: d.or || {}, ombre: d.ombre || {} };
+  scene = { nom: sceneName, restant: duration || d.duree, or: d.or || {}, ombre: d.ombre || {} };
 }
 
 export const SCENES = {

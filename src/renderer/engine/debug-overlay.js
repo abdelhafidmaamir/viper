@@ -9,51 +9,51 @@ import {
   W,
   X0,
   Y0,
-  Z_BANNIERE,
-  Z_CADEAUX,
-  Z_FIL,
-  Z_SAISIE,
+  Z_BANNER,
+  Z_GIFTS,
+  Z_COMMENTS,
+  Z_INPUT,
 } from './layout.js';
 import { pilule } from './scoreboard.js';
 import { ctx } from './canvas.js';
 import {
-  actif,
-  charger,
-  corps,
+  activeIndex,
+  loadBody,
+  bodies,
   dir,
-  dirProchaine,
-  memoireIA,
+  nextDir,
+  aiMemory,
   px,
-  ranger,
-  serpent,
+  storeBody,
+  snake,
   t,
 } from '../scripts/game.js';
 
-export function peindreMaquetteLive() {
+export function paintLiveMockup() {
   ctx.save();
-  const GRIS = 'rgba(255,255,255,0.20)',
-    SOMBRE = 'rgba(0,0,0,0.42)',
-    CLAIR = 'rgba(255,255,255,0.34)';
+  const GRAY = 'rgba(255,255,255,0.20)',
+    DARK = 'rgba(0,0,0,0.42)',
+    LIGHT = 'rgba(255,255,255,0.34)';
 
   // 1. le haut : voile sombre, pastille de l'hote, bouton Suivre, compteur, croix
   ctx.fillStyle = 'rgba(0,0,0,0.30)';
   ctx.fillRect(0, 0, W, SR_Y);
-  ctx.fillStyle = CLAIR;
+  ctx.fillStyle = LIGHT;
   ctx.beginPath();
   ctx.arc(84, 150, 42, 0, Math.PI * 2);
   ctx.fill();
-  pilule(138, 126, 190, 26, CLAIR, 8); // le pseudo
-  pilule(138, 160, 96, 18, GRIS, 7); // les abonnes
+  pilule(138, 126, 190, 26, LIGHT, 8); // le pseudo
+  pilule(138, 160, 96, 18, GRAY, 7); // les abonnes
   pilule(404, 122, 150, 58, 'rgba(232,64,84,0.80)'); // + Suivre
-  pilule(740, 124, 180, 54, SOMBRE); // les avatars et le nombre de spectateurs
-  ctx.fillStyle = CLAIR;
+  pilule(740, 124, 180, 54, DARK); // les avatars et le nombre de spectateurs
+  ctx.fillStyle = LIGHT;
   [768, 806].forEach((x) => {
     ctx.beginPath();
     ctx.arc(x, 151, 21, 0, Math.PI * 2);
     ctx.fill();
   });
-  pilule(840, 142, 56, 18, CLAIR, 7);
-  ctx.strokeStyle = CLAIR;
+  pilule(840, 142, 56, 18, LIGHT, 7);
+  ctx.strokeStyle = LIGHT;
   ctx.lineWidth = 5;
   ctx.lineCap = 'round';
   ctx.beginPath();
@@ -63,37 +63,37 @@ export function peindreMaquetteLive() {
   ctx.lineTo(1002, 170);
   ctx.stroke();
   // la seconde rangee : classement, galerie, recherche
-  pilule(30, 216, 368, 42, SOMBRE, 12);
-  pilule(414, 216, 236, 42, SOMBRE, 12);
-  pilule(666, 216, 384, 42, SOMBRE, 12);
+  pilule(30, 216, 368, 42, DARK, 12);
+  pilule(414, 216, 236, 42, DARK, 12);
+  pilule(666, 216, 384, 42, DARK, 12);
 
   // 2. la colonne de widgets cadeaux, a droite : c'est elle qui borne le compteur par le bas
-  const Z = Z_CADEAUX;
+  const Z = Z_GIFTS;
   ctx.fillStyle = 'rgba(0,0,0,0.34)';
   ctx.beginPath();
   ctx.roundRect(Z.x, Z.y, Z.w, Z.h, 16);
   ctx.fill();
   for (let i = 0; i < 5; i++) {
     const y = Z.y + 22 + i * 66;
-    pilule(Z.x + 16, y, 52, 52, CLAIR, 14); // l'icone du cadeau
-    pilule(Z.x + 82, y + 10, 190, 16, GRIS, 8); // le libelle
-    pilule(Z.x + 82, y + 32, 120, 14, GRIS, 7);
+    pilule(Z.x + 16, y, 52, 52, LIGHT, 14); // l'icone du cadeau
+    pilule(Z.x + 82, y + 10, 190, 16, GRAY, 8); // le libelle
+    pilule(Z.x + 82, y + 32, 120, 14, GRAY, 7);
   }
 
   // 3. la banniere de cadeau, puis le fil de commentaires, puis la barre de saisie
-  const B = Z_BANNIERE;
+  const B = Z_BANNER;
   ctx.fillStyle = 'rgba(0,0,0,0.38)';
   ctx.beginPath();
   ctx.roundRect(B.x, B.y, B.w, B.h, B.h / 2);
   ctx.fill();
-  ctx.fillStyle = CLAIR;
+  ctx.fillStyle = LIGHT;
   ctx.beginPath();
   ctx.arc(B.x + 50, B.y + B.h / 2, 34, 0, Math.PI * 2);
   ctx.fill();
-  pilule(B.x + 98, B.y + 22, 210, 20, CLAIR, 8);
-  pilule(B.x + 98, B.y + 54, 140, 16, GRIS, 7);
-  pilule(B.x + 430, B.y + 28, 120, 40, CLAIR, 10);
-  const F = Z_FIL;
+  pilule(B.x + 98, B.y + 22, 210, 20, LIGHT, 8);
+  pilule(B.x + 98, B.y + 54, 140, 16, GRAY, 7);
+  pilule(B.x + 430, B.y + 28, 120, 40, LIGHT, 10);
+  const F = Z_COMMENTS;
   // 4 commentaires et demi a la fois, compte par Abdel sur un vrai live : le plus ancien est
   // coupe net par le haut du fil, il ne s'affiche jamais en entier. On decoupe donc a la zone
   // et on demarre la premiere bulle a cheval sur son bord, sinon la maquette ment sur la
@@ -109,24 +109,24 @@ export function peindreMaquetteLive() {
     ctx.beginPath();
     ctx.roundRect(F.x + 20, y, lg, 86, 22);
     ctx.fill();
-    ctx.fillStyle = CLAIR;
+    ctx.fillStyle = LIGHT;
     ctx.beginPath();
     ctx.arc(F.x + 58, y + 43, 26, 0, Math.PI * 2);
     ctx.fill();
-    pilule(F.x + 98, y + 20, lg * 0.34, 16, CLAIR, 7);
-    pilule(F.x + 98, y + 50, lg * 0.62, 16, GRIS, 7);
+    pilule(F.x + 98, y + 20, lg * 0.34, 16, LIGHT, 7);
+    pilule(F.x + 98, y + 50, lg * 0.62, 16, GRAY, 7);
   }
   ctx.restore();
-  const S = Z_SAISIE;
+  const S = Z_INPUT;
   pilule(S.x + 24, S.y, 560, S.h, 'rgba(0,0,0,0.42)', 28);
-  pilule(S.x + 52, S.y + 38, 260, 22, GRIS, 10);
+  pilule(S.x + 52, S.y + 38, 260, 22, GRAY, 10);
   ctx.fillStyle = 'rgba(0,0,0,0.42)';
   [648, 744, 840, 936].forEach((x) => {
     ctx.beginPath();
     ctx.arc(x, S.y + S.h / 2, 44, 0, Math.PI * 2);
     ctx.fill();
   });
-  ctx.fillStyle = CLAIR;
+  ctx.fillStyle = LIGHT;
   [648, 744, 840, 936].forEach((x) => {
     ctx.beginPath();
     ctx.arc(x, S.y + S.h / 2, 20, 0, Math.PI * 2);
@@ -138,13 +138,13 @@ export function peindreMaquetteLive() {
 // Calque de debug IA (super admin). Par serpent, dans la couleur de son camp : trajet vers la baie
 // visee, rayons de vue (losanges de Manhattan 12 attaque, 10 defense), pas candidats notes, couronne
 // adverse evitee, etiquette posture/raison/poche, flash garde (vert) ou change (rouge) a chaque case.
-export function peindreDebugIA() {
-  for (let i = 0; i < corps.length; i++) {
-    charger(i);
-    const g = memoireIA.debug,
-      h = serpent[0];
+export function paintAiDebug() {
+  for (let i = 0; i < bodies.length; i++) {
+    loadBody(i);
+    const g = aiMemory.debug,
+      h = snake[0];
     if (!g || !h) {
-      ranger();
+      storeBody();
       continue;
     }
     const rgb = i === 0 ? '242,197,124' : '180,212,222',
@@ -152,8 +152,8 @@ export function peindreDebugIA() {
       p = px(h.x, h.y);
     ctx.save();
     // 2. rayons de vue
-    const losange = (r, alpha, tiret) => {
-      ctx.setLineDash(tiret);
+    const drawLozenge = (r, alpha, dashPattern) => {
+      ctx.setLineDash(dashPattern);
       ctx.strokeStyle = c(alpha);
       ctx.lineWidth = 2;
       ctx.beginPath();
@@ -171,7 +171,7 @@ export function peindreDebugIA() {
     // que ce serpent PREDIT chez l'adversaire (pointille blanc partant de la tete adverse)
     if (g.superIA) {
       const S = g.superIA,
-        advC = corps[1 - i];
+        opponentBody = bodies[1 - i];
       if (i === 0 && S.vor)
         for (let n = 0; n < S.vor.length; n++) {
           const l = S.vor[n];
@@ -181,8 +181,8 @@ export function peindreDebugIA() {
           ctx.fillStyle = l === 1 ? 'rgba(242,197,124,0.10)' : 'rgba(180,212,222,0.10)';
           ctx.fillRect(X0 + vx * CELL + 2, Y0 + vy * CELL + 2, CELL - 4, CELL - 4);
         }
-      if (S.adv && S.adv.length && advC && advC.serpent[0]) {
-        const o0 = px(advC.serpent[0].x, advC.serpent[0].y);
+      if (S.adv && S.adv.length && opponentBody && opponentBody.serpent[0]) {
+        const o0 = px(opponentBody.serpent[0].x, opponentBody.serpent[0].y);
         ctx.setLineDash([5, 6]);
         ctx.strokeStyle = 'rgba(255,255,255,0.7)';
         ctx.lineWidth = 2.5;
@@ -203,25 +203,25 @@ export function peindreDebugIA() {
     // visee par l'IA, ou tete adverse s'il n'y en a pas), en evitant le corps. Le premier pas
     // respecte dirProchaine (l'intent decide). Resultat : une ligne courbe reelle, pas un rail.
     const pts = [{ x: p.x, y: p.y }];
-    const autreC = corps[1 - actif];
-    const cibleAnt = g.cible || (autreC && autreC.serpent[0]);
+    const otherBody = bodies[1 - activeIndex];
+    const aiTarget = g.cible || (otherBody && otherBody.serpent[0]);
     let hx = h.x,
       hy = h.y,
       dx = dir.x,
       dy = dir.y;
-    const occ = new Set(serpent.map((s) => s.y * COLS + s.x));
+    const occ = new Set(snake.map((s) => s.y * COLS + s.x));
     // Super IA : la ligne est la VRAIE variante principale calculee par la recherche, pas une estimation
-    const pvSuper = !!(g.superIA && g.route && g.route.length);
-    if (pvSuper)
+    const hasAiRoute = !!(g.superIA && g.route && g.route.length);
+    if (hasAiRoute)
       g.route.forEach((q) => {
         const o = px(q.x, q.y);
         pts.push({ x: o.x, y: o.y });
       });
-    for (let k = 0; k < 10 && !pvSuper; k++) {
+    for (let k = 0; k < 10 && !hasAiRoute; k++) {
       // premier pas : on impose dirProchaine ; ensuite : la direction qui rapproche le plus de la cible
       let best = null;
       if (k === 0) {
-        best = { x: dirProchaine.x, y: dirProchaine.y };
+        best = { x: nextDir.x, y: nextDir.y };
         const nx = hx + best.x,
           ny = hy + best.y;
         if (nx < 0 || ny < 0 || nx >= COLS || ny >= ROWS || occ.has(ny * COLS + nx)) best = null;
@@ -237,7 +237,7 @@ export function peindreDebugIA() {
             ny = hy + cand.y;
           if (nx < 0 || ny < 0 || nx >= COLS || ny >= ROWS) continue;
           if (occ.has(ny * COLS + nx)) continue;
-          const d = cibleAnt ? Math.abs(cibleAnt.x - nx) + Math.abs(cibleAnt.y - ny) : k;
+          const d = aiTarget ? Math.abs(aiTarget.x - nx) + Math.abs(aiTarget.y - ny) : k;
           if (d < bestD) {
             bestD = d;
             best = cand;
@@ -282,11 +282,13 @@ export function peindreDebugIA() {
       ctx.arc(pts[k].x, pts[k].y, 4, 0, Math.PI * 2);
       ctx.fill();
     }
-    if (!g.superIA) losange(g.porteeAttaque || 12, g.posture === 'attaque' ? 0.55 : 0.22, [10, 8]);
-    if (!g.superIA) losange(g.porteeDefense || 10, g.posture === 'defense' ? 0.55 : 0.22, [3, 6]);
+    if (!g.superIA)
+      drawLozenge(g.porteeAttaque || 12, g.posture === 'attaque' ? 0.55 : 0.22, [10, 8]);
+    if (!g.superIA)
+      drawLozenge(g.porteeDefense || 10, g.posture === 'defense' ? 0.55 : 0.22, [3, 6]);
     // 4. couronne adverse evitee
     ctx.setLineDash([]);
-    (memoireIA.dbgEviter || []).forEach((q) => {
+    (aiMemory.dbgEviter || []).forEach((q) => {
       const o = px(q.x, q.y),
         r = CELL / 2 - 3;
       ctx.fillStyle = 'rgba(255,90,90,0.10)';
@@ -315,15 +317,15 @@ export function peindreDebugIA() {
       .filter((v) => typeof v === 'number');
     const mx = notes.length ? Math.max(...notes) : 0,
       mn = notes.length ? Math.min(...notes) : 0;
-    Object.keys(g.scores).forEach((cle) => {
-      const v = g.scores[cle],
-        [dx, dy] = cle.split(',').map(Number),
+    Object.keys(g.scores).forEach((key) => {
+      const v = g.scores[key],
+        [dx, dy] = key.split(',').map(Number),
         o = { x: p.x + dx * CELL * 0.95, y: p.y + dy * CELL * 0.95 };
-      const choisi = g.choix && g.choix.x === dx && g.choix.y === dy;
+      const chosen = g.choix && g.choix.x === dx && g.choix.y === dy;
       if (typeof v === 'number' || v === 'ok') {
         const f = typeof v === 'number' ? (mx > mn ? (v - mn) / (mx - mn) : 1) : 0.5;
-        ctx.strokeStyle = choisi ? 'rgba(255,255,255,0.95)' : c(0.3 + 0.5 * f);
-        ctx.lineWidth = choisi ? 5 : 1.5 + 3 * f;
+        ctx.strokeStyle = chosen ? 'rgba(255,255,255,0.95)' : c(0.3 + 0.5 * f);
+        ctx.lineWidth = chosen ? 5 : 1.5 + 3 * f;
         ctx.beginPath();
         ctx.moveTo(p.x + dx * CELL * 0.35, p.y + dy * CELL * 0.35);
         ctx.lineTo(o.x, o.y);
@@ -350,7 +352,7 @@ export function peindreDebugIA() {
       }
     });
     // 6. flash au franchissement : garde (vert) ou change (rouge)
-    const fl = memoireIA.dbgFlash;
+    const fl = aiMemory.dbgFlash;
     if (fl && t - fl.t < 0.35) {
       const o = px(fl.x, fl.y),
         u = (t - fl.t) / 0.35;
@@ -414,7 +416,7 @@ export function peindreDebugIA() {
     ctx.fillStyle = c(1);
     ctx.fillText(txt, p.x, ey);
     ctx.restore();
-    ranger();
+    storeBody();
   }
-  charger(0);
+  loadBody(0);
 }

@@ -3,16 +3,16 @@
 
 import { CELL, COLS, H, ROWS, W, X0, Y0 } from './layout.js';
 import { ctx } from './canvas.js';
-import { OMBRE, OR } from './palette.js';
-import { BOUCLIER_DUR, LONG_CIBLE_DUEL, SURSIS_DUEL, TEMPO_DUR } from './rules.js';
-import { dtRendu, pointRail } from './frame.js';
-import { TENUE_DUEL, corps, manche, reglages, t } from '../scripts/game.js';
+import { SHADOW, GOLD } from './palette.js';
+import { SHIELD_DURATION, TARGET_LENGTH, REPRIEVE_LENGTH, BOOST_DURATION } from './rules.js';
+import { frameDt, pointRail } from './frame.js';
+import { HOLD_SECONDS, bodies, round, settings, t } from '../scripts/game.js';
 
 // Smoke puffs shed by the burning timer rail.
 const fumeeTimer = [];
 
 export function peindreDuel(dt) {
-  if (!manche) return;
+  if (!round) return;
   const x = X0 - 14,
     y = Y0 - 14,
     w = COLS * CELL + 28,
@@ -20,15 +20,15 @@ export function peindreDuel(dt) {
     r = 18;
   const per = 2 * (w + h) - 8 * r + 2 * Math.PI * r;
   // lisser les anneaux
-  for (let i = 0; i < corps.length; i++) {
-    const vise = Math.min(1, (corps[i].serpent.length || 0) / LONG_CIBLE_DUEL);
-    corps[i].anneau += (vise - corps[i].anneau) * Math.min(1, (dt || 0.016) * 3.5); // montee plus soyeuse (Abdel : « more smooth »)
+  for (let i = 0; i < bodies.length; i++) {
+    const vise = Math.min(1, (bodies[i].serpent.length || 0) / TARGET_LENGTH);
+    bodies[i].anneau += (vise - bodies[i].anneau) * Math.min(1, (dt || 0.016) * 3.5); // montee plus soyeuse (Abdel : « more smooth »)
   }
   // Tenue : pendant les TENUE_DUEL secondes ou un camp tient son anneau plein, son demi-anneau
   // bat de plus en plus vite et s'epaissit, et un compte a rebours 5-4-3-2-1 s'affiche au haut-centre
   // dans sa couleur. C'est l'instant ou l'autre camp doit couper : il faut qu'on le voie.
   const tenueDe = (i) =>
-    corps[i] && manche.etat === 'en cours' ? Math.min(TENUE_DUEL, corps[i].tenue || 0) : 0;
+    bodies[i] && round.etat === 'en cours' ? Math.min(HOLD_SECONDS, bodies[i].tenue || 0) : 0;
   // Respiration lente (2 Hz max) et sans saut de largeur : la version battante a 8-26 rad/s
   // scintillait (Abdel : « there a flicker of the jauge bar on the cooldown its not pleasing »).
   const battement = (tn) => (tn > 0 ? 0.5 + 0.5 * Math.sin(t * 4) : 0);
@@ -57,26 +57,26 @@ export function peindreDuel(dt) {
       v = Math.max(0, Math.min(1, v));
       return v * v * v * (v * (6 * v - 15) + 10);
     };
-  for (let i = 0; i < corps.length && i < 2; i++) {
-    const c = corps[i],
+  for (let i = 0; i < bodies.length && i < 2; i++) {
+    const c = bodies[i],
       horaire = i === 1,
       rgb = i === 0 ? '242,197,124' : '180,212,222',
       clair = i === 0 ? '255,238,206' : '228,243,249';
     const L = c.serpent.length || 0,
-      pxParAnneau = per / 2 / LONG_CIBLE_DUEL;
+      pxParAnneau = per / 2 / TARGET_LENGTH;
     if (c.jL === undefined) {
       c.jL = 0;
       c.jV = 0;
       c.jEv = [];
       c.jLong = L;
     }
-    if (L > c.jLong && manche.etat === 'en cours')
+    if (L > c.jLong && round.etat === 'en cours')
       c.jEv.push({ q: 0, fait: false, gain: (L - c.jLong) * pxParAnneau });
     c.jLong = L;
     let attente = 0;
     for (let k = c.jEv.length - 1; k >= 0; k--) {
       const e = c.jEv[k];
-      e.q += dtRendu / DUREE_GORGEE;
+      e.q += frameDt / DUREE_GORGEE;
       if (!e.fait && e.q >= 0.72) e.fait = true;
       if (e.q >= 1) {
         c.jEv.splice(k, 1);
@@ -86,8 +86,8 @@ export function peindreDuel(dt) {
     }
     const cible = Math.max(0, Math.min(per / 2, L * pxParAnneau) - attente),
       wr = 6.5;
-    c.jV += (wr * wr * (cible - c.jL) - 2 * wr * c.jV) * dtRendu;
-    c.jL += c.jV * dtRendu;
+    c.jV += (wr * wr * (cible - c.jL) - 2 * wr * c.jV) * frameDt;
+    c.jL += c.jV * frameDt;
     if (c.jL < 0) {
       c.jL = 0;
       c.jV = 0;
@@ -194,9 +194,9 @@ export function peindreDuel(dt) {
     }
     ctx.restore();
   }
-  if (manche.etat === 'en cours') {
-    const dureeM = reglages.dureeDuel || reglages.duree,
-      reste = Math.max(0, 1 - manche.t / dureeM);
+  if (round.etat === 'en cours') {
+    const dureeM = settings.dureeDuel || settings.duree,
+      reste = Math.max(0, 1 - round.t / dureeM);
     const ex = x - 12,
       ey = y - 12,
       ew = w + 24,
@@ -212,7 +212,7 @@ export function peindreDuel(dt) {
     ctx.stroke();
     if (reste > 0.001) {
       const len = eper * reste,
-        urgent = manche.t > dureeM - 15;
+        urgent = round.t > dureeM - 15;
       // Perf : un shadowBlur sur un trait qui fait le tour du plateau force le navigateur a flouter
       // toute la surface du plateau a chaque image (mesure : 3,5 ms contre 0,25 ms sans flou). Le halo
       // est donc imite par deux traits plus larges et translucides sous le trait franc.
@@ -262,7 +262,7 @@ export function peindreDuel(dt) {
       ctx.arc(tip.x, tip.y, 6.5 + 2 * souffle, 0, Math.PI * 2);
       ctx.fill();
       ctx.shadowBlur = 0;
-      if (Math.random() < Math.min(1, dtRendu * 2.7))
+      if (Math.random() < Math.min(1, frameDt * 2.7))
         fumeeTimer.push({
           x: tip.x + (Math.random() - 0.5) * 12,
           y: tip.y,
@@ -273,13 +273,13 @@ export function peindreDuel(dt) {
         });
       for (let i = fumeeTimer.length - 1; i >= 0; i--) {
         const g = fumeeTimer[i];
-        g.l += dtRendu;
+        g.l += frameDt;
         if (g.l >= g.m) {
           fumeeTimer.splice(i, 1);
           continue;
         }
-        g.x += (g.vx + Math.sin(g.l * 2.2) * 14) * dtRendu;
-        g.y += g.vy * dtRendu;
+        g.x += (g.vx + Math.sin(g.l * 2.2) * 14) * frameDt;
+        g.y += g.vy * frameDt;
         ctx.fillStyle = 'rgba(255,205,150,' + 0.7 * Math.sin((Math.PI * g.l) / g.m) + ')';
         ctx.beginPath();
         ctx.arc(g.x, g.y, 3, 0, Math.PI * 2);
@@ -289,12 +289,12 @@ export function peindreDuel(dt) {
     ctx.lineWidth = 6;
   }
   // compte a rebours de la tenue, au haut-centre, dans la couleur du camp qui tient
-  for (let i = 0; i < corps.length; i++) {
+  for (let i = 0; i < bodies.length; i++) {
     const tn = tenueDe(i);
     if (tn <= 0) continue;
-    const reste = Math.max(1, Math.ceil(TENUE_DUEL - tn));
-    const frac = TENUE_DUEL - tn - (reste - 1); // 1 -> 0 au fil de la seconde
-    const teinte = i === 0 ? OR : OMBRE,
+    const reste = Math.max(1, Math.ceil(HOLD_SECONDS - tn));
+    const frac = HOLD_SECONDS - tn - (reste - 1); // 1 -> 0 au fil de la seconde
+    const teinte = i === 0 ? GOLD : SHADOW,
       rgb = i === 0 ? '242,197,124' : '180,212,222';
     const cx = W / 2,
       cy = Y0 - 14,
@@ -316,8 +316,8 @@ export function peindreDuel(dt) {
     ctx.restore();
   }
   // flash rouge de recul par camp
-  for (let i = 0; i < corps.length; i++) {
-    const rt = corps[i].reculT || 0;
+  for (let i = 0; i < bodies.length; i++) {
+    const rt = bodies[i].reculT || 0;
     if (rt > 0) {
       ctx.save();
       ctx.globalAlpha = 0.14 * (rt / 0.9);
@@ -365,7 +365,7 @@ function ecussonDuel(icx, icy, s) {
 }
 
 export function peindreStatutsDuel() {
-  if (!manche || manche.etat !== 'en cours') return;
+  if (!round || round.etat !== 'en cours') return;
   // memes coordonnees que peindreGrade
   const RCX_G = X0 - 82,
     RCX_D = X0 + COLS * CELL + 82;
@@ -375,13 +375,13 @@ export function peindreStatutsDuel() {
     JW = 40,
     JH = 220;
   const camps = [
-    { c: corps[0], cx: RCX_G, rgb: '242,197,124', teinte: OR },
-    { c: corps[1], cx: RCX_D, rgb: '180,212,222', teinte: OMBRE },
+    { c: bodies[0], cx: RCX_G, rgb: '242,197,124', teinte: GOLD },
+    { c: bodies[1], cx: RCX_D, rgb: '180,212,222', teinte: SHADOW },
   ];
   ctx.save();
   camps.forEach(({ c, cx, rgb, teinte }) => {
     if (!c) return;
-    const surge = Math.min(1, (c.surgeT || 0) / TEMPO_DUR); // la jauge se vide sur 10 s (le tempo paye)
+    const surge = Math.min(1, (c.surgeT || 0) / BOOST_DURATION); // la jauge se vide sur 10 s (le tempo paye)
     const invinc = (c.invincT || 0) > 0;
     const coup = (c.coupT || 0) > 0;
     // fond
@@ -417,7 +417,7 @@ export function peindreStatutsDuel() {
     // la jauge, qui bat (Abdel : « icon on the side to indicate to team that its dangerous instead of jauge in red »).
     // Visible des que le serpent est sous 5 anneaux hors eclosion (naissance a 5 : sous 5 = il a ete coupe).
     // Abdel : « i dont see the warning icon » : la condition 'adulte' le cachait presque toujours.
-    if (!c.couvee && c.serpent.length > 0 && c.serpent.length < SURSIS_DUEL) {
+    if (!c.couvee && c.serpent.length > 0 && c.serpent.length < REPRIEVE_LENGTH) {
       const dy = JY_TOP - 44,
         ds = 22,
         al = 0.6 + 0.4 * Math.sin(t * 6);
@@ -452,7 +452,7 @@ export function peindreStatutsDuel() {
       ctx.save();
       if ((c.bouclierT || 0) > 0) {
         // ecusson plein + anneau de compte a rebours qui se vide (fraction du temps restant sur 15 s)
-        const fr = Math.min(1, c.bouclierT / BOUCLIER_DUR);
+        const fr = Math.min(1, c.bouclierT / SHIELD_DURATION);
         ctx.fillStyle = pare ? 'rgba(255,255,255,0.95)' : 'rgba(' + rgb + ',0.9)';
         ctx.shadowColor = 'rgba(' + rgb + ',0.6)';
         ctx.shadowBlur = 10;

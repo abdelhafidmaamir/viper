@@ -3,9 +3,15 @@
 
 import { ctx, setCtx } from './canvas.js';
 import { CELL } from './layout.js';
-import { lueurBaie, teinteBaie } from './palette.js';
-import { ALERTE, GERME, RONCE_ALERTE, VIEROCHER, VIERONCE } from './rules.js';
-import { baies, graines, px, reglages, rochers, ronces } from '../scripts/game.js';
+import { berryGlow, berryTint } from './palette.js';
+import {
+  STONE_WARNING,
+  SEED_GROW_TIME,
+  BRAMBLE_WARNING,
+  STONE_LIFE,
+  BRAMBLE_LIFE,
+} from './rules.js';
+import { berries, seeds, px, settings, stones, brambles } from '../scripts/game.js';
 
 // Ce que les spectateurs offrent : la graine tombe, l'ombre se resserre, la baie s'ouvre.
 const BAIE_RS = 58,
@@ -25,15 +31,15 @@ function spriteBaie(ph, camp) {
   ctx.translate(BAIE_RS, BAIE_RS);
   try {
     ctx.globalAlpha = 0.35 + 0.15 * si;
-    ctx.strokeStyle = teinteBaie(camp);
+    ctx.strokeStyle = berryTint(camp);
     ctx.lineWidth = 2;
     ctx.beginPath();
     ctx.arc(0, 0, 24 * bat, 0, Math.PI * 2);
     ctx.stroke();
     ctx.globalAlpha = 1;
-    ctx.shadowColor = lueurBaie(0.9, camp);
+    ctx.shadowColor = berryGlow(0.9, camp);
     ctx.shadowBlur = 26;
-    ctx.fillStyle = teinteBaie(camp);
+    ctx.fillStyle = berryTint(camp);
     ctx.beginPath();
     ctx.arc(0, 0, 17 * bat, 0, Math.PI * 2);
     ctx.fill();
@@ -50,9 +56,9 @@ function spriteBaie(ph, camp) {
 }
 
 export function peindreOffrandes() {
-  graines.forEach((g) => {
+  seeds.forEach((g) => {
     const p = px(g.x, g.y),
-      u = Math.min(1, g.t / GERME),
+      u = Math.min(1, g.t / SEED_GROW_TIME),
       chute = Math.min(1, u / 0.7);
     if (chute < 1) {
       const y = p.y - CELL * 3.2 * (1 - chute) * (1 - chute);
@@ -63,9 +69,9 @@ export function peindreOffrandes() {
       ctx.ellipse(p.y ? p.x : p.x, p.y + 6, 10 + 8 * chute, 3 + 2 * chute, 0, 0, Math.PI * 2);
       ctx.fill();
       ctx.globalAlpha = 1;
-      ctx.shadowColor = lueurBaie(0.8, g.camp);
+      ctx.shadowColor = berryGlow(0.8, g.camp);
       ctx.shadowBlur = 20;
-      ctx.fillStyle = teinteBaie(g.camp);
+      ctx.fillStyle = berryTint(g.camp);
       ctx.beginPath();
       ctx.arc(p.x, y, 5 + 3 * chute, 0, Math.PI * 2);
       ctx.fill();
@@ -80,16 +86,16 @@ export function peindreOffrandes() {
       ctx.moveTo(p.x, p.y + 12);
       ctx.lineTo(p.x, p.y + 12 - 14 * s);
       ctx.stroke();
-      ctx.shadowColor = lueurBaie(0.9, g.camp);
+      ctx.shadowColor = berryGlow(0.9, g.camp);
       ctx.shadowBlur = 24;
-      ctx.fillStyle = teinteBaie(g.camp);
+      ctx.fillStyle = berryTint(g.camp);
       ctx.beginPath();
       ctx.arc(p.x, p.y, 16 * s, 0, Math.PI * 2);
       ctx.fill();
       ctx.restore();
     }
   });
-  baies.forEach((b) => {
+  berries.forEach((b) => {
     const p = px(b.x, b.y);
     // Toutes les baies battent au meme rythme, decale par leur age : leur dessin ne depend donc
     // que de la phase du battement. On en garde 48 images, partagees par toutes les baies du
@@ -195,7 +201,7 @@ const HACHE = (i, d) => {
 // vient de la gauche au lever, du zenith a midi, de la droite au coucher, et la nuit elle est
 // faible et froide. Sans elle, un objet reste un aplat colle sur une image peinte.
 export function lumiere() {
-  const h = (((reglages.heure || 0) % 1) + 1) % 1;
+  const h = (((settings.heure || 0) % 1) + 1) % 1;
   const jour = Math.max(0, Math.min(1, (Math.cos((h - 0.5) * Math.PI * 2) + 0.35) / 1.35));
   const an = Math.PI * (-0.82 + 0.62 * Math.min(1, Math.max(0, (h - 0.2) / 0.58)));
   const chaud = [248, 226, 186],
@@ -325,7 +331,7 @@ const ROC_RS = 40,
 let cacheRocherCle = null;
 
 function spriteRocher(j) {
-  const cle = Math.round(((((reglages.heure || 0) % 1) + 1) % 1) * 180);
+  const cle = Math.round(((((settings.heure || 0) % 1) + 1) % 1) * 180);
   if (cle !== cacheRocherCle) {
     cacheRocher.clear();
     cacheRocherCle = cle;
@@ -352,11 +358,11 @@ function poserRocher(j) {
 }
 
 export function peindreRochers() {
-  rochers.forEach((r) => {
+  stones.forEach((r) => {
     const p = px(r.x, r.y),
       j = ((r.x * 13 + r.y * 7) % 7) - 3;
-    if (r.t < ALERTE) {
-      const u = r.t / ALERTE,
+    if (r.t < STONE_WARNING) {
+      const u = r.t / STONE_WARNING,
         lev = u * u * (3 - 2 * u); // le bombement, doux aux deux bouts
       // Elle perce tot, et sa montee a un ressaut : elle force, elle glisse d'un cheveu vers 60 %,
       // puis elle passe. C'est ce temps mort qui la rend pesante au lieu de jaillir.
@@ -396,11 +402,11 @@ export function peindreRochers() {
       return;
     }
     // une fois sortie, elle se cale : un tassement sec, vers le bas seulement, jamais de rebond
-    const d = r.t - ALERTE,
+    const d = r.t - STONE_WARNING,
       k = d < 0.18 ? Math.sin((d / 0.18) * Math.PI) : 0;
     const sx = 1 + 0.05 * k,
       sy = 1 - 0.08 * k;
-    const f = r.t > VIEROCHER - 2 ? (VIEROCHER - r.t) / 2 : 1;
+    const f = r.t > STONE_LIFE - 2 ? (STONE_LIFE - r.t) / 2 : 1;
     ctx.save();
     // la terre remuee reste visible au pied, puis se tasse
     ctx.globalAlpha = f * (d < 1.4 ? 1 - d / 1.4 : 0) * 0.8;
@@ -435,7 +441,7 @@ function pointsRonce(R) {
   const pts = [];
   R.seg.forEach((g, i) => {
     const p = px(g.x, g.y),
-      u = Math.min(1, g.t / RONCE_ALERTE),
+      u = Math.min(1, g.t / BRAMBLE_WARNING),
       ouv = u * u * (3 - 2 * u);
     const v = R.seg[i - 1] || R.seg[i + 1];
     if (!v || ouv >= 1) {
@@ -533,9 +539,9 @@ const RON_M = 26;
 
 export function peindreRonces() {
   const L = lumiere();
-  const cleL = Math.round(((((reglages.heure || 0) % 1) + 1) % 1) * 180);
-  ronces.forEach((R) => {
-    const f = R.t > VIERONCE - 2 ? (VIERONCE - R.t) / 2 : 1;
+  const cleL = Math.round(((((settings.heure || 0) % 1) + 1) % 1) * 180);
+  brambles.forEach((R) => {
+    const f = R.t > BRAMBLE_LIFE - 2 ? (BRAMBLE_LIFE - R.t) / 2 : 1;
     const pts = pointsRonce(R);
     if (pts.length < 1) return;
     let ax = Infinity,

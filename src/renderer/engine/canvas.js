@@ -5,14 +5,14 @@ export let canvas = null;
 export let ctx = null;
 
 /** Binds the on-stream canvas. Leaves the current context untouched when there is none. */
-export function lierCanvas(element) {
+export function bindCanvas(element) {
   canvas = element;
   if (canvas) ctx = canvas.getContext('2d');
 }
 
 /** Redirects drawing to `context` and returns the previous one, to be restored by the caller. */
 export function setCtx(context) {
-  const avant = ctx;
+  const previous = ctx;
   ctx = context;
-  return avant;
+  return previous;
 }

@@ -3,9 +3,16 @@
 
 import { SC_CY, W } from './layout.js';
 import { ctx } from './canvas.js';
-import { BLEU, OMBRE, OR } from './palette.js';
-import { glypheGens } from './frame.js';
-import { manche, pulseS, pulseV, reglages, scoreSerpent, scoreViewers } from '../scripts/game.js';
+import { BLUE, SHADOW, GOLD } from './palette.js';
+import { paintViewersGlyph } from './frame.js';
+import {
+  round,
+  snakePulse,
+  viewersPulse,
+  settings,
+  snakeScore,
+  scoreViewers,
+} from '../scripts/game.js';
 
 // Mode de base, sans un mot : l'anneau du plateau est le METRE DE VICTOIRE GLOBAL. Il compte la
 // progression sur tout le run, des grades deja faits jusqu'au dernier. Il monte a chaque bouchee et
@@ -112,7 +119,7 @@ function campBarre(cx, n, sun, pulse, teinte, miroir) {
     ctx.shadowBlur = 26 * vif;
   }
   if (sun || teinte) glypheSerpent(0, 0, SC_R, teinte);
-  else glypheGens(0, 0, SC_R);
+  else paintViewersGlyph(0, 0, SC_R);
   ctx.restore();
 
   ctx.save();
@@ -125,7 +132,7 @@ function campBarre(cx, n, sun, pulse, teinte, miroir) {
   ctx.textAlign = 'center';
   ctx.textBaseline = 'middle';
   ctx.font = '500 30px "IBM Plex Mono", ui-monospace, monospace';
-  ctx.fillStyle = teinte || (sun ? OR : BLEU);
+  ctx.fillStyle = teinte || (sun ? GOLD : BLUE);
   ctx.fillText(String(n), 0, 1);
   ctx.restore();
 }
@@ -137,7 +144,7 @@ export function peindreScore() {
   const cx = W / 2;
   // Duel (Abdel, 2026-09-21, variante T1) : le temps restant de la manche, en chiffres, entre les deux
   // scores, comme une carte de score de foot. La plaque s'elargit pour lui faire place ; glyphes inchanges.
-  const chrono = manche,
+  const chrono = round,
     bw = chrono ? SC_BW + 84 : SC_BW,
     ecart = chrono ? SC_ECART + 84 : SC_ECART;
   ctx.save();
@@ -152,8 +159,8 @@ export function peindreScore() {
   ctx.stroke();
   ctx.strokeStyle = 'rgba(255,255,255,0.16)';
   if (chrono) {
-    const dureeM = reglages.dureeDuel || reglages.duree,
-      r = Math.max(0, Math.ceil(dureeM - (manche.t || 0)));
+    const dureeM = settings.dureeDuel || settings.duree,
+      r = Math.max(0, Math.ceil(dureeM - (round.t || 0)));
     const txt = Math.floor(r / 60) + ':' + String(r % 60).padStart(2, '0');
     ctx.beginPath();
     ctx.moveTo(cx - 42, SC_CY - 13);
@@ -165,7 +172,7 @@ export function peindreScore() {
     ctx.textBaseline = 'middle';
     ctx.font = '500 24px "IBM Plex Mono", ui-monospace, monospace';
     ctx.fillStyle =
-      r <= 20 && manche.etat === 'en cours' ? 'rgba(240,78,62,0.95)' : 'rgba(255,255,255,0.72)';
+      r <= 20 && round.etat === 'en cours' ? 'rgba(240,78,62,0.95)' : 'rgba(255,255,255,0.72)';
     ctx.fillText(txt, cx, SC_CY + 1);
   } else {
     // un filet vertical, entre les deux camps
@@ -175,8 +182,8 @@ export function peindreScore() {
     ctx.stroke();
   }
   ctx.restore();
-  campBarre(cx - ecart / 2, scoreSerpent, true, pulseS, OR);
-  campBarre(cx + ecart / 2, scoreViewers, false, pulseV, OMBRE, true);
+  campBarre(cx - ecart / 2, snakeScore, true, snakePulse, GOLD);
+  campBarre(cx + ecart / 2, scoreViewers, false, viewersPulse, SHADOW, true);
 }
 
 // Maquette de l'interface TikTok, pour juger le jeu en conditions reelles au lieu de juger un

@@ -4,14 +4,14 @@
 
 import { L } from './layout.js';
 import { ctx } from './canvas.js';
-import { OMBRE, OR } from './palette.js';
-import { BOUCLIER_DUR, TEMPO_DUR } from './rules.js';
-import { bandeauCadeau, retourCadeaux } from './gift-feedback.js';
-import { corps, reglages, t } from '../scripts/game.js';
+import { SHADOW, GOLD } from './palette.js';
+import { SHIELD_DURATION, BOOST_DURATION } from './rules.js';
+import { giftBanner, giftFeedback } from './gift-feedback.js';
+import { bodies, settings, t } from '../scripts/game.js';
 
 // Legende des cadeaux (duel) : sous le compteur, une colonne par camp. Chaque ligne = image du cadeau
 // TikTok (cadeaux/*.png, fond transparent), prix en coins, effet. Etape 1 (Abdel) : les deux roses.
-export const CADEAUX_DUEL = {
+export const DUEL_GIFTS = {
   or: [
     { img: 'rose-rouge', prix: 1, effet: '+1' },
     { img: 'rose-10', prix: 10, effet: 'speed 10s' },
@@ -29,21 +29,21 @@ export const CADEAUX_DUEL = {
   // a venir, une ligne par cadeau : {img:'dyno',prix:10,effet:'speed 10s'}, {prix:30,effet:'steal 15%'}, {prix:50,effet:'shield 15s'}, {prix:100,effet:'+1 life'}
 };
 
-const imgCadeaux = {};
+const giftImages = {};
 
-function imageCadeau(nom) {
-  if (imgCadeaux[nom] !== undefined) return imgCadeaux[nom];
+function loadGiftImage(imgKey) {
+  if (giftImages[imgKey] !== undefined) return giftImages[imgKey];
   if (typeof Image === 'undefined') {
-    imgCadeaux[nom] = null;
+    giftImages[imgKey] = null;
     return null;
   }
-  const im = new Image();
-  im.src = 'assets/gifts/' + nom + '.png';
-  imgCadeaux[nom] = im;
-  return im;
+  const img = new Image();
+  img.src = 'assets/gifts/' + imgKey + '.png';
+  giftImages[imgKey] = img;
+  return img;
 }
 
-export function peindreLegendeDuel() {
+export function paintDuelLegend() {
   // Compact (Abdel : 5 cadeaux par cote a venir, anglais, sans 'pour X', la couleur suffit) :
   // 5 lignes de 92 px tiennent entre 1340 et 1800.
   const Y = L.legY,
@@ -51,48 +51,48 @@ export function peindreLegendeDuel() {
     IMG = 64,
     CW = 400;
   ctx.save();
-  const mode = reglages.retourCadeau || 'aucun';
+  const mode = settings.retourCadeau || 'aucun';
   [
-    ['or', L.legCxG, OR, '242,197,124'],
-    ['ombre', L.legCxD, OMBRE, '180,212,222'],
-  ].forEach(([camp, cx, teinte, rgb]) => {
-    const liste = CADEAUX_DUEL[camp],
-      ci = camp === 'or' ? 0 : 1,
-      cc = corps[ci];
+    ['or', L.legCxG, GOLD, '242,197,124'],
+    ['ombre', L.legCxD, SHADOW, '180,212,222'],
+  ].forEach(([team, cx, tint, rgb]) => {
+    const giftList = DUEL_GIFTS[team],
+      teamIdx = team === 'or' ? 0 : 1,
+      body = bodies[teamIdx];
     // G4 : bandeau donateur au-dessus de la colonne, il glisse vers le haut et s'efface
-    const bd = bandeauCadeau[ci];
-    if (mode === 'G4' && bd && t - bd.t < 2.6) {
-      const a = t - bd.t,
-        en = Math.min(1, a / 0.35),
-        so = a > 2 ? 1 - (a - 2) / 0.6 : 1,
-        e2 = 1 - Math.pow(1 - en, 3);
-      ctx.globalAlpha = Math.max(0, e2 * so);
-      ctx.fillStyle = teinte;
+    const donorBanner = giftBanner[teamIdx];
+    if (mode === 'G4' && donorBanner && t - donorBanner.t < 2.6) {
+      const a = t - donorBanner.t,
+        entryFade = Math.min(1, a / 0.35),
+        exitFade = a > 2 ? 1 - (a - 2) / 0.6 : 1,
+        e2 = 1 - Math.pow(1 - entryFade, 3);
+      ctx.globalAlpha = Math.max(0, e2 * exitFade);
+      ctx.fillStyle = tint;
       ctx.font = '700 24px system-ui, sans-serif';
       ctx.textAlign = 'center';
       ctx.textBaseline = 'middle';
-      ctx.fillText(bd.texte, cx, Y - LH / 2 - 16 + (1 - e2) * 18);
+      ctx.fillText(donorBanner.texte, cx, Y - LH / 2 - 16 + (1 - e2) * 18);
       ctx.globalAlpha = 1;
     }
-    liste.forEach((c, k) => {
+    giftList.forEach((c, k) => {
       const y = Y + k * LH;
       // retour visuel : age du dernier cadeau de cette ligne, et part restante de l'effet s'il dure
-      const rc = retourCadeaux[ci][k],
-        age = rc ? t - rc.t : 99;
-      const reste = cc
+      const lineFeedback = giftFeedback[teamIdx][k],
+        age = lineFeedback ? t - lineFeedback.t : 99;
+      const remaining = body
         ? k === 1
-          ? Math.min(1, (cc.surgeT || 0) / TEMPO_DUR)
+          ? Math.min(1, (body.surgeT || 0) / BOOST_DURATION)
           : k === 3
-            ? Math.min(1, (cc.bouclierT || 0) / BOUCLIER_DUR)
+            ? Math.min(1, (body.bouclierT || 0) / SHIELD_DURATION)
             : 0
         : 0;
-      if (mode === 'G1' && (age < 1.8 || reste > 0)) {
+      if (mode === 'G1' && (age < 1.8 || remaining > 0)) {
         const flash = age < 1.8 ? Math.pow(1 - age / 1.8, 1.5) : 0;
         ctx.fillStyle =
           'rgba(' +
           rgb +
           ',' +
-          (0.3 * flash + (reste > 0 ? 0.1 + 0.03 * Math.sin(t * 2.4) : 0)) +
+          (0.3 * flash + (remaining > 0 ? 0.1 + 0.03 * Math.sin(t * 2.4) : 0)) +
           ')';
         ctx.beginPath();
         ctx.roundRect(cx - CW / 2, y - LH / 2 + 6, CW, LH - 12, 22);
@@ -108,16 +108,16 @@ export function peindreLegendeDuel() {
       ctx.stroke();
       // image du cadeau, a gauche de la plaque
       // Ombre en miroir d'Or (Abdel, 2026-09-19) : image et pastille de prix a DROITE, effet aligne a droite
-      const miroir = camp === 'ombre';
-      const im = imageCadeau(c.img);
-      const ix = miroir ? cx + CW / 2 - 16 - IMG : cx - CW / 2 + 16,
+      const mirrored = team === 'ombre';
+      const img = loadGiftImage(c.img);
+      const ix = mirrored ? cx + CW / 2 - 16 - IMG : cx - CW / 2 + 16,
         iy = y - IMG / 2;
       // G2 : l'image sursaute ; G3 : elle sautille
-      const saut = mode === 'G2' && age < 0.3 ? 1 + 0.18 * Math.sin((age / 0.3) * Math.PI) : 1,
+      const bounce = mode === 'G2' && age < 0.3 ? 1 + 0.18 * Math.sin((age / 0.3) * Math.PI) : 1,
         hop = mode === 'G3' && age < 0.25 ? -9 * Math.sin((age / 0.25) * Math.PI) : 0;
-      if (im && im.complete && im.naturalWidth) {
-        const d2 = IMG * saut;
-        ctx.drawImage(im, ix + IMG / 2 - d2 / 2, iy + IMG / 2 - d2 / 2 + hop, d2, d2);
+      if (img && img.complete && img.naturalWidth) {
+        const d2 = IMG * bounce;
+        ctx.drawImage(img, ix + IMG / 2 - d2 / 2, iy + IMG / 2 - d2 / 2 + hop, d2, d2);
       } else {
         ctx.fillStyle = 'rgba(' + rgb + ',0.25)';
         ctx.beginPath();
@@ -126,8 +126,8 @@ export function peindreLegendeDuel() {
       }
       // prix : pastille coin
       // prix (pastille teintee) puis effet, sur une seule ligne
-      const pcx = miroir ? ix - 18 - 17 : ix + IMG + 18 + 17; // centre de la pastille de prix
-      ctx.fillStyle = teinte;
+      const pcx = mirrored ? ix - 18 - 17 : ix + IMG + 18 + 17; // centre de la pastille de prix
+      ctx.fillStyle = tint;
       ctx.beginPath();
       ctx.arc(pcx, y, 17, 0, Math.PI * 2);
       ctx.fill();
@@ -138,53 +138,57 @@ export function peindreLegendeDuel() {
       ctx.fillText(String(c.prix), pcx, y + 1);
       ctx.fillStyle = 'rgba(255,255,255,0.92)';
       ctx.font = '700 30px system-ui, sans-serif';
-      ctx.textAlign = miroir ? 'right' : 'left';
-      ctx.fillText(c.effet, miroir ? pcx - 29 : pcx + 29, y + 1);
+      ctx.textAlign = mirrored ? 'right' : 'left';
+      ctx.fillText(c.effet, mirrored ? pcx - 29 : pcx + 29, y + 1);
       ctx.textAlign = 'left';
       if (mode === 'G1') {
-        if (rc && age < 2.2 && reglages.nomsDonateurs !== false) {
+        if (lineFeedback && age < 2.2 && settings.nomsDonateurs !== false) {
           ctx.globalAlpha = age < 1.6 ? 1 : Math.max(0, 1 - (age - 1.6) / 0.6);
-          ctx.fillStyle = teinte;
+          ctx.fillStyle = tint;
           ctx.font = '600 19px system-ui, sans-serif';
-          ctx.textAlign = miroir ? 'left' : 'right';
-          ctx.fillText(rc.pseudo, miroir ? cx - CW / 2 + 18 : cx + CW / 2 - 18, y - LH / 2 + 24);
+          ctx.textAlign = mirrored ? 'left' : 'right';
+          ctx.fillText(
+            lineFeedback.pseudo,
+            mirrored ? cx - CW / 2 + 18 : cx + CW / 2 - 18,
+            y - LH / 2 + 24,
+          );
           ctx.globalAlpha = 1;
           ctx.textAlign = 'left';
         }
-        if (reste > 0) {
+        if (remaining > 0) {
           ctx.strokeStyle = 'rgba(' + rgb + ',0.95)';
           ctx.lineWidth = 3;
           ctx.lineCap = 'round';
           ctx.beginPath();
           ctx.moveTo(cx - CW / 2 + 24, y + LH / 2 - 9);
-          ctx.lineTo(cx - CW / 2 + 24 + (CW - 48) * reste, y + LH / 2 - 9);
+          ctx.lineTo(cx - CW / 2 + 24 + (CW - 48) * remaining, y + LH / 2 - 9);
           ctx.stroke();
         }
       }
-      if (mode === 'G2' && reste > 0) {
+      if (mode === 'G2' && remaining > 0) {
         ctx.lineWidth = 4;
         ctx.lineCap = 'round';
         ctx.strokeStyle = 'rgba(255,255,255,0.14)';
         ctx.beginPath();
         ctx.arc(ix + IMG / 2, y, IMG / 2 + 5, 0, Math.PI * 2);
         ctx.stroke();
-        ctx.strokeStyle = teinte;
+        ctx.strokeStyle = tint;
         ctx.beginPath();
-        ctx.arc(ix + IMG / 2, y, IMG / 2 + 5, -Math.PI / 2, -Math.PI / 2 + Math.PI * 2 * reste);
+        ctx.arc(ix + IMG / 2, y, IMG / 2 + 5, -Math.PI / 2, -Math.PI / 2 + Math.PI * 2 * remaining);
         ctx.stroke();
       }
-      if (mode === 'G3' && rc && rc.n > 0) {
-        const bx = miroir ? ix + 6 : ix + IMG - 6,
+      if (mode === 'G3' && lineFeedback && lineFeedback.n > 0) {
+        const bx = mirrored ? ix + 6 : ix + IMG - 6,
           by = y - IMG / 2 + 8,
           pop = age < 0.3 ? 1 + 0.35 * Math.sin((age / 0.3) * Math.PI) : 1;
-        ctx.fillStyle = teinte;
+        ctx.fillStyle = tint;
         ctx.beginPath();
         ctx.arc(bx, by, 15 * pop, 0, Math.PI * 2);
         ctx.fill();
         ctx.fillStyle = '#0c110e';
         ctx.font = '900 17px system-ui, sans-serif';
         ctx.textAlign = 'center';
-        ctx.fillText(String(rc.n), bx, by + 1);
+        ctx.fillText(String(lineFeedback.n), bx, by + 1);
         ctx.textAlign = 'left';
       }
     });
@@ -195,7 +199,7 @@ export function peindreLegendeDuel() {
 // Bandeau de cadeaux qui defile (modele Livecade, valide en direction par Abdel 2026-09-22) : un ruban
 // horizontal au bas de l'ecran qui glisse en continu, chaque cadeau = son image ANIMEE (wiggle) + son EFFET
 // en toutes lettres. AUCUN prix, AUCUN verbe d'envoi : c'est un menu de jeu, pas une vitrine d'achat.
-export const EFFET_LABEL = {
+export const EFFECT_LABEL = {
   '+1': 'BERRY',
   'speed 10s': 'SPEED',
   'steal 15%': 'STEAL',
@@ -203,29 +207,29 @@ export const EFFET_LABEL = {
   '+1 life': 'LIFE',
 };
 
-const tuilesCamp = {};
+const teamTiles = {};
 
-function tuiles(camp) {
-  if (tuilesCamp[camp]) return tuilesCamp[camp];
-  const t = CADEAUX_DUEL[camp].map((c) => ({
+function getTiles(team) {
+  if (teamTiles[team]) return teamTiles[team];
+  const t = DUEL_GIFTS[team].map((c) => ({
     img: c.img,
-    label: EFFET_LABEL[c.effet] || c.effet.toUpperCase(),
+    label: EFFECT_LABEL[c.effet] || c.effet.toUpperCase(),
   }));
-  tuilesCamp[camp] = t;
+  teamTiles[team] = t;
   return t;
 }
 
 // un ruban compact : boite etroite posee sur un cote ; la liste d'un camp glisse, boucle, et s'ESTOMPE en
 // fondu transparent aux deux bords (rendu sur un calque a part puis efface aux extremites). Icones animees
 // (wiggle), label teinte du camp. Pas de prix.
-const calquesRuban = {};
+const ribbonLayers = {};
 
-function calqueRuban(camp, bw, bh) {
-  let c = calquesRuban[camp];
+function getRibbonLayer(team, bw, bh) {
+  let c = ribbonLayers[team];
   if (!c) {
     if (typeof document === 'undefined') return null;
     c = document.createElement('canvas');
-    calquesRuban[camp] = c;
+    ribbonLayers[team] = c;
   }
   if (c.width !== bw) {
     c.width = bw;
@@ -237,7 +241,7 @@ function calqueRuban(camp, bw, bh) {
 // Pictogramme de l'EFFET dans la DA du jeu (memes traces que le rail duel : ecusson, coeur, eclair, baie),
 // dessine sur un contexte donne. C'est l'element principal de chaque ligne ; le cadeau TikTok n'est qu'un
 // petit badge a cote (consigne Abdel : « the effect explicit action in the game accompagne de l'icone »).
-export function glypheEffet(o, label, x, y, s, rgb) {
+export function paintEffectGlyph(o, label, x, y, s, rgb) {
   o.save();
   o.lineJoin = 'round';
   o.lineCap = 'round';
@@ -344,8 +348,8 @@ export function glypheEffet(o, label, x, y, s, rgb) {
 
 // ruban VERTICAL : colonne d'un camp qui defile de bas en haut (ou l'inverse), chaque cadeau = icone + effet
 // sur une ligne, projecteur au centre vertical, fondu haut et bas, plaque qualite prod.
-function rubanCadeaux(camp, x0, y0, bw, bh, rgb, vitesse, sens) {
-  const T = tuiles(camp),
+function paintGiftRibbon(team, x0, y0, bw, bh, rgb, speed, direction) {
+  const T = getTiles(team),
     n = T.length,
     TH = 132,
     FADE = 64,
@@ -374,36 +378,36 @@ function rubanCadeaux(camp, x0, y0, bw, bh, rgb, vitesse, sens) {
   ctx.beginPath();
   ctx.roundRect(x0 + 2, y0 + 2, bw - 4, bh - 4, 20);
   ctx.stroke();
-  const oc = calqueRuban(camp, bw, bh);
+  const oc = getRibbonLayer(team, bw, bh);
   if (oc) {
     const o = oc.getContext('2d');
     o.clearRect(0, 0, bw, bh);
     // les deux colonnes partagent le meme defilement ; le cote 'sens>0' est le MIROIR vertical de l'autre :
     // meme effet au centre au meme instant des deux cotes (Abdel : « LIFE au centre a gauche = LIFE a droite »),
     // tout en glissant en sens opposes.
-    const bande = n * TH,
-      dec = (((t * vitesse) % bande) + bande) % bande;
-    const premier = Math.floor(dec / TH) - 1;
+    const scrollBand = n * TH,
+      scrollOffset = (((t * speed) % scrollBand) + scrollBand) % scrollBand;
+    const firstTile = Math.floor(scrollOffset / TH) - 1;
     o.textAlign = 'left';
     o.textBaseline = 'middle';
-    for (let i = premier; i * TH - dec < bh + TH; i++) {
+    for (let i = firstTile; i * TH - scrollOffset < bh + TH; i++) {
       const it = T[((i % n) + n) % n],
-        cyB = i * TH - dec + TH / 2,
-        cy = sens > 0 ? bh - cyB : cyB;
+        cyB = i * TH - scrollOffset + TH / 2,
+        cy = direction > 0 ? bh - cyB : cyB;
       if (cy < -TH || cy > bh + TH) continue;
       // separateur discret entre deux paires
-      const byB = i * TH - dec,
-        by = sens > 0 ? bh - byB : byB;
+      const byB = i * TH - scrollOffset,
+        by = direction > 0 ? bh - byB : byB;
       o.fillStyle = 'rgba(255,255,255,0.10)';
       o.fillRect(20, by - 0.5, bw - 40, 1);
       // projecteur au centre vertical : le cadeau au milieu s'anime, les autres au repos
-      let env = 1 - Math.abs(cy - midY) / 95;
-      env = env > 0 ? env * env * (3 - 2 * env) : 0;
-      const ang = env * 0.17 * Math.sin(t * 9.2),
-        sc = 1 + env * 0.15;
-      if (env > 0.04) {
+      let envelope = 1 - Math.abs(cy - midY) / 95;
+      envelope = envelope > 0 ? envelope * envelope * (3 - 2 * envelope) : 0;
+      const ang = envelope * 0.17 * Math.sin(t * 9.2),
+        sc = 1 + envelope * 0.15;
+      if (envelope > 0.04) {
         const r = o.createRadialGradient(icx, cy, 0, icx, cy, 66);
-        r.addColorStop(0, 'rgba(' + rgb + ',' + 0.22 * env + ')');
+        r.addColorStop(0, 'rgba(' + rgb + ',' + 0.22 * envelope + ')');
         r.addColorStop(1, 'rgba(' + rgb + ',0)');
         o.fillStyle = r;
         o.fillRect(icx - 66, cy - 66, 132, 132);
@@ -413,20 +417,20 @@ function rubanCadeaux(camp, x0, y0, bw, bh, rgb, vitesse, sens) {
       o.translate(icx, cy);
       o.rotate(ang);
       o.scale(sc, sc);
-      glypheEffet(o, it.label, 0, 0, 22, rgb);
+      paintEffectGlyph(o, it.label, 0, 0, 22, rgb);
       o.restore();
       // le mot de l'effet
       o.shadowColor = 'rgba(0,0,0,0.6)';
       o.shadowBlur = 4;
       o.shadowOffsetY = 2;
-      o.fillStyle = 'rgba(' + rgb + ',' + (0.9 + 0.1 * env) + ')';
+      o.fillStyle = 'rgba(' + rgb + ',' + (0.9 + 0.1 * envelope) + ')';
       o.font = '800 24px system-ui, sans-serif';
       o.fillText(it.label, icx + 36, cy + 1);
       o.shadowColor = 'transparent';
       o.shadowBlur = 0;
       o.shadowOffsetY = 0;
       // le cadeau TikTok en petit badge a droite : secondaire, legerement attenue
-      const im = imageCadeau(it.img),
+      const img = loadGiftImage(it.img),
         GB = 34,
         gx = bw - 24 - GB / 2;
       o.save();
@@ -434,7 +438,8 @@ function rubanCadeaux(camp, x0, y0, bw, bh, rgb, vitesse, sens) {
       o.shadowColor = 'rgba(0,0,0,0.4)';
       o.shadowBlur = 5;
       o.shadowOffsetY = 2;
-      if (im && im.complete && im.naturalWidth) o.drawImage(im, gx - GB / 2, cy - GB / 2, GB, GB);
+      if (img && img.complete && img.naturalWidth)
+        o.drawImage(img, gx - GB / 2, cy - GB / 2, GB, GB);
       o.restore();
     }
     // fondu haut et bas : on efface vraiment le contenu (transparence), la plaque translucide reste dessous
@@ -461,28 +466,28 @@ function rubanCadeaux(camp, x0, y0, bw, bh, rgb, vitesse, sens) {
 // les plaques ne sont PAS permanentes (un panneau permanent est un declencheur TikTok documente) :
 // pattern etudie et REGLABLE en regie : visibles defileVisi s, cachees defileCache s, en boucle.
 // Fondu doux en entree comme en sortie. Aucun lien avec l'arrivee des cadeaux (pattern pur).
-const DEFILE_FONDU = 0.7; // s
+const SCROLL_FADE = 0.7; // s
 
-function alphaDefile() {
+function scrollAlpha() {
   // 0 est une valeur legitime pour cache (toujours visible) : ne pas la confondre avec « non regle »
-  const vis = reglages.defileVisi > 0 ? reglages.defileVisi : 8,
-    cache = reglages.defileCache == null ? 12 : reglages.defileCache,
-    P = vis + cache,
+  const visibleDuration = settings.defileVisi > 0 ? settings.defileVisi : 8,
+    hiddenDuration = settings.defileCache == null ? 12 : settings.defileCache,
+    P = visibleDuration + hiddenDuration,
     ph = t % P;
-  if (cache <= 0) return 1; // option "toujours visible" (tests hors live)
+  if (hiddenDuration <= 0) return 1; // option "toujours visible" (tests hors live)
   const a =
-    ph < DEFILE_FONDU
-      ? ph / DEFILE_FONDU
-      : ph < vis - DEFILE_FONDU
+    ph < SCROLL_FADE
+      ? ph / SCROLL_FADE
+      : ph < visibleDuration - SCROLL_FADE
         ? 1
-        : ph < vis
-          ? 1 - (ph - (vis - DEFILE_FONDU)) / DEFILE_FONDU
+        : ph < visibleDuration
+          ? 1 - (ph - (visibleDuration - SCROLL_FADE)) / SCROLL_FADE
           : 0;
   return Math.max(0, Math.min(1, a));
 }
 
-export function peindreDefileCadeaux() {
-  const al = alphaDefile();
+export function paintGiftScroll() {
+  const al = scrollAlpha();
   if (al <= 0.01) return;
   // deux colonnes verticales longues, placees sur le cote DROIT, SOUS le plateau (la gauche reste libre)
   const BW = 250,
@@ -492,7 +497,7 @@ export function peindreDefileCadeaux() {
     XG = L.defXG;
   ctx.save();
   ctx.globalAlpha = al;
-  rubanCadeaux('or', XG, YB, BW, BH, '242,197,124', 40, -1);
-  rubanCadeaux('ombre', XD, YB, BW, BH, '180,212,222', 40, 1);
+  paintGiftRibbon('or', XG, YB, BW, BH, '242,197,124', 40, -1);
+  paintGiftRibbon('ombre', XD, YB, BW, BH, '180,212,222', 40, 1);
   ctx.restore();
 }

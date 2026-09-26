@@ -1,14 +1,14 @@
 // Frame composition: paints one frame of the board, snakes, hazards and overlays in draw order,
 // and keeps the frame-rate readout used by the debug overlay.
 
-import { peindreBandeau } from './announcements.js';
+import { paintBanner } from './announcements.js';
 import { peindreOffrandes, peindreRochers, peindreRonces } from './board-items.js';
 import { ctx, setCtx } from './canvas.js';
-import { peindreDebugIA, peindreMaquetteLive } from './debug-overlay.js';
+import { paintAiDebug, paintLiveMockup } from './debug-overlay.js';
 import { peindreDuel, peindreStatutsDuel } from './duel-hud.js';
 import { peindreCoquille, peindreEtincelles, peindreHalos } from './effects.js';
-import { peindreFin } from './end-screen.js';
-import { peindreDefileCadeaux, peindreLegendeDuel } from './gift-panel.js';
+import { paintEndScreen } from './end-screen.js';
+import { paintGiftScroll, paintDuelLegend } from './gift-panel.js';
 import {
   CELL,
   COLS,
@@ -23,29 +23,29 @@ import {
   WF,
   X0,
   Y0,
-  Z_BANNIERE,
-  Z_CADEAUX,
-  Z_FIL,
-  Z_SAISIE,
+  Z_BANNER,
+  Z_GIFTS,
+  Z_COMMENTS,
+  Z_INPUT,
 } from './layout.js';
-import { BLEU } from './palette.js';
-import { ECLOSION } from './rules.js';
+import { BLUE } from './palette.js';
+import { HATCH_TIME } from './rules.js';
 import { peindreScore, personne } from './scoreboard.js';
 import { tension } from './tension.js';
 import {
-  actif,
-  amb,
-  charger,
-  corps,
-  couvee,
-  manche,
-  ranger,
-  reglages,
+  activeIndex,
+  getAmbience,
+  loadBody,
+  bodies,
+  egg,
+  round,
+  storeBody,
+  settings,
   t,
   trace,
 } from '../scripts/game.js';
 
-export function peindreCourse() {
+export function paintRace() {
   return;
 }
 
@@ -53,19 +53,19 @@ export function peindreCourse() {
 // mode trouerait l'image entiere, fond compris, puisque le compteur est dessine par-dessus tout.
 // Le glyphe est donc cuit une seule fois dans un sprite hors ecran, ou le decoupage ne concerne
 // que lui. Bonus : il est paye une fois pour toute la partie et non a chaque image.
-export const GENS_RS = 48;
+export const VIEWERS_RS = 48;
 
-export let spriteGens = null;
+export let viewersSprite = null;
 
-export function glypheGens(x, y, r) {
-  if (!spriteGens) {
+export function paintViewersGlyph(x, y, r) {
+  if (!viewersSprite) {
     const s = document.createElement('canvas');
-    s.width = s.height = 2 * GENS_RS;
-    const avant = setCtx(s.getContext('2d'));
+    s.width = s.height = 2 * VIEWERS_RS;
+    const savedCtx = setCtx(s.getContext('2d'));
     try {
-      ctx.translate(GENS_RS, GENS_RS);
-      const R = GENS_RS * 0.66;
-      ctx.fillStyle = BLEU;
+      ctx.translate(VIEWERS_RS, VIEWERS_RS);
+      const R = VIEWERS_RS * 0.66;
+      ctx.fillStyle = BLUE;
       personne(R * 0.86, -R * 0.16, R * 0.74);
       ctx.globalCompositeOperation = 'destination-out';
       ctx.lineWidth = R * 0.3;
@@ -74,69 +74,69 @@ export function glypheGens(x, y, r) {
       personne(-R * 0.3, 0, R * 0.96);
       ctx.stroke();
       ctx.globalCompositeOperation = 'source-over';
-      ctx.fillStyle = BLEU;
+      ctx.fillStyle = BLUE;
       personne(-R * 0.3, 0, R * 0.86);
     } finally {
-      setCtx(avant);
+      setCtx(savedCtx);
     }
-    spriteGens = s;
+    viewersSprite = s;
   }
-  const k = r / (GENS_RS * 0.66),
-    w = 2 * GENS_RS * k;
-  ctx.drawImage(spriteGens, x - w / 2, y - w / 2, w, w);
+  const k = r / (VIEWERS_RS * 0.66),
+    w = 2 * VIEWERS_RS * k;
+  ctx.drawImage(viewersSprite, x - w / 2, y - w / 2, w, w);
 }
 
-export let dtRendu = 0.016;
+export let frameDt = 0.016;
 
-export let ipsLisse = 60,
-  pireDt = 0,
-  pireT = 0,
-  pireAffiche = 0;
+export let smoothedFps = 60,
+  worstDt = 0,
+  worstDtTimer = 0,
+  displayedWorstDt = 0;
 
 // Point du rail du timer a la distance s du haut-centre, dans le sens horaire (le sens ou le trait
 // rouge est dessine). Meme geometrie que ctx.roundRect(x,y,w,h,r).
 export function pointRail(x, y, w, h, r, s) {
-  const droit = w / 2 - r,
+  const straightLen = w / 2 - r,
     q = (Math.PI * r) / 2,
-    cote = h - 2 * r,
-    bas = w - 2 * r;
+    sideLen = h - 2 * r,
+    bottomLen = w - 2 * r;
   const arc = (cx, cy, a0, u) => ({
     x: cx + r * Math.cos(a0 + (u * Math.PI) / 2),
     y: cy + r * Math.sin(a0 + (u * Math.PI) / 2),
   });
-  if (s < droit) return { x: x + w / 2 + s, y };
-  s -= droit;
+  if (s < straightLen) return { x: x + w / 2 + s, y };
+  s -= straightLen;
   if (s < q) return arc(x + w - r, y + r, -Math.PI / 2, s / q);
   s -= q;
-  if (s < cote) return { x: x + w, y: y + r + s };
-  s -= cote;
+  if (s < sideLen) return { x: x + w, y: y + r + s };
+  s -= sideLen;
   if (s < q) return arc(x + w - r, y + h - r, 0, s / q);
   s -= q;
-  if (s < bas) return { x: x + w - r - s, y: y + h };
-  s -= bas;
+  if (s < bottomLen) return { x: x + w - r - s, y: y + h };
+  s -= bottomLen;
   if (s < q) return arc(x + r, y + h - r, Math.PI / 2, s / q);
   s -= q;
-  if (s < cote) return { x, y: y + h - r - s };
-  s -= cote;
+  if (s < sideLen) return { x, y: y + h - r - s };
+  s -= sideLen;
   if (s < q) return arc(x + r, y + r, Math.PI, s / q);
   s -= q;
-  return { x: x + r + Math.min(s, droit), y };
+  return { x: x + r + Math.min(s, straightLen), y };
 }
 
-export function peindreManche() {
-  if (!manche) return;
-  peindreDuel(dtRendu);
+export function paintRound() {
+  if (!round) return;
+  peindreDuel(frameDt);
   return;
 }
 
 // Mode fluide : on masque la propriete shadowBlur du canevas principal (elle devient sans effet), et on la
 // rend quand le mode est coupe. Une seule bascule, aucun des 47 endroits qui posent un flou n'est touche.
-export let fluideActif = false;
+export let smoothModeActive = false;
 
-export function reglerFluide() {
-  const veut = !!reglages.fluide;
-  if (veut === fluideActif || !ctx) return;
-  if (veut)
+export function setSmoothMode() {
+  const wantsSmooth = !!settings.fluide;
+  if (wantsSmooth === smoothModeActive || !ctx) return;
+  if (wantsSmooth)
     Object.defineProperty(ctx, 'shadowBlur', {
       set() {},
       get() {
@@ -145,13 +145,13 @@ export function reglerFluide() {
       configurable: true,
     });
   else delete ctx.shadowBlur;
-  fluideActif = veut;
+  smoothModeActive = wantsSmooth;
 }
 
-export function dessiner(dt) {
-  reglerFluide();
-  const a = amb(),
-    tete = trace.length ? trace[0] : { x: W / 2, y: H / 2 };
+export function drawFrame(dt) {
+  setSmoothMode();
+  const a = getAmbience(),
+    headPos = trace.length ? trace[0] : { x: W / 2, y: H / 2 };
   const e = {
     t,
     dt,
@@ -162,18 +162,18 @@ export function dessiner(dt) {
     y0: Y0,
     cols: COLS,
     rows: ROWS,
-    tete,
+    tete: headPos,
     monde: 0,
     mondeSorte: null,
     silence: 0,
-    heure: reglages.heure,
-    meteo: reglages.meteo,
-    meteoNet: !!(manche && manche.etat === 'en cours' && manche.t < 0.3 && reglages.ambianceAuto),
+    heure: settings.heure,
+    meteo: settings.meteo,
+    meteoNet: !!(round && round.etat === 'en cours' && round.t < 0.3 && settings.ambianceAuto),
     avance:
-      reglages.avanceForcee !== undefined
-        ? reglages.avanceForcee
-        : manche
-          ? Math.min(1, (manche.t || 0) / Math.max(1, reglages.dureeDuel || reglages.duree))
+      settings.avanceForcee !== undefined
+        ? settings.avanceForcee
+        : round
+          ? Math.min(1, (round.t || 0) / Math.max(1, settings.dureeDuel || settings.duree))
           : 0,
     progression: 0,
     tension: tension,
@@ -186,7 +186,7 @@ export function dessiner(dt) {
   }
   // En 16:9 l'ambiance couvre tout le cadre (les cotes compris) : on lui passe la largeur totale et on la
   // decale de la marge ; le jeu et le HUD, eux, restent dessines dans la composition verticale intacte.
-  const enCadre = (f) => {
+  const inFrame = (f) => {
     if (!OX) return f(e);
     const sW = e.W,
       sX = e.x0,
@@ -205,28 +205,28 @@ export function dessiner(dt) {
       e.tete = sT;
     }
   };
-  enCadre((e2) => a.peindreFond(ctx, e2));
+  inFrame((e2) => a.peindreFond(ctx, e2));
   ctx.save();
-  peindreCourse();
+  paintRace();
   peindreOffrandes();
   peindreRochers();
   peindreRonces();
 
-  for (let _i = 0; _i < corps.length; _i++) {
-    charger(_i);
+  for (let _i = 0; _i < bodies.length; _i++) {
+    loadBody(_i);
     a.peindreSerpent(ctx, trace, CELL, {
       ...e,
-      teinte: corps[actif].teinte,
+      teinte: bodies[activeIndex].teinte,
     });
-    if (corps[actif].bouclierT > 0 && trace.length) {
+    if (bodies[activeIndex].bouclierT > 0 && trace.length) {
       // bouclier actif : bulle autour de la tete, qui respire, et qui s'affine sur les 3 dernieres secondes
       const h = trace[0],
-        bt = corps[actif].bouclierT,
-        fin = Math.min(1, bt / 3);
-      const rgb = actif === 0 ? '242,197,124' : '180,212,222';
+        bt = bodies[activeIndex].bouclierT,
+        shieldFade = Math.min(1, bt / 3);
+      const rgb = activeIndex === 0 ? '242,197,124' : '180,212,222';
       const R = CELL * (0.62 + 0.04 * Math.sin(t * 5));
       ctx.save();
-      ctx.globalAlpha = 0.35 + 0.45 * fin;
+      ctx.globalAlpha = 0.35 + 0.45 * shieldFade;
       const g = ctx.createRadialGradient(h.x, h.y, R * 0.55, h.x, h.y, R);
       g.addColorStop(0, 'rgba(' + rgb + ',0)');
       g.addColorStop(0.8, 'rgba(' + rgb + ',0.35)');
@@ -236,7 +236,7 @@ export function dessiner(dt) {
       ctx.arc(h.x, h.y, R, 0, Math.PI * 2);
       ctx.fill();
       ctx.lineWidth = 2.5;
-      ctx.strokeStyle = 'rgba(255,255,255,' + (0.5 + 0.4 * fin) + ')';
+      ctx.strokeStyle = 'rgba(255,255,255,' + (0.5 + 0.4 * shieldFade) + ')';
       ctx.shadowColor = 'rgba(' + rgb + ',0.9)';
       ctx.shadowBlur = 14;
       ctx.beginPath();
@@ -244,29 +244,29 @@ export function dessiner(dt) {
       ctx.stroke();
       ctx.restore();
     }
-    if (couvee) peindreCoquille(couvee.t / ECLOSION);
-    ranger();
+    if (egg) peindreCoquille(egg.t / HATCH_TIME);
+    storeBody();
   }
-  charger(0);
-  if (reglages.debugIA) peindreDebugIA();
+  loadBody(0);
+  if (settings.debugIA) paintAiDebug();
   // Mesure de fluidite (calque Debug IA seulement) : images par seconde lissees et pire image des 2 dernieres secondes
-  ipsLisse += ((dt > 0 ? 1 / dt : 60) - ipsLisse) * 0.05;
-  pireT += dt;
-  if (dt > pireDt) pireDt = dt;
-  if (pireT > 2) {
-    pireAffiche = pireDt;
-    pireDt = 0;
-    pireT = 0;
+  smoothedFps += ((dt > 0 ? 1 / dt : 60) - smoothedFps) * 0.05;
+  worstDtTimer += dt;
+  if (dt > worstDt) worstDt = dt;
+  if (worstDtTimer > 2) {
+    displayedWorstDt = worstDt;
+    worstDt = 0;
+    worstDtTimer = 0;
   }
-  if (reglages.debugIA) {
+  if (settings.debugIA) {
     ctx.save();
     ctx.font = 'bold 22px sans-serif';
     ctx.textAlign = 'left';
     ctx.fillStyle = 'rgba(0,0,0,0.6)';
     ctx.fillRect(20, 20, 330, 34);
-    ctx.fillStyle = ipsLisse < 50 ? '#ff6a5a' : '#9be28a';
+    ctx.fillStyle = smoothedFps < 50 ? '#ff6a5a' : '#9be28a';
     ctx.fillText(
-      Math.round(ipsLisse) + ' ips   pire image ' + Math.round(pireAffiche * 1000) + ' ms',
+      Math.round(smoothedFps) + ' ips   pire image ' + Math.round(displayedWorstDt * 1000) + ' ms',
       28,
       45,
     );
@@ -275,25 +275,25 @@ export function dessiner(dt) {
   peindreHalos();
   peindreEtincelles();
   ctx.restore();
-  dtRendu = dt;
-  peindreManche();
-  enCadre((e2) => a.peindreAvant(ctx, e2));
+  frameDt = dt;
+  paintRound();
+  inFrame((e2) => a.peindreAvant(ctx, e2));
   peindreScore();
-  const avecCadeaux = reglages.plateforme !== 'neutre';
-  if (avecCadeaux) peindreStatutsDuel();
+  const hasGifts = settings.plateforme !== 'neutre';
+  if (hasGifts) peindreStatutsDuel();
   // affichageCadeaux : 'defile' (bandeaux qui defilent, avec le pattern visible/cache), 'complet' (ancienne legende), 'aucun' (rien)
-  if (avecCadeaux) {
-    const mA = reglages.affichageCadeaux || 'complet';
-    if (mA === 'defile') peindreDefileCadeaux();
-    else if (mA === 'complet') peindreLegendeDuel();
+  if (hasGifts) {
+    const giftDisplayMode = settings.affichageCadeaux || 'complet';
+    if (giftDisplayMode === 'defile') paintGiftScroll();
+    else if (giftDisplayMode === 'complet') paintDuelLegend();
   }
   // Ecran de fin du duel, peint APRES le score et la legende (Abdel : « your grey veil just apply to gift and do
   // not consider the whole screen, make it smoother ») : un seul voile, plein ecran, et le classement devant tout.
-  if (manche && manche.etat !== 'en cours') peindreFin();
-  peindreBandeau();
-  if (reglages.maquette) peindreMaquetteLive();
-  enCadre((e2) => a.maj(dt, e2));
-  if (reglages.zones) {
+  if (round && round.etat !== 'en cours') paintEndScreen();
+  paintBanner();
+  if (settings.maquette) paintLiveMockup();
+  inFrame((e2) => a.maj(dt, e2));
+  if (settings.zones) {
     ctx.save();
     ctx.globalAlpha = 0.2;
     // ce que l'interface TikTok recouvre, aux positions MESUREES sur la capture d'Abdel
@@ -301,7 +301,7 @@ export function dessiner(dt) {
     ctx.fillRect(0, 0, W, SR_Y);
     ctx.fillRect(0, SR_Y + SR_H, W, H - SR_Y - SR_H);
     ctx.fillStyle = '#ff0';
-    [Z_CADEAUX, Z_BANNIERE, Z_FIL, Z_SAISIE].forEach((z) => ctx.fillRect(z.x, z.y, z.w, z.h));
+    [Z_GIFTS, Z_BANNER, Z_COMMENTS, Z_INPUT].forEach((z) => ctx.fillRect(z.x, z.y, z.w, z.h));
     ctx.globalAlpha = 0.9;
     ctx.strokeStyle = '#0f0';
     ctx.lineWidth = 3;

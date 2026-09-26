@@ -13,7 +13,7 @@
     GY1 = 1232;
   // Le cadre suit le format du jeu (vertical 9:16 ou horizontal 16:9) : relu a chaque image ; s'il change,
   // tous les pre-rendus dependants de la taille sont jetes et refaits.
-  function cadre(e) {
+  function setFrame(e) {
     if (!e || !e.W || (e.W === W && e.H === H && e.x0 - 14 === GX0)) return;
     W = e.W;
     H = e.H;
@@ -21,26 +21,26 @@
     GX1 = e.x0 + e.cols * e.cell + 14;
     GY0 = e.y0 - 14;
     GY1 = e.y0 + e.rows * e.cell + 14;
-    decor = null;
-    congereImg = null;
-    for (const k in solsImg) delete solsImg[k];
-    raiBlanc = null;
-    raiTeint = null;
-    raiCle = '';
-    canopee = null;
+    backdrop = null;
+    snowdriftImg = null;
+    for (const k in groundsImg) delete groundsImg[k];
+    rayWhite = null;
+    rayTinted = null;
+    rayCacheKey = '';
+    canopy = null;
     halo = null;
-    gouttePre = null;
-    for (const k in teints) delete teints[k];
-    ciel = null;
-    cielCle = -1;
-    vign = null;
-    vignCle = -1;
-    motifGrain = null;
+    dropTemplate = null;
+    for (const k in tintCache) delete tintCache[k];
+    skyCanvas = null;
+    skyCacheKey = -1;
+    vignette = null;
+    vignetteCacheKey = -1;
+    grainPattern = null;
   }
 
-  function bruitRose(ac, dur) {
+  function pinkNoise(ac, duration) {
     const sr = ac.sampleRate,
-      n = Math.ceil(sr * dur),
+      n = Math.ceil(sr * duration),
       buf = ac.createBuffer(1, n, sr),
       d = buf.getChannelData(0);
     let b0 = 0,
@@ -63,24 +63,24 @@
   }
 
   // Feuillages et grain pre-rendus une fois
-  let decor = null;
-  function fronde(g, x, y, ang, long, coul) {
+  let backdrop = null;
+  function paintFrond(g, x, y, ang, span, color) {
     g.save();
     g.translate(x, y);
     g.rotate(ang);
-    g.strokeStyle = coul;
-    g.fillStyle = coul;
+    g.strokeStyle = color;
+    g.fillStyle = color;
     g.lineWidth = 5;
     g.lineCap = 'round';
     g.beginPath();
     g.moveTo(0, 0);
-    g.quadraticCurveTo(long * 0.5, -long * 0.12, long, 0);
+    g.quadraticCurveTo(span * 0.5, -span * 0.12, span, 0);
     g.stroke();
     for (let i = 1; i < 12; i++) {
       const u = i / 12,
-        px = long * u,
-        py = -long * 0.12 * 4 * u * (1 - u) * 0.5,
-        l = long * 0.22 * (1 - u * 0.7);
+        px = span * u,
+        py = -span * 0.12 * 4 * u * (1 - u) * 0.5,
+        l = span * 0.22 * (1 - u * 0.7);
       for (const s of [-1, 1]) {
         g.beginPath();
         g.ellipse(px + l * 0.35, py + s * l * 0.45, l * 0.55, l * 0.16, s * 0.9, 0, Math.PI * 2);
@@ -89,7 +89,7 @@
     }
     g.restore();
   }
-  function construireDecor() {
+  function buildBackdrop() {
     const c = document.createElement('canvas');
     c.width = W;
     c.height = H;
@@ -112,41 +112,41 @@
     try {
       g.filter = 'blur(7px)';
     } catch (e) {}
-    const coul = ['#0f1812', '#131e16', '#1a281e'];
+    const color = ['#0f1812', '#131e16', '#1a281e'];
     for (let i = 0; i < 16; i++)
-      fronde(
+      paintFrond(
         g,
         -40 + i * 75 + Math.random() * 30,
         1400 + Math.random() * 480,
         -Math.PI / 2 + (Math.random() - 0.5) * 1.4,
         180 + Math.random() * 160,
-        coul[i % 3],
+        color[i % 3],
       );
     for (let i = 0; i < 8; i++)
-      fronde(
+      paintFrond(
         g,
         Math.random() * W,
         -20 + Math.random() * 60,
         Math.PI / 2 + (Math.random() - 0.5) * 1.2,
         110 + Math.random() * 60,
-        coul[i % 3],
+        color[i % 3],
       );
     for (let i = 0; i < 6; i++) {
-      fronde(
+      paintFrond(
         g,
         -30,
         200 + i * 200 + Math.random() * 80,
         (Math.random() - 0.5) * 0.8,
         80,
-        coul[i % 3],
+        color[i % 3],
       );
-      fronde(
+      paintFrond(
         g,
         W + 30,
         260 + i * 190 + Math.random() * 80,
         Math.PI + (Math.random() - 0.5) * 0.8,
         80,
-        coul[(i + 1) % 3],
+        color[(i + 1) % 3],
       );
     }
     g.restore();
@@ -159,7 +159,7 @@
 
   // ---- Le cycle du jour : quatre ambiances distinctes dans la meme foret ----------------------
   // Meme vert, quatre lumieres. Chaque cle porte son ciel, sa source de lumiere et ses points.
-  function mel(a, c, k) {
+  function lerpColor(a, c, k) {
     return [a[0] + (c[0] - a[0]) * k, a[1] + (c[1] - a[1]) * k, a[2] + (c[2] - a[2]) * k];
   }
   function rgb(c) {
@@ -170,12 +170,12 @@
       'rgba(' + Math.round(c[0]) + ',' + Math.round(c[1]) + ',' + Math.round(c[2]) + ',' + a + ')'
     );
   }
-  function alea(i, d) {
+  function rand(i, d) {
     const v = Math.sin(i * 12.9898 + d * 78.233) * 43758.5453;
     return v - Math.floor(v);
   }
 
-  const CLES = [
+  const KEYS = [
     {
       t: 0.0,
       nom: 'nuit',
@@ -265,8 +265,8 @@
       vign: 0.54,
     },
   ];
-  const COULEURS = ['haut', 'mil', 'bas', 'lueur', 'rai', 'pt', 'voile'];
-  const NOMBRES = [
+  const COLORS = ['haut', 'mil', 'bas', 'lueur', 'rai', 'pt', 'voile'];
+  const NUMBERS = [
     'lueurA',
     'lueurX',
     'lueurY',
@@ -282,11 +282,11 @@
 
   // Meteos de la foret (prototype, Abdel 2026-09-21 : « weather or seasons, snow, autumn, summer, thunderstorm,
   // etoile filante »). Meme foret, memes serpents, meme UI : seuls la teinte du fond et ce qui tombe changent.
-  let meteo = 'pluie',
-    meteoPrec = 'pluie',
-    meteoT = -99,
-    mixM = 1;
-  const METEOS = {
+  let weather = 'pluie',
+    previousWeather = 'pluie',
+    weatherStartTime = -99,
+    weatherMix = 1;
+  const WEATHERS = {
     pluie: null,
     neige: { teinte: [132, 160, 190], k: 0.34 },
     automne: { teinte: [104, 60, 30], k: 0.27 },
@@ -301,36 +301,39 @@
   };
   // Le poids d'une meteo a l'image : 1 quand elle est installee, entre 0 et 1 pendant le fondu de 3,5 s qui
   // fait tourner la saison. Tout ce qui se peint se multiplie par ce poids : rien n'apparait d'un coup.
-  function poids(m) {
-    return (m === meteo ? mixM : 0) + (m === meteoPrec && meteoPrec !== meteo ? 1 - mixM : 0);
+  function weight(m) {
+    return (
+      (m === weather ? weatherMix : 0) +
+      (m === previousWeather && previousWeather !== weather ? 1 - weatherMix : 0)
+    );
   }
-  const pluieF = () => poids('pluie') + 1.7 * poids('orage');
+  const rainFactor = () => weight('pluie') + 1.7 * weight('orage');
   // La congere de l'hiver, peinte UNE fois : trois plans de neige, chacun avec son degrade, son ombre portee
   // sur le plan de derriere, son lisere de lumiere sur la crete et un grain fin. A l'image, un seul drawImage.
-  const CGH = 340;
-  const CRETES = [
+  const SNOWDRIFT_H = 340;
+  const RIDGES = [
     (x) => 214 + 34 * Math.sin(x * 0.0041 + 0.6) + 14 * Math.sin(x * 0.013 + 2.0),
     (x) => 162 + 30 * Math.sin(x * 0.0052 + 2.4) + 12 * Math.sin(x * 0.017),
     (x) => 112 + 28 * Math.sin(x * 0.0046 + 4.1) + 10 * Math.sin(x * 0.02 + 1.0),
   ];
-  let congereImg = null;
-  function congere() {
-    if (congereImg) return congereImg;
+  let snowdriftImg = null;
+  function snowdrift() {
+    if (snowdriftImg) return snowdriftImg;
     const c = document.createElement('canvas');
     c.width = W;
-    c.height = CGH;
+    c.height = SNOWDRIFT_H;
     const g = c.getContext('2d');
     const TONS = [
       ['#8fa3bd', '#5f7593'],
       ['#c2d2e6', '#8197b5'],
       ['#f6faff', '#aec2dc'],
     ];
-    CRETES.forEach((cr, k) => {
+    RIDGES.forEach((ridge, k) => {
       const trace = (dy) => {
         g.beginPath();
-        g.moveTo(-20, CGH + 20);
-        for (let x = -20; x <= W + 20; x += 8) g.lineTo(x, CGH - cr(x) + dy);
-        g.lineTo(W + 20, CGH + 20);
+        g.moveTo(-20, SNOWDRIFT_H + 20);
+        for (let x = -20; x <= W + 20; x += 8) g.lineTo(x, SNOWDRIFT_H - ridge(x) + dy);
+        g.lineTo(W + 20, SNOWDRIFT_H + 20);
         g.closePath();
       };
       // l'ombre que ce plan jette sur celui de derriere
@@ -342,7 +345,7 @@
       trace(6);
       g.fill();
       g.restore();
-      const lg = g.createLinearGradient(0, CGH - 250, 0, CGH);
+      const lg = g.createLinearGradient(0, SNOWDRIFT_H - 250, 0, SNOWDRIFT_H);
       lg.addColorStop(0, TONS[k][0]);
       lg.addColorStop(1, TONS[k][1]);
       g.fillStyle = lg;
@@ -356,7 +359,7 @@
       g.lineWidth = 2.5;
       g.beginPath();
       for (let x = -20; x <= W + 20; x += 8) {
-        const y = CGH - cr(x) + 1.5;
+        const y = SNOWDRIFT_H - ridge(x) + 1.5;
         if (x === -20) g.moveTo(x, y);
         else g.lineTo(x, y);
       }
@@ -364,16 +367,16 @@
       g.restore();
       // le grain de la neige : des paillettes claires et des creux bleutes, sous la crete seulement
       for (let i = 0; i < 260; i++) {
-        const x = alea(i, 601 + k) * W,
-          top = CGH - cr(x),
-          y = top + 6 + alea(i, 611 + k) * (CGH - top - 6);
+        const x = rand(i, 601 + k) * W,
+          top = SNOWDRIFT_H - ridge(x),
+          y = top + 6 + rand(i, 611 + k) * (SNOWDRIFT_H - top - 6);
         g.fillStyle = i % 3 ? 'rgba(255,255,255,0.22)' : 'rgba(70,100,150,0.14)';
         g.beginPath();
-        g.arc(x, y, 0.8 + alea(i, 621 + k) * 1.6, 0, Math.PI * 2);
+        g.arc(x, y, 0.8 + rand(i, 621 + k) * 1.6, 0, Math.PI * 2);
         g.fill();
       }
     });
-    congereImg = c;
+    snowdriftImg = c;
     return c;
   }
 
@@ -381,8 +384,8 @@
   // depasse de la crete (herbes, fougeres, sapins, roseaux : « avant ») et le corps de la colline (ombre portee,
   // degrade, lisere, decor pose). A l'image, « avant » est redessine par tranches inclinees : le vent y passe.
   // Abdel, 2026-09-21 : « i want the bottom element to be animated ».
-  function feuille(g, T, ton) {
-    g.fillStyle = ton;
+  function paintLeaf(g, T, tone) {
+    g.fillStyle = tone;
     g.beginPath();
     g.moveTo(-T, 0);
     g.quadraticCurveTo(-T * 0.1, -T * 0.72, T, 0);
@@ -395,16 +398,16 @@
     g.lineTo(T * 0.9, 0);
     g.stroke();
   }
-  function brins(g, cr, k, pied, pointe, hmax, pas, graine) {
+  function paintBlades(g, ridge, k, rootColor, tipColor, hmax, step, seed) {
     let i = 0;
-    for (let x = -10; x < W + 10; x += pas * (0.5 + alea(i, graine)), i++) {
-      const top = CGH - cr(x),
-        h = hmax * (0.3 + 0.7 * alea(i, graine + 1)) * (0.6 + 0.2 * k),
-        lean = (alea(i, graine + 2) - 0.5) * h * 0.7,
-        w = 1.6 + 1.6 * alea(i, graine + 3);
+    for (let x = -10; x < W + 10; x += step * (0.5 + rand(i, seed)), i++) {
+      const top = SNOWDRIFT_H - ridge(x),
+        h = hmax * (0.3 + 0.7 * rand(i, seed + 1)) * (0.6 + 0.2 * k),
+        lean = (rand(i, seed + 2) - 0.5) * h * 0.7,
+        w = 1.6 + 1.6 * rand(i, seed + 3);
       const lg = g.createLinearGradient(0, top + 6, 0, top - h);
-      lg.addColorStop(0, pied);
-      lg.addColorStop(1, pointe);
+      lg.addColorStop(0, rootColor);
+      lg.addColorStop(1, tipColor);
       g.fillStyle = lg;
       g.beginPath();
       g.moveTo(x - w, top + 8);
@@ -414,13 +417,13 @@
       g.fill();
     }
   }
-  function sapins(g, cr, k, coul) {
+  function paintPines(g, ridge, k, color) {
     if (k > 1) return;
     let i = 0;
-    for (let x = 20; x < W; x += 60 + 90 * alea(i, 701 + k), i++) {
-      const hT = (70 + 90 * alea(i, 703 + k)) * (0.6 + 0.3 * k),
-        base = CGH - cr(x) + 10;
-      g.fillStyle = coul;
+    for (let x = 20; x < W; x += 60 + 90 * rand(i, 701 + k), i++) {
+      const hT = (70 + 90 * rand(i, 703 + k)) * (0.6 + 0.3 * k),
+        base = SNOWDRIFT_H - ridge(x) + 10;
+      g.fillStyle = color;
       for (let j = 0; j < 3; j++) {
         const y1 = base - hT * j * 0.27,
           l = hT * 0.3 * (1 - j * 0.24),
@@ -434,8 +437,8 @@
       }
     }
   }
-  function fleur(g, x, y, rr, ton) {
-    g.fillStyle = ton;
+  function paintFlower(g, x, y, rr, tone) {
+    g.fillStyle = tone;
     for (let q = 0; q < 5; q++) {
       g.beginPath();
       g.arc(x + Math.cos(q * 1.2566) * rr, y + Math.sin(q * 1.2566) * rr, rr * 0.78, 0, 6.2832);
@@ -446,70 +449,70 @@
     g.arc(x, y, rr * 0.6, 0, 6.2832);
     g.fill();
   }
-  const TONS_FLEUR = ['#ffffff', '#f7b6c8', '#ffe27a', '#d2c2ff'];
+  const FLOWER_TONES = ['#ffffff', '#f7b6c8', '#ffe27a', '#d2c2ff'];
   // Le reseau de craquelures des braises : des veines qui serpentent et se ramifient, en s'affinant. Peint deux fois
   // avec les memes tirages : le sillon sombre dans le corps, la lave vive dans l'image de lueur qui pulse.
-  function fissures(g, cr, k, vif) {
+  function paintCracks(g, ridge, k, glowing) {
     g.save();
     g.lineCap = 'round';
     g.lineJoin = 'round';
-    if (vif) {
+    if (glowing) {
       g.shadowColor = '#ff5a10';
       g.shadowBlur = 16;
     }
     for (let i = 0; i < 7 + 3 * k; i++) {
-      let x = alea(i, 761 + k) * W,
-        top = CGH - cr(x),
-        y = top + 22 + alea(i, 763 + k) * Math.max(10, CGH - top - 40),
-        a = (alea(i, 765 + k) - 0.5) * 0.8;
-      const n = 6 + Math.floor(alea(i, 767 + k) * 5);
+      let x = rand(i, 761 + k) * W,
+        top = SNOWDRIFT_H - ridge(x),
+        y = top + 22 + rand(i, 763 + k) * Math.max(10, SNOWDRIFT_H - top - 40),
+        a = (rand(i, 765 + k) - 0.5) * 0.8;
+      const n = 6 + Math.floor(rand(i, 767 + k) * 5);
       for (let q = 0; q < n; q++) {
-        const l = 14 + 20 * alea(i * 17 + q, 769 + k);
-        a += (alea(i * 17 + q, 771 + k) - 0.5) * 1.1;
+        const l = 14 + 20 * rand(i * 17 + q, 769 + k);
+        a += (rand(i * 17 + q, 771 + k) - 0.5) * 1.1;
         a = Math.max(-0.9, Math.min(0.9, a));
         const x1 = x + Math.cos(a) * l,
-          y1 = Math.max(CGH - cr(x1) + 10, y + Math.sin(a) * l),
+          y1 = Math.max(SNOWDRIFT_H - ridge(x1) + 10, y + Math.sin(a) * l),
           w = 2.6 - (1.6 * q) / n;
-        g.strokeStyle = vif
-          ? 'rgba(255,' + Math.round(150 + 60 * alea(q + i, 773)) + ',70,0.95)'
+        g.strokeStyle = glowing
+          ? 'rgba(255,' + Math.round(150 + 60 * rand(q + i, 773)) + ',70,0.95)'
           : '#4a1608';
-        g.lineWidth = vif ? w : w + 2.4;
+        g.lineWidth = glowing ? w : w + 2.4;
         g.beginPath();
         g.moveTo(x, y);
         g.lineTo(x1, y1);
         g.stroke();
-        if (alea(i * 17 + q, 775 + k) < 0.4) {
+        if (rand(i * 17 + q, 775 + k) < 0.4) {
           let bx = x1,
             by = y1,
-            ba = a + (alea(i * 17 + q, 777 + k) < 0.5 ? -1 : 1) * (0.7 + 0.5 * alea(q, 779));
-          for (let b = 0; b < 2 + Math.floor(alea(q + i, 781) * 2); b++) {
-            const bl = 9 + 12 * alea(i * 17 + q * 3 + b, 783 + k),
+            ba = a + (rand(i * 17 + q, 777 + k) < 0.5 ? -1 : 1) * (0.7 + 0.5 * rand(q, 779));
+          for (let b = 0; b < 2 + Math.floor(rand(q + i, 781) * 2); b++) {
+            const bl = 9 + 12 * rand(i * 17 + q * 3 + b, 783 + k),
               nx = bx + Math.cos(ba) * bl,
-              ny = Math.max(CGH - cr(nx) + 10, by + Math.sin(ba) * bl);
-            g.lineWidth = vif ? 1.1 : 2.6;
+              ny = Math.max(SNOWDRIFT_H - ridge(nx) + 10, by + Math.sin(ba) * bl);
+            g.lineWidth = glowing ? 1.1 : 2.6;
             g.beginPath();
             g.moveTo(bx, by);
             g.lineTo(nx, ny);
             g.stroke();
             bx = nx;
             by = ny;
-            ba += (alea(b + q, 785) - 0.5) * 0.9;
+            ba += (rand(b + q, 785) - 0.5) * 0.9;
           }
         }
         x = x1;
         y = y1;
       }
     }
-    if (vif) {
+    if (glowing) {
       g.fillStyle = '#ffc070';
       for (let i = 0; i < 40; i++) {
-        const x = alea(i, 771 + k) * W,
-          top = CGH - cr(x);
+        const x = rand(i, 771 + k) * W,
+          top = SNOWDRIFT_H - ridge(x);
         g.beginPath();
         g.arc(
           x,
-          top + 8 + alea(i, 773 + k) * (CGH - top - 8),
-          0.8 + 1.8 * alea(i, 775 + k),
+          top + 8 + rand(i, 773 + k) * (SNOWDRIFT_H - top - 8),
+          0.8 + 1.8 * rand(i, 775 + k),
           0,
           6.2832,
         );
@@ -518,7 +521,7 @@
     }
     g.restore();
   }
-  const SOLS = {
+  const GROUNDS = {
     pluie: {
       tons: [
         ['#1c3026', '#0e1a14'],
@@ -528,10 +531,10 @@
       lisere: '190,230,200',
       lisereA: 0.7,
       vent: 0.07,
-      avant(g, cr, k) {
-        brins(
+      avant(g, ridge, k) {
+        paintBlades(
           g,
-          cr,
+          ridge,
           k,
           ['#12221a', '#182c20', '#20382a'][k],
           ['#264234', '#34583f', '#4a7a56'][k],
@@ -541,17 +544,17 @@
         );
         if (k === 0) return;
         let i = 0;
-        for (let x = 40; x < W; x += 90 + 120 * alea(i, 811 + k), i++) {
-          const top = CGH - cr(x),
-            coul = ['', '#1e3a2a', '#2c5238'][k],
+        for (let x = 40; x < W; x += 90 + 120 * rand(i, 811 + k), i++) {
+          const top = SNOWDRIFT_H - ridge(x),
+            color = ['', '#1e3a2a', '#2c5238'][k],
             ech = 0.42 + 0.14 * k;
           for (let q = 0; q < 4; q++) {
             const cote = q % 2 ? 1 : -1,
-              ang = -Math.PI / 2 + cote * (0.35 + 0.55 * alea(i * 4 + q, 813 + k));
+              ang = -Math.PI / 2 + cote * (0.35 + 0.55 * rand(i * 4 + q, 813 + k));
             g.save();
             g.translate(x, top + 8);
             g.scale(ech, ech);
-            fronde(g, 0, 0, ang, 150 + 110 * alea(i * 4 + q, 815 + k), coul);
+            paintFrond(g, 0, 0, ang, 150 + 110 * rand(i * 4 + q, 815 + k), color);
             g.restore();
           }
         }
@@ -564,21 +567,21 @@
         ['#b8702c', '#6a3a18'],
       ],
       lisere: '255,206,130',
-      apres(g, cr, k) {
+      apres(g, ridge, k) {
         const PAL = [
           ['#6a3c20', '#4e2a16', '#7a4a24'],
           ['#9a5426', '#7c3e1c', '#b07030'],
           ['#c8822e', '#a04e22', '#d8a446', '#8a3a1c'],
         ][k];
         for (let i = 0; i < 260; i++) {
-          const x = alea(i, 711 + k) * W,
-            top = CGH - cr(x),
-            y = top - 6 + Math.pow(alea(i, 713 + k), 1.6) * (CGH - top);
+          const x = rand(i, 711 + k) * W,
+            top = SNOWDRIFT_H - ridge(x),
+            y = top - 6 + Math.pow(rand(i, 713 + k), 1.6) * (SNOWDRIFT_H - top);
           g.save();
           g.translate(x, y);
-          g.rotate(alea(i, 715 + k) * 6.28);
-          g.scale(1, 0.55 + 0.45 * alea(i, 717 + k));
-          feuille(g, (7 + 9 * alea(i, 719 + k)) * (0.7 + 0.25 * k), PAL[i % PAL.length]);
+          g.rotate(rand(i, 715 + k) * 6.28);
+          g.scale(1, 0.55 + 0.45 * rand(i, 717 + k));
+          paintLeaf(g, (7 + 9 * rand(i, 719 + k)) * (0.7 + 0.25 * k), PAL[i % PAL.length]);
           g.restore();
         }
       },
@@ -591,10 +594,10 @@
       ],
       lisere: '235,255,200',
       vent: 0.1,
-      avant(g, cr, k) {
-        brins(
+      avant(g, ridge, k) {
+        paintBlades(
           g,
-          cr,
+          ridge,
           k,
           ['#35603c', '#4d7c46', '#6a9c56'][k],
           ['#5c8f55', '#86b868', '#b4dc88'][k],
@@ -603,28 +606,34 @@
           721 + k * 5,
         );
         for (let i = 0; i < 18 * k; i++) {
-          const x = alea(i, 731 + k) * W,
-            top = CGH - cr(x),
-            y = top - 8 - alea(i, 733 + k) * 24;
+          const x = rand(i, 731 + k) * W,
+            top = SNOWDRIFT_H - ridge(x),
+            y = top - 8 - rand(i, 733 + k) * 24;
           g.strokeStyle = '#4d7c46';
           g.lineWidth = 1.5;
           g.beginPath();
           g.moveTo(x, top + 6);
           g.lineTo(x, y);
           g.stroke();
-          fleur(g, x, y, (2.6 + 1.8 * alea(i, 737 + k)) * (0.8 + 0.2 * k), TONS_FLEUR[i % 4]);
-        }
-      },
-      apres(g, cr, k) {
-        for (let i = 0; i < 18 * k; i++) {
-          const x = alea(i, 739 + k) * W,
-            top = CGH - cr(x);
-          fleur(
+          paintFlower(
             g,
             x,
-            top + 14 + alea(i, 735 + k) * 110,
-            (2.4 + 1.8 * alea(i, 741 + k)) * (0.8 + 0.2 * k),
-            TONS_FLEUR[(i + 1) % 4],
+            y,
+            (2.6 + 1.8 * rand(i, 737 + k)) * (0.8 + 0.2 * k),
+            FLOWER_TONES[i % 4],
+          );
+        }
+      },
+      apres(g, ridge, k) {
+        for (let i = 0; i < 18 * k; i++) {
+          const x = rand(i, 739 + k) * W,
+            top = SNOWDRIFT_H - ridge(x);
+          paintFlower(
+            g,
+            x,
+            top + 14 + rand(i, 735 + k) * 110,
+            (2.4 + 1.8 * rand(i, 741 + k)) * (0.8 + 0.2 * k),
+            FLOWER_TONES[(i + 1) % 4],
           );
         }
       },
@@ -637,10 +646,10 @@
       ],
       lisere: '255,236,150',
       vent: 0.14,
-      avant(g, cr, k) {
-        brins(
+      avant(g, ridge, k) {
+        paintBlades(
           g,
-          cr,
+          ridge,
           k,
           ['#324a1c', '#465e22', '#5e7a2a'][k],
           ['#a89a44', '#d2bc58', '#f0dc7a'][k],
@@ -660,17 +669,17 @@
       lisereA: 0.6,
       vent: 0.03,
       flaques: [],
-      avant(g, cr, k) {
-        sapins(g, cr, k, ['#121a2a', '#18213a'][k]);
+      avant(g, ridge, k) {
+        paintPines(g, ridge, k, ['#121a2a', '#18213a'][k]);
       },
-      apres(g, cr, k) {
+      apres(g, ridge, k) {
         if (k === 0) return;
         for (let i = 0; i < 4 + 3 * k; i++) {
-          const x = alea(i, 751 + k) * W,
-            top = CGH - cr(x),
-            y = top + 34 + alea(i, 753 + k) * Math.max(10, CGH - top - 60),
-            rx = 50 + 80 * alea(i, 755 + k),
-            ry = 5 + 6 * alea(i, 757 + k);
+          const x = rand(i, 751 + k) * W,
+            top = SNOWDRIFT_H - ridge(x),
+            y = top + 34 + rand(i, 753 + k) * Math.max(10, SNOWDRIFT_H - top - 60),
+            rx = 50 + 80 * rand(i, 755 + k),
+            ry = 5 + 6 * rand(i, 757 + k);
           const lg = g.createLinearGradient(0, y - ry, 0, y + ry);
           lg.addColorStop(0, 'rgba(150,180,240,0.30)');
           lg.addColorStop(1, 'rgba(60,80,130,0.10)');
@@ -683,7 +692,7 @@
           g.beginPath();
           g.ellipse(x, y, rx, ry, 0, Math.PI * 1.1, Math.PI * 1.9);
           g.stroke();
-          if (k === 2) SOLS.orage.flaques.push({ x, y, rx, ry });
+          if (k === 2) GROUNDS.orage.flaques.push({ x, y, rx, ry });
         }
       },
     },
@@ -695,17 +704,17 @@
       ],
       lisere: '255,170,110',
       lisereA: 0.7,
-      apres(g, cr, k) {
+      apres(g, ridge, k) {
         // cendre : un grain gris chaud, et le lit sombre de chaque braise
         for (let i = 0; i < 220; i++) {
-          const x = alea(i, 851 + k) * W,
-            top = CGH - cr(x);
+          const x = rand(i, 851 + k) * W,
+            top = SNOWDRIFT_H - ridge(x);
           g.fillStyle = i % 2 ? 'rgba(150,120,105,0.16)' : 'rgba(0,0,0,0.22)';
           g.beginPath();
           g.arc(
             x,
-            top + 6 + alea(i, 853 + k) * (CGH - top - 6),
-            0.8 + 1.8 * alea(i, 855 + k),
+            top + 6 + rand(i, 853 + k) * (SNOWDRIFT_H - top - 6),
+            0.8 + 1.8 * rand(i, 855 + k),
             0,
             6.2832,
           );
@@ -722,8 +731,8 @@
       lisere: '170,200,255',
       lisereA: 0.8,
       vent: 0.022,
-      avant(g, cr, k) {
-        sapins(g, cr, k, ['#0d1728', '#132036'][k]);
+      avant(g, ridge, k) {
+        paintPines(g, ridge, k, ['#0d1728', '#132036'][k]);
       },
     },
     aurore: {
@@ -735,8 +744,8 @@
       lisere: '150,255,200',
       lisereA: 1.1,
       vent: 0.022,
-      avant(g, cr, k) {
-        sapins(g, cr, k, ['#0f1c30', '#16263e'][k]);
+      avant(g, ridge, k) {
+        paintPines(g, ridge, k, ['#0f1c30', '#16263e'][k]);
       },
     },
     lucioles: {
@@ -748,10 +757,10 @@
       lisere: '190,255,150',
       lisereA: 0.6,
       vent: 0.12,
-      avant(g, cr, k) {
-        brins(
+      avant(g, ridge, k) {
+        paintBlades(
           g,
-          cr,
+          ridge,
           k,
           ['#0c1a12', '#0e2016', '#16301f'][k],
           ['#1c3a28', '#285238', '#3a7048'][k],
@@ -770,13 +779,13 @@
       lisere: '235,245,240',
       lisereA: 0.7,
       vent: 0.06,
-      avant(g, cr, k) {
+      avant(g, ridge, k) {
         if (k === 0) return;
         let i = 0;
-        for (let x = 30; x < W; x += 30 + 70 * alea(i, 791 + k), i++) {
-          const top = CGH - cr(x),
-            h = 60 + 70 * alea(i, 793 + k),
-            lean = (alea(i, 795 + k) - 0.5) * 16;
+        for (let x = 30; x < W; x += 30 + 70 * rand(i, 791 + k), i++) {
+          const top = SNOWDRIFT_H - ridge(x),
+            h = 60 + 70 * rand(i, 793 + k),
+            lean = (rand(i, 795 + k) - 0.5) * 16;
           g.strokeStyle = ['', '#56605e', '#69736f'][k];
           g.lineWidth = 2;
           g.beginPath();
@@ -791,7 +800,7 @@
       },
     },
   };
-  const SOL_DE = {
+  const GROUND_FOR = {
     pluie: 'pluie',
     automne: 'automne',
     printemps: 'printemps',
@@ -803,29 +812,29 @@
     lucioles: 'lucioles',
     brume: 'brume',
   };
-  const solsImg = {};
-  function sol(nom) {
-    if (solsImg[nom]) return solsImg[nom];
-    const D = SOLS[nom],
-      toile = () => {
+  const groundsImg = {};
+  function groundLayer(key) {
+    if (groundsImg[key]) return groundsImg[key];
+    const D = GROUNDS[key],
+      makeCanvas = () => {
         const c = document.createElement('canvas');
         c.width = W;
-        c.height = CGH;
+        c.height = SNOWDRIFT_H;
         return c;
       };
-    const plans = CRETES.map((cr, k) => {
-      const pl = { avant: null, corps: toile(), lueur: null },
+    const layers = RIDGES.map((ridge, k) => {
+      const pl = { avant: null, corps: makeCanvas(), lueur: null },
         g = pl.corps.getContext('2d');
       const trace = (dy) => {
         g.beginPath();
-        g.moveTo(-20, CGH + 20);
-        for (let x = -20; x <= W + 20; x += 8) g.lineTo(x, CGH - cr(x) + dy);
-        g.lineTo(W + 20, CGH + 20);
+        g.moveTo(-20, SNOWDRIFT_H + 20);
+        for (let x = -20; x <= W + 20; x += 8) g.lineTo(x, SNOWDRIFT_H - ridge(x) + dy);
+        g.lineTo(W + 20, SNOWDRIFT_H + 20);
         g.closePath();
       };
       if (D.avant) {
-        pl.avant = toile();
-        D.avant(pl.avant.getContext('2d'), cr, k);
+        pl.avant = makeCanvas();
+        D.avant(pl.avant.getContext('2d'), ridge, k);
       }
       g.save();
       g.shadowColor = 'rgba(0,0,0,0.6)';
@@ -835,7 +844,7 @@
       trace(6);
       g.fill();
       g.restore();
-      const lg = g.createLinearGradient(0, CGH - 250, 0, CGH);
+      const lg = g.createLinearGradient(0, SNOWDRIFT_H - 250, 0, SNOWDRIFT_H);
       lg.addColorStop(0, D.tons[k][0]);
       lg.addColorStop(1, D.tons[k][1]);
       g.fillStyle = lg;
@@ -853,42 +862,42 @@
       g.lineWidth = 2.2;
       g.beginPath();
       for (let x = -20; x <= W + 20; x += 8) {
-        const y = CGH - cr(x) + 1.5;
+        const y = SNOWDRIFT_H - ridge(x) + 1.5;
         if (x === -20) g.moveTo(x, y);
         else g.lineTo(x, y);
       }
       g.stroke();
       g.restore();
-      if (D.apres) D.apres(g, cr, k);
+      if (D.apres) D.apres(g, ridge, k);
       if (D.lueur) {
-        pl.lueur = toile();
-        D.lueur(pl.lueur.getContext('2d'), cr, k);
+        pl.lueur = makeCanvas();
+        D.lueur(pl.lueur.getContext('2d'), ridge, k);
       }
       return pl;
     });
-    solsImg[nom] = { plans };
-    return solsImg[nom];
+    groundsImg[key] = { plans: layers };
+    return groundsImg[key];
   }
   // Le sol a l'image : les trois plans, le vent dans ce qui depasse, puis la vie propre a la saison.
-  function peindreSol(g, e, m, P) {
-    const nom = SOL_DE[m],
-      D = SOLS[nom],
-      S = sol(nom),
-      av = Math.min(1, Math.max(0, e.avance || 0));
-    const mont = (1 - (0.5 + 0.5 * av)) * 100 + (1 - P) * 160,
-      y0 = H - CGH + mont,
+  function paintGround(g, e, m, P) {
+    const key = GROUND_FOR[m],
+      D = GROUNDS[key],
+      S = groundLayer(key),
+      advance = Math.min(1, Math.max(0, e.avance || 0));
+    const riseOffset = (1 - (0.5 + 0.5 * advance)) * 100 + (1 - P) * 160,
+      y0 = H - SNOWDRIFT_H + riseOffset,
       t = e.t,
-      calme = e.reduit ? 0 : 1;
-    if (!halo) halo = modeleHalo();
+      calm = e.reduit ? 0 : 1;
+    if (!halo) halo = buildHaloModel();
     g.save();
     if (m === 'brume') {
-      const br = teindre('brume', halo, [196, 210, 208], 64, 64);
+      const mistImg = tint('brume', halo, [196, 210, 208], 64, 64);
       for (let i = 0; i < 2; i++) {
         g.globalAlpha = 0.2 * P;
         g.drawImage(
-          br,
+          mistImg,
           ((t * (14 + 9 * i) + i * 700) % (W + 1400)) - 1000,
-          H - 540 + mont + i * 60,
+          H - 540 + riseOffset + i * 60,
           1400,
           380,
         );
@@ -898,19 +907,19 @@
     const A = g.globalAlpha;
     S.plans.forEach((pl, k) => {
       if (pl.avant) {
-        if (D.vent && calme) {
+        if (D.vent && calm) {
           const cw = 30;
           for (let x = 0; x < W; x += cw) {
             const xc = x + cw / 2,
-              yb = y0 + CGH - CRETES[k](xc) + 8;
+              yb = y0 + SNOWDRIFT_H - RIDGES[k](xc) + 8;
             const sh =
               D.vent *
               (0.6 * Math.sin(t * 1.4 + xc * 0.011 + k * 1.7) +
                 0.4 * Math.sin(t * 0.55 + xc * 0.0035) +
-                vent / 80);
+                wind / 80);
             g.save();
             g.transform(1, 0, -sh, 1, sh * yb, 0);
-            g.drawImage(pl.avant, x, 0, cw + 1, CGH, x, y0, cw + 1, CGH);
+            g.drawImage(pl.avant, x, 0, cw + 1, SNOWDRIFT_H, x, y0, cw + 1, SNOWDRIFT_H);
             g.restore();
           }
         } else g.drawImage(pl.avant, 0, y0);
@@ -928,36 +937,36 @@
         g.globalAlpha = A;
       }
     });
-    const crete = (x) => y0 + CGH - CRETES[2](x);
-    if (m === 'automne' && calme) {
+    const ridgeLine = (x) => y0 + SNOWDRIFT_H - RIDGES[2](x);
+    if (m === 'automne' && calm) {
       // des feuilles que le vent fait courir et sauter sur le tapis
       const PAL = ['#c8822e', '#a04e22', '#d8a446', '#8a3a1c'];
       for (let i = 0; i < 12; i++) {
-        const x = ((alea(i, 801) * W + t * (50 + 90 * alea(i, 803))) % (W + 80)) - 40,
+        const x = ((rand(i, 801) * W + t * (50 + 90 * rand(i, 803))) % (W + 80)) - 40,
           saut =
-            Math.abs(Math.sin(t * (1.6 + 1.8 * alea(i, 805)) + i * 2.3)) * (8 + 22 * alea(i, 807));
+            Math.abs(Math.sin(t * (1.6 + 1.8 * rand(i, 805)) + i * 2.3)) * (8 + 22 * rand(i, 807));
         g.save();
-        g.translate(x, crete(x) - 3 - saut);
-        g.rotate(t * (2.5 + 2 * alea(i, 809)) + i);
+        g.translate(x, ridgeLine(x) - 3 - saut);
+        g.rotate(t * (2.5 + 2 * rand(i, 809)) + i);
         g.scale(1, 0.35 + 0.65 * Math.abs(Math.sin(t * 2.1 + i)));
         g.globalAlpha = 0.95 * P;
-        feuille(g, 8 + 6 * alea(i, 811), PAL[i % 4]);
+        paintLeaf(g, 8 + 6 * rand(i, 811), PAL[i % 4]);
         g.restore();
       }
     }
-    if ((m === 'pluie' || m === 'orage') && calme) {
+    if ((m === 'pluie' || m === 'orage') && calm) {
       // la pluie frappe le sol : une couronne qui s'ouvre, deux gouttelettes qui sautent
       g.strokeStyle = 'rgba(200,225,240,1)';
       g.fillStyle = 'rgba(200,225,240,1)';
       g.lineWidth = 1.5;
       const n = m === 'orage' ? 22 : 13;
       for (let i = 0; i < n; i++) {
-        const cad = 1.1 + 0.9 * alea(i, 821),
-          ph = t * cad + alea(i, 823) * 9,
+        const cadence = 1.1 + 0.9 * rand(i, 821),
+          ph = t * cadence + rand(i, 823) * 9,
           u = ph % 1,
           tour = Math.floor(ph);
-        const x = alea(i * 53 + tour, 825) * W,
-          y = crete(x) + 6 + alea(i * 53 + tour, 827) * 90;
+        const x = rand(i * 53 + tour, 825) * W,
+          y = ridgeLine(x) + 6 + rand(i * 53 + tour, 827) * 90;
         if (y > H) continue;
         g.globalAlpha = 0.5 * (1 - u) * P;
         g.beginPath();
@@ -980,11 +989,11 @@
       g.strokeStyle = 'rgba(210,228,255,1)';
       g.lineWidth = 1.3;
       D.flaques.forEach((f, i) => {
-        const u = (t * (0.7 + 0.4 * alea(i, 831)) + alea(i, 833) * 5) % 1;
+        const u = (t * (0.7 + 0.4 * rand(i, 831)) + rand(i, 833) * 5) % 1;
         g.globalAlpha = 0.45 * (1 - u) * P;
         g.beginPath();
         g.ellipse(
-          f.x + (alea(i, 835) - 0.5) * f.rx,
+          f.x + (rand(i, 835) - 0.5) * f.rx,
           y0 + f.y,
           f.rx * 0.5 * u + 3,
           (((f.rx * 0.5 * u + 3) * f.ry) / f.rx) * 1.6,
@@ -994,7 +1003,7 @@
         );
         g.stroke();
       });
-      const I = eclair(t);
+      const I = lightning(t);
       if (I > 0.02) {
         g.globalAlpha = 0.8 * I * P;
         S.plans.forEach((pl) => {
@@ -1005,22 +1014,22 @@
     }
     if (m === 'braises') {
       // des braises eparses dans la cendre : chacune respire a son rythme, un coeur clair dans un petit halo
-      const hb = teindre('braiseSol', halo, [255, 120, 40], 64, 64),
-        hc = teindre('braiseCoeur', halo, [255, 214, 150], 64, 64);
+      const hb = tint('braiseSol', halo, [255, 120, 40], 64, 64),
+        hc = tint('braiseCoeur', halo, [255, 214, 150], 64, 64);
       for (let i = 0; i < 34; i++) {
         const k = i % 3,
-          x = alea(i, 861) * W,
-          top = y0 + CGH - CRETES[k](x),
-          y = top + 10 + alea(i, 863) * 120;
-        if (y > H + 10 || (k < 2 && y > y0 + CGH - CRETES[k + 1](x) - 4)) continue;
+          x = rand(i, 861) * W,
+          top = y0 + SNOWDRIFT_H - RIDGES[k](x),
+          y = top + 10 + rand(i, 863) * 120;
+        if (y > H + 10 || (k < 2 && y > y0 + SNOWDRIFT_H - RIDGES[k + 1](x) - 4)) continue;
         const v =
             0.35 +
             0.65 *
               Math.pow(
-                0.5 + 0.5 * Math.sin(t * (0.5 + 0.9 * alea(i, 865)) + alea(i, 867) * 6.28),
+                0.5 + 0.5 * Math.sin(t * (0.5 + 0.9 * rand(i, 865)) + rand(i, 867) * 6.28),
                 2,
               ),
-          R = (7 + 9 * alea(i, 869)) * (0.7 + 0.2 * k);
+          R = (7 + 9 * rand(i, 869)) * (0.7 + 0.2 * k);
         g.globalAlpha = 0.55 * v * P;
         g.drawImage(hb, x - R * 2.2, y - R * 1.3, R * 4.4, R * 2.6);
         g.globalAlpha = 0.9 * v * P;
@@ -1031,7 +1040,7 @@
       // la neige renvoie l'aurore : un reflet vert qui respire sur les cretes
       g.globalAlpha = (0.13 + 0.06 * Math.sin(t * 0.4)) * P;
       g.drawImage(
-        teindre('reflet', halo, [110, 255, 190], 64, 64),
+        tint('reflet', halo, [110, 255, 190], 64, 64),
         -200 + Math.sin(t * 0.13) * 160,
         y0 - 40,
         W + 400,
@@ -1042,47 +1051,47 @@
   }
 
   // l'eclair : 0 la plupart du temps, un double eclat doux toutes les 8 a 14 secondes
-  function eclair(t) {
+  function lightning(t) {
     const k = Math.floor(t / 11),
-      tf = t - k * 11 - 1 - alea(k, 5) * 6;
+      tf = t - k * 11 - 1 - rand(k, 5) * 6;
     if (tf < 0 || tf > 0.7) return 0;
     return Math.max(Math.exp(-tf * 9), tf > 0.2 ? 0.75 * Math.exp(-(tf - 0.2) * 11) : 0);
   }
 
-  function ambiance(h) {
+  function ambience(h) {
     h = ((h % 1) + 1) % 1;
     let i = 0;
-    for (let k = 0; k < CLES.length; k++) if (h >= CLES[k].t) i = k;
-    const A = CLES[i],
-      B = CLES[(i + 1) % CLES.length];
+    for (let k = 0; k < KEYS.length; k++) if (h >= KEYS[k].t) i = k;
+    const A = KEYS[i],
+      B = KEYS[(i + 1) % KEYS.length];
     const t0 = A.t,
       t1 = B.t <= A.t ? B.t + 1 : B.t;
     let u = (h - t0) / (t1 - t0);
     u = u * u * (3 - 2 * u); // fondu doux, jamais de cassure
     const o = { nom: u < 0.5 ? A.nom : B.nom };
-    COULEURS.forEach(function (c) {
-      o[c] = mel(A[c], B[c], u);
+    COLORS.forEach(function (c) {
+      o[c] = lerpColor(A[c], B[c], u);
     });
-    NOMBRES.forEach(function (c) {
+    NUMBERS.forEach(function (c) {
       o[c] = A[c] + (B[c] - A[c]) * u;
     });
-    const paires = [
-      [METEOS[meteoPrec], 1 - mixM],
-      [METEOS[meteo], mixM],
+    const pairs = [
+      [WEATHERS[previousWeather], 1 - weatherMix],
+      [WEATHERS[weather], weatherMix],
     ];
     ['haut', 'mil', 'bas', 'voile', 'lueur'].forEach(function (c) {
       const base = o[c],
         kk = c === 'lueur' ? 0.5 : 1;
       let res = [0, 0, 0];
-      paires.forEach(function (q) {
-        const v = q[0] ? mel(base, q[0].teinte, q[0].k * kk) : base;
+      pairs.forEach(function (q) {
+        const v = q[0] ? lerpColor(base, q[0].teinte, q[0].k * kk) : base;
         res = [res[0] + v[0] * q[1], res[1] + v[1] * q[1], res[2] + v[2] * q[1]];
       });
       o[c] = res;
     });
     let fpt = 0,
       flu = 0;
-    paires.forEach(function (q) {
+    pairs.forEach(function (q) {
       fpt += ((q[0] && q[0].pt) || 1) * q[1];
       flu += ((q[0] && q[0].lueur) || 1) * q[1];
     });
@@ -1095,10 +1104,10 @@
   // Chaque image se contente de le poser, tourne et etire : un drawImage au lieu de neuf degrades.
   const RW = 96,
     RH = 512;
-  let raiBlanc = null,
-    raiTeint = null,
-    raiCle = '';
-  function modeleRai() {
+  let rayWhite = null,
+    rayTinted = null,
+    rayCacheKey = '';
+  function buildRayModel() {
     const c = document.createElement('canvas');
     c.width = RW;
     c.height = RH;
@@ -1126,24 +1135,24 @@
     return c;
   }
   // le modele blanc prend la couleur de l'heure : une seule teinture par image, pas une par rai
-  function teindreRai(coul) {
-    if (!raiBlanc) raiBlanc = modeleRai();
-    const cle = Math.round(coul[0]) + ',' + Math.round(coul[1]) + ',' + Math.round(coul[2]);
-    if (raiTeint && raiCle === cle) return raiTeint;
-    if (!raiTeint) {
-      raiTeint = document.createElement('canvas');
-      raiTeint.width = RW;
-      raiTeint.height = RH;
+  function tintRay(color) {
+    if (!rayWhite) rayWhite = buildRayModel();
+    const cle = Math.round(color[0]) + ',' + Math.round(color[1]) + ',' + Math.round(color[2]);
+    if (rayTinted && rayCacheKey === cle) return rayTinted;
+    if (!rayTinted) {
+      rayTinted = document.createElement('canvas');
+      rayTinted.width = RW;
+      rayTinted.height = RH;
     }
-    const g = raiTeint.getContext('2d');
+    const g = rayTinted.getContext('2d');
     g.clearRect(0, 0, RW, RH);
-    g.drawImage(raiBlanc, 0, 0);
+    g.drawImage(rayWhite, 0, 0);
     g.globalCompositeOperation = 'source-in';
-    g.fillStyle = rgb(coul);
+    g.fillStyle = rgb(color);
     g.fillRect(0, 0, RW, RH);
     g.globalCompositeOperation = 'source-over';
-    raiCle = cle;
-    return raiTeint;
+    rayCacheKey = cle;
+    return rayTinted;
   }
 
   // L'ombre de la canopee. Elle remplace les rais de lumiere, qui etaient des objets clairs et
@@ -1152,17 +1161,17 @@
   // reduire. Pre-rendue une fois, posee en un seul drawImage.
   const KW = 512,
     KH = 256;
-  let canopee = null;
-  function modeleCanopee() {
+  let canopy = null;
+  function buildCanopyModel() {
     const c = document.createElement('canvas');
     c.width = KW;
     c.height = KH;
     const g = c.getContext('2d');
     // des masses molles accrochees au bord haut, de plus en plus rares en descendant
     for (let i = 0; i < 26; i++) {
-      const x = alea(i, 3) * KW;
-      const y = -KH * 0.12 + Math.pow(alea(i, 5), 1.9) * KH * 0.95;
-      const r = KH * (0.16 + alea(i, 9) * 0.34);
+      const x = rand(i, 3) * KW;
+      const y = -KH * 0.12 + Math.pow(rand(i, 5), 1.9) * KH * 0.95;
+      const r = KH * (0.16 + rand(i, 9) * 0.34);
       const a = 0.3 * (1 - y / (KH * 1.05));
       if (a <= 0) continue;
       const rg = g.createRadialGradient(x, y, 0, x, y, r);
@@ -1185,7 +1194,7 @@
 
   // Un halo pre-rendu remplace shadowBlur, qui est l'appel le plus cher du canvas 2D.
   let halo = null;
-  function modeleHalo() {
+  function buildHaloModel() {
     const n = 64,
       c = document.createElement('canvas');
     c.width = c.height = n;
@@ -1200,8 +1209,8 @@
     return c;
   }
   // Une goutte pre-rendue : tete renflee en bas, trainee qui s'affine vers le haut.
-  let gouttePre = null;
-  function modeleGoutte() {
+  let dropTemplate = null;
+  function buildDropModel() {
     const w = 24,
       h = 128,
       c = document.createElement('canvas');
@@ -1226,12 +1235,12 @@
     return c;
   }
   // Teinture generique : un modele blanc prend une couleur, une fois, et se garde.
-  const teints = {};
-  function teindre(nom, modele, coul, w, h) {
-    const cle = Math.round(coul[0]) + ',' + Math.round(coul[1]) + ',' + Math.round(coul[2]);
-    let e = teints[nom];
+  const tintCache = {};
+  function tint(key, modele, color, w, h) {
+    const cle = Math.round(color[0]) + ',' + Math.round(color[1]) + ',' + Math.round(color[2]);
+    let e = tintCache[key];
     if (!e) {
-      e = teints[nom] = { c: document.createElement('canvas'), cle: '' };
+      e = tintCache[key] = { c: document.createElement('canvas'), cle: '' };
       e.c.width = w;
       e.c.height = h;
     }
@@ -1240,7 +1249,7 @@
     g.clearRect(0, 0, w, h);
     g.drawImage(modele, 0, 0, w, h);
     g.globalCompositeOperation = 'source-in';
-    g.fillStyle = rgb(coul);
+    g.fillStyle = rgb(color);
     g.fillRect(0, 0, w, h);
     g.globalCompositeOperation = 'source-over';
     e.cle = cle;
@@ -1251,31 +1260,31 @@
   // On les peint une fois dans un canvas demi-resolution, et l'image s'y contente d'un drawImage.
   const CW = 270,
     CH = 480;
-  let ciel = null,
-    cielCle = -1;
-  function peindreCiel(A, prog) {
+  let skyCanvas = null,
+    skyCacheKey = -1;
+  function paintSky(A, progress) {
     // on ne recalcule que quand l'heure ou la tension ont bouge d'un cran perceptible
     const cle =
-      meteo +
-      meteoPrec +
-      Math.round(mixM * 40) +
+      weather +
+      previousWeather +
+      Math.round(weatherMix * 40) +
       Math.round((A.lueurX + A.lueurA * 7 + A.voileA * 11 + A.haut[1] / 255) * 400) * 8 +
-      Math.round(prog * 20);
-    if (ciel && cielCle === cle) return ciel;
-    if (!ciel) {
-      ciel = document.createElement('canvas');
-      ciel.width = CW;
-      ciel.height = CH;
+      Math.round(progress * 20);
+    if (skyCanvas && skyCacheKey === cle) return skyCanvas;
+    if (!skyCanvas) {
+      skyCanvas = document.createElement('canvas');
+      skyCanvas.width = CW;
+      skyCanvas.height = CH;
     }
-    const g = ciel.getContext('2d');
-    const d = 0.18 * prog;
-    const haut = mel(A.haut, [24, 30, 28], d),
-      mil = mel(A.mil, [18, 23, 21], d),
-      bas = mel(A.bas, [10, 13, 12], d);
+    const g = skyCanvas.getContext('2d');
+    const d = 0.18 * progress;
+    const topColor = lerpColor(A.haut, [24, 30, 28], d),
+      midColor = lerpColor(A.mil, [18, 23, 21], d),
+      bottomColor = lerpColor(A.bas, [10, 13, 12], d);
     const lg = g.createLinearGradient(0, 0, 0, CH);
-    lg.addColorStop(0, rgb(haut));
-    lg.addColorStop(0.45, rgb(mil));
-    lg.addColorStop(1, rgb(bas));
+    lg.addColorStop(0, rgb(topColor));
+    lg.addColorStop(0.45, rgb(midColor));
+    lg.addColorStop(1, rgb(bottomColor));
     g.fillStyle = lg;
     g.fillRect(0, 0, CW, CH);
     const R = CH * A.lueurR,
@@ -1291,30 +1300,30 @@
     g.fillStyle = rgb(A.voile);
     g.fillRect(0, 0, CW, CH);
     g.globalAlpha = 1;
-    cielCle = cle;
-    return ciel;
+    skyCacheKey = cle;
+    return skyCanvas;
   }
 
   // La vignette suit la tension du jeu, pas l'avancement de la manche : elle se ferme quand
   // l'espace manque et elle se rouvre des que le serpent respire.
-  let vign = null,
-    vignCle = -1;
-  function peindreVignette(A, ten) {
-    const prog = ten;
-    const f = A.vign + 0.34 * ten;
-    const cle = Math.round(f * 200) * 40 + Math.round(ten * 20);
-    if (vign && vignCle === cle) return vign;
-    if (!vign) {
-      vign = document.createElement('canvas');
-      vign.width = CW;
-      vign.height = CH;
+  let vignette = null,
+    vignetteCacheKey = -1;
+  function paintVignette(A, tension) {
+    const progress = tension;
+    const f = A.vign + 0.34 * tension;
+    const cle = Math.round(f * 200) * 40 + Math.round(tension * 20);
+    if (vignette && vignetteCacheKey === cle) return vignette;
+    if (!vignette) {
+      vignette = document.createElement('canvas');
+      vignette.width = CW;
+      vignette.height = CH;
     }
-    const g = vign.getContext('2d');
+    const g = vignette.getContext('2d');
     g.clearRect(0, 0, CW, CH);
     const vg = g.createRadialGradient(
       CW / 2,
       CH * 0.4,
-      CH * (0.21 - 0.1 * ten),
+      CH * (0.21 - 0.1 * tension),
       CW / 2,
       CH * 0.44,
       CH * 0.72,
@@ -1323,13 +1332,13 @@
     vg.addColorStop(1, 'rgba(0,0,0,' + f.toFixed(3) + ')');
     g.fillStyle = vg;
     g.fillRect(0, 0, CW, CH);
-    vignCle = cle;
-    return vign;
+    vignetteCacheKey = cle;
+    return vignette;
   }
 
   // Le grain : une tuile calculee une fois, repetee ensuite. C'est elle qui tue le banding.
-  let motifGrain = null;
-  function tuileGrain() {
+  let grainPattern = null;
+  function grainTile() {
     const n = 128,
       c = document.createElement('canvas');
     c.width = c.height = n;
@@ -1348,31 +1357,31 @@
   // Pluie : tableaux pre-alloues, aucune allocation par image.
   // Les gouttes sont reparties par bandes verticales, une bande chacune, sinon le hachage les
   // regroupe au milieu de l'ecran. Une goutte qui retombe revient dans sa bande, decalee d'un tour.
-  const NL = 48,
-    NP = 18,
-    N = NL + NP;
+  const N_FAR = 48,
+    N_NEAR = 18,
+    N = N_FAR + N_NEAR;
   const gx = new Float32Array(N),
     gy = new Float32Array(N),
     gv = new Float32Array(N),
     ga = new Float32Array(N);
-  const tours = new Int16Array(N);
+  const dropTurns = new Int16Array(N);
   // chaque goutte frappe a sa propre profondeur sur le sol, pas toutes sur la meme ligne
-  const gsol = new Float32Array(N);
-  function colonne(i, n, d) {
-    return ((i + 0.15 + 0.7 * alea(i, d)) / n) * W;
+  const dropImpactY = new Float32Array(N);
+  function columnX(i, n, d) {
+    return ((i + 0.15 + 0.7 * rand(i, d)) / n) * W;
   }
-  function semer(i, haut) {
-    const proche = i >= NL,
-      ix = proche ? i - NL : i,
-      n = proche ? NP : NL;
-    gx[i] = colonne(ix, n, 101 + tours[i] * 13);
-    gy[i] = haut ? -40 - Math.random() * 200 : ((ix + 0.5) / n) * H;
-    gv[i] = proche ? 450 + alea(i, 75) * 250 : 320 + alea(i, 77) * 80;
-    ga[i] = 0.7 + alea(i, 79) * 0.3;
+  function seedDrop(i, topColor) {
+    const isNear = i >= N_FAR,
+      ix = isNear ? i - N_FAR : i,
+      n = isNear ? N_NEAR : N_FAR;
+    gx[i] = columnX(ix, n, 101 + dropTurns[i] * 13);
+    gy[i] = topColor ? -40 - Math.random() * 200 : ((ix + 0.5) / n) * H;
+    gv[i] = isNear ? 450 + rand(i, 75) * 250 : 320 + rand(i, 77) * 80;
+    ga[i] = 0.7 + rand(i, 79) * 0.3;
     // le sol a de la profondeur : l'impact se fait quelque part entre le milieu et le bas du plateau
-    gsol[i] = GY0 + (0.34 + 0.64 * alea(i, 131 + tours[i] * 7)) * (GY1 - GY0);
+    dropImpactY[i] = GY0 + (0.34 + 0.64 * rand(i, 131 + dropTurns[i] * 7)) * (GY1 - GY0);
   }
-  for (let i = 0; i < N; i++) semer(i, false);
+  for (let i = 0; i < N; i++) seedDrop(i, false);
   // les ondes tombent sur le plateau, pas dessous : GY1 est le bas de la zone que le spectateur voit
   const RMAX = 14,
     rx = new Float32Array(RMAX),
@@ -1385,7 +1394,7 @@
   const evx = new Float32Array(EMAX),
     evy = new Float32Array(EMAX),
     et = new Float32Array(EMAX).fill(9);
-  let vent = 0;
+  let wind = 0;
   // les gouttes collees a l'objectif : elles glissent sur l'image, pas sur la scene
   const LMAX = 5,
     lx = [],
@@ -1394,31 +1403,39 @@
     lv = [],
     lph = [];
   for (let i = 0; i < LMAX; i++) {
-    lx.push(alea(i, 81) * W);
-    ly.push(alea(i, 83) * H);
-    lr.push(6 + alea(i, 85) * 14);
-    lv.push(8 + alea(i, 87) * 28);
-    lph.push(alea(i, 89) * 6.2832);
+    lx.push(rand(i, 81) * W);
+    ly.push(rand(i, 83) * H);
+    lr.push(6 + rand(i, 85) * 14);
+    lv.push(8 + rand(i, 87) * 28);
+    lph.push(rand(i, 89) * 6.2832);
   }
 
-  function actives(e) {
-    const dens = e.mondeSorte === 'averse' ? 1 + 1.2 * e.monde : 1;
-    return { nl: Math.min(NL, Math.round(NL * dens)), np: Math.min(NP, Math.round(NP * dens)) };
+  function activeCounts(e) {
+    const density = e.mondeSorte === 'averse' ? 1 + 1.2 * e.monde : 1;
+    return {
+      nl: Math.min(N_FAR, Math.round(N_FAR * density)),
+      np: Math.min(N_NEAR, Math.round(N_NEAR * density)),
+    };
   }
 
   // une goutte : tete renflee en bas, trainee qui s'affine vers le haut
-  function goutte(g, x, y, lon, larg, al, c) {
-    const lg = g.createLinearGradient(x, y - lon, x, y);
+  function paintDrop(g, x, y, dropLen, dropWidth, al, c) {
+    const lg = g.createLinearGradient(x, y - dropLen, x, y);
     lg.addColorStop(0, rgba(c, 0));
     lg.addColorStop(0.65, rgba(c, al * 0.55));
     lg.addColorStop(1, rgba(c, al));
     g.fillStyle = lg;
     g.beginPath();
-    g.moveTo(x, y - lon);
-    g.quadraticCurveTo(x + larg * 0.9, y - lon * 0.42, x + larg, y - larg * 0.6);
-    g.quadraticCurveTo(x + larg * 0.85, y + larg * 0.55, x, y + larg * 0.75);
-    g.quadraticCurveTo(x - larg * 0.85, y + larg * 0.55, x - larg, y - larg * 0.6);
-    g.quadraticCurveTo(x - larg * 0.9, y - lon * 0.42, x, y - lon);
+    g.moveTo(x, y - dropLen);
+    g.quadraticCurveTo(x + dropWidth * 0.9, y - dropLen * 0.42, x + dropWidth, y - dropWidth * 0.6);
+    g.quadraticCurveTo(x + dropWidth * 0.85, y + dropWidth * 0.55, x, y + dropWidth * 0.75);
+    g.quadraticCurveTo(
+      x - dropWidth * 0.85,
+      y + dropWidth * 0.55,
+      x - dropWidth,
+      y - dropWidth * 0.6,
+    );
+    g.quadraticCurveTo(x - dropWidth * 0.9, y - dropLen * 0.42, x, y - dropLen);
     g.fill();
   }
 
@@ -1436,28 +1453,28 @@
     },
 
     peindreFond(g, e) {
-      cadre(e);
-      const mv = METEOS.hasOwnProperty(e.meteo) ? e.meteo : 'pluie';
-      if (mv !== meteo) {
-        meteoPrec = meteo;
-        meteo = mv;
-        meteoT = e.t;
+      setFrame(e);
+      const mv = WEATHERS.hasOwnProperty(e.meteo) ? e.meteo : 'pluie';
+      if (mv !== weather) {
+        previousWeather = weather;
+        weather = mv;
+        weatherStartTime = e.t;
       }
-      if (e.t < meteoT || e.meteoNet) meteoT = -99; // une manche s'ouvre sur SA meteo, deja installee : jamais deux saisons a l'image
+      if (e.t < weatherStartTime || e.meteoNet) weatherStartTime = -99; // une manche s'ouvre sur SA meteo, deja installee : jamais deux saisons a l'image
       {
-        const u = Math.min(1, Math.max(0, (e.t - meteoT) / 3.5));
-        mixM = u * u * (3 - 2 * u);
+        const u = Math.min(1, Math.max(0, (e.t - weatherStartTime) / 3.5));
+        weatherMix = u * u * (3 - 2 * u);
       }
-      const A = ambiance(e.heure || 0),
-        prog = Math.min(1, Math.max(0, e.progression || 0));
+      const A = ambience(e.heure || 0),
+        progress = Math.min(1, Math.max(0, e.progression || 0));
       // le ciel entier, degrade, lueur et voile, tient dans une seule image mise en cache
-      g.drawImage(peindreCiel(A, prog), 0, 0, W, H);
+      g.drawImage(paintSky(A, progress), 0, 0, W, H);
 
       // L'ombre de la canopee, en haut, qui derive tres lentement. Elle est d'autant plus marquee
       // que la lumiere est forte derriere elle : a midi les feuilles decoupent, la nuit elles se
       // fondent dans le noir. Une seule image posee, aucun objet clair qui bouge.
       {
-        if (!canopee) canopee = modeleCanopee();
+        if (!canopy) canopy = buildCanopyModel();
         const dense = 0.55 + 6.5 * A.raiA; // raiA sert maintenant de force de contre-jour
         const lh = H * 0.46,
           marge = W * 0.16;
@@ -1473,56 +1490,56 @@
         );
         g.save();
         g.globalAlpha = Math.min(1, dense);
-        g.drawImage(canopee, dx, -H * 0.03, W + marge, lh);
+        g.drawImage(canopy, dx, -H * 0.03, W + marge, lh);
         g.restore();
       }
 
       // les points en suspension : lucioles la nuit, spores dans la lumiere le jour.
       // Le halo est une image pre-rendue : shadowBlur coute dix fois plus cher pour le meme resultat.
-      if (!halo) halo = modeleHalo();
-      const ptImg = teindre('pt', halo, A.pt, 64, 64);
+      if (!halo) halo = buildHaloModel();
+      const ptImg = tint('pt', halo, A.pt, 64, 64);
       g.save();
       g.globalCompositeOperation = 'lighter';
       for (let i = 0; i < 18; i++) {
-        const ph = alea(i, 31) * 6.2832,
-          vit = 0.18 + alea(i, 33) * 0.25;
-        const x = W * (0.1 + 0.8 * alea(i, 35)) + Math.sin(e.t * vit + ph) * W * 0.13;
-        const y = H * (0.06 + alea(i, 37) * 0.88) + Math.cos(e.t * vit * 0.7 + ph) * 80;
-        const pulse = Math.max(0, Math.sin(e.t * (0.5 + alea(i, 39) * 0.6) + ph));
-        const r = (3.2 + alea(i, 41) * 4.8) * A.ptR;
+        const ph = rand(i, 31) * 6.2832,
+          speed = 0.18 + rand(i, 33) * 0.25;
+        const x = W * (0.1 + 0.8 * rand(i, 35)) + Math.sin(e.t * speed + ph) * W * 0.13;
+        const y = H * (0.06 + rand(i, 37) * 0.88) + Math.cos(e.t * speed * 0.7 + ph) * 80;
+        const pulse = Math.max(0, Math.sin(e.t * (0.5 + rand(i, 39) * 0.6) + ph));
+        const r = (3.2 + rand(i, 41) * 4.8) * A.ptR;
         g.globalAlpha = A.ptA * (0.22 + 0.78 * pulse * pulse * A.ptHalo + 0.3 * (1 - A.ptHalo));
         const R = r * (1.25 + 1.35 * A.ptHalo);
         g.drawImage(ptImg, x - R, y - R, R * 2, R * 2);
       }
       g.restore();
 
-      if (!halo) halo = modeleHalo();
+      if (!halo) halo = buildHaloModel();
       // ciel de nuit : des etoiles qui respirent (etoiles, aurore, un peu pour les lucioles)
       const Pciel = Math.min(
         1,
-        poids('etoiles') + 0.8 * poids('aurore') + 0.35 * poids('lucioles'),
+        weight('etoiles') + 0.8 * weight('aurore') + 0.35 * weight('lucioles'),
       );
       if (Pciel > 0.01) {
         g.save();
         g.globalCompositeOperation = 'lighter';
-        const et0 = teindre('etoile', halo, [226, 234, 255], 64, 64);
+        const starImg = tint('etoile', halo, [226, 234, 255], 64, 64);
         for (let i = 0; i < 70; i++) {
-          const x = alea(i, 201) * W,
-            y = alea(i, 203) * H,
-            tw = 0.5 + 0.5 * Math.sin(e.t * (0.6 + alea(i, 205) * 1.4) + alea(i, 207) * 6.28);
-          const R = 3 + alea(i, 209) * 6;
-          g.globalAlpha = (0.16 + 0.5 * alea(i, 211)) * (0.45 + 0.55 * tw) * Pciel;
-          g.drawImage(et0, x - R, y - R, R * 2, R * 2);
+          const x = rand(i, 201) * W,
+            y = rand(i, 203) * H,
+            tw = 0.5 + 0.5 * Math.sin(e.t * (0.6 + rand(i, 205) * 1.4) + rand(i, 207) * 6.28);
+          const R = 3 + rand(i, 209) * 6;
+          g.globalAlpha = (0.16 + 0.5 * rand(i, 211)) * (0.45 + 0.55 * tw) * Pciel;
+          g.drawImage(starImg, x - R, y - R, R * 2, R * 2);
         }
-        const Pf = poids('etoiles');
+        const Pf = weight('etoiles');
         for (let q = 0; q < 2 && Pf > 0.01; q++) {
           const per = 5.5 + q * 3.1,
             k = Math.floor(e.t / per),
-            tf = (e.t - k * per - alea(k, 221 + q) * (per - 1.2)) / 1.0;
+            tf = (e.t - k * per - rand(k, 221 + q) * (per - 1.2)) / 1.0;
           if (tf < 0 || tf > 1) continue;
-          const x0 = W * (0.08 + 0.7 * alea(k, 223 + q)),
-            y0 = H * (0.04 + 0.5 * alea(k, 225 + q)),
-            an = 0.42 + 0.35 * alea(k, 227 + q);
+          const x0 = W * (0.08 + 0.7 * rand(k, 223 + q)),
+            y0 = H * (0.04 + 0.5 * rand(k, 225 + q)),
+            an = 0.42 + 0.35 * rand(k, 227 + q);
           const d = 140 + tf * 620,
             L = 250,
             cx = Math.cos(an),
@@ -1544,12 +1561,12 @@
           g.lineTo(x1, y1);
           g.stroke();
           g.globalAlpha = 0.9 * Math.sin(tf * Math.PI) * Pf;
-          g.drawImage(et0, x1 - 11, y1 - 11, 22, 22);
+          g.drawImage(starImg, x1 - 11, y1 - 11, 22, 22);
         }
         g.restore();
       }
       // l'aurore : trois voiles lents, verts puis violets, qui ondulent dans le haut de l'image
-      const Pau = poids('aurore');
+      const Pau = weight('aurore');
       if (Pau > 0.01) {
         g.save();
         g.globalCompositeOperation = 'lighter';
@@ -1559,7 +1576,7 @@
           [190, 120, 255],
         ];
         for (let v = 0; v < 3; v++) {
-          const im = teindre('aurore' + v, halo, VOILES[v], 64, 64);
+          const im = tint('aurore' + v, halo, VOILES[v], 64, 64);
           for (let x = -80; x < W + 80; x += 16) {
             const o1 = Math.sin(x * 0.0052 + e.t * 0.16 + v * 2.1),
               o2 = Math.sin(x * 0.013 - e.t * 0.23 + v);
@@ -1573,52 +1590,52 @@
         g.restore();
       }
       // l'ete : de grands rais de soleil qui traversent la foret en biais
-      const Pete = poids('ete') + 0.6 * poids('printemps');
+      const Pete = weight('ete') + 0.6 * weight('printemps');
       if (Pete > 0.01) {
         g.save();
         g.globalCompositeOperation = 'lighter';
         // Des rais DOUX : le modele pre-rendu (bords en cosinus, naissance sous la canopee, dilution vers le bas),
         // jamais un polygone. Largeurs et longueurs inegales, un souffle lent et dephase, une derive a peine sensible.
-        const rai = teindreRai([255, 238, 176]);
+        const rai = tintRay([255, 238, 176]);
         for (let i = 0; i < 6; i++) {
           const x0 =
-            W * (0.22 + 0.17 * i + 0.05 * alea(i, 371)) + Math.sin(e.t * 0.04 + i * 1.3) * 50;
-          const larg = 190 + 260 * alea(i, 373),
-            lon = H * (0.62 + 0.3 * alea(i, 375));
-          const souffle = 0.55 + 0.45 * Math.sin(e.t * (0.16 + 0.1 * alea(i, 377)) + i * 2.1);
+            W * (0.22 + 0.17 * i + 0.05 * rand(i, 371)) + Math.sin(e.t * 0.04 + i * 1.3) * 50;
+          const dropWidth = 190 + 260 * rand(i, 373),
+            dropLen = H * (0.62 + 0.3 * rand(i, 375));
+          const souffle = 0.55 + 0.45 * Math.sin(e.t * (0.16 + 0.1 * rand(i, 377)) + i * 2.1);
           g.save();
           g.translate(x0, -90);
-          g.rotate(0.4 + 0.05 * Math.sin(e.t * 0.03 + i) + 0.04 * (alea(i, 379) - 0.5));
-          g.globalAlpha = (0.1 + 0.13 * alea(i, 381)) * (0.6 + 0.4 * souffle) * Pete;
-          g.drawImage(rai, -larg / 2, 0, larg, lon);
+          g.rotate(0.4 + 0.05 * Math.sin(e.t * 0.03 + i) + 0.04 * (rand(i, 379) - 0.5));
+          g.globalAlpha = (0.1 + 0.13 * rand(i, 381)) * (0.6 + 0.4 * souffle) * Pete;
+          g.drawImage(rai, -dropWidth / 2, 0, dropWidth, dropLen);
           g.restore();
         }
         g.restore();
       }
       // l'automne : des feuilles deja posees au sol, derriere les serpents
-      const Pau2 = poids('automne');
+      const Pau2 = weight('automne');
       if (Pau2 > 0.01) {
         const TONS = ['#b8702c', '#9a4a26', '#c89a44', '#7e5a2a'];
         for (let i = 0; i < 46; i++) {
           g.save();
-          g.translate(alea(i, 381) * W, H * (0.12 + 0.86 * alea(i, 383)));
-          g.rotate(alea(i, 385) * 6.28);
-          g.globalAlpha = (0.1 + 0.1 * alea(i, 387)) * Pau2;
+          g.translate(rand(i, 381) * W, H * (0.12 + 0.86 * rand(i, 383)));
+          g.rotate(rand(i, 385) * 6.28);
+          g.globalAlpha = (0.1 + 0.1 * rand(i, 387)) * Pau2;
           g.fillStyle = TONS[i % 4];
-          const T = 10 + alea(i, 389) * 10;
+          const T = 10 + rand(i, 389) * 10;
           g.beginPath();
           g.ellipse(0, 0, T, T * 0.5, 0, 0, Math.PI * 2);
           g.fill();
           g.restore();
         }
       }
-      const Por = poids('orage');
+      const Por = weight('orage');
       if (Por > 0.01) {
-        const I = eclair(e.t) * Por;
+        const I = lightning(e.t) * Por;
         if (I > 0.02) {
           // l'eclair lui-meme, loin derriere le plateau, puis la lueur qu'il jette sur toute la foret
           const k = Math.floor(e.t / 11);
-          let x = W * (0.15 + 0.7 * alea(k, 231)),
+          let x = W * (0.15 + 0.7 * rand(k, 231)),
             y = -10;
           g.save();
           g.globalCompositeOperation = 'lighter';
@@ -1628,8 +1645,8 @@
           g.beginPath();
           g.moveTo(x, y);
           for (let j = 0; j < 9; j++) {
-            x += (alea(k * 9 + j, 233) - 0.5) * 150;
-            y += 60 + alea(k * 9 + j, 235) * 70;
+            x += (rand(k * 9 + j, 233) - 0.5) * 150;
+            y += 60 + rand(k * 9 + j, 235) * 70;
             g.lineTo(x, y);
           }
           g.stroke();
@@ -1642,7 +1659,7 @@
       // le plateau : une surface a peine plus claire, et son filet
       g.save();
       g.globalAlpha = 0.05;
-      g.fillStyle = rgba(mel(A.lueur, [255, 255, 255], 0.2), 0.22);
+      g.fillStyle = rgba(lerpColor(A.lueur, [255, 255, 255], 0.2), 0.22);
       g.fillRect(GX0, GY0, GX1 - GX0, GY1 - GY0);
       g.restore();
       g.strokeStyle = rgba(A.rai, 0.035);
@@ -1726,7 +1743,7 @@
         // mel existant : interpolation lineaire entre deux tableaux RGB
         const baseRgb = hex2rgb('#d9e7cc');
         const teintRgb = hex2rgb(e.teinte);
-        const corpsRgb = mel(baseRgb, teintRgb, 0.85);
+        const corpsRgb = lerpColor(baseRgb, teintRgb, 0.85);
         g.strokeStyle = rgb(corpsRgb);
         g.lineWidth = 34;
         g.beginPath();
@@ -1778,105 +1795,112 @@
     },
 
     peindreAvant(g, e) {
-      const A = ambiance(e.heure || 0),
-        prog = Math.min(1, Math.max(0, e.progression || 0));
-      const plans = [];
+      const A = ambience(e.heure || 0),
+        progress = Math.min(1, Math.max(0, e.progression || 0));
+      const layers = [];
       const tx = e.tete.x,
         ty = e.tete.y,
-        k = actives(e),
-        sil = 1 - 0.7 * (e.silence || 0);
+        k = activeCounts(e),
+        silenceFactor = 1 - 0.7 * (e.silence || 0);
       // la pluie prend la couleur de l'heure, et force un peu quand la manche avance
-      const coul = mel([180, 212, 222], A.rai, 0.55),
-        force = (1 + 0.35 * prog) * sil * (e.reduit ? 0.5 : 1) * pluieF();
+      const color = lerpColor([180, 212, 222], A.rai, 0.55),
+        force = (1 + 0.35 * progress) * silenceFactor * (e.reduit ? 0.5 : 1) * rainFactor();
 
       {
         g.save();
-        if (!halo) halo = modeleHalo();
-        const pres = (x, y) => {
+        if (!halo) halo = buildHaloModel();
+        const headProximity = (x, y) => {
           const d = Math.hypot(x - tx, y - ty);
           return d < 92 ? 0 : d < 224 ? (d - 92) / 132 : 1;
         };
         // ce qui tombe en tournant : feuilles d'automne, petales de printemps
-        const tombe = (P, n, graine, tons, taille, al) => {
+        const paintFalling = (P, n, seed, tons, taille, al) => {
           for (let i = 0; i < n && P > 0.01; i++) {
-            const pr = alea(i, graine),
+            const pr = rand(i, seed),
               v = 60 + pr * 70,
               T = taille * (0.7 + 0.7 * pr);
-            const y = ((alea(i, graine + 2) * (H + 80) + e.t * v) % (H + 80)) - 40;
+            const y = ((rand(i, seed + 2) * (H + 80) + e.t * v) % (H + 80)) - 40;
             const x =
-              alea(i, graine + 4) * W +
-              Math.sin(e.t * (0.5 + alea(i, graine + 6) * 0.5) + alea(i, graine + 8) * 6.28) *
+              rand(i, seed + 4) * W +
+              Math.sin(e.t * (0.5 + rand(i, seed + 6) * 0.5) + rand(i, seed + 8) * 6.28) *
                 (50 + 50 * pr) +
-              vent * 0.8;
+              wind * 0.8;
             g.save();
             g.translate(x, y);
-            g.rotate(e.t * (0.6 + alea(i, graine + 10)) + alea(i, graine + 12) * 6.28);
-            g.globalAlpha = (al + al * pr) * pres(x, y) * sil * P;
+            g.rotate(e.t * (0.6 + rand(i, seed + 10)) + rand(i, seed + 12) * 6.28);
+            g.globalAlpha = (al + al * pr) * headProximity(x, y) * silenceFactor * P;
             g.scale(1, 0.3 + 0.7 * Math.abs(Math.sin(e.t * 1.3 + i)));
-            feuille(g, T, tons[i % tons.length]);
+            paintLeaf(g, T, tons[i % tons.length]);
             g.restore();
           }
         };
-        tombe(poids('automne'), 30, 321, ['#c8822e', '#a04e22', '#d8a446', '#8a3a1c'], 13, 0.3);
-        tombe(poids('printemps'), 34, 421, ['#f4c2d0', '#f7d6de', '#eaa6bc'], 8, 0.24);
-        const Pn = poids('neige');
+        paintFalling(
+          weight('automne'),
+          30,
+          321,
+          ['#c8822e', '#a04e22', '#d8a446', '#8a3a1c'],
+          13,
+          0.3,
+        );
+        paintFalling(weight('printemps'), 34, 421, ['#f4c2d0', '#f7d6de', '#eaa6bc'], 8, 0.24);
+        const Pn = weight('neige');
         if (Pn > 0.01) {
-          const av = Math.min(1, Math.max(0, e.avance || 0));
-          const fl = teindre('flocon', halo, [236, 244, 255], 64, 64);
+          const advance = Math.min(1, Math.max(0, e.avance || 0));
+          const snowflakeImg = tint('flocon', halo, [236, 244, 255], 64, 64);
           // trois profondeurs. Loin : une poussiere de points nets, lente, presque verticale.
           g.fillStyle = '#eef4ff';
           for (let i = 0; i < 130; i++) {
-            const v = 24 + alea(i, 501) * 22,
-              y = ((alea(i, 503) * (H + 40) + e.t * v) % (H + 40)) - 20;
+            const v = 24 + rand(i, 501) * 22,
+              y = ((rand(i, 503) * (H + 40) + e.t * v) % (H + 40)) - 20;
             const x =
-              alea(i, 505) * W + Math.sin(e.t * 0.3 + alea(i, 507) * 6.28) * 12 + vent * 0.25;
-            g.globalAlpha = (0.2 + 0.3 * alea(i, 509)) * pres(x, y) * sil * Pn;
+              rand(i, 505) * W + Math.sin(e.t * 0.3 + rand(i, 507) * 6.28) * 12 + wind * 0.25;
+            g.globalAlpha = (0.2 + 0.3 * rand(i, 509)) * headProximity(x, y) * silenceFactor * Pn;
             g.beginPath();
-            g.arc(x, y, 1.0 + alea(i, 511) * 1.3, 0, Math.PI * 2);
+            g.arc(x, y, 1.0 + rand(i, 511) * 1.3, 0, Math.PI * 2);
             g.fill();
           }
           // Au milieu : les flocons doux qui se balancent. La chute s'epaissit quand la manche avance.
-          const nMil = Math.round(46 + 34 * av);
-          for (let i = 0; i < nMil; i++) {
-            const pr = alea(i, 301),
+          const midCount = Math.round(46 + 34 * advance);
+          for (let i = 0; i < midCount; i++) {
+            const pr = rand(i, 301),
               v = 56 + pr * 80,
               R = 3.5 + pr * 6;
-            const y = ((alea(i, 303) * (H + 80) + e.t * v) % (H + 80)) - 40;
+            const y = ((rand(i, 303) * (H + 80) + e.t * v) % (H + 80)) - 40;
             const x =
-              alea(i, 305) * W +
-              Math.sin(e.t * (0.35 + alea(i, 307) * 0.5) + alea(i, 309) * 6.28) * (26 + 40 * pr) +
-              vent * 0.6;
-            g.globalAlpha = (0.2 + 0.4 * pr) * pres(x, y) * sil * Pn;
-            g.drawImage(fl, x - R, y - R, R * 2, R * 2);
+              rand(i, 305) * W +
+              Math.sin(e.t * (0.35 + rand(i, 307) * 0.5) + rand(i, 309) * 6.28) * (26 + 40 * pr) +
+              wind * 0.6;
+            g.globalAlpha = (0.2 + 0.4 * pr) * headProximity(x, y) * silenceFactor * Pn;
+            g.drawImage(snowflakeImg, x - R, y - R, R * 2, R * 2);
           }
           // Tout pres de l'objectif : quelques gros flocons flous, rapides, a peine la
           for (let i = 0; i < 9; i++) {
-            const v = 190 + alea(i, 521) * 90,
-              R = 20 + alea(i, 523) * 20;
-            const y = ((alea(i, 525) * (H + 200) + e.t * v) % (H + 200)) - 100;
+            const v = 190 + rand(i, 521) * 90,
+              R = 20 + rand(i, 523) * 20;
+            const y = ((rand(i, 525) * (H + 200) + e.t * v) % (H + 200)) - 100;
             const x =
-              ((alea(i, 527) * W + e.t * (30 + vent * 0.5)) % (W + 120)) -
+              ((rand(i, 527) * W + e.t * (30 + wind * 0.5)) % (W + 120)) -
               60 +
               Math.sin(e.t * 0.7 + i) * 30;
-            g.globalAlpha = (0.07 + 0.06 * alea(i, 529)) * pres(x, y) * sil * Pn;
-            g.drawImage(fl, x - R, y - R, R * 2, R * 2);
+            g.globalAlpha = (0.07 + 0.06 * rand(i, 529)) * headProximity(x, y) * silenceFactor * Pn;
+            g.drawImage(snowflakeImg, x - R, y - R, R * 2, R * 2);
           }
           // Le souffle froid au ras du sol, puis la congere qui monte avec la manche
-          const mont = (1 - (0.36 + 0.64 * av)) * 120 + (1 - Pn) * 80;
+          const riseOffset = (1 - (0.36 + 0.64 * advance)) * 120 + (1 - Pn) * 80;
           // (peints tout a la fin, par-dessus la vignette : la neige prend la lumiere, elle ne s'eteint pas dans le coin sombre)
-          plans.push(() => {
+          layers.push(() => {
             g.save();
             g.globalAlpha = 0.16 * Pn;
-            g.drawImage(fl, -200, H - 420 + mont, W + 400, 300);
+            g.drawImage(snowflakeImg, -200, H - 420 + riseOffset, W + 400, 300);
             g.globalAlpha = Pn;
-            g.drawImage(congere(), 0, H - CGH + mont);
+            g.drawImage(snowdrift(), 0, H - SNOWDRIFT_H + riseOffset);
             for (let i = 0; i < 6 && !e.reduit; i++) {
-              const lw = 260 + 200 * alea(i, 841),
-                x = ((alea(i, 843) * (W + lw) + e.t * (70 + 70 * alea(i, 845))) % (W + lw)) - lw;
-              const yc = H - CRETES[2](x + lw / 2) + mont,
-                vie = 0.5 + 0.5 * Math.sin(e.t * (0.5 + 0.4 * alea(i, 847)) + i * 2);
+              const lw = 260 + 200 * rand(i, 841),
+                x = ((rand(i, 843) * (W + lw) + e.t * (70 + 70 * rand(i, 845))) % (W + lw)) - lw;
+              const yc = H - RIDGES[2](x + lw / 2) + riseOffset,
+                vie = 0.5 + 0.5 * Math.sin(e.t * (0.5 + 0.4 * rand(i, 847)) + i * 2);
               g.globalAlpha = 0.3 * vie * Pn;
-              g.drawImage(fl, x, yc - 26, lw, 40);
+              g.drawImage(snowflakeImg, x, yc - 26, lw, 40);
             }
             // la neige scintille : de petites etoiles a quatre branches sur la crete de devant
             g.globalCompositeOperation = 'lighter';
@@ -1884,10 +1908,10 @@
             g.lineWidth = 1.6;
             g.lineCap = 'round';
             for (let i = 0; i < 18; i++) {
-              const x = alea(i, 541) * W,
-                y = H - CRETES[2](x) + mont + 8 + alea(i, 543) * 60;
+              const x = rand(i, 541) * W,
+                y = H - RIDGES[2](x) + riseOffset + 8 + rand(i, 543) * 60;
               const tw = Math.pow(
-                  Math.max(0, Math.sin(e.t * (0.9 + alea(i, 545) * 1.3) + alea(i, 547) * 6.28)),
+                  Math.max(0, Math.sin(e.t * (0.9 + rand(i, 545) * 1.3) + rand(i, 547) * 6.28)),
                   8,
                 ),
                 L = 3 + 8 * tw;
@@ -1899,7 +1923,7 @@
               g.moveTo(x, y - L);
               g.lineTo(x, y + L);
               g.stroke();
-              g.drawImage(fl, x - L * 1.4, y - L * 1.4, L * 2.8, L * 2.8);
+              g.drawImage(snowflakeImg, x - L * 1.4, y - L * 1.4, L * 2.8, L * 2.8);
             }
             g.globalCompositeOperation = 'source-over';
             g.restore();
@@ -1910,53 +1934,53 @@
             [W, 0],
           ].forEach((q) => {
             g.globalAlpha = 0.18 * Pn;
-            g.drawImage(fl, q[0] - 420, q[1] - 420, 840, 840);
+            g.drawImage(snowflakeImg, q[0] - 420, q[1] - 420, 840, 840);
           });
         }
         // le sol de la saison, au tout premier plan, qui monte avec la manche et qui vit
-        Object.keys(SOL_DE).forEach((m) => {
-          const P = poids(m);
-          if (P > 0.01) plans.push(() => peindreSol(g, e, m, P));
+        Object.keys(GROUND_FOR).forEach((m) => {
+          const P = weight(m);
+          if (P > 0.01) layers.push(() => paintGround(g, e, m, P));
         });
         // ce qui monte et luit : spores d'ete, braises, lucioles
-        const monte = (P, n, graine, coul, nom, vit, R0, al, scint) => {
+        const paintRising = (P, n, seed, color, key, speed, R0, al, twinkle) => {
           if (P <= 0.01) return;
-          const im = teindre(nom, halo, coul, 64, 64);
+          const im = tint(key, halo, color, 64, 64);
           g.globalCompositeOperation = 'lighter';
           for (let i = 0; i < n; i++) {
-            const pr = alea(i, graine),
+            const pr = rand(i, seed),
               R = R0 * (0.6 + pr);
             const y =
-              H + 40 - ((alea(i, graine + 2) * (H + 80) + e.t * vit * (0.5 + pr)) % (H + 80));
+              H + 40 - ((rand(i, seed + 2) * (H + 80) + e.t * speed * (0.5 + pr)) % (H + 80));
             const x =
-              alea(i, graine + 4) * W +
-              Math.sin(e.t * 0.4 * (1 + scint) + alea(i, graine + 6) * 6.28) * (40 + 60 * scint);
+              rand(i, seed + 4) * W +
+              Math.sin(e.t * 0.4 * (1 + twinkle) + rand(i, seed + 6) * 6.28) * (40 + 60 * twinkle);
             const cl = Math.max(
               0,
-              Math.sin(e.t * (1.1 + scint * 2 * alea(i, graine + 8)) + i * 1.7),
+              Math.sin(e.t * (1.1 + twinkle * 2 * rand(i, seed + 8)) + i * 1.7),
             );
             g.globalAlpha =
-              Math.min(1, (al + al * 2 * pr) * (scint ? cl * cl : 0.6 + 0.4 * cl)) *
-              pres(x, y) *
-              sil *
+              Math.min(1, (al + al * 2 * pr) * (twinkle ? cl * cl : 0.6 + 0.4 * cl)) *
+              headProximity(x, y) *
+              silenceFactor *
               P;
             g.drawImage(im, x - R, y - R, R * 2, R * 2);
           }
           g.globalCompositeOperation = 'source-over';
         };
-        monte(poids('ete'), 34, 341, [250, 232, 160], 'spore', 30, 5, 0.12, 0);
-        monte(poids('braises'), 46, 441, [255, 140, 60], 'braise', 120, 6, 0.34, 0.5);
-        monte(poids('lucioles'), 60, 461, [210, 255, 120], 'luciole', 10, 10, 0.32, 1);
-        const Pb = poids('brume');
+        paintRising(weight('ete'), 34, 341, [250, 232, 160], 'spore', 30, 5, 0.12, 0);
+        paintRising(weight('braises'), 46, 441, [255, 140, 60], 'braise', 120, 6, 0.34, 0.5);
+        paintRising(weight('lucioles'), 60, 461, [210, 255, 120], 'luciole', 10, 10, 0.32, 1);
+        const Pb = weight('brume');
         if (Pb > 0.01) {
-          const br = teindre('brume', halo, [196, 210, 208], 64, 64);
+          const mistImg = tint('brume', halo, [196, 210, 208], 64, 64);
           for (let i = 0; i < 6; i++) {
-            const lw = 900 + alea(i, 351) * 500,
-              lh = 240 + alea(i, 353) * 200;
-            const x = ((alea(i, 355) * (W + lw) + e.t * (10 + alea(i, 357) * 16)) % (W + lw)) - lw;
-            const y = H * (0.1 + 0.8 * alea(i, 359)) + Math.sin(e.t * 0.2 + i) * 30;
-            g.globalAlpha = (0.13 + 0.07 * alea(i, 361)) * Pb;
-            g.drawImage(br, x, y - lh / 2, lw, lh);
+            const lw = 900 + rand(i, 351) * 500,
+              lh = 240 + rand(i, 353) * 200;
+            const x = ((rand(i, 355) * (W + lw) + e.t * (10 + rand(i, 357) * 16)) % (W + lw)) - lw;
+            const y = H * (0.1 + 0.8 * rand(i, 359)) + Math.sin(e.t * 0.2 + i) * 30;
+            g.globalAlpha = (0.13 + 0.07 * rand(i, 361)) * Pb;
+            g.drawImage(mistImg, x, y - lh / 2, lw, lh);
           }
         }
         g.restore();
@@ -1968,7 +1992,7 @@
         if (rt[i] >= 1) continue;
         const pf = 0.42 + 0.58 * rp[i];
         g.globalAlpha = 0.11 * (1 - rt[i]) * force * pf;
-        g.strokeStyle = rgb(coul);
+        g.strokeStyle = rgb(color);
         g.beginPath();
         g.ellipse(rx[i], ry[i], (14 + rt[i] * 76) * pf, (5 + rt[i] * 22) * pf, 0, 0, Math.PI * 2);
         g.stroke();
@@ -1978,29 +2002,35 @@
         if (et[i] > 0.45) continue;
         const u = 1 - et[i] / 0.45;
         g.globalAlpha = 0.22 * u * force;
-        g.fillStyle = rgb(coul);
+        g.fillStyle = rgb(color);
         g.beginPath();
         g.arc(ex[i], ey[i], 3 * u + 1, 0, Math.PI * 2);
         g.fill();
       }
       g.globalAlpha = 1;
       // les gouttes : la pluie s'ecarte autour de la tete du serpent
-      if (!gouttePre) gouttePre = modeleGoutte();
-      const gImg = teindre('goutte', gouttePre, coul, 24, 128);
-      const tracer = (i0, i1, proche) => {
-        const lon = proche ? 40 : 22,
-          lar = (lon * 24) / 128;
+      if (!dropTemplate) dropTemplate = buildDropModel();
+      const gImg = tint('goutte', dropTemplate, color, 24, 128);
+      const traceDrops = (i0, i1, isNear) => {
+        const dropLen = isNear ? 40 : 22,
+          narrowWidth = (dropLen * 24) / 128;
         for (let i = i0; i < i1; i++) {
-          if (proche && gy[i] > gsol[i]) continue;
+          if (isNear && gy[i] > dropImpactY[i]) continue;
           const d = Math.hypot(gx[i] - tx, gy[i] - ty);
           if (d < 92) continue;
           const f = d < 224 ? (d - 92) / 132 : 1;
-          g.globalAlpha = (proche ? 0.13 : 0.055) * ga[i] * f * force;
-          g.drawImage(gImg, gx[i] - vent * 0.05 - lar / 2, gy[i] - lon, lar, lon);
+          g.globalAlpha = (isNear ? 0.13 : 0.055) * ga[i] * f * force;
+          g.drawImage(
+            gImg,
+            gx[i] - wind * 0.05 - narrowWidth / 2,
+            gy[i] - dropLen,
+            narrowWidth,
+            dropLen,
+          );
         }
       };
-      tracer(0, k.nl, false);
-      tracer(NL, NL + k.np, true);
+      traceDrops(0, k.nl, false);
+      traceDrops(N_FAR, N_FAR + k.np, true);
       g.restore();
 
       if (e.mondeSorte === 'lune' && e.monde > 0) {
@@ -2016,37 +2046,37 @@
       }
 
       // le grain, qui tue le banding et donne sa matiere a l'image
-      if (!motifGrain) {
+      if (!grainPattern) {
         try {
-          motifGrain = g.createPattern(tuileGrain(), 'repeat');
+          grainPattern = g.createPattern(grainTile(), 'repeat');
         } catch (er) {
-          motifGrain = null;
+          grainPattern = null;
         }
       }
-      if (motifGrain) {
+      if (grainPattern) {
         g.save();
         g.globalAlpha = 0.5;
-        g.fillStyle = motifGrain;
+        g.fillStyle = grainPattern;
         g.fillRect(0, 0, W, H);
         g.restore();
       }
 
       // la vignette suit la tension reelle ; sans tension fournie, elle retombe sur la progression
-      const ten = Math.min(1, Math.max(0, e.tension === undefined ? prog : e.tension));
-      g.drawImage(peindreVignette(A, ten), 0, 0, W, H);
+      const tension = Math.min(1, Math.max(0, e.tension === undefined ? progress : e.tension));
+      g.drawImage(paintVignette(A, tension), 0, 0, W, H);
 
       // les gouttes collees a l'objectif : elles glissent sur l'image, pas sur la scene
       g.save();
-      for (let i = 0; i < (pluieF() > 0.4 ? LMAX : 0); i++) {
+      for (let i = 0; i < (rainFactor() > 0.4 ? LMAX : 0); i++) {
         const y = ((ly[i] + e.t * lv[i]) % (H + 160)) - 80,
           x = lx[i] + Math.sin(e.t * 0.5 + lph[i]) * 8,
           r = lr[i];
-        const c = mel([226, 242, 248], A.rai, 0.45);
+        const c = lerpColor([226, 242, 248], A.rai, 0.45);
         g.globalAlpha = 0.13;
         const rg2 = g.createRadialGradient(x - r * 0.3, y - r * 0.35, r * 0.1, x, y, r);
         rg2.addColorStop(0, rgba(c, 0.85));
-        rg2.addColorStop(0.7, rgba(mel(c, [120, 150, 160], 0.6), 0.28));
-        rg2.addColorStop(1, rgba(mel(c, [120, 150, 160], 0.6), 0.05));
+        rg2.addColorStop(0.7, rgba(lerpColor(c, [120, 150, 160], 0.6), 0.28));
+        rg2.addColorStop(1, rgba(lerpColor(c, [120, 150, 160], 0.6), 0.05));
         g.fillStyle = rg2;
         g.beginPath();
         g.ellipse(x, y, r * 0.8, r, 0, 0, Math.PI * 2);
@@ -2076,51 +2106,51 @@
         g.rect(GX0 - 10, GY0 - 10, GX1 - GX0 + 20, GY1 - GY0 + 20);
         g.clip('evenodd');
       }
-      plans.forEach((f) => f());
+      layers.forEach((f) => f());
       if (W > H) g.restore();
     },
 
     maj(dt, e) {
       if (e.reduit) return;
-      vent = Math.sin((e.t / 15) * Math.PI * 2) * 40;
-      const k = actives(e),
+      wind = Math.sin((e.t / 15) * Math.PI * 2) * 40;
+      const k = activeCounts(e),
         force = 1 + 0.5 * Math.min(1, Math.max(0, e.progression || 0));
       for (let i = 0; i < N; i++) {
-        if ((i < NL && i >= k.nl) || (i >= NL && i >= NL + k.np)) continue;
-        const avant = gy[i];
+        if ((i < N_FAR && i >= k.nl) || (i >= N_FAR && i >= N_FAR + k.np)) continue;
+        const prevY = gy[i];
         gy[i] += gv[i] * force * dt;
-        gx[i] += vent * dt;
+        gx[i] += wind * dt;
         if (gx[i] < 0) gx[i] += W;
         else if (gx[i] > W) gx[i] -= W;
         // l'impact se fait a la profondeur propre de la goutte, sur le plateau, jamais sur une ligne
-        if (i >= NL && avant <= gsol[i] && gy[i] > gsol[i]) {
-          const prof = (gsol[i] - GY0) / (GY1 - GY0); // 0 au fond, 1 au premier plan
+        if (i >= N_FAR && prevY <= dropImpactY[i] && gy[i] > dropImpactY[i]) {
+          const prof = (dropImpactY[i] - GY0) / (GY1 - GY0); // 0 au fond, 1 au premier plan
           for (let r = 0; r < RMAX; r++)
             if (rt[r] >= 1) {
               rx[r] = gx[i];
-              ry[r] = gsol[i];
+              ry[r] = dropImpactY[i];
               rt[r] = 0;
               rp[r] = prof;
               break;
             }
           for (let q = 0; q < EMAX; q++)
             if (et[q] > 0.45) {
-              const a = -Math.PI / 2 + (alea(i, 93 + tours[i]) - 0.5) * 2;
+              const a = -Math.PI / 2 + (rand(i, 93 + dropTurns[i]) - 0.5) * 2;
               ex[q] = gx[i];
-              ey[q] = gsol[i];
-              evx[q] = Math.cos(a) * (60 + alea(i, 95) * 120) * prof;
-              evy[q] = Math.sin(a) * (110 + alea(i, 97) * 140) * prof;
+              ey[q] = dropImpactY[i];
+              evx[q] = Math.cos(a) * (60 + rand(i, 95) * 120) * prof;
+              evy[q] = Math.sin(a) * (110 + rand(i, 97) * 140) * prof;
               et[q] = 0;
               break;
             }
           // elle a frappe : elle disparait et repart d'en haut, comme une vraie goutte
-          tours[i]++;
-          semer(i, true);
+          dropTurns[i]++;
+          seedDrop(i, true);
           continue;
         }
         if (gy[i] > H + 30) {
-          tours[i]++;
-          semer(i, true);
+          dropTurns[i]++;
+          seedDrop(i, true);
         }
       }
       for (let r = 0; r < RMAX; r++) if (rt[r] < 1) rt[r] = Math.min(1, rt[r] + dt / 1.1);
@@ -2133,11 +2163,11 @@
         }
     },
 
-    sonFond(ac, sortie, opts) {
-      const musique = !!(opts && opts.musiqueExterne),
-        base = musique ? 0.25 : 0.55;
+    sonFond(ac, destination, opts) {
+      const externalMusic = !!(opts && opts.musiqueExterne),
+        base = externalMusic ? 0.25 : 0.55;
       const src = ac.createBufferSource();
-      src.buffer = bruitRose(ac, 6);
+      src.buffer = pinkNoise(ac, 6);
       src.loop = true;
       const bp = ac.createBiquadFilter();
       bp.type = 'bandpass';
@@ -2150,24 +2180,24 @@
       gb.gain.value = 0.9;
       const gl = ac.createGain();
       gl.gain.value = 0.5;
-      const lit = ac.createGain();
-      lit.gain.value = 0;
+      const mainGain = ac.createGain();
+      mainGain.gain.value = 0;
       src.connect(bp);
       bp.connect(gb);
-      gb.connect(lit);
+      gb.connect(mainGain);
       src.connect(lp);
       lp.connect(gl);
-      gl.connect(lit);
-      lit.connect(sortie);
-      lit.gain.setTargetAtTime(base, ac.currentTime, 0.8);
+      gl.connect(mainGain);
+      mainGain.connect(destination);
+      mainGain.gain.setTargetAtTime(base, ac.currentTime, 0.8);
       src.start();
-      let minuteur = null,
-        fini = false;
-      const gamme = [392, 440, 493.88, 587.33, 659.25, 783.99];
-      function carillon() {
-        if (fini) return;
+      let timer = null,
+        stopped = false;
+      const scale = [392, 440, 493.88, 587.33, 659.25, 783.99];
+      function chime() {
+        if (stopped) return;
         const t0 = ac.currentTime,
-          f = gamme[Math.floor(Math.random() * gamme.length)] * 2;
+          f = scale[Math.floor(Math.random() * scale.length)] * 2;
         const o = ac.createOscillator(),
           gg = ac.createGain();
         o.type = 'sine';
@@ -2176,31 +2206,31 @@
         gg.gain.linearRampToValueAtTime(0.03, t0 + 0.01);
         gg.gain.exponentialRampToValueAtTime(0.0005, t0 + 2.5);
         o.connect(gg);
-        gg.connect(sortie);
+        gg.connect(destination);
         o.start(t0);
         o.stop(t0 + 2.6);
-        minuteur = setTimeout(carillon, 8000 + Math.random() * 12000);
+        timer = setTimeout(chime, 8000 + Math.random() * 12000);
       }
-      if (!musique) minuteur = setTimeout(carillon, 5000);
+      if (!externalMusic) timer = setTimeout(chime, 5000);
       return {
         arreter() {
-          fini = true;
-          if (minuteur) clearTimeout(minuteur);
-          lit.gain.setTargetAtTime(0, ac.currentTime, 0.3);
+          stopped = true;
+          if (timer) clearTimeout(timer);
+          mainGain.gain.setTargetAtTime(0, ac.currentTime, 0.3);
           try {
             src.stop(ac.currentTime + 1.5);
           } catch (e) {}
         },
         silence(sec) {
           const t0 = ac.currentTime;
-          lit.gain.cancelScheduledValues(t0);
-          lit.gain.setTargetAtTime(base * 0.3, t0, 0.08);
-          lit.gain.setTargetAtTime(base, t0 + 0.3, Math.max(0.1, sec / 3));
+          mainGain.gain.cancelScheduledValues(t0);
+          mainGain.gain.setTargetAtTime(base * 0.3, t0, 0.08);
+          mainGain.gain.setTargetAtTime(base, t0 + 0.3, Math.max(0.1, sec / 3));
         },
       };
     },
 
-    sonBouchee(ac, sortie, freq) {
+    sonBouchee(ac, destination, freq) {
       const t0 = ac.currentTime;
       [
         ['sine', freq, 0.12],
@@ -2214,14 +2244,14 @@
         gg.gain.linearRampToValueAtTime(v, t0 + 0.005);
         gg.gain.exponentialRampToValueAtTime(0.0005, t0 + 0.35);
         o.connect(gg);
-        gg.connect(sortie);
+        gg.connect(destination);
         o.start(t0);
         o.stop(t0 + 0.4);
       });
     },
 
     // La naissance : de petits craquements secs pendant la fente, puis un accord chaud qui s'ouvre.
-    sonEclosion(ac, sortie, phase) {
+    sonEclosion(ac, destination, phase) {
       const t0 = ac.currentTime;
       if (phase === 'fissure') {
         const o = ac.createOscillator(),
@@ -2233,24 +2263,24 @@
         gg.gain.setValueAtTime(0.045, t0);
         gg.gain.exponentialRampToValueAtTime(0.0004, t0 + 0.09);
         o.connect(gg);
-        gg.connect(sortie);
+        gg.connect(destination);
         o.start(t0);
         o.stop(t0 + 0.12);
         return;
       }
       // l'eclosion : une basse qui monte sous un accord de quinte, long et doux
-      const grave = ac.createOscillator(),
+      const bass = ac.createOscillator(),
         gb = ac.createGain();
-      grave.type = 'sine';
-      grave.frequency.setValueAtTime(98, t0);
-      grave.frequency.exponentialRampToValueAtTime(196, t0 + 0.5);
+      bass.type = 'sine';
+      bass.frequency.setValueAtTime(98, t0);
+      bass.frequency.exponentialRampToValueAtTime(196, t0 + 0.5);
       gb.gain.setValueAtTime(0.0001, t0);
       gb.gain.exponentialRampToValueAtTime(0.11, t0 + 0.06);
       gb.gain.exponentialRampToValueAtTime(0.0004, t0 + 1.1);
-      grave.connect(gb);
-      gb.connect(sortie);
-      grave.start(t0);
-      grave.stop(t0 + 1.2);
+      bass.connect(gb);
+      gb.connect(destination);
+      bass.start(t0);
+      bass.stop(t0 + 1.2);
       [
         [392, 0, 0.075],
         [587.33, 0.06, 0.055],
@@ -2264,13 +2294,13 @@
         gg.gain.exponentialRampToValueAtTime(v, t0 + d + 0.05);
         gg.gain.exponentialRampToValueAtTime(0.0004, t0 + d + 1.4);
         o.connect(gg);
-        gg.connect(sortie);
+        gg.connect(destination);
         o.start(t0 + d);
         o.stop(t0 + d + 1.5);
       });
     },
 
-    sonCadeau(ac, sortie, type) {
+    sonCadeau(ac, destination, type) {
       const t0 = ac.currentTime;
       if (type === 'aide') {
         [1174.66, 1760].forEach((f, i) => {
@@ -2282,7 +2312,7 @@
           gg.gain.linearRampToValueAtTime(i ? 0.03 : 0.07, t0 + 0.01);
           gg.gain.exponentialRampToValueAtTime(0.0005, t0 + 1.2);
           o.connect(gg);
-          gg.connect(sortie);
+          gg.connect(destination);
           o.start(t0);
           o.stop(t0 + 1.3);
         });
@@ -2295,11 +2325,11 @@
         gg.gain.setValueAtTime(0.16, t0);
         gg.gain.exponentialRampToValueAtTime(0.0005, t0 + 0.45);
         o.connect(gg);
-        gg.connect(sortie);
+        gg.connect(destination);
         o.start(t0);
         o.stop(t0 + 0.5);
         const n = ac.createBufferSource();
-        n.buffer = bruitRose(ac, 0.2);
+        n.buffer = pinkNoise(ac, 0.2);
         const f = ac.createBiquadFilter();
         f.type = 'lowpass';
         f.frequency.value = 500;
@@ -2308,11 +2338,11 @@
         gn.gain.exponentialRampToValueAtTime(0.0005, t0 + 0.18);
         n.connect(f);
         f.connect(gn);
-        gn.connect(sortie);
+        gn.connect(destination);
         n.start(t0);
       } else {
         const n = ac.createBufferSource();
-        n.buffer = bruitRose(ac, 2.4);
+        n.buffer = pinkNoise(ac, 2.4);
         const f = ac.createBiquadFilter();
         f.type = 'bandpass';
         f.Q.value = 0.7;
@@ -2324,7 +2354,7 @@
         gn.gain.linearRampToValueAtTime(0, t0 + 2.4);
         n.connect(f);
         f.connect(gn);
-        gn.connect(sortie);
+        gn.connect(destination);
         n.start(t0);
       }
     },

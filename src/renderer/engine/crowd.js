@@ -1,7 +1,7 @@
 // Crowd pacing: audience activity is smoothed into a cadence, which selects the tier that sets
 // supply, targets and caps. Harnesses can pin the length cap.
 
-import { LONG_CIBLE_DUEL, PALIERS } from './rules.js';
+import { TARGET_LENGTH, TIERS } from './rules.js';
 
 // La course decide la manche, pas la longueur : passe ce plafond, la baie donne le cran sans le segment.
 // Dans les deux modes la longueur est plafonnee : elle ne peut pas etre a la fois l'horloge de la
@@ -13,32 +13,32 @@ import { LONG_CIBLE_DUEL, PALIERS } from './rules.js';
 // need to be able to reach stages were the snake is really long and becomes challenging ».
 // Le plafond suit donc l'affluence : salle vide 34, calme 52, animee 80, foule 120. `reglerLong`
 // le force pour les harnais, auquel cas le palier ne le touche plus.
-export let longForce = 0;
+export let forcedLength = 0;
 
-export function forcerLong(v) {
-  longForce = v;
+export function forceLength(v) {
+  forcedLength = v;
 }
 
 // duel : plafond = LONG_CIBLE_DUEL (l'anneau est plein a 60). Deux serpents a 120 sur 320 cases
 // s'enfermaient eux-memes (sonde : 62 morts/6 manches, toutes piegees ; a 60 : 30)
-export const longMax = () => longForce || LONG_CIBLE_DUEL;
+export const maxLength = () => forcedLength || TARGET_LENGTH;
 
 export let cadence = 0,
-  palier = PALIERS[0];
+  tier = TIERS[0];
 
 // Salle vide, les deux camps avancaient sur deux horloges fixes et le vainqueur etait connu d'avance.
 // La foret respire : chaque delai du garde-fou varie de plus ou moins 40 %.
-export const souffle = (v) => v * (0.6 + Math.random() * 0.8);
+export const jitter = (v) => v * (0.6 + Math.random() * 0.8);
 
 // Chaque evenement pese sur la cadence, qui redescend toute seule en une minute
-export function compter(n) {
+export function countEvents(n) {
   cadence += n;
 }
 
-export function majPalier(dt) {
+export function updateTier(dt) {
   cadence = Math.max(0, cadence - (cadence * dt) / 60);
   const c = cadence;
-  let p = PALIERS[0];
-  for (let i = 0; i < PALIERS.length; i++) if (c >= PALIERS[i].min) p = PALIERS[i];
-  palier = p;
+  let p = TIERS[0];
+  for (let i = 0; i < TIERS.length; i++) if (c >= TIERS[i].min) p = TIERS[i];
+  tier = p;
 }

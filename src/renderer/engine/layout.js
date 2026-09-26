@@ -19,10 +19,10 @@ export let SR_X = 0,
   SR_W = 1080,
   SR_H = 977;
 // Les autres zones du chrome, pour l'overlay de reperes et la maquette.
-export const Z_CADEAUX = { x: 702, y: 392, w: 340, h: 343 }; // colonne de widgets cadeaux, a droite
-export const Z_BANNIERE = { x: 45, y: 1133, w: 595, h: 98 }; // banniere « untel a offert x15 »
-export const Z_FIL = { x: 0, y: 1237, w: 780, h: 478 }; // fil de commentaires
-export const Z_SAISIE = { x: 0, y: 1751, w: 1080, h: 98 }; // barre de saisie et boutons
+export const Z_GIFTS = { x: 702, y: 392, w: 340, h: 343 }; // colonne de widgets cadeaux, a droite
+export const Z_BANNER = { x: 45, y: 1133, w: 595, h: 98 }; // banniere « untel a offert x15 »
+export const Z_COMMENTS = { x: 0, y: 1237, w: 780, h: 478 }; // fil de commentaires
+export const Z_INPUT = { x: 0, y: 1751, w: 1080, h: 98 }; // barre de saisie et boutons
 // Le plateau tient dans la hauteur sure REELLE. 20 lignes de 47 plus l'anneau font 968 px pour
 // 977 disponibles ; a 52 il en fallait 1068 et les 91 px du haut passaient sous la barre de
 // l'hote en live. Les 16x20 cases sont conservees a l'identique, donc aucune regle, aucune
@@ -89,7 +89,7 @@ export let BD_W = 600,
   BD_CX = 540; // Abdel : P1 retenu, « a little higher », loin du chrono
 
 /** Applies a format. Returns false when it is already active, so callers can skip re-layout. */
-export function changerFormat(format) {
+export function setFormat(format) {
   const f = FORMATS[format] || FORMATS.vertical;
   if (L === f) return false;
   L = f;
