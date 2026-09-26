@@ -237,6 +237,8 @@ export interface BootedGame {
   readonly game: GameUnderTest;
   /** Canvas calls so far. */
   readonly drawCalls: () => number;
+  /** Restarts the seeded generator, so a scenario does not depend on what loading consumed. */
+  readonly reseed: (seed: number) => void;
   /** Digest of the draw stream since the previous call (requires `record`). */
   readonly digest: () => string;
   send(event: Record<string, unknown>): void;
@@ -316,6 +318,9 @@ export function bootGame({ seed, record = false }: BootOptions = {}): BootedGame
     game,
     drawCalls: () => recorder.calls,
     digest: () => recorder.digest(),
+    reseed: (next) => {
+      Math.random = seededRandom(next);
+    },
     send: (event) => {
       scope.recevoirEvenement(event);
     },
