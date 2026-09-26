@@ -1,0 +1,55 @@
+{
+  "name": "viper",
+  "productName": "Viper Duel",
+  "version": "0.1.0",
+  "private": true,
+  "description": "Interactive TikTok LIVE snake duel: a capturable game window driven by a private control room.",
+  "author": "Abdel Maamir",
+  "license": "UNLICENSED",
+  "main": "src/main/main.js",
+  "engines": {
+    "node": ">=22"
+  },
+  "scripts": {
+    "start": "electron .",
+    "start:landscape": "cross-env VIPERE_FORMAT=horizontal electron .",
+    "lint": "eslint .",
+    "lint:fix": "eslint . --fix",
+    "format": "prettier . --write",
+    "format:check": "prettier . --check",
+    "typecheck": "tsc --noEmit",
+    "test": "vitest run",
+    "test:watch": "vitest",
+    "check": "npm run format:check && npm run lint && npm run typecheck && npm run test",
+    "package": "node scripts/package.js",
+    "prepare": "simple-git-hooks"
+  },
+  "simple-git-hooks": {
+    "pre-commit": "npx lint-staged"
+  },
+  "lint-staged": {
+    "*.{js,mjs,cjs,ts}": [
+      "prettier --write",
+      "eslint --fix"
+    ],
+    "*.{json,md,yml,yaml,html,css}": "prettier --write"
+  },
+  "devDependencies": {
+    "@electron/packager": "^20.3.0",
+    "@eslint/js": "^10.0.1",
+    "@types/node": "^26.6.3",
+    "cross-env": "^10.1.0",
+    "electron": "^44.4.5",
+    "eslint": "^10.11.0",
+    "globals": "^17.12.0",
+    "lint-staged": "^17.6.0",
+    "prettier": "^3.9.9",
+    "simple-git-hooks": "^2.14.0",
+    "typescript": "^7.0.2",
+    "vitest": "^5.0.2"
+  },
+  "allowScripts": {
+    "simple-git-hooks@2.14.0": true,
+    "electron@44.4.5": true
+  }
+}
