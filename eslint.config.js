@@ -31,13 +31,13 @@ export default defineConfig(
     languageOptions: { globals: globals.node },
   },
   {
-    // Classic <script> files sharing the window scope, migrated module by module (docs/roadmap.md).
+    // Engine modules still being migrated (docs/roadmap.md): typed and strict once converted to TS.
     // Legacy findings stay visible as warnings until their file is migrated.
     files: ['src/renderer/**/*.js'],
     languageOptions: {
       ecmaVersion: 2024,
-      sourceType: 'script',
-      globals: { ...globals.browser, ...globals.commonjs },
+      sourceType: 'module',
+      globals: globals.browser,
     },
     rules: {
       'no-empty': ['warn', { allowEmptyCatch: true }],
