@@ -1,7 +1,6 @@
-// IA Vipere "joueur humain doue" : elle planifie le trajet entier jusqu'au fruit, verifie qu'elle
-// peut encore ressortir une fois le fruit avale, et se rabat sur le suivi de queue sinon.
-// Aucune erreur tiree au de : elle ne meurt que reellement piegee.
-// Interface : window.VipereIA = { choisir(etat) }, etat = {cols, rows, corps, dir, fruits, obstacles, memoire}
+// Viper AI "skilled human" player: plans the full path to the nearest berry, verifies a safe
+// exit after eating, and falls back to tail-following otherwise. Dies only when truly trapped.
+// Interface: window.ViperAi = { choose(state) }, state = {cols, rows, body, dir, fruits, obstacles, memory}
 (function () {
   'use strict';
   var DIRS = [
@@ -11,8 +10,8 @@
     { x: -1, y: 0 },
   ];
 
-  // Cases interdites pour une tete qui cherche sa route : le corps sauf la tete, plus les obstacles.
-  // La queue reste bloquee ici : c'est la simulation qui dira si elle aura bouge a temps.
+  // Cells blocked for a head seeking its route: the body excluding the head, plus obstacles.
+  // The tail stays blocked here: simulation determines whether it will have moved in time.
   function buildBlocked(e, body, skipHead, skipTail) {
     var cols = e.cols,
       b = new Uint8Array(cols * e.rows),
@@ -23,7 +22,7 @@
     return b;
   }
 
-  // Distances reelles depuis (sx,sy) et le chemin pour y revenir
+  // BFS distances from (sx,sy) and parent pointers for path reconstruction.
   function buildField(e, b, sx, sy) {
     var cols = e.cols,
       rows = e.rows,
@@ -52,7 +51,7 @@
     return { d: d, p: p };
   }
 
-  // Remonte le chemin : rend la suite des cases, du premier pas jusqu'a la cible
+  // Reconstructs the path: returns the sequence of cells from first step to target.
   function buildPath(p, id) {
     var out = [];
     while (id >= 0 && p[id] >= 0) {
@@ -63,7 +62,7 @@
     return out;
   }
 
-  // Remplissage depuis (x,y) : taille de la poche, et si elle touche la case visee
+  // Flood fill from (x,y): pocket size, and whether it reaches the target cell.
   function zone(e, b, x, y, target) {
     var cols = e.cols,
       rows = e.rows,
@@ -90,7 +89,7 @@
     return { size: n, exit: hasExit };
   }
 
-  // Combien de cotes de la case longent un mur ou le corps : un joueur long range son serpent
+  // Sides of the cell that border a wall or body: used to pack a long snake against edges.
   function countWallContacts(e, b, x, y) {
     var n = 0;
     for (var k = 0; k < 4; k++) {
@@ -108,7 +107,7 @@
     return c;
   }
 
-  // Deroule le corps le long du chemin. Il ne grandit qu'a la derniere case, celle du fruit.
+  // Advances the body along the path. Growth only happens at the last cell (the berry).
   function simulateSteps(e, body, steps) {
     var c = copyBody(body),
       cols = e.cols,
@@ -123,9 +122,10 @@
     return c;
   }
 
-  // Un etat est sur si la tete voit encore sa propre queue : la boucle se rouvre toujours
-  // e.aGrandir > 0 : le serpent grandit encore (oeuf, grappe de baies), la queue ne bouge pas, on
-  // ne compte pas sur sa case. Sans ca, 21 des 39 morts d'une sonde duel etaient "soi" sous 10 anneaux.
+  // State is safe when the head can still reach its own tail: the loop always reopens.
+  // When toGrow > 0 the snake is still growing (egg, berry cluster), so the tail does not
+  // move and its cell cannot be relied on. Without this, 21 of 39 duel deaths below 10 segments
+  // were self-collisions.
   function isTailFree(e) {
     return !(e.toGrow > 0);
   }
@@ -146,16 +146,16 @@
     return { x: x - t.x, y: y - t.y };
   }
 
-  // ---- Chasse (duel) : refermer la poche de l'adversaire avec son propre corps -------------------
-  // Un pas candidat est d'abord SUR pour nous (notre tete revoit notre queue apres le pas), puis on
-  // mesure la poche de la tete adverse quand notre corps deplace et le sien bloquent. 'decisif' : la
-  // poche ne touche plus sa queue et tient en moins de 2 fois sa longueur, il est enferme. 'usure' :
-  // la poche perd au moins un tiers par rapport a maintenant. e.chasse (0-1) = gout du piege.
+  // ---- Hunt (duel): close the opponent's pocket with our own body --------------------------------
+  // A candidate step is first safe for us (our head still reaches our tail after the step), then
+  // we measure the opponent head's pocket with our moved body and theirs blocking. 'decisive': the
+  // pocket no longer touches their tail and fits in less than 2x their length (enclosed). 'attrition':
+  // the pocket shrinks by at least a third. e.hunt (0-1) = trap aggressiveness.
   function opponentPocket(e, myBody, opponent) {
-    // la couronne d'evitement (e.eviter, ajoutee aux obstacles par choisir) n'est PAS un mur pour
-    // l'adversaire : mesuree avec, sa poche valait toujours 1 case sans issue, l'IA croyait
-    // l'enfermer a chaque pas et ne mangeait plus (88 % de pas "piege" en foule, Abdel a vu le
-    // plateau couvert de baies ignorees)
+    // The avoidance crown (e.avoid, added to obstacles by choose) is NOT a wall for the opponent:
+    // measured with it, their pocket always read as 1 cell with no exit, causing the AI to believe
+    // it was enclosing them every step and stop eating (88% of steps flagged as "trap" in crowd
+    // mode, board covered in ignored berries).
     var b = buildBlocked(
         Object.assign({}, e, { obstacles: e.obstaclesWithout || e.obstacles }),
         myBody,
@@ -185,12 +185,12 @@
       var tx = head.x + d.x,
         ty = head.y + d.y;
       if (tx < 0 || ty < 0 || tx >= e.cols || ty >= e.rows) continue;
-      if (bNow[ty * e.cols + tx]) continue; // e.obstacles porte deja le corps adverse et sa couronne
+      if (bNow[ty * e.cols + tx]) continue; // e.obstacles already carries the opponent body and its crown
       var c = copyBody(e.body);
       c.unshift({ x: tx, y: ty });
       if (isTailFree(e)) c.pop();
       var b = buildBlocked(e, c, true, true);
-      // jamais a cote de la tete adverse : elle bouge en meme temps, ce serait une frontale
+      // Never adjacent to the opponent's head: they move simultaneously, which would cause a head-on collision.
       if (Math.abs(opponent[0].x - c[0].x) + Math.abs(opponent[0].y - c[0].y) <= 1) continue;
       if (!(mode === 'decisive' && force) && !zone(e, b, c[0].x, c[0].y, c[c.length - 1]).exit)
         continue;
@@ -207,10 +207,10 @@
     return best;
   }
 
-  // e.eviter (duel) : cases a eviter si possible (couronne de la tete adverse), jamais au prix de
-  // la vie. Elles sont d'abord traitees en obstacles ; si plus aucune issue n'existe, on redecide
-  // sans elles. Sonde : en obstacles durs, elles bouchaient tout pres d'un mur et le serpent gardait
-  // son cap dedans (morts "evitables", adversaire a 2-4 cases).
+  // e.avoid (duel): cells to avoid if possible (crown around the opponent's head), never at the
+  // cost of survival. Treated as hard obstacles first; if no exit remains, the decision is retried
+  // without them. When treated as hard obstacles, they blocked all paths near a wall and the snake
+  // held its heading into them (avoidable deaths, opponent 2-4 cells away).
   function choose(e) {
     var r,
       decidedState = e;
@@ -230,9 +230,9 @@
     if (e.debug) completeDebug(decidedState, r);
     return r.d;
   }
-  // Calque de debug (super admin) : lecture seule, aucun tirage au sort, la decision est deja prise.
-  // Complete m.debug (rempli par decider) avec le pas choisi, la posture, la raison, la poche apres
-  // le pas et un verdict pour chaque pas candidat que la phase de position n'a pas note.
+  // Debug overlay (super-admin): read-only, no random draws, decision already made.
+  // Fills m.debug (set by decide) with the chosen step, stance, reason, post-step pocket,
+  // and a verdict for each candidate step not already scored by the positioning phase.
   function completeDebug(e, r) {
     var m = e.memory || {},
       g = m.debug || (m.debug = { scores: {} }),
@@ -261,8 +261,8 @@
       }
     }
   }
-  // L'arriere, c'est le cou, pas la derniere direction tentee : apres un pas rate contre un mur,
-  // e.dir pointe dans le mur et son inverse etait la seule issue (serpent colle au coin, Abdel).
+  // Back direction is the neck, not the last attempted direction: after a failed step into a wall,
+  // e.dir points into the wall and its opposite was the only exit (snake pinned to a corner).
   function backOf(e) {
     var t = e.body[0],
       c = e.body[1];
@@ -276,14 +276,14 @@
       k,
       back = backOf(e);
     var dbg = e.debug ? (m.debug = { scores: {}, route: null, target: null, trap: null }) : null;
-    // Scènes (super admin) : surécrivent des leviers existants sans changer la logique.
-    // portees : 12 attaque / 10 defense par defaut, override par scène (aveugle = 3, face = 20).
+    // Scenes (super-admin): override existing levers without changing logic.
+    // Ranges: 12 attack / 10 defense by default, overridden per scene (blind = 3, face = 20).
     var attackRange = e.attackRange || 12,
       defenseRange = e.defenseRange || 10;
     if (e.forcedHunt != null) e.hunt = e.forcedHunt;
     if (e.forcedFlair != null) e.flair = e.forcedFlair;
 
-    // 1. Ou sont vraiment les fruits : distance de trajet, pas distance a vol d'oiseau.
+    // 1. True fruit distances: path length, not straight-line.
     var field = buildField(e, buildBlocked(e, e.body, true, false), head.x, head.y),
       targets = [];
     for (i = 0; i < e.fruits.length; i++) {
@@ -296,7 +296,7 @@
       return a.d - b.d;
     });
 
-    // 2. Temps de reaction humain, sauf sur ce qu'un spectateur vient d'offrir
+    // 2. Human reaction delay, except for a berry just gifted by a viewer.
     var nearestTarget = targets[0] || null,
       key = nearestTarget ? nearestTarget.f.x + ',' + nearestTarget.f.y : '';
     if (key !== m.key) {
@@ -311,16 +311,16 @@
       targets = [];
     }
 
-    // Flair (0-1, duel) : deux IA identiques sur un depart symetrique jouaient en miroir (Abdel). Le
-    // flair n'ajoute que du hasard au jeu de position, jamais d'imprudence : Abdel veut des serpents
-    // qui se piegent l'un l'autre, pas qui meurent betement (ca frustre le spectateur).
+    // Flair (0-1, duel): two identical AIs on a symmetric start played as mirrors. Flair adds
+    // noise only to positional play, never recklessness: snakes should trap each other, not die
+    // carelessly (frustrates the audience).
     var flair = Math.min(1, Math.max(0, e.flair || 0));
-    // Posture (duel, Abdel : "defensive and attacking strategy dynamically used"). Recalculee a chaque
-    // pas d'apres le rapport de force et la distance, avec une inertie de quelques pas (m.posture,
-    // m.postureT) pour ne pas clignoter. 'attaque' : je suis nettement plus long, ou il est court et
-    // pres : le piege passe avant la baie, la chasse d'usure est systematique. 'defense' : il est
-    // plus long que moi ou invincible et pres : je m'eloigne de sa tete, je ne mange pas sous son nez,
-    // je maximise ma poche. 'neutre' : baie d'abord, piege si l'occasion se presente.
+    // Stance (duel): defensive and attacking strategy, dynamically selected. Recomputed each step
+    // from strength ratio and distance, with a few-step inertia (m.stanceTime) to avoid flickering.
+    // 'attack': clearly longer, or opponent is short and close: trap takes priority over berry,
+    // attrition hunt is always on. 'defense': opponent is longer or invincible and close: move away
+    // from their head, avoid berries in their range, maximize pocket. 'neutral': berry first, trap
+    // when the opportunity arises.
     var opponent = e.opponent,
       stance = 'neutral',
       opponentDist = 999;
@@ -328,15 +328,14 @@
       opponentDist = Math.abs(opponent[0].x - head.x) + Math.abs(opponent[0].y - head.y);
       var oppLength = opponent.length,
         desiredStance = 'neutral';
-      // Pertinence (Abdel : "they react to each other, no loop of strategy when it's not relevant") :
-      // on n'attaque ni ne fuit un adversaire hors de portee (12 cases), et une attaque qui ne
-      // referme rien pendant ~6 s (40 pas) se fatigue : retour au neutre le temps d'un repit.
+      // Relevance: attack and defense are skipped for an out-of-range opponent (12 cells), and an
+      // attack that closes nothing for ~6 s (40 steps) triggers fatigue: returns to neutral for a
+      // reprieve.
       var oppPocket = opponentPocket(e, e.body, opponent).size;
       if (dbg) dbg.trap = oppPocket;
       if (m.fatigue > 0) m.fatigue--;
-      // Plateau sans nourriture (Abdel : « when no food on the board, snakes should play attack and
-      // defense strategy, not just circle around ») : la portee ne compte plus, le plus long chasse, le
-      // plus court se derobe, et un serpent egal chasse aussi (la longueur ne peut venir que de l'autre).
+      // Empty board (no fruit): range no longer matters. The longer snake hunts, the shorter one
+      // retreats; equal length also hunts (growth can only come from the opponent).
       var famine = !(e.fruits && e.fruits.length);
       if (famine && !(m.fatigue > 0) && L >= oppLength && !e.opponentInvincible)
         desiredStance = 'attack';
@@ -367,7 +366,7 @@
         if (oppPocket < (m.pocketRef || oppPocket) * 0.8) {
           m.attackTime = 0;
           m.pocketRef = oppPocket;
-        } // ca mord : on continue
+        } // making progress: continue
         if (m.attackTime > 40) {
           m.fatigue = 30;
           m.stance = 'neutral';
@@ -378,8 +377,8 @@
     }
     if (e.forcedStance) stance = e.forcedStance;
     m.activeStance = stance;
-    // Attirer (scène face à face ou prédateur) : la tête adverse devient la cible, comme une baie.
-    // On path-find vers l'une de ses cases voisines libres, en sautant les vraies baies.
+    // Lure (face-to-face or predator scene): opponent's head becomes the target, like a berry.
+    // Path-finds toward one of its free neighboring cells, bypassing real berries.
     if (e.lure && opponent && opponent.length) {
       var target = null;
       for (var kt = 0; kt < 4; kt++) {
@@ -395,17 +394,17 @@
         if (attractPath.length && isSafe(e, simulateSteps(e, e.body, attractPath))) {
           var attractDir = dirToward(e, attractPath[0]);
           if (!(attractDir.x === back.x && attractDir.y === back.y)) {
-            m.reason = 'attire';
+            m.reason = 'lure';
             return { d: attractDir, trap: false };
           }
         }
       }
     }
-    // Repousser (scène ballet ou proie) : on saute attaque / piège / barrage / baies proches, et le
-    // jeu de position en bas reçoit un très fort bonus d'éloignement (m.repousser lu plus bas).
+    // Repel (ballet or prey scene): skips attack, trap, blocking, and nearby berries; the
+    // positioning phase below receives a strong distance bonus (m.repel, read below).
     if (e.repel) m.repel = true;
     else m.repel = false;
-    // Course à la baie : la scène coupe attaque et défense, on ne joue que la baie la plus proche sûre.
+    // Berry race scene: disables attack and defense, only the nearest safe berry is played.
     if (e.berryRace) {
       for (i = 0; i < targets.length && i < 3; i++) {
         var racePath = buildPath(field.p, targets[i].id);
@@ -419,40 +418,39 @@
         }
       }
     }
-    // Scène repousser : coupe piège / barrage / usure, et vide la liste des baies dans un rayon
-    // proche de la tête adverse (on ne veut pas être aimanté vers lui par une baie).
+    // Repel scene: disables trap, blocking, and attrition; removes berries within 5 cells
+    // of the opponent's head (avoids being drawn toward them by a berry).
     if (e.repel) {
       if (opponent && opponent.length)
         targets = targets.filter(function (o) {
           return Math.abs(o.f.x - opponent[0].x) + Math.abs(o.f.y - opponent[0].y) > 5;
         });
     }
-    // Scène encercler (chasse Abdel : « circle the other snake and no nothing ») : la chasseuse
-    // ignore TOUTES les baies, ne va pas défendre sa propre poche, ne cherche qu'à tourner autour
-    // de l'adversaire à distance 2 pour finir par refermer le cercle avec son propre corps.
+    // Encircle scene: ignores ALL berries and pocket defense; only orbits the opponent at
+    // distance 2 to eventually close the circle with its own body.
     if (e.encircle) targets = [];
-    // 3a. Chasse decisive (duel) : si un pas SUR referme la poche de l'adversaire au point qu'il ne
-    // peut plus en sortir, il passe avant la baie. C'est le piege a la slither.
-    // Scene ballet (Abdel : « donner le show sans tuer l'autre ») : on saute la chasse decisive.
-    // Restent l'attirance, l'orbite, l'usure : la pression est visible, la sortie reste possible.
+    // 3a. Decisive hunt (duel): a safe step that closes the opponent's pocket so they cannot
+    // escape takes priority over the berry. Classic slither-style trap.
+    // Ballet scene: skips decisive hunt. Lure, orbit, and attrition remain; pressure is visible
+    // but an exit stays open.
     if ((stance !== 'defense' || e.immediateTrap) && !e.repel && !e.noKill) {
-      // scène piège : on autorise le pas qui referme le plus, même risqué pour nous
+      // Trap scene: allows the most closing step even if it is risky for us.
       var trap = hunt(e, L, 'decisive', e.immediateTrap);
       if (trap) {
-        m.reason = e.immediateTrap ? 'piege!' : 'trap';
+        m.reason = e.immediateTrap ? 'trap!' : 'trap';
         return { d: trap, trap: false };
       }
     }
-    // La nourriture reste une priorite dans TOUTES les postures (Abdel) : la longueur est le score.
-    // En defense, une baie a portee de sa tete est un appat : on la laisse, on mange ailleurs.
+    // Food is a priority in ALL stances: length is the score.
+    // In defense, a berry within the opponent's reach is bait: skip it, eat elsewhere.
     if (stance === 'defense' && opponent) {
       targets = targets.filter(function (o) {
         return Math.abs(o.f.x - opponent[0].x) + Math.abs(o.f.y - opponent[0].y) > 3;
       });
     }
-    // 3. Le trajet entier est simule, fruit avale compris. On ne part que si on sait ressortir.
-    // En attaque, seule une baie PROCHE (4 pas) passe avant l'usure ; une baie lointaine attend
-    // que la poche adverse soit refermee.
+    // 3. Simulate the full path including eating the berry; only commit if an exit remains.
+    // In attack stance, only a nearby berry (4 steps) takes priority over attrition; a distant
+    // berry waits until the opponent's pocket is closed.
     var fruitRoute = null;
     for (i = 0; i < targets.length && i < 3; i++) {
       var steps = buildPath(field.p, targets[i].id);
@@ -476,9 +474,8 @@
       return { d: fruitRoute.d, trap: false };
     }
     if (stance === 'attack' && opponent && opponent.length > 1 && !window.VIPER_NO_BLOCKING) {
-      // Barrage (Abdel : « when two snakes are parallel and one is slightly ahead, cut the route of the
-      // other »). Un pas SUR qui pose ma tete sur sa ligne de course, 1 a 3 cases devant lui, passe
-      // avant l'usure : il devra tourner ou entrer dans mon corps.
+      // Blocking: a safe step that places our head on the opponent's line of travel, 1 to 3 cells
+      // ahead, takes priority over attrition. They must turn or enter our body.
       var oppDx = opponent[0].x - opponent[1].x,
         oppDy = opponent[0].y - opponent[1].y,
         best = null,
@@ -503,7 +500,7 @@
         }
       }
       if (best) {
-        m.reason = 'barrage';
+        m.reason = 'block';
         return { d: best, trap: false };
       }
     }
@@ -518,7 +515,7 @@
         return { d: fruitRoute.d, trap: false };
       }
     }
-    // 3b. Chasse d'usure : sans baie accessible, un pas sur qui retrecit nettement la poche adverse
+    // 3b. Attrition hunt: no accessible berry; a safe step that noticeably shrinks the opponent's pocket.
     if (stance !== 'defense') {
       var attrition = hunt(e, L, 'attrition');
       if (attrition) {
@@ -527,25 +524,25 @@
       }
     }
 
-    // 4. Aucune route sure : jeu de position. On suit sa queue en se rangeant contre les bords.
-    // Audace : imprudence (0-0.05) amplifie par la pression de recompense retrecit le seuil de poche.
-    // Pression haute si la cible est loin (serpent affame) ou tres proche (elan d'approche).
-    // Sans pression, meme a pleine imprudence, la marge reste quasi-intacte.
+    // 4. No safe route: positional play. Follow own tail while packing against edges.
+    // Boldness: recklessness (0-0.05) amplified by reward pressure shrinks the pocket threshold.
+    // Pressure is high when the target is far (hungry snake) or very close (approach momentum).
+    // Without pressure, even at full recklessness, the margin stays nearly intact.
     var recklessness = e.recklessness || 0;
     var targetDist = nearestTarget ? nearestTarget.d : 999;
     var pressure = nearestTarget ? Math.min(1, targetDist <= 3 ? 0.8 : targetDist / 15) : 0.5;
     var boldness = Math.min(1, recklessness * (1 + pressure * 20));
-    // seuilPoche : de L+2 (audace=0, comportement actuel) au plancher ceil(L/2) (audace=1)
+    // pocketThreshold: from L+2 (boldness 0, default behaviour) down to ceil(L/2) (boldness 1)
     var pocketThreshold = Math.max(Math.ceil(L / 2), L + 2 - Math.round(boldness * (L / 2 + 2)));
     var packCoeff = Math.min(0.2, L / 250),
       chosen = null,
       scoreMax = -1e9,
       fallback = null,
       maxSpace = -1;
-    // Ce que la tete peut toucher A CET INSTANT : le corps tel qu'il est, queue exclue si elle va
-    // bouger. Le corps simule apres le pas (plus bas) sert a mesurer la poche, pas a juger la case
-    // visee : sa "queue" est l'ancien avant-dernier anneau, encore en place. Bug d'origine : toutes
-    // les morts "soi" du duel visaient le segment L-2.
+    // Blocked cells available to the head RIGHT NOW: body as-is, tail excluded if it will move.
+    // The simulated body after the step (below) measures the pocket, not the target cell:
+    // its "tail" is still the previous second-to-last segment. Original bug: all self-collision
+    // deaths in duel targeted segment L-2.
     var bNow = buildBlocked(e, e.body, true, isTailFree(e));
     for (k = 0; k < 4; k++) {
       var d = DIRS[k];
@@ -564,7 +561,7 @@
       c.unshift({ x: tx, y: ty });
       if (!eats && isTailFree(e)) c.pop();
       var b = buildBlocked(e, c, true, true);
-      // la case de la queue est occupee tant qu'il avale : elle ne se libere pas ce tour
+      // The tail cell stays occupied while eating: it does not free this turn.
       if ((eats || !isTailFree(e)) && c.length > 2) {
         var tailEnd = c[c.length - 1];
         if (tailEnd.x === tx && tailEnd.y === ty) continue;
@@ -575,11 +572,11 @@
         fallback = d;
       }
       if (!z.exit && z.size < pocketThreshold) {
-        if (dbg) dbg.scores[d.x + ',' + d.y] = 'poche ' + z.size;
+        if (dbg) dbg.scores[d.x + ',' + d.y] = 'pocket ' + z.size;
         continue;
       }
-      // avantage (duel, super admin) : -1..1. Favorise = moins de bruit dans le choix (jeu plus juste),
-      // defavorise = bruit supplementaire (jeu plus brouillon). Invisible : ni vitesse ni affichage.
+      // advantage (duel, super-admin): -1..1. Favored: less noise in choice (fairer play).
+      // Disadvantaged: extra noise (more chaotic play). Invisible: no speed or display change.
       var advantage = Math.max(-1, Math.min(1, e.advantage || 0));
       var noise =
         flair * 2 * (advantage > 0 ? 1 - 0.8 * advantage : 1) +
@@ -588,32 +585,31 @@
         (d.x === e.dir.x && d.y === e.dir.y ? 0.5 : 0) +
         packCoeff * countWallContacts(e, b, tx, ty) +
         z.size * 0.02 +
-        Math.random() * noise; // au-dessus du bonus tout droit (0,5) des 0,25 : deux serpents desaccordes
-      // defense : chaque case d'eloignement de sa tete compte, et sa poche a moi prime
+        Math.random() * noise; // above the straight-ahead bonus (0.5) at 0.25: two snakes out of sync
+      // defense: each cell away from opponent's head counts; own pocket is primary.
       if (stance === 'defense' && opponent && opponent.length)
         s += 0.12 * (Math.abs(opponent[0].x - tx) + Math.abs(opponent[0].y - ty)) + z.size * 0.03;
-      // attaque : se rapprocher de sa tete pour que l'usure ait prise (sans baie, l'usure loin de lui ne rend rien)
+      // attack: close in on opponent's head so attrition has leverage (far away, attrition yields nothing).
       if (stance === 'attack' && opponent && opponent.length)
         s -= 0.1 * (Math.abs(opponent[0].x - tx) + Math.abs(opponent[0].y - ty));
-      // Scène attirer (face à face, ballet, prédateur) : quand le path direct échoue, le jeu de
-      // position reprend la main ; ici on pousse un bonus fort vers la tête adverse pour que les
-      // serpents restent visiblement magnétiques au lieu de se ranger contre les murs.
+      // Lure scene (face-to-face, ballet, predator): when direct pathing fails, positioning takes
+      // over; strong bonus toward the opponent's head keeps snakes visibly magnetic instead of
+      // packing against walls.
       if (e.lure && opponent && opponent.length)
         s -= 0.5 * (Math.abs(opponent[0].x - tx) + Math.abs(opponent[0].y - ty));
-      // Scène encercler : optimum à distance 2 de la tête adverse (assez pour orbiter, trop près =
-      // frontale, trop loin = pas de cercle). +1.5 sur la case idéale, dégressif en s'écartant.
+      // Encircle scene: optimum at distance 2 from opponent's head (enough to orbit; too close =
+      // head-on, too far = no circle). +1.5 on the ideal cell, decreasing with distance.
       if (e.encircle && opponent && opponent.length) {
         var headDist = Math.abs(opponent[0].x - tx) + Math.abs(opponent[0].y - ty);
         s += 1.5 - 0.8 * Math.abs(headDist - 2);
       }
-      // Scène repousser : bonus fort par case d'éloignement (largement au-dessus du bonus tout droit
-      // de 0.5), les serpents visibles se cherchent activement à s'éviter.
+      // Repel scene: strong bonus per cell away from opponent (well above the 0.5 straight-ahead
+      // bonus); snakes visibly and actively avoid each other.
       if (e.repel && opponent && opponent.length)
         s += 0.6 * (Math.abs(opponent[0].x - tx) + Math.abs(opponent[0].y - ty));
-      // Barrage (Abdel : « when two snakes are parallel and one is slightly ahead, cut the route of the
-      // other »). En attaque, une case posee DEVANT sa tete (sur sa ligne de course, 1 a 3 cases) vaut
-      // beaucoup : il devra tourner ou entrer dans mon corps. Le pas reste soumis aux memes controles
-      // de poche, on ne se sacrifie pas pour barrer.
+      // Blocking (attack stance): a cell placed AHEAD of the opponent's head (on their line of
+      // travel, 1 to 3 cells) is valued highly: they must turn or enter our body. The step is still
+      // subject to the same pocket checks; no self-sacrifice for blocking.
       if (stance === 'attack' && opponent && opponent.length > 1 && !window.VIPER_NO_BLOCKING) {
         var adx = opponent[0].x - opponent[1].x,
           ady = opponent[0].y - opponent[1].y;
@@ -630,15 +626,13 @@
         chosen = d;
       }
     }
-    // reellement piegee : la plus grande poche, et elle espere que la queue passe
-    // Dernier recours : JAMAIS un pas hors grille. Acculee dans un coin (l'adversaire l'a poussee
-    // contre le mur puis s'en va), toutes les cases sures sont prises et 'choix'/'secours' sont nuls.
-    // Avant, on rendait e.dir, qui pointe droit dans le mur : en duel la faute 'mur' rend le serpent
-    // invincible SANS le deplacer (on ne traverse pas un mur), et il pousse contre la paroi pour
-    // toujours. On force donc un virage DANS la grille, meme sur son propre corps : la collision
-    // 'soi' le rend invincible, et une case interne, elle, se traverse (base.js ligne 983), donc il
-    // se degage. Abdel, 2026-09-18 : « the opponent pushed him to the corner and went away and the
-    // other one stayed stuck trying to move forward against the wall ».
+    // Truly trapped: largest pocket, hoping the tail clears.
+    // Last resort: NEVER a step outside the grid. Cornered (pushed against the wall then abandoned),
+    // all safe cells are taken and both chosen and fallback are null. Previously returned e.dir,
+    // which points into the wall: in duel a 'wall' fault makes the snake invincible WITHOUT moving
+    // (walls are not crossed), and it would push against the wall forever. A turn INTO the grid is
+    // forced, even onto own body: a self-collision makes it invincible, and an interior cell IS
+    // crossed (base.js line 983), so it escapes.
     var lastResort = null;
     if (!chosen && !fallback) {
       for (k = 0; k < 4; k++) {
@@ -652,13 +646,13 @@
       }
     }
     m.reason =
-      m.waiting > 0 ? 'waiting' : targets.length ? 'position(baie sans route sure)' : 'position';
+      m.waiting > 0 ? 'waiting' : targets.length ? 'position (no safe berry route)' : 'position';
     return { d: chosen || fallback || lastResort || e.dir, trap: !chosen && !fallback };
   }
 
-  // pasSur(etat, d) : le pas d reste-t-il sur ? Meme critere que les trajets vers une baie : case
-  // libre (obstacles et couronne adverse compris), et apres le pas la tete voit encore sa queue.
-  // Sert a base.js pour garder une direction deja annoncee (anti-tremblement tete contre tete).
+  // isStepSafe(state, d): is step d still safe? Same criterion as berry routes: free cell
+  // (obstacles and avoidance crown included), and after the step the head still sees its tail.
+  // Used by base.js to hold an already-committed direction (anti-jitter in head-to-head).
   function isStepSafe(e, d) {
     var t = e.body[0],
       tx = t.x + d.x,

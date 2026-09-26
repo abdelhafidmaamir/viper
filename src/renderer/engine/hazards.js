@@ -32,10 +32,9 @@ export function freeCells() {
   return l;
 }
 
-// REGLE, valable pour TOUT ce qui bloque, pierre comme ronce, ancrage comme croissance :
-// on ne pose jamais rien devant le serpent s'il aura traverse la case avant que ca devienne
-// actif. Sinon l'objet apparait sous lui pour rien, l'animation ne sert a rien, et le joueur
-// comme le spectateur ne comprennent pas ce qu'ils voient.
+// Rule for ALL blocking objects, stone or bramble, anchor or growth: never place anything ahead of
+// the snake if it will cross the cell before the object becomes solid. Otherwise the object appears
+// under the snake, the animation is useless, and neither player nor viewer understands what happened.
 export function isDeadZone(c, delay) {
   if (!snake.length) return false;
   const h = snake[0],
@@ -56,7 +55,7 @@ export function isDeadZone(c, delay) {
   return false;
 }
 
-// Les cases mortes de la ronce, celles qui tuent deja.
+// The already-solid bramble segments that can kill.
 export function activeBrambles(k) {
   const l = [];
   brambles.forEach((R) =>
@@ -69,8 +68,8 @@ export function activeBrambles(k) {
 
 export const maxBrambles = () => Math.max(1, Math.round(tier.maxStones / 2));
 
-// Elle prend racine hors de la zone morte, comme la pierre, mais elle pousse ensuite en travers
-// de la course du serpent : c'est une voie qu'elle ferme, pas une case.
+// Roots outside the dead zone like a stone, then grows across the snake's lane: it closes a lane,
+// not a single cell.
 export function plantBramble(nickname) {
   if (!snake.length) return false;
   if (settings.caps && brambles.length >= maxBrambles()) return false;
@@ -81,7 +80,7 @@ export function plantBramble(nickname) {
     (c) => Math.abs(c.x - h.x) + Math.abs(c.y - h.y) >= 3 && !isInLane(c),
   );
   if (!candidates.length) return false;
-  // elle s'ancre a l'entree de la voie qu'il allait prendre, un peu de biais
+  // Anchors at the entry of the lane the snake was heading into, slightly offset.
   const farAhead = Math.ceil(range) + 2;
   const aimPoint = { x: h.x + dir.x * farAhead + dir.y * 2, y: h.y + dir.y * farAhead + dir.x * 2 };
   candidates.sort(
@@ -91,7 +90,7 @@ export function plantBramble(nickname) {
       (Math.abs(b.x - aimPoint.x) + Math.abs(b.y - aimPoint.y)),
   );
   const c = candidates[Math.floor(Math.random() * Math.min(4, candidates.length))];
-  // elle rampe en travers : perpendiculaire a la course, vers le large du plateau
+  // Grows perpendicular to the snake's direction, toward the wider side of the board.
   let axis = { x: Math.abs(dir.y), y: Math.abs(dir.x) };
   if (!axis.x && !axis.y) axis = { x: 1, y: 0 };
   const growDir = axis.x ? (c.x < COLS / 2 ? 1 : -1) : c.y < ROWS / 2 ? 1 : -1;
@@ -108,7 +107,7 @@ export function plantBramble(nickname) {
   return true;
 }
 
-// Elle s'allonge d'une case a la fois, et se retourne si le large lui est ferme.
+// Extends one cell at a time; reverses direction if the wide side is blocked.
 export function extendBramble(R) {
   const occupied = new Set(snake.map((g) => g.x + ',' + g.y));
   stones.forEach((r) => occupied.add(r.x + ',' + r.y));
@@ -117,7 +116,7 @@ export function extendBramble(R) {
     const tip = direction === R.direction ? R.seg[R.seg.length - 1] : R.seg[0];
     const n = { x: tip.x + R.ax.x * direction, y: tip.y + R.ax.y * direction, t: 0 };
     if (n.x < 0 || n.y < 0 || n.x >= COLS || n.y >= ROWS || occupied.has(n.x + ',' + n.y)) continue;
-    if (isDeadZone(n, BRAMBLE_WARNING)) continue; // elle ne repousse pas sous ses pattes non plus
+    if (isDeadZone(n, BRAMBLE_WARNING)) continue; // never grows into the snake's dead zone either
     if (direction === R.direction) R.seg.push(n);
     else R.seg.unshift(n);
     R.direction = direction;
@@ -128,8 +127,8 @@ export function extendBramble(R) {
   return false;
 }
 
-// Les baies offertes sont vues tout de suite : une action de spectateur a un effet visible sans delai
-// En duel, une baie reservee a l'autre camp n'existe pas pour cette IA : elle ne la vise pas.
+// Gifted berries are visible immediately: a viewer action has a visible effect without delay.
+// A berry reserved for the rival team is invisible to this AI: it never targets it.
 export function allFruits() {
   const myTeam = bodies[activeIndex] ? bodies[activeIndex].team : null;
   return berries

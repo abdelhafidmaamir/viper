@@ -9,17 +9,16 @@ import { SHADOW, GOLD } from './palette.js';
 import { pointRail } from './frame.js';
 import { getAmbience, bodies, round, settings, t } from '../scripts/game.js';
 
-// ===== Bandeau d'activite, haut-centre (prototype, Abdel 2026-09-21 : « welcome people, thanks donations,
-// like and share, with a cute animation of the snake », puis « more polished »). Une annonce a la fois,
-// les cadeaux passent devant. Meme plaque que les lignes de la legende, et le VRAI rendu du serpent en
-// petit. Masque pendant la tenue de l'anneau (le compte a rebours occupe la meme place). Rendu seul.
+// ===== Activity banner, top center. One announcement at a time; gifts jump the queue. Same panel
+// geometry as the scoreboard legend rows, with the actual miniature snake rendered. Suppressed during
+// the ring hold countdown (same screen area). Standalone render.
 let announcements = [],
   currentAnnouncement = null;
 // Likes counted per viewer, announced every tenth one.
 export const likesByViewer = {};
 
-// memoire du LIVE (pas de la manche) : paliers de spectateurs deja salues, premiers cadeaux, serie de victoires,
-// et dons de la manche en cours par spectateur (pour le classement de fin de manche).
+// Per-stream state (not per-round): viewer thresholds already acknowledged, first gifts, win streaks,
+// and current-round donations per viewer (for the end-of-round ranking).
 export const VIEWER_THRESHOLDS = [10, 25, 50, 100, 250, 500, 1000, 2500, 5000];
 
 export let seenThresholds = {},
@@ -33,13 +32,11 @@ export function teamName(c) {
   return c === 'gold' ? 'Or' : 'Ombre';
 }
 
-// Les mots du bandeau (Abdel, 2026-09-21 : « more natural and user friendly, not like a bot, a bit more warm »).
-// Plusieurs tournures par evenement, tirees au sort sans jamais redire la meme deux fois de suite.
-// De vraies phrases, comme un hote qui parle, avec le NOM du spectateur dedans (Abdel : « not human speech
-// readable », « their name is not visible »). {nom} est mis en valeur au rendu ; {c} camp, {a} camp adverse.
-// Plus AUCUNE notion de cadeau dans les annonces (Abdel, 2026-09-22 : « get rid of the notion of gift but
-// still reward the viewer ») : le spectateur est celebre pour son ACTION dans le jeu. DONS = l'action
-// accomplie, conjuguee, par effet (meme index que CADEAUX_DUEL).
+// Banner copy: multiple variants per event, drawn at random without repeating the same phrasing twice
+// in a row. Natural host-voice sentences with the viewer's name highlighted at render time ({name});
+// {c} is the viewer's team, {a} the opposing team. No gift framing: the viewer is celebrated for their
+// in-game action. EFFECT_ACTIONS = the action performed, conjugated, one entry per effect type (same
+// index order as the gift panel).
 export const EFFECT_ACTIONS = [
   'drops a berry',
   'fires a speed boost',
@@ -50,19 +47,19 @@ export const EFFECT_ACTIONS = [
 
 const PHRASES = {
   join: [
-    "Welcome {nom}, glad you're here!",
-    'Hey {nom}, good to see you!',
-    '{nom} just joined us, say hi!',
+    "Welcome {name}, glad you're here!",
+    'Hey {name}, good to see you!',
+    '{name} just joined us, say hi!',
   ],
-  share: ['Thanks for sharing the live, {nom}!', '{nom} shared the live, thank you so much!'],
-  follow: ['Thanks for the follow, {nom}!', '{nom} just followed, welcome aboard!'],
-  like: ['{nom} dropped {n} likes, thank you!', '{n} likes from {nom}, love it!'],
-  // Abdel : ne jamais ecrire « Or » ni « Ombre », la couleur de la plaque et du nom le dit deja
-  gift: ['{nom} {q}! What a play!', 'Big play: {nom} {q}!', '{nom} {q} for the team!'],
-  first: ['{nom} enters the game and {q}! Welcome!', 'First play by {nom}: {q}!'],
+  share: ['Thanks for sharing the live, {name}!', '{name} shared the live, thank you so much!'],
+  follow: ['Thanks for the follow, {name}!', '{name} just followed, welcome aboard!'],
+  like: ['{name} dropped {n} likes, thank you!', '{n} likes from {name}, love it!'],
+  // Never write the team name as text here; the panel and name color already convey the team.
+  gift: ['{name} {q}! What a play!', 'Big play: {name} {q}!', '{name} {q} for the team!'],
+  first: ['{name} enters the game and {q}! Welcome!', 'First play by {name}: {q}!'],
   tier: ["We're {n} here now, welcome everyone!", "{n} of us watching, you're amazing!"],
   streak: ['{n} wins in a row! Who can stop them?', "That's {n} in a row, unstoppable!"],
-  rescue: ["{nom}'s {q} just saved the day!", "What a save! {nom}'s {q} kept them alive."],
+  rescue: ["{name}'s {q} just saved the day!", "What a save! {name}'s {q} kept them alive."],
   rescueWithout: ['A {q} just saved the day!', 'What a save, that {q} kept them alive!'],
 };
 
@@ -81,7 +78,7 @@ export function phrase(key, v) {
 }
 
 export function announceRescue(i, effectType) {
-  // un bouclier ou une vie offerts viennent d'eviter une perte
+  // A shield or extra life just prevented a loss.
   if (t - rescueTime[i] < 4) return;
   rescueTime[i] = t;
   const team = i === 0 ? 'gold' : 'shadow',
@@ -103,7 +100,7 @@ export function announceRescue(i, effectType) {
 const BANNER_DURATION = 3.8,
   BANNER_HEIGHT = 96;
 
-// Serie de victoires d'un camp : annoncee a partir de la deuxieme manche gagnee d'affilee.
+// Team win streak, announced from the second consecutive win.
 export function announceStreak(team) {
   if (streakTeam === team) streakCount++;
   else {
@@ -124,7 +121,7 @@ export function announceStreak(team) {
     });
 }
 
-// Les dons se comptent par manche : le classement de fin repart de zero.
+// Donations are counted per round; the end-of-round ranking resets.
 export function resetRoundDonations() {
   roundDonations = {};
 }
@@ -139,7 +136,7 @@ export function addAnnouncement(a) {
   if (announcements.length > 6) announcements.length = 6;
 }
 
-// photos de profil des spectateurs (URL fournie par TikFinity) : cache borne, image prete ou rien
+// Viewer profile photos (URL from TikFinity): bounded cache, returns the image if loaded or null.
 const photos = {};
 
 let photoCount = 0;
@@ -207,7 +204,7 @@ export function paintBanner() {
   const cx = BD_CX + (mode === 'P3' ? 34 : 0),
     x = cx - BD_W / 2,
     y = BD_CY - BANNER_HEIGHT / 2;
-  // la plaque et son contenu ; reveal = part visible depuis la gauche (P2, P3), alpha global
+  // Panel and its content; reveal = fraction visible from the left (P2, P3), global alpha.
   const drawPanel = (reveal, alpha, dy) => {
     if (alpha <= 0.01 || reveal <= 0.01) return;
     ctx.save();
@@ -234,7 +231,7 @@ export function paintBanner() {
     const showNames = settings.donorNames !== false,
       displayName = showNames && active.nickname ? active.nickname.slice(0, 18) : '',
       av = showNames ? getProfilePhoto(active.avatar) : null;
-    // photo de profil du spectateur, ronde, cerclee de la couleur du camp ; sinon son initiale ; sinon le glyphe
+    // Viewer profile photo, circular, outlined in team color; falls back to initial letter, then snake glyph.
     if (displayName) {
       ctx.save();
       ctx.beginPath();
@@ -268,7 +265,7 @@ export function paintBanner() {
       ctx.stroke();
       ctx.restore();
     } else paintSnakeGlyph(ax, BD_CY, 17 * pop, active.team ? tint : null);
-    // a droite : le glyphe de l'EFFET du jeu (plus l'artwork du cadeau, notion de cadeau retiree)
+    // Right side: the in-game effect glyph.
     const IM = 60,
       aImg = !!active.effect;
     if (aImg) {
@@ -278,10 +275,10 @@ export function paintBanner() {
       paintEffectGlyph(ctx, active.effect, 0, 0, 22, rgb);
       ctx.restore();
     }
-    // la phrase : mots de couleur claire, le nom en gras dans la couleur du camp, deux lignes au plus
+    // Announcement text: regular words in light color, viewer name in bold team color, two lines maximum.
     const tx = ax + AV / 2 + 18,
       availableWidth = x + BD_W - (aImg ? IM + 30 : 22) - tx;
-    const parts = String(active.text).split('{nom}'),
+    const parts = String(active.text).split('{name}'),
       textTokens = [];
     parts.forEach((m, k) => {
       if (k > 0) textTokens.push({ t: displayName || 'a viewer', strong: !!displayName });
@@ -347,7 +344,7 @@ export function paintBanner() {
     ctx.restore();
   };
   if (mode === 'P1' && active) {
-    // orbite : le serpent fait le tour de la plaque, se pose, puis repart en l'effacant
+    // P1 orbit: the snake circles the panel, settles, then exits erasing it.
     drawPanel(1, entryFade * (1 - exitFade), (1 - entryFade) * 10);
     const m = 13,
       rx = x - m,
@@ -374,7 +371,7 @@ export function paintBanner() {
     ctx.restore();
   }
   if (mode === 'P2' && active) {
-    // porteur : le serpent traverse en ondulant et deroule la plaque derriere lui
+    // P2 carrier: the snake crosses while undulating, unrolling the panel behind it.
     const hx = x - 60 + smooth(age / 1.1) * (BD_W + 140) + Math.max(0, age - 1.1) * 520;
     drawPanel(Math.max(0, Math.min(1, (hx - x - 10) / BD_W)), 1 - exitFade, -exitFade * 12);
     const pts = [];
@@ -385,7 +382,7 @@ export function paintBanner() {
     if (hx < W + 220) paintMiniSnake(pts, tint, 0.5);
   }
   if (mode === 'P3') {
-    // mascotte : un petit serpent love, toujours la ; il se redresse et la plaque sort de lui
+    // P3 mascot: a small coiled snake always present; it raises up and the panel emerges from it.
     const mx = cx - BD_W / 2 - 38,
       my = BD_CY + 6,
       raised = entryFade - exitFade,

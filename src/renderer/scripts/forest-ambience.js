@@ -1,18 +1,18 @@
-// Ambiance Foret sous la pluie (v3) : figuratif hors grille, surface douce dedans, pluie lente en deux plans
+// Forest Rain Ambience (v3): figurative foliage outside the grid, soft surface inside, slow rain in two depth layers.
 (function () {
   'use strict';
-  // Le cadre de la surface suit exactement l'anneau du plateau (jauge), sinon la surface claire
-  // et son filet decalent par rapport a la jauge. Anneau : X0-14 a X0+COLS*CELL+14 = 150 a 930,
-  // Y0-14 a Y0+ROWS*CELL+14 = 264 a 1232. Ces valeurs sont figees car l'ambiance ignore la geometrie
-  // de base ; les mettre a jour ici si le plateau change d'echelle.
+  // The surface frame must track the board ring exactly (the HUD ring); otherwise the surface and
+  // its border drift away from the ring. Ring: X0-14 to X0+COLS*CELL+14 = 150..930,
+  // Y0-14 to Y0+ROWS*CELL+14 = 264..1232. Hard-coded here because this module ignores the base
+  // geometry; update these values if the board scale changes.
   let W = 1080,
     H = 1920,
     GX0 = 150,
     GX1 = 930,
     GY0 = 264,
     GY1 = 1232;
-  // Le cadre suit le format du jeu (vertical 9:16 ou horizontal 16:9) : relu a chaque image ; s'il change,
-  // tous les pre-rendus dependants de la taille sont jetes et refaits.
+  // The frame follows the game format (portrait 9:16 or landscape 16:9): re-read each frame; if it
+  // changes, all size-dependent pre-renders are discarded and rebuilt.
   function setFrame(e) {
     if (!e || !e.W || (e.W === W && e.H === H && e.x0 - 14 === GX0)) return;
     W = e.W;
@@ -62,7 +62,7 @@
     return buf;
   }
 
-  // Feuillages et grain pre-rendus une fois
+  // Foliage and grain pre-rendered once.
   let backdrop = null;
   function paintFrond(g, x, y, ang, span, color) {
     g.save();
@@ -99,15 +99,15 @@
     lg.addColorStop(1, '#141e17');
     g.fillStyle = lg;
     g.fillRect(0, 0, W, H);
-    // mousse douce sous la grille, tres basse opacite
+    // Soft moss under the grid, very low opacity.
     g.fillStyle = 'rgba(34,51,38,0.35)';
     g.fillRect(GX0, GY0, GX1 - GX0, GY1 - GY0);
-    // grain fin dans la grille, sans forme
+    // Fine grain inside the grid, no shape.
     for (let i = 0; i < 2600; i++) {
       g.fillStyle = Math.random() < 0.5 ? 'rgba(180,212,222,0.022)' : 'rgba(8,12,9,0.05)';
       g.fillRect(GX0 + Math.random() * (GX1 - GX0), GY0 + Math.random() * (GY1 - GY0), 2, 2);
     }
-    // feuillages flous hors grille : bande basse, bande haute, marges
+    // Blurred foliage outside the grid: bottom band, top band, side margins.
     g.save();
     try {
       g.filter = 'blur(7px)';
@@ -150,15 +150,15 @@
       );
     }
     g.restore();
-    // bordure de grille a peine visible
+    // Barely visible grid border.
     g.strokeStyle = 'rgba(180,212,222,0.06)';
     g.lineWidth = 2;
     g.strokeRect(GX0, GY0, GX1 - GX0, GY1 - GY0);
     return c;
   }
 
-  // ---- Le cycle du jour : quatre ambiances distinctes dans la meme foret ----------------------
-  // Meme vert, quatre lumieres. Chaque cle porte son ciel, sa source de lumiere et ses points.
+  // ---- Day cycle: four distinct lighting states in the same forest. --------------------------
+  // Same green, four lights. Each key holds its own sky, light source, and floating particles.
   function lerpColor(a, c, k) {
     return [a[0] + (c[0] - a[0]) * k, a[1] + (c[1] - a[1]) * k, a[2] + (c[2] - a[2]) * k];
   }
@@ -280,8 +280,8 @@
     'vignette',
   ];
 
-  // Meteos de la foret (prototype, Abdel 2026-09-21 : « weather or seasons, snow, autumn, summer, thunderstorm,
-  // etoile filante »). Meme foret, memes serpents, meme UI : seuls la teinte du fond et ce qui tombe changent.
+  // Forest weather variants. Same forest, same snakes, same UI: only the background tint and falling
+  // particles change per weather.
   let weather = 'rain',
     previousWeather = 'rain',
     weatherStartTime = -99,
@@ -299,8 +299,8 @@
     embers: { tint: [70, 22, 14], k: 0.42 },
     mist: { tint: [120, 132, 130], k: 0.3 },
   };
-  // Le poids d'une meteo a l'image : 1 quand elle est installee, entre 0 et 1 pendant le fondu de 3,5 s qui
-  // fait tourner la saison. Tout ce qui se peint se multiplie par ce poids : rien n'apparait d'un coup.
+  // Weight of a weather at the current frame: 1 when fully settled, 0..1 during the 3.5 s crossfade.
+  // Everything drawn multiplies by this weight so nothing snaps in.
   function weight(m) {
     return (
       (m === weather ? weatherMix : 0) +
@@ -308,8 +308,8 @@
     );
   }
   const rainFactor = () => weight('rain') + 1.7 * weight('storm');
-  // La congere de l'hiver, peinte UNE fois : trois plans de neige, chacun avec son degrade, son ombre portee
-  // sur le plan de derriere, son lisere de lumiere sur la crete et un grain fin. A l'image, un seul drawImage.
+  // Winter snowdrift, painted once: three snow layers each with gradient, shadow cast on the layer behind,
+  // cold-light rim on the crest, and fine grain. At render time: a single drawImage.
   const SNOWDRIFT_H = 340;
   const RIDGES = [
     (x) => 214 + 34 * Math.sin(x * 0.0041 + 0.6) + 14 * Math.sin(x * 0.013 + 2.0),
@@ -336,7 +336,7 @@
         g.lineTo(W + 20, SNOWDRIFT_H + 20);
         g.closePath();
       };
-      // l'ombre que ce plan jette sur celui de derriere
+      // Shadow this layer casts on the one behind it.
       g.save();
       g.shadowColor = 'rgba(14,30,58,0.55)';
       g.shadowBlur = 30;
@@ -351,7 +351,7 @@
       g.fillStyle = lg;
       trace(0);
       g.fill();
-      // le lisere de lumiere froide sur la crete
+      // Cold-light rim on the crest.
       g.save();
       g.shadowColor = 'rgba(255,255,255,0.9)';
       g.shadowBlur = 10;
@@ -365,7 +365,7 @@
       }
       g.stroke();
       g.restore();
-      // le grain de la neige : des paillettes claires et des creux bleutes, sous la crete seulement
+      // Snow grain: bright sparkles and blue-tinted dips, below the crest only.
       for (let i = 0; i < 260; i++) {
         const x = rand(i, 601 + k) * W,
           top = SNOWDRIFT_H - ridge(x),
@@ -380,10 +380,9 @@
     return c;
   }
 
-  // Les sols des saisons, meme recette que la congere : trois plans, chacun peint UNE fois en deux images, ce qui
-  // depasse de la crete (herbes, fougeres, sapins, roseaux : « avant ») et le corps de la colline (ombre portee,
-  // degrade, lisere, decor pose). A l'image, « avant » est redessine par tranches inclinees : le vent y passe.
-  // Abdel, 2026-09-21 : « i want the bottom element to be animated ».
+  // Season ground layers, same recipe as the snowdrift: three layers each painted once in two images,
+  // what sticks above the crest (grass, ferns, pines, reeds: "before") and the hill body (shadow,
+  // gradient, rim, decoration). At render time, "before" is redrawn in tilted slices so the wind animates it.
   function paintLeaf(g, T, tone) {
     g.fillStyle = tone;
     g.beginPath();
@@ -450,8 +449,8 @@
     g.fill();
   }
   const FLOWER_TONES = ['#ffffff', '#f7b6c8', '#ffe27a', '#d2c2ff'];
-  // Le reseau de craquelures des braises : des veines qui serpentent et se ramifient, en s'affinant. Peint deux fois
-  // avec les memes tirages : le sillon sombre dans le corps, la lave vive dans l'image de lueur qui pulse.
+  // Ember crack network: veins that wander and branch while thinning. Drawn twice with the same random
+  // draws: dark groove in the body, live lava in the pulsing glow image.
   function paintCracks(g, ridge, k, glowing) {
     g.save();
     g.lineCap = 'round';
@@ -705,7 +704,7 @@
       rim: '255,170,110',
       rimAlpha: 0.7,
       after(g, ridge, k) {
-        // cendre : un grain gris chaud, et le lit sombre de chaque braise
+        // Ash: warm grey grain and the dark bed beneath each ember.
         for (let i = 0; i < 220; i++) {
           const x = rand(i, 851 + k) * W,
             top = SNOWDRIFT_H - ridge(x);
@@ -874,7 +873,7 @@
     groundsImg[key] = { layers: layers };
     return groundsImg[key];
   }
-  // Le sol a l'image : les trois plans, le vent dans ce qui depasse, puis la vie propre a la saison.
+  // Ground at render time: the three layers, wind in the above-crest elements, then season-specific life.
   function paintGround(g, e, m, P) {
     const key = GROUND_FOR[m],
       D = GROUNDS[key],
@@ -935,7 +934,7 @@
     });
     const ridgeLine = (x) => y0 + SNOWDRIFT_H - RIDGES[2](x);
     if (m === 'autumn' && calm) {
-      // des feuilles que le vent fait courir et sauter sur le tapis
+      // Leaves that the wind drives and bounces across the ground.
       const PAL = ['#c8822e', '#a04e22', '#d8a446', '#8a3a1c'];
       for (let i = 0; i < 12; i++) {
         const x = ((rand(i, 801) * W + t * (50 + 90 * rand(i, 803))) % (W + 80)) - 40,
@@ -951,7 +950,7 @@
       }
     }
     if ((m === 'rain' || m === 'storm') && calm) {
-      // la pluie frappe le sol : une couronne qui s'ouvre, deux gouttelettes qui sautent
+      // Rain hits the ground: a ring that expands, two droplets that bounce.
       g.strokeStyle = 'rgba(200,225,240,1)';
       g.fillStyle = 'rgba(200,225,240,1)';
       g.lineWidth = 1.5;
@@ -981,7 +980,7 @@
     }
     g.globalCompositeOperation = 'lighter';
     if (m === 'storm') {
-      // des ronds dans les flaques, et tout le sol qui s'eclaire a l'eclair
+      // Rings in the puddles, and the whole ground lit by lightning.
       g.strokeStyle = 'rgba(210,228,255,1)';
       g.lineWidth = 1.3;
       D.puddles.forEach((f, i) => {
@@ -1009,7 +1008,7 @@
       }
     }
     if (m === 'embers') {
-      // des braises eparses dans la cendre : chacune respire a son rythme, un coeur clair dans un petit halo
+      // Scattered embers in the ash: each breathes at its own pace, a bright core inside a small halo.
       const hb = tint('emberGround', halo, [255, 120, 40], 64, 64),
         hc = tint('emberCore', halo, [255, 214, 150], 64, 64);
       for (let i = 0; i < 34; i++) {
@@ -1033,7 +1032,7 @@
       }
     }
     if (m === 'aurora') {
-      // la neige renvoie l'aurore : un reflet vert qui respire sur les cretes
+      // Snow reflects the aurora: a green shimmer breathing along the crests.
       g.globalAlpha = (0.13 + 0.06 * Math.sin(t * 0.4)) * P;
       g.drawImage(
         tint('glint', halo, [110, 255, 190], 64, 64),
@@ -1046,7 +1045,7 @@
     g.restore();
   }
 
-  // l'eclair : 0 la plupart du temps, un double eclat doux toutes les 8 a 14 secondes
+  // Lightning: 0 most of the time, a soft double flash every 8 to 14 seconds.
   function lightning(t) {
     const k = Math.floor(t / 11),
       tf = t - k * 11 - 1 - rand(k, 5) * 6;
@@ -1063,7 +1062,7 @@
     const t0 = A.t,
       t1 = B.t <= A.t ? B.t + 1 : B.t;
     let u = (h - t0) / (t1 - t0);
-    u = u * u * (3 - 2 * u); // fondu doux, jamais de cassure
+    u = u * u * (3 - 2 * u); // Smooth cubic ease, no hard edge.
     const o = { name: u < 0.5 ? A.name : B.name };
     COLORS.forEach(function (c) {
       o[c] = lerpColor(A[c], B[c], u);
@@ -1096,8 +1095,8 @@
     return o;
   }
 
-  // Le rai de lumiere, pre-rendu une seule fois en blanc dans un petit canvas.
-  // Chaque image se contente de le poser, tourne et etire : un drawImage au lieu de neuf degrades.
+  // Light ray, pre-rendered once in white on a small canvas.
+  // Each frame just places, rotates, and stretches it: one drawImage instead of nine gradients.
   const RW = 96,
     RH = 512;
   let rayWhite = null,
@@ -1112,13 +1111,13 @@
       p = d.data;
     for (let y = 0; y < RH; y++) {
       const v = y / (RH - 1);
-      // le long du rai : il s'allume sous la canopee, culmine, puis se dilue dans l'air
+      // Along the ray: brightens below the canopy, peaks, then fades into the air.
       const lg = v < 0.14 ? (v / 0.14) * (v / 0.14) : Math.pow(1 - (v - 0.14) / 0.86, 1.7);
       for (let x = 0; x < RW; x++) {
         const u = ((x + 0.5) / RW) * 2 - 1;
-        // en travers : retombee en cosinus, des bords doux sans aucun flou a calculer
+        // Across the ray: cosine rolloff, soft edges with no blur needed.
         const edge = Math.cos((u * Math.PI) / 2);
-        // et le rai s'elargit en descendant, donc les bords se resserrent en haut
+        // The ray widens downward, so the active width is narrower near the top.
         const large = 0.35 + 0.65 * v;
         const dedans = Math.max(0, 1 - Math.abs(u) / large);
         const a = lg * edge * edge * dedans;
@@ -1130,7 +1129,7 @@
     g.putImageData(d, 0, 0);
     return c;
   }
-  // le modele blanc prend la couleur de l'heure : une seule teinture par image, pas une par rai
+  // White model takes the current hour's color: one tint per frame, not one per ray.
   function tintRay(color) {
     if (!rayWhite) rayWhite = buildRayModel();
     const cacheKey = Math.round(color[0]) + ',' + Math.round(color[1]) + ',' + Math.round(color[2]);
@@ -1151,10 +1150,9 @@
     return rayTinted;
   }
 
-  // L'ombre de la canopee. Elle remplace les rais de lumiere, qui etaient des objets clairs et
-  // mobiles : ils captaient l'oeil et concurrencaient le serpent. Une masse sombre dit la meme chose,
-  // des feuilles au dessus et une lumiere derriere, mais elle augmente le contraste au lieu de le
-  // reduire. Pre-rendue une fois, posee en un seul drawImage.
+  // Canopy shadow. Replaces bright animated light rays, which competed with the snake for attention.
+  // A dark mass conveys the same thing (foliage above, light behind) but raises contrast instead of
+  // reducing it. Pre-rendered once, placed with a single drawImage.
   const KW = 512,
     KH = 256;
   let canopy = null;
@@ -1163,7 +1161,7 @@
     c.width = KW;
     c.height = KH;
     const g = c.getContext('2d');
-    // des masses molles accrochees au bord haut, de plus en plus rares en descendant
+    // Soft blobs anchored to the top edge, growing sparser downward.
     for (let i = 0; i < 26; i++) {
       const x = rand(i, 3) * KW;
       const y = -KH * 0.12 + Math.pow(rand(i, 5), 1.9) * KH * 0.95;
@@ -1179,7 +1177,7 @@
       g.arc(x, y, r, 0, Math.PI * 2);
       g.fill();
     }
-    // une lisiere continue tout en haut, pour que le bord du cadre ne se voie pas
+    // Continuous top strip so the frame edge is never visible.
     const lg = g.createLinearGradient(0, 0, 0, KH * 0.5);
     lg.addColorStop(0, 'rgba(0,0,0,0.42)');
     lg.addColorStop(1, 'rgba(0,0,0,0)');
@@ -1188,7 +1186,7 @@
     return c;
   }
 
-  // Un halo pre-rendu remplace shadowBlur, qui est l'appel le plus cher du canvas 2D.
+  // Pre-rendered halo replaces shadowBlur, the most expensive canvas 2D call.
   let halo = null;
   function buildHaloModel() {
     const n = 64,
@@ -1204,7 +1202,7 @@
     g.fillRect(0, 0, n, n);
     return c;
   }
-  // Une goutte pre-rendue : tete renflee en bas, trainee qui s'affine vers le haut.
+  // Pre-rendered raindrop: bulging head at the bottom, narrowing trail toward the top.
   let dropTemplate = null;
   function buildDropModel() {
     const w = 24,
@@ -1230,7 +1228,7 @@
     g.fill();
     return c;
   }
-  // Teinture generique : un modele blanc prend une couleur, une fois, et se garde.
+  // Generic tint: a white model takes a color once and is cached.
   const tintCache = {};
   function tint(key, modele, color, w, h) {
     const cacheKey = Math.round(color[0]) + ',' + Math.round(color[1]) + ',' + Math.round(color[2]);
@@ -1252,14 +1250,14 @@
     return e.c;
   }
 
-  // Le ciel : degrade, lueur et voile sont trois passes plein ecran qui ne changent qu'avec l'heure.
-  // On les peint une fois dans un canvas demi-resolution, et l'image s'y contente d'un drawImage.
+  // Sky: gradient, glow, and veil are three full-screen passes that only change with the hour.
+  // Painted once into a half-resolution canvas; each frame uses a single drawImage.
   const CW = 270,
     CH = 480;
   let skyCanvas = null,
     skyCacheKey = -1;
   function paintSky(A, progress) {
-    // on ne recalcule que quand l'heure ou la tension ont bouge d'un cran perceptible
+    // Only recalculate when the hour or tension have shifted by a perceptible step.
     const cacheKey =
       weather +
       previousWeather +
@@ -1300,8 +1298,8 @@
     return skyCanvas;
   }
 
-  // La vignette suit la tension du jeu, pas l'avancement de la manche : elle se ferme quand
-  // l'espace manque et elle se rouvre des que le serpent respire.
+  // Vignette tracks game tension, not round progress: it closes when space runs out and
+  // reopens as soon as the snake has room.
   let vignette = null,
     vignetteCacheKey = -1;
   function paintVignette(A, tension) {
@@ -1332,7 +1330,7 @@
     return vignette;
   }
 
-  // Le grain : une tuile calculee une fois, repetee ensuite. C'est elle qui tue le banding.
+  // Grain: a tile computed once then tiled. It eliminates color banding.
   let grainPattern = null;
   function grainTile() {
     const n = 128,
@@ -1350,9 +1348,9 @@
     return c;
   }
 
-  // Pluie : tableaux pre-alloues, aucune allocation par image.
-  // Les gouttes sont reparties par bandes verticales, une bande chacune, sinon le hachage les
-  // regroupe au milieu de l'ecran. Une goutte qui retombe revient dans sa bande, decalee d'un tour.
+  // Rain: pre-allocated arrays, no allocation per frame.
+  // Drops are distributed across vertical columns, one drop per column; without this the hash
+  // clusters them at the center. A drop that falls back spawns in its column, shifted by one turn.
   const N_FAR = 48,
     N_NEAR = 18,
     N = N_FAR + N_NEAR;
@@ -1361,7 +1359,7 @@
     gv = new Float32Array(N),
     ga = new Float32Array(N);
   const dropTurns = new Int16Array(N);
-  // chaque goutte frappe a sa propre profondeur sur le sol, pas toutes sur la meme ligne
+  // Each near drop hits at its own depth on the board, not all on the same line.
   const dropImpactY = new Float32Array(N);
   function columnX(i, n, d) {
     return ((i + 0.15 + 0.7 * rand(i, d)) / n) * W;
@@ -1374,16 +1372,16 @@
     gy[i] = topColor ? -40 - Math.random() * 200 : ((ix + 0.5) / n) * H;
     gv[i] = isNear ? 450 + rand(i, 75) * 250 : 320 + rand(i, 77) * 80;
     ga[i] = 0.7 + rand(i, 79) * 0.3;
-    // le sol a de la profondeur : l'impact se fait quelque part entre le milieu et le bas du plateau
+    // The board has depth: impact happens somewhere between the middle and bottom of the board.
     dropImpactY[i] = GY0 + (0.34 + 0.64 * rand(i, 131 + dropTurns[i] * 7)) * (GY1 - GY0);
   }
   for (let i = 0; i < N; i++) seedDrop(i, false);
-  // les ondes tombent sur le plateau, pas dessous : GY1 est le bas de la zone que le spectateur voit
+  // Ripples land on the board, not below it: GY1 is the bottom of the area the audience sees.
   const RMAX = 14,
     rx = new Float32Array(RMAX),
     ry = new Float32Array(RMAX),
     rt = new Float32Array(RMAX).fill(1);
-  const rp = new Float32Array(RMAX).fill(1); // profondeur de l'impact : une onde lointaine est petite
+  const rp = new Float32Array(RMAX).fill(1); // Impact depth: a distant ripple is small.
   const EMAX = 26,
     ex = new Float32Array(EMAX),
     ey = new Float32Array(EMAX);
@@ -1391,7 +1389,7 @@
     evy = new Float32Array(EMAX),
     et = new Float32Array(EMAX).fill(9);
   let wind = 0;
-  // les gouttes collees a l'objectif : elles glissent sur l'image, pas sur la scene
+  // Lens drops: they slide on the image, not in the scene.
   const LMAX = 5,
     lx = [],
     ly = [],
@@ -1414,7 +1412,7 @@
     };
   }
 
-  // une goutte : tete renflee en bas, trainee qui s'affine vers le haut
+  // Drop shape: bulging head at the bottom, narrowing trail toward the top.
   function paintDrop(g, x, y, dropLen, dropWidth, al, c) {
     const lg = g.createLinearGradient(x, y - dropLen, x, y);
     lg.addColorStop(0, rgba(c, 0));
@@ -1437,7 +1435,7 @@
 
   (window.AMBIENCES = window.AMBIENCES || []).push({
     id: 'forest',
-    name: 'Forêt sous la pluie',
+    name: 'Rainy forest',
     intention: 'Pluie lente sur la mousse, feuillages flous hors du jeu',
     accent: '#b4d4de',
     scaleName: 'Sol pentatonique majeur',
@@ -1456,27 +1454,27 @@
         weather = mv;
         weatherStartTime = e.t;
       }
-      if (e.t < weatherStartTime || e.weatherSnap) weatherStartTime = -99; // une manche s'ouvre sur SA meteo, deja installee : jamais deux saisons a l'image
+      if (e.t < weatherStartTime || e.weatherSnap) weatherStartTime = -99; // A round opens with its weather already settled: never two seasons in one frame.
       {
         const u = Math.min(1, Math.max(0, (e.t - weatherStartTime) / 3.5));
         weatherMix = u * u * (3 - 2 * u);
       }
       const A = ambience(e.hour || 0),
         progress = Math.min(1, Math.max(0, e.progression || 0));
-      // le ciel entier, degrade, lueur et voile, tient dans une seule image mise en cache
+      // The full sky (gradient, glow, veil) fits in a single cached image.
       g.drawImage(paintSky(A, progress), 0, 0, W, H);
 
-      // L'ombre de la canopee, en haut, qui derive tres lentement. Elle est d'autant plus marquee
-      // que la lumiere est forte derriere elle : a midi les feuilles decoupent, la nuit elles se
-      // fondent dans le noir. Une seule image posee, aucun objet clair qui bouge.
+      // Canopy shadow at the top, drifting very slowly. Stronger when the light behind it is
+      // brighter: leaves cut sharply at noon, dissolve into darkness at night.
+      // One image placed, no bright moving object.
       {
         if (!canopy) canopy = buildCanopyModel();
-        const dense = 0.55 + 6.5 * A.rayAlpha; // raiA sert maintenant de force de contre-jour
+        const dense = 0.55 + 6.5 * A.rayAlpha; // rayAlpha drives backlight intensity.
         const lh = H * 0.46,
           marge = W * 0.16;
-        // elle glisse dans sa marge, et penche du cote oppose a la lumiere
-        // bornee : l'image fait W + marge de large, elle doit toujours couvrir de 0 a W. Sans la borne, au coucher
-        // (lueurX 0.86) elle glissait de 37 px vers la droite et laissait une bande claire sur le bord gauche.
+        // Slides within its margin and leans opposite the light source.
+        // Clamped: the image is W + margin wide and must always cover 0..W. Without the clamp, at
+        // dusk (glowX 0.86) it drifted 37 px right and left a bright strip on the left edge.
         const dx = Math.max(
           -marge,
           Math.min(
@@ -1490,8 +1488,8 @@
         g.restore();
       }
 
-      // les points en suspension : lucioles la nuit, spores dans la lumiere le jour.
-      // Le halo est une image pre-rendue : shadowBlur coute dix fois plus cher pour le meme resultat.
+      // Floating particles: fireflies at night, spores in daylight.
+      // Halo is pre-rendered; shadowBlur costs ten times as much for the same result.
       if (!halo) halo = buildHaloModel();
       const ptImg = tint('pt', halo, A.pt, 64, 64);
       g.save();
@@ -1510,7 +1508,7 @@
       g.restore();
 
       if (!halo) halo = buildHaloModel();
-      // ciel de nuit : des etoiles qui respirent (etoiles, aurore, un peu pour les lucioles)
+      // Night sky: breathing stars (stars, aurora, slight contribution from fireflies).
       const Pciel = Math.min(
         1,
         weight('stars') + 0.8 * weight('aurora') + 0.35 * weight('fireflies'),
@@ -1561,7 +1559,7 @@
         }
         g.restore();
       }
-      // l'aurore : trois voiles lents, verts puis violets, qui ondulent dans le haut de l'image
+      // Aurora: three slow veils, green to violet, rippling across the top of the frame.
       const Pau = weight('aurora');
       if (Pau > 0.01) {
         g.save();
@@ -1585,13 +1583,13 @@
         }
         g.restore();
       }
-      // l'ete : de grands rais de soleil qui traversent la foret en biais
+      // Summer: broad diagonal sun rays crossing the forest.
       const Pete = weight('summer') + 0.6 * weight('spring');
       if (Pete > 0.01) {
         g.save();
         g.globalCompositeOperation = 'lighter';
-        // Des rais DOUX : le modele pre-rendu (bords en cosinus, naissance sous la canopee, dilution vers le bas),
-        // jamais un polygone. Largeurs et longueurs inegales, un souffle lent et dephase, une derive a peine sensible.
+        // Soft rays: the pre-rendered model (cosine edges, born under the canopy, fading down),
+        // never a polygon. Unequal widths and lengths, slow out-of-phase breath, barely perceptible drift.
         const ray = tintRay([255, 238, 176]);
         for (let i = 0; i < 6; i++) {
           const x0 =
@@ -1608,7 +1606,7 @@
         }
         g.restore();
       }
-      // l'automne : des feuilles deja posees au sol, derriere les serpents
+      // Autumn: leaves already settled on the ground, behind the snakes.
       const Pau2 = weight('autumn');
       if (Pau2 > 0.01) {
         const TONS = ['#b8702c', '#9a4a26', '#c89a44', '#7e5a2a'];
@@ -1629,7 +1627,7 @@
       if (Por > 0.01) {
         const I = lightning(e.t) * Por;
         if (I > 0.02) {
-          // l'eclair lui-meme, loin derriere le plateau, puis la lueur qu'il jette sur toute la foret
+          // The lightning bolt, far behind the board, then the glow it casts over the whole forest.
           const k = Math.floor(e.t / 11);
           let x = W * (0.15 + 0.7 * rand(k, 231)),
             y = -10;
@@ -1652,7 +1650,7 @@
         }
       }
 
-      // le plateau : une surface a peine plus claire, et son filet
+      // Board: a slightly lighter surface and its border.
       g.save();
       g.globalAlpha = 0.05;
       g.fillStyle = rgba(lerpColor(A.glow, [255, 255, 255], 0.2), 0.22);
@@ -1726,17 +1724,17 @@
       if (!pts || pts.length < 2) return;
       g.lineCap = 'round';
       g.lineJoin = 'round';
-      // Le contour sombre sous le corps a ete retire sur demande d'Abdel : invisible sur l'ancien
-      // fond tres sombre, il ressortait comme une ombre portee des que le fond s'est eclairci.
-      // 34 et non 38 : la case est passee de 52 a 47, le serpent garde le meme taux de remplissage
+      // Dark outline under the body was removed: invisible on the old very dark background, it
+      // read as a drop shadow once the background lightened.
+      // 34, not 38: cell size dropped from 52 to 47; snake keeps the same fill ratio.
       if (e && e.tint) {
-        // helper local : parse un hex '#rrggbb' en tableau [r,g,b]
+        // Parse a '#rrggbb' hex string to [r,g,b].
         const hex2rgb = (h) => [
           parseInt(h.slice(1, 3), 16),
           parseInt(h.slice(3, 5), 16),
           parseInt(h.slice(5, 7), 16),
         ];
-        // mel existant : interpolation lineaire entre deux tableaux RGB
+        // Linear interpolation between two RGB arrays.
         const baseRgb = hex2rgb('#d9e7cc');
         const tintRgb = hex2rgb(e.tint);
         const bodyRgb = lerpColor(baseRgb, tintRgb, 0.85);
@@ -1798,7 +1796,7 @@
         ty = e.head.y,
         k = activeCounts(e),
         silenceFactor = 1 - 0.7 * (e.silence || 0);
-      // la pluie prend la couleur de l'heure, et force un peu quand la manche avance
+      // Rain takes the current hour's color and strengthens slightly as the round progresses.
       const color = lerpColor([180, 212, 222], A.ray, 0.55),
         force = (1 + 0.35 * progress) * silenceFactor * (e.reduced ? 0.5 : 1) * rainFactor();
 
@@ -1809,7 +1807,7 @@
           const d = Math.hypot(x - tx, y - ty);
           return d < 92 ? 0 : d < 224 ? (d - 92) / 132 : 1;
         };
-        // ce qui tombe en tournant : feuilles d'automne, petales de printemps
+        // Rotating fallers: autumn leaves and spring petals.
         const paintFalling = (P, n, seed, tons, size, al) => {
           for (let i = 0; i < n && P > 0.01; i++) {
             const pr = rand(i, seed),
@@ -1843,7 +1841,7 @@
         if (Pn > 0.01) {
           const advance = Math.min(1, Math.max(0, e.subStep || 0));
           const snowflakeImg = tint('flake', halo, [236, 244, 255], 64, 64);
-          // trois profondeurs. Loin : une poussiere de points nets, lente, presque verticale.
+          // Three depths. Far: a dust of crisp points, slow, nearly vertical.
           g.fillStyle = '#eef4ff';
           for (let i = 0; i < 130; i++) {
             const v = 24 + rand(i, 501) * 22,
@@ -1855,7 +1853,7 @@
             g.arc(x, y, 1.0 + rand(i, 511) * 1.3, 0, Math.PI * 2);
             g.fill();
           }
-          // Au milieu : les flocons doux qui se balancent. La chute s'epaissit quand la manche avance.
+          // Mid-range: soft swaying snowflakes. Density increases as the round progresses.
           const midCount = Math.round(46 + 34 * advance);
           for (let i = 0; i < midCount; i++) {
             const pr = rand(i, 301),
@@ -1869,7 +1867,7 @@
             g.globalAlpha = (0.2 + 0.4 * pr) * headProximity(x, y) * silenceFactor * Pn;
             g.drawImage(snowflakeImg, x - R, y - R, R * 2, R * 2);
           }
-          // Tout pres de l'objectif : quelques gros flocons flous, rapides, a peine la
+          // Very close to the lens: a few large blurry flakes, fast, barely visible.
           for (let i = 0; i < 9; i++) {
             const v = 190 + rand(i, 521) * 90,
               R = 20 + rand(i, 523) * 20;
@@ -1881,9 +1879,9 @@
             g.globalAlpha = (0.07 + 0.06 * rand(i, 529)) * headProximity(x, y) * silenceFactor * Pn;
             g.drawImage(snowflakeImg, x - R, y - R, R * 2, R * 2);
           }
-          // Le souffle froid au ras du sol, puis la congere qui monte avec la manche
+          // Cold breath at ground level, then the snowdrift rising with the round.
           const riseOffset = (1 - (0.36 + 0.64 * advance)) * 120 + (1 - Pn) * 80;
-          // (peints tout a la fin, par-dessus la vignette : la neige prend la lumiere, elle ne s'eteint pas dans le coin sombre)
+          // (Drawn last, above the vignette: snow catches light and must not be dimmed in the dark corners.)
           layers.push(() => {
             g.save();
             g.globalAlpha = 0.16 * Pn;
@@ -1898,7 +1896,7 @@
               g.globalAlpha = 0.3 * life * Pn;
               g.drawImage(snowflakeImg, x, yc - 26, lw, 40);
             }
-            // la neige scintille : de petites etoiles a quatre branches sur la crete de devant
+            // Snow glittering: small four-pointed stars along the front crest.
             g.globalCompositeOperation = 'lighter';
             g.strokeStyle = '#ffffff';
             g.lineWidth = 1.6;
@@ -1924,7 +1922,7 @@
             g.globalCompositeOperation = 'source-over';
             g.restore();
           });
-          // le givre, dans les deux angles du haut seulement : le bas appartient a la congere
+          // Frost in the two top corners only: the bottom belongs to the snowdrift.
           [
             [0, 0],
             [W, 0],
@@ -1933,12 +1931,12 @@
             g.drawImage(snowflakeImg, q[0] - 420, q[1] - 420, 840, 840);
           });
         }
-        // le sol de la saison, au tout premier plan, qui monte avec la manche et qui vit
+        // Season ground layer at the front, rising with the round and animated.
         Object.keys(GROUND_FOR).forEach((m) => {
           const P = weight(m);
           if (P > 0.01) layers.push(() => paintGround(g, e, m, P));
         });
-        // ce qui monte et luit : spores d'ete, braises, lucioles
+        // Rising luminous particles: summer spores, embers, fireflies.
         const paintRising = (P, n, seed, color, key, speed, R0, al, twinkle) => {
           if (P <= 0.01) return;
           const im = tint(key, halo, color, 64, 64);
@@ -1982,7 +1980,7 @@
         g.restore();
       }
       g.save();
-      // les ondes, sur le plateau, la ou le spectateur regarde
+      // Ripples on the board, where the audience is watching.
       g.lineWidth = 2.6;
       for (let i = 0; i < RMAX; i++) {
         if (rt[i] >= 1) continue;
@@ -1993,7 +1991,7 @@
         g.ellipse(rx[i], ry[i], (14 + rt[i] * 76) * pf, (5 + rt[i] * 22) * pf, 0, 0, Math.PI * 2);
         g.stroke();
       }
-      // les eclats, courts et vifs
+      // Short, bright splash fragments.
       for (let i = 0; i < EMAX; i++) {
         if (et[i] > 0.45) continue;
         const u = 1 - et[i] / 0.45;
@@ -2004,7 +2002,7 @@
         g.fill();
       }
       g.globalAlpha = 1;
-      // les gouttes : la pluie s'ecarte autour de la tete du serpent
+      // Drops: rain parts around the snake's head.
       if (!dropTemplate) dropTemplate = buildDropModel();
       const gImg = tint('drop', dropTemplate, color, 24, 128);
       const traceDrops = (i0, i1, isNear) => {
@@ -2041,7 +2039,7 @@
         g.restore();
       }
 
-      // le grain, qui tue le banding et donne sa matiere a l'image
+      // Grain: eliminates banding and gives the image its texture.
       if (!grainPattern) {
         try {
           grainPattern = g.createPattern(grainTile(), 'repeat');
@@ -2057,11 +2055,11 @@
         g.restore();
       }
 
-      // la vignette suit la tension reelle ; sans tension fournie, elle retombe sur la progression
+      // Vignette tracks real tension; falls back to progression when tension is not provided.
       const tension = Math.min(1, Math.max(0, e.tension === undefined ? progress : e.tension));
       g.drawImage(paintVignette(A, tension), 0, 0, W, H);
 
-      // les gouttes collees a l'objectif : elles glissent sur l'image, pas sur la scene
+      // Lens drops: they slide on the image, not in the scene.
       g.save();
       for (let i = 0; i < (rainFactor() > 0.4 ? LMAX : 0); i++) {
         const y = ((ly[i] + e.t * lv[i]) % (H + 160)) - 80,
@@ -2092,9 +2090,9 @@
       }
       g.restore();
       g.globalAlpha = 1;
-      // En 16:9 le premier plan (sol, congere) monterait sur le plateau : on le decoupe autour de l'anneau,
-      // il ne pousse que sur les flancs. En 9:16 il passe entierement sous le plateau, rien a decouper.
-      // marge de 10 px autour de l'anneau pour que le cadre rouge reste entier, pas seulement l'interieur
+      // In 16:9, the foreground (ground, snowdrift) would overlap the board: clip it around the ring
+      // so it only grows on the sides. In 9:16 it passes entirely under the board, no clipping needed.
+      // 10 px margin around the ring so the full ring border is preserved, not just its interior.
       if (W > H) {
         g.save();
         g.beginPath();
@@ -2118,9 +2116,9 @@
         gx[i] += wind * dt;
         if (gx[i] < 0) gx[i] += W;
         else if (gx[i] > W) gx[i] -= W;
-        // l'impact se fait a la profondeur propre de la goutte, sur le plateau, jamais sur une ligne
+        // Impact at the drop's own depth on the board, never all on the same line.
         if (i >= N_FAR && prevY <= dropImpactY[i] && gy[i] > dropImpactY[i]) {
-          const prof = (dropImpactY[i] - GY0) / (GY1 - GY0); // 0 au fond, 1 au premier plan
+          const prof = (dropImpactY[i] - GY0) / (GY1 - GY0); // 0 at the back, 1 at the front.
           for (let r = 0; r < RMAX; r++)
             if (rt[r] >= 1) {
               rx[r] = gx[i];
@@ -2139,7 +2137,7 @@
               et[q] = 0;
               break;
             }
-          // elle a frappe : elle disparait et repart d'en haut, comme une vraie goutte
+          // Impact: drop disappears and respawns from the top, like a real raindrop.
           dropTurns[i]++;
           seedDrop(i, true);
           continue;
@@ -2246,7 +2244,7 @@
       });
     },
 
-    // La naissance : de petits craquements secs pendant la fente, puis un accord chaud qui s'ouvre.
+    // Hatch sound: dry cracks during the split, then a warm chord opening.
     hatchSound(ac, destination, phase) {
       const t0 = ac.currentTime;
       if (phase === 'crack') {
@@ -2264,7 +2262,7 @@
         o.stop(t0 + 0.12);
         return;
       }
-      // l'eclosion : une basse qui monte sous un accord de quinte, long et doux
+      // Hatch tone: a bass rising under a fifth chord, long and soft.
       const bass = ac.createOscillator(),
         gb = ac.createGain();
       bass.type = 'sine';

@@ -10,7 +10,7 @@ let ac = null,
 /** True once audio is armed and not muted. */
 export const isSoundReady = () => Boolean(soundEnabled && ac);
 
-// Le navigateur refuse de jouer avant un geste : on arme le son au premier clic ou a la premiere touche.
+// Browsers block autoplay before a user gesture; arm on the first click or key press.
 export function armSound() {
   if (ac) {
     if (ac.state === 'suspended') ac.resume();
@@ -26,7 +26,7 @@ export function armSound() {
     ac = null;
   }
 }
-// Un souffle de bruit filtre : sert au vent de la chute comme a la poussiere du choc.
+// A burst of filtered noise: used for both the falling wind and the impact dust.
 function playFilteredNoise(duration, gain, f0, f1, q, delay) {
   const t0 = ac.currentTime + (delay || 0),
     n = Math.max(1, Math.floor(ac.sampleRate * duration));
@@ -50,13 +50,13 @@ function playFilteredNoise(duration, gain, f0, f1, q, delay) {
   src.start(t0);
   src.stop(t0 + duration + 0.02);
 }
-// Elle se cale : rien ne frappe, la terre se referme autour d'elle.
+// The stone settles: nothing strikes, the earth closes around it.
 export function playStone() {
   if (!soundEnabled || !ac) return;
   try {
     const t0 = ac.currentTime;
-    // Trois couches : le choc qui claque, le corps qui donne la masse au telephone, la sub pour le casque.
-    playFilteredNoise(0.09, 0.09, 1100, 300, 0.7); // le choc
+    // Three layers: impact transient, body giving mass for the phone speaker, sub for headphones.
+    playFilteredNoise(0.09, 0.09, 1100, 300, 0.7); // impact transient
     const c = ac.createOscillator(),
       gc = ac.createGain();
     c.type = 'triangle';
@@ -81,11 +81,11 @@ export function playStone() {
     g.connect(output);
     o.start(t0);
     o.stop(t0 + 0.55);
-    playFilteredNoise(0.4, 0.02, 1200, 300, 0.9, 0.05); // la poussiere qui retombe
+    playFilteredNoise(0.4, 0.02, 1200, 300, 0.9, 0.05); // dust settling
   } catch (er) {}
 }
 
-// La ronce ne gronde pas : elle craque a sec et siffle. Aucune basse, c'est l'inverse de la pierre.
+// The bramble does not rumble: it snaps dry and hisses. No bass, opposite of the stone.
 export function playBramble() {
   if (!soundEnabled || !ac) return;
   try {
@@ -95,7 +95,7 @@ export function playBramble() {
     );
   } catch (er) {}
 }
-// Un segment de plus : un petit craquement sec, plus haut a chaque fois qu'elle s'allonge.
+// One more segment: a short dry snap, rising in pitch each time the bramble extends.
 export function playBrambleStep(i) {
   if (!soundEnabled || !ac) return;
   try {

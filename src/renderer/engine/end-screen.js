@@ -8,9 +8,8 @@ import { ctx } from './canvas.js';
 import { SHADOW, GOLD } from './palette.js';
 import { round, settings } from '../scripts/game.js';
 
-// Fin de manche : la scene se voile, le camp gagnant s'affiche par la lumiere, sans un mot
-// le voile de fin, peint une seule fois au quart de la taille puis etire : un degrade radial plein ecran
-// recalcule a chaque image couterait cher pour rien
+// End-of-round veil: the winning team's color breaks through the darkness. Painted once at
+// quarter resolution and stretched; recomputing a full-screen radial gradient per frame is wasteful.
 let endVeilCanvas = null;
 
 function getEndVeil() {
@@ -34,22 +33,21 @@ export function paintEndScreen() {
     v = round.winner,
     sun = v === 'sun' || v === 'snake' || v === 'gold';
   ctx.save();
-  // voile : montee douce (smootherstep sur 1,6 s), plus clair au centre ou se tient le serpent, plus dense aux bords
+  // Veil: smooth rise over 1.6 s (smootherstep), brighter at center where the snake stands, denser at edges.
   {
     const uv = Math.min(1, round.end / 1.6),
       kv = uv * uv * uv * (uv * (6 * uv - 15) + 10);
-    // en 16:9 le voile couvre aussi les cotes (Abdel : « just the center is active and not the full image »)
+    // In 16:9 the veil also covers the side margins.
     ctx.globalAlpha = kv;
     if (OX) ctx.drawImage(getEndVeil(), -OX, 0, WF, H);
     else ctx.drawImage(getEndVeil(), 0, 0, W, H);
   }
   ctx.globalAlpha = 1;
-  // Le serpent de fin remplace l'astre : il salue quand il gagne, il baisse la tete quand il perd.
+  // The end snake replaces the orb: it celebrates when it wins, droops when it loses.
   const cx = W / 2,
     cy = Y0 + (ROWS * CELL) / 2,
     R = 320;
-  // En duel, un camp gagne toujours : le serpent de fin est heureux et porte la couleur du vainqueur
-  // (Abdel : « the winning snake color need to match the color of the winning team »).
+  // In a duel one team always wins, so the end snake is always happy and carries the winner's color.
   const o = { state: sun ? 'happy' : 'sad', t: round.end, cx: cx, cy: cy, R: R, u: u };
   const rankingFactor = isRankingActive() ? smooth01((round.end - 2.0) / 0.9) : 0;
   const grandMvp = /^M/.test(settings.ranking || '');
@@ -58,7 +56,7 @@ export function paintEndScreen() {
     o.cy = cy - (grandMvp ? 250 : 190) * rankingFactor;
   }
   if (v === 'draw') {
-    // Match nul : les deux serpents face a face, chacun sa couleur, mot DRAW (maquette A1 validee par Abdel).
+    // Draw: two snakes face to face, each in its team color, DRAW text.
     if (window.SnakeEnding && window.SnakeEnding.paintDraw) {
       window.SnakeEnding.paintDraw(ctx, {
         ...o,
@@ -80,8 +78,8 @@ export function paintEndScreen() {
   ctx.restore();
 }
 
-// Classement des donateurs de la manche, sur l'ecran de fin (prototype, Abdel 2026-09-21). Memes plaques
-// que la legende des cadeaux, pseudo dans la couleur de son camp, total en pieces. Rendu seul.
+// Round donor ranking shown on the end screen. Same card style as the gift legend: nickname in team color,
+// total in coins. Rendered independently.
 function topDonors(team) {
   return Object.keys(roundDonations)
     .map((p) => ({
@@ -128,7 +126,7 @@ function paintRankingRow(x, y, w, h, d, rank, appearance, mirrored, large) {
   ctx.textAlign = 'center';
   ctx.textBaseline = 'middle';
   ctx.fillText(String(rank), rx, y + 1);
-  // photo de profil du donateur, entre le rang et le nom (initiale si TikFinity n'en fournit pas)
+  // Donor avatar between rank badge and name; falls back to initials if TikFinity provides none.
   const showNames = settings.donorNames !== false,
     AV = h * 0.66,
     sg = mirrored ? -1 : 1,
@@ -173,7 +171,7 @@ function paintRankingRow(x, y, w, h, d, rank, appearance, mirrored, large) {
   ctx.fillStyle = tint;
   ctx.font = (large ? '700 34px' : '700 27px') + ' system-ui, sans-serif';
   ctx.textAlign = mirrored ? 'right' : 'left';
-  // le nom ne mord jamais sur le total : il se resserre, puis se coupe
+  // Name never overlaps the total: font shrinks first, then truncates.
   {
     const availableWidth =
       w - (h / 2 + 6 + R + 16 + nameOffset) - 22 - String(d.total).length * (large ? 20 : 16) - 14;
@@ -194,9 +192,8 @@ function paintRankingRow(x, y, w, h, d, rank, appearance, mirrored, large) {
   ctx.restore();
 }
 
-// --- Mise en avant du MVP (Abdel, 2026-09-21 : « crucial, it is used to flatter the viewer, MVP mis en
-// avant with like a crown »). Photo de profil en grand, couronne doree, nom et total ; M1 rayons, M2 le vrai
-// serpent tourne autour de lui, M3 podium a trois marches.
+// MVP spotlight: large avatar, gold crown, name and total. Flatters the top donor.
+// M1: rotating rays behind the avatar. M2: a real snake orbits it. M3: three-step podium.
 const elasticEase = (x) => {
   x = Math.max(0, Math.min(1, x));
   return x === 0
@@ -251,7 +248,7 @@ function paintAvatar(cx, cy, r, d, scale) {
 }
 
 export function paintCrown(cx, cy, l, dropProgress) {
-  // cy = base de la couronne ; elle tombe d'en haut et rebondit
+  // cy is the crown base; the crown drops from above and bounces.
   const h = l * 0.62,
     dy = -(1 - elasticEase(dropProgress)) * 90;
   if (dropProgress <= 0) return;
@@ -338,7 +335,7 @@ function paintMvp(mode, age, titleFn, appearanceFn) {
     rgb = m.team === 'gold' ? '242,197,124' : '180,212,222',
     tint = m.team === 'gold' ? GOLD : SHADOW;
   if (mode === 'M3') {
-    // podium : trois marches, le premier au centre, plus haut, couronne
+    // Three-step podium: first place at center and highest, with a crown.
     titleFn('TOP SUPPORTERS', 760);
     const base = L.baseEnd,
       steps = [
@@ -399,7 +396,7 @@ function paintMvp(mode, age, titleFn, appearanceFn) {
     AR = 84,
     a0 = (age - 0.5) / 0.7;
   if (mode === 'M1') {
-    // rayons doux qui tournent derriere la photo
+    // Soft rays rotating behind the avatar.
     ctx.save();
     ctx.translate(cx, ay);
     ctx.rotate(age * 0.35);
@@ -417,7 +414,7 @@ function paintMvp(mode, age, titleFn, appearanceFn) {
     ctx.restore();
   }
   if (mode === 'M2' && a0 > 0) {
-    // le vrai serpent, a la couleur du camp du MVP, tourne autour de sa photo
+    // A real snake in the MVP's team color orbits the avatar.
     const rr = AR + 30,
       headAngle = -Math.PI / 2 + age * 1.5,
       snakeLength = Math.min(1, a0) * 4.6,
@@ -445,9 +442,8 @@ function paintMvp(mode, age, titleFn, appearanceFn) {
   );
 }
 
-// Le panneau du classement (Abdel : « not separated and isolated well enough with the background, it feels like
-// just floating ») : une vraie carte opaque, bordee de la couleur du premier, avec un filet clair en haut et une
-// ombre portee faite de contours fondus (pas de flou), qui pose le classement devant le plateau.
+// Ranking panel: a solid card bordered by the leader's color, a light inner edge at the top, and a
+// soft shadow made of layered strokes (no blur), to ground the ranking in front of the board.
 function paintRankingPanel(y0, y1, rgb, a) {
   if (a <= 0.01) return;
   const x0 = W / 2 - 352,

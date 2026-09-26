@@ -1,11 +1,11 @@
-// Public simule « bataille d'equipes » (regie duel). Deux equipes de faux spectateurs, Or et Ombre,
-// REGARDENT la partie et depensent leurs pieces comme de vrais fans qui se battent pour leur serpent :
-// bouclier quand il est menace, tempo quand il fait la course vers une baie, vol quand l'adversaire
-// est long ou quand la fin de manche se joue a peu, vie apres un gros coup, roses pour le nourrir.
-// Chaque equipe a une FERVEUR qui monte (coup encaisse, gros cadeau d'en face, retard, fin de manche)
-// et retombe ; elle regle le debit de pieces. Memes regles et meme budget pour les deux equipes : les
-// decisions dependent de l'etat du jeu, jamais du camp.
-// Interface : VipereFoule.lireEtat(B) -> etat ; VipereFoule.creer() -> {regler(densite), tick(etat,dt) -> [evenements], vue()}
+// Simulated audience for the duel control room. Two fake viewer teams, gold and shadow,
+// WATCH the match and spend their coins like real fans supporting their snake:
+// shield when threatened, boost when racing for a berry, steal when the opponent is
+// long or when the round is close, life after a big hit, roses to feed it.
+// Each team has a FERVOR that rises (hit absorbed, big gift from the opponent, falling behind,
+// end of round) and decays; it controls the coin rate. Both teams share the same rules and budget:
+// decisions depend on game state only, never on which team is acting.
+// Interface: ViperCrowd.readState(B) -> state; ViperCrowd.create() -> {configure(density), tick(state,dt) -> [events], view()}
 (function () {
   'use strict';
   var PRICES = { rose: 1, boost: 10, steal: 20, shield: 30, life: 100 };
@@ -16,7 +16,7 @@
     shield: ['bagel', 'capybara'],
     life: ['teddy bear', 'hand heart'],
   };
-  // pieces par minute et par equipe, au calme (la ferveur multiplie de 0,6 a 1,8)
+  // coins per minute per team at rest (fervor multiplies from 0.6 to 1.8)
   var RATES = [0, 30, 110, 320];
   var NICKNAMES = {
     gold: [
@@ -40,10 +40,9 @@
       'kenji.night',
     ],
   };
-  // Abdel : « they can give shields and lives but not in abundance, the gameplay needs to stay
-  // interesting ». Plafonds PAR MANCHE et par equipe, et longues recharges : un bouclier ou une vie
-  // doit rester un evenement, pas un etat permanent.
-  var CAPS = { boost: 5, steal: 3, shield: 1, life: 1 }; // a « foule », un second bouclier est permis (voir acheter)
+  // Caps per round per team, with long cooldowns: a shield or life must stay a notable
+  // event, not a permanent state.
+  var CAPS = { boost: 5, steal: 3, shield: 1, life: 1 }; // at crowd density a second shield is allowed (see buy)
   var COOLDOWNS = { boost: 8, steal: 14, shield: 35, life: 60 };
   var abs = Math.abs;
 
@@ -93,8 +92,8 @@
       };
     });
     var prevTime = 0;
-    // Rythme naturel : deux spectateurs n'envoient jamais un cadeau au meme instant. Apres chaque cadeau,
-    // un court silence tire au sort (toutes equipes confondues) avant le suivant.
+    // Natural pacing: two viewers never send a gift at the same instant. After each gift,
+    // a short random gap (across both teams) passes before the next.
     var horloge = 0,
       libre = 0;
     function configure(i) {
@@ -106,7 +105,7 @@
         });
     }
     function record(team, what, why) {
-      history.unshift((team === 'gold' ? 'Or' : 'Ombre') + ' : ' + what + ' (' + why + ')');
+      history.unshift((team === 'gold' ? 'Gold' : 'Shadow') + ': ' + what + ' (' + why + ')');
       if (history.length > 6) history.pop();
     }
 
@@ -124,10 +123,10 @@
         ['gold', 'shadow'].forEach(function (c) {
           teams[c].count = { boost: 0, steal: 0, shield: 0, life: 0, rose: 0 };
           teams[c].lengthBefore = null;
-        }); // nouvelle manche
+        }); // new round
       prevTime = e.t;
       horloge += dt;
-      // l'ordre de passage des deux equipes est tire au sort a chaque tour : aucune ne parle toujours la premiere
+      // team order is randomized each tick: neither team always acts first
       (Math.random() < 0.5 ? ['gold', 'shadow'] : ['shadow', 'gold']).forEach(function (team) {
         var Q = teams[team],
           mine = e[team],
@@ -161,7 +160,7 @@
           }
           return true;
         };
-        // ferveur : retombe vers 0,25, monte sur coup encaisse, sur retard, et en fin de manche
+        // fervor: decays toward 0.25, rises on a hit taken, when behind, and near the end of a round
         Q.fervor += (0.25 - Q.fervor) * Math.min(1, dt / 9);
         if (Q.lengthBefore !== null && mine.L <= Q.lengthBefore - 2) {
           Q.fervor = Math.min(1, Q.fervor + 0.45);
@@ -177,36 +176,35 @@
           return;
         }
         var headDist = abs(mine.head.x - opponent.head.x) + abs(mine.head.y - opponent.head.y);
-        var reflex = Math.random() < dt * 2.2; // des humains : ils reagissent en une demi-seconde, pas a la milliseconde
+        var reflex = Math.random() < dt * 2.2; // human pace: reactions take half a second, not a millisecond
 
-        // 0. L'anneau plein (Abdel : « a team can, during the 5 second countdown, gift something that blocks
-        //    it from winning »). Si l'adversaire TIENT l'anneau, l'equipe casse sa tenue par un vol, en
-        //    urgence (hors recharge, deux vols de plus que le plafond). S'il est sous bouclier, rien a faire.
-        //    Et l'equipe dont le serpent tient l'anneau le protege d'un bouclier si elle en a encore un.
+        // 0. Full ring: if the opponent is HOLDING the ring, break the hold with a steal, urgency mode
+        //    (bypasses cooldown, allows two extra steals over cap). If they have a shield, nothing to do.
+        //    The team whose snake is holding the ring shields it if a shield is still available.
         if (
           opponent.hold > 0 &&
           opponent.shieldTime <= 0 &&
           Math.random() < dt * 4 &&
-          buy('steal', "il tient l'anneau depuis " + opponent.hold.toFixed(1) + ' s', true)
+          buy('steal', 'holding the ring for ' + opponent.hold.toFixed(1) + ' s', true)
         ) {
         } else if (
           mine.hold > 0 &&
           mine.shieldTime <= 0 &&
           Math.random() < dt * 4 &&
-          buy('shield', "proteger la tenue de l'anneau")
+          buy('shield', 'protect the ring hold')
         ) {
         }
-        // 1. vie : juste apres un gros coup, si la bourse suit
+        // 1. life: right after a big hit, if the purse allows it
         else if (
           reflex &&
           Q.hit > 0 &&
           mine.lives === 0 &&
           !Q.cooldown.life &&
           opponent.L - mine.L >= 3 &&
-          buy('life', 'gros coup et retard de ' + (opponent.L - mine.L))
+          buy('life', 'big hit, trailing by ' + (opponent.L - mine.L))
         ) {
         }
-        // 2. bouclier : tete adverse tout pres, ou serpent en sursis
+        // 2. shield: opponent head very close, or snake on its last legs
         else if (
           reflex &&
           mine.shieldTime <= 0.5 &&
@@ -215,14 +213,14 @@
           buy(
             'shield',
             headDist <= 3
-              ? 'tete adverse a ' + headDist + ' cases'
+              ? 'opponent head ' + headDist + ' cells away'
               : mine.L < 5
-                ? 'serpent en sursis'
-                : 'il vient de prendre un coup',
+                ? 'snake on last legs'
+                : 'just took a hit',
           )
         ) {
         }
-        // 3. vol : jamais dans un bouclier ; quand l'adversaire est long, ou pour renverser la fin de manche
+        // 3. steal: never against a shielded opponent; when they are long or to flip a close endgame
         else if (
           reflex &&
           opponent.shieldTime <= 0 &&
@@ -233,24 +231,24 @@
           buy(
             'steal',
             remaining <= 20
-              ? 'fin de manche, ecart de ' + (opponent.L - mine.L)
-              : 'adversaire long (' + opponent.L + ')',
+              ? 'end of round, gap of ' + (opponent.L - mine.L)
+              : 'opponent is long (' + opponent.L + ')',
           )
         ) {
         }
-        // 4. tempo : une baie que les deux peuvent atteindre, la course se joue
+        // 4. boost: a berry both snakes can reach, the race is on
         else if (reflex && mine.boostTime <= 1 && !Q.cooldown.boost) {
           for (var b = 0; b < e.berries.length; b++) {
             var dm = abs(e.berries[b].x - mine.head.x) + abs(e.berries[b].y - mine.head.y),
               dl = abs(e.berries[b].x - opponent.head.x) + abs(e.berries[b].y - opponent.head.y);
             if (dm <= 12 && dm >= 3 && dm <= dl + 2 && dl <= dm + 5) {
-              if (buy('boost', 'course a la baie, ' + dm + ' contre ' + dl + ' cases')) {
+              if (buy('boost', 'berry race, ' + dm + ' vs ' + dl + ' cells')) {
               }
               break;
             }
           }
         }
-        // 5. roses : nourrir son serpent, surtout quand le plateau est vide ou qu'il est en retard ; on garde une reserve
+        // 5. roses: feed the snake, especially when the board is empty or it is behind; keep a reserve
         Q.rose -= dt;
         var reserve = remaining <= 20 ? 0 : 22;
         if (Q.rose <= 0 && Q.purse > reserve + 1 && e.berries.length < 5) {
@@ -261,7 +259,7 @@
         }
         Q.lengthBefore = mine.L;
       });
-      // un gros cadeau d'une equipe fait monter l'autre : elle repond
+      // a big gift from one team spikes the other's fervor: they respond
       if (bigGiftSent.gold) teams.shadow.fervor = Math.min(1, teams.shadow.fervor + 0.25);
       if (bigGiftSent.shadow) teams.gold.fervor = Math.min(1, teams.gold.fervor + 0.25);
       return ev;

@@ -1,11 +1,10 @@
-/* pont-tikfinity.js : relie le jeu a l'Event API de TikFinity (app desktop).
-   FAIT (ecran Event API de l'app, 2026-09-18) : endpoint ws://localhost:21213/,
-   messages {"event":"chat|gift|share|follow|like|roomUser|subscribe","data":{...}},
-   payloads au format TikTok-Live-Connector.
-   Regle des rafales (streaks) : un cadeau "streakable" (giftType 1) envoie un message par palier
-   de rafale puis un dernier avec repeatEnd:true et le total ; on ne compte que ce dernier.
-   Un cadeau non streakable (giftType != 1) se compte immediatement.
-   Expose window.PontTikFinity : { demarrer, arreter, etat(), traiter(objet), surChangement }. */
+/* tikfinity-bridge.js : connects the game to the TikFinity desktop app Event API.
+   Endpoint: ws://localhost:21213/. Messages: {"event":"chat|gift|share|follow|like|roomUser|subscribe","data":{...}},
+   payloads follow the TikTok-Live-Connector format.
+   Streak rule: a streakable gift (giftType 1) emits one message per streak step then a final one
+   with repeatEnd:true and the total count; only that final message is counted.
+   A non-streakable gift (giftType != 1) is counted immediately.
+   Exposes window.TikFinityBridge: { start, stop, state(), process(obj), onChange }. */
 (function () {
   'use strict';
   var URL_PONT = 'ws://localhost:21213/';
@@ -30,13 +29,13 @@
     }
   }
 
-  /* Diamants d'un cadeau : diamondCount est unitaire chez TikTok-Live-Connector,
-     la valeur envoyee au jeu reste unitaire, n porte le nombre. */
+  /* Gift diamonds: diamondCount is per-unit in TikTok-Live-Connector;
+     the value forwarded to the game stays per-unit and n carries the count. */
   function process(m) {
     if (!m || !m.event) return null;
     var d = m.data || {};
     state.events++;
-    /* trace brute : le dernier message recu tel quel, pour diagnostiquer ce que TikFinity envoie vraiment */
+    /* raw trace: last message as received, for diagnosing what TikFinity actually sends */
     state.raw = m.event + ' ' + JSON.stringify(d).slice(0, 300);
     if (m.event === 'like') {
       var nl = Math.max(1, parseInt(d.likeCount) || 1);
@@ -52,7 +51,7 @@
         })
       );
     }
-    /* arrivees, partages, abonnements : remontes au jeu pour le bandeau d'activite */
+    /* joins, shares, follows: forwarded to the game for the activity banner */
     if (m.event === 'member' || m.event === 'join' || m.event === 'share' || m.event === 'follow') {
       var ty = m.event === 'share' ? 'share' : m.event === 'follow' ? 'follow' : 'join';
       state.last = ty + (d.uniqueId ? ' @' + d.uniqueId : '');
@@ -67,19 +66,19 @@
         })
       );
     }
-    /* nombre de spectateurs : paliers salues par le bandeau */
+    /* viewer count: tier milestones acknowledged by the banner */
     if (m.event === 'roomUser') {
       var vc = parseInt(d.viewerCount) || 0;
-      state.last = 'spectateurs ' + vc;
+      state.last = 'viewers ' + vc;
       notify();
       return window.receiveEvent && window.receiveEvent({ type: 'viewers', total: vc });
     }
     if (m.event !== 'gift') return (notify(), null);
-    /* rafale : giftType 1 -> ne compter que le message final (repeatEnd true) */
+    /* streak: giftType 1 means count only the final message (repeatEnd true) */
     var streakable = d.giftType === 1 || (d.gift && d.gift.gift_type === 1);
     var isFinal = d.repeatEnd === true || (d.gift && d.gift.repeat_end === 1);
     if (streakable && !isFinal) {
-      state.last = 'rafale en cours (' + (d.giftName || '?') + ')';
+      state.last = 'streak in progress (' + (d.giftName || '?') + ')';
       notify();
       return null;
     }
@@ -88,7 +87,7 @@
     var giftName = String(d.giftName || '');
     state.gifts += n;
     state.last =
-      giftName + ' x' + n + ' (' + value + ' diamants)' + (d.uniqueId ? ' @' + d.uniqueId : '');
+      giftName + ' x' + n + ' (' + value + ' diamonds)' + (d.uniqueId ? ' @' + d.uniqueId : '');
     notify();
     return (
       window.receiveEvent &&
@@ -123,14 +122,14 @@
       try {
         m = JSON.parse(ev.data);
       } catch (e) {
-        state.error = 'message illisible';
+        state.error = 'unreadable message';
         notify();
         return;
       }
       try {
         process(m);
       } catch (e) {
-        state.error = 'traitement : ' + String((e && e.message) || e);
+        state.error = 'processing: ' + String((e && e.message) || e);
         notify();
       }
     };
@@ -140,10 +139,10 @@
       reschedule();
     };
     ws.onerror = function () {
-      /* onclose suit toujours, la relance vit la-bas */
+      /* onclose always follows; reconnect lives there */
     };
   }
-  /* reconnexion : 1 s, 2 s, 4 s... plafonnee a 10 s, tant que demarrer() est voulu */
+  /* reconnect backoff: 1 s, 2 s, 4 s... capped at 10 s, as long as start() was called */
   function reschedule() {
     if (!intended) return;
     var delay = Math.min(10000, 1000 * Math.pow(2, attempts++));
@@ -191,10 +190,10 @@
         error: state.error,
       };
     },
-    set surChangement(f) {
+    set onChange(f) {
       onChange = f;
     },
-    get surChangement() {
+    get onChange() {
       return onChange;
     },
   };

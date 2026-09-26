@@ -9,8 +9,8 @@ import { SHIELD_DURATION, BOOST_DURATION } from './rules.js';
 import { giftBanner, giftFeedback } from './gift-feedback.js';
 import { bodies, settings, t } from '../scripts/game.js';
 
-// Legende des cadeaux (duel) : sous le compteur, une colonne par camp. Chaque ligne = image du cadeau
-// TikTok (cadeaux/*.png, fond transparent), prix en coins, effet. Etape 1 (Abdel) : les deux roses.
+// Duel gift legend: one column per team below the counter. Each row shows the TikTok gift image
+// (assets/gifts/*.png, transparent background), price in coins, and the in-game effect.
 export const DUEL_GIFTS = {
   gold: [
     { img: 'rose-red', price: 1, effect: '+1' },
@@ -26,7 +26,6 @@ export const DUEL_GIFTS = {
     { img: 'capybara', price: 30, effect: 'shield 15s' },
     { img: 'hand-heart', price: 100, effect: '+1 life' },
   ],
-  // a venir, une ligne par cadeau : {img:'dyno',prix:10,effet:'speed 10s'}, {prix:30,effet:'steal 15%'}, {prix:50,effet:'shield 15s'}, {prix:100,effet:'+1 life'}
 };
 
 const giftImages = {};
@@ -44,8 +43,7 @@ function loadGiftImage(imgKey) {
 }
 
 export function paintDuelLegend() {
-  // Compact (Abdel : 5 cadeaux par cote a venir, anglais, sans 'pour X', la couleur suffit) :
-  // 5 lignes de 92 px tiennent entre 1340 et 1800.
+  // 5 rows of 92 px fit between y=1340 and y=1800; no team label, color identifies the team.
   const Y = L.legY,
     LH = 92,
     IMG = 64,
@@ -59,7 +57,7 @@ export function paintDuelLegend() {
     const giftList = DUEL_GIFTS[team],
       teamIdx = team === 'gold' ? 0 : 1,
       body = bodies[teamIdx];
-    // G4 : bandeau donateur au-dessus de la colonne, il glisse vers le haut et s'efface
+    // G4: donor banner above the column, slides up and fades out.
     const donorBanner = giftBanner[teamIdx];
     if (mode === 'G4' && donorBanner && t - donorBanner.t < 2.6) {
       const a = t - donorBanner.t,
@@ -76,7 +74,7 @@ export function paintDuelLegend() {
     }
     giftList.forEach((c, k) => {
       const y = Y + k * LH;
-      // retour visuel : age du dernier cadeau de cette ligne, et part restante de l'effet s'il dure
+      // Visual feedback: age of the last gift on this row, and remaining fraction of a timed effect.
       const lineFeedback = giftFeedback[teamIdx][k],
         age = lineFeedback ? t - lineFeedback.t : 99;
       const remaining = body
@@ -98,7 +96,7 @@ export function paintDuelLegend() {
         ctx.roundRect(cx - CW / 2, y - LH / 2 + 6, CW, LH - 12, 22);
         ctx.fill();
       }
-      // plaque
+      // card background
       ctx.fillStyle = 'rgba(6,11,8,0.46)';
       ctx.beginPath();
       ctx.roundRect(cx - CW / 2, y - LH / 2 + 6, CW, LH - 12, 22);
@@ -106,13 +104,12 @@ export function paintDuelLegend() {
       ctx.lineWidth = 1.5;
       ctx.strokeStyle = 'rgba(' + rgb + ',0.35)';
       ctx.stroke();
-      // image du cadeau, a gauche de la plaque
-      // Ombre en miroir d'Or (Abdel, 2026-09-19) : image et pastille de prix a DROITE, effet aligne a droite
+      // Gift image. Shadow team mirrors Gold: image and price badge on the right, effect right-aligned.
       const mirrored = team === 'shadow';
       const img = loadGiftImage(c.img);
       const ix = mirrored ? cx + CW / 2 - 16 - IMG : cx - CW / 2 + 16,
         iy = y - IMG / 2;
-      // G2 : l'image sursaute ; G3 : elle sautille
+      // G2: image pops (scale burst); G3: image hops (vertical bounce).
       const bounce = mode === 'G2' && age < 0.3 ? 1 + 0.18 * Math.sin((age / 0.3) * Math.PI) : 1,
         hop = mode === 'G3' && age < 0.25 ? -9 * Math.sin((age / 0.25) * Math.PI) : 0;
       if (img && img.complete && img.naturalWidth) {
@@ -124,9 +121,8 @@ export function paintDuelLegend() {
         ctx.arc(ix + IMG / 2, y, IMG * 0.38, 0, Math.PI * 2);
         ctx.fill();
       }
-      // prix : pastille coin
-      // prix (pastille teintee) puis effet, sur une seule ligne
-      const pcx = mirrored ? ix - 18 - 17 : ix + IMG + 18 + 17; // centre de la pastille de prix
+      // Price badge (tinted circle) then effect text, on one line.
+      const pcx = mirrored ? ix - 18 - 17 : ix + IMG + 18 + 17; // center of the price badge
       ctx.fillStyle = tint;
       ctx.beginPath();
       ctx.arc(pcx, y, 17, 0, Math.PI * 2);
@@ -196,9 +192,9 @@ export function paintDuelLegend() {
   ctx.restore();
 }
 
-// Bandeau de cadeaux qui defile (modele Livecade, valide en direction par Abdel 2026-09-22) : un ruban
-// horizontal au bas de l'ecran qui glisse en continu, chaque cadeau = son image ANIMEE (wiggle) + son EFFET
-// en toutes lettres. AUCUN prix, AUCUN verbe d'envoi : c'est un menu de jeu, pas une vitrine d'achat.
+// Scrolling gift ribbon (Livecade pattern): a horizontal strip at the bottom that scrolls continuously.
+// Each entry shows the animated gift image (wiggle) and the effect in full text.
+// No prices, no call-to-action verbs: this is a game menu, not a shop display.
 export const EFFECT_LABEL = {
   '+1': 'BERRY',
   'speed 10s': 'SPEED',
@@ -219,9 +215,9 @@ function getTiles(team) {
   return t;
 }
 
-// un ruban compact : boite etroite posee sur un cote ; la liste d'un camp glisse, boucle, et s'ESTOMPE en
-// fondu transparent aux deux bords (rendu sur un calque a part puis efface aux extremites). Icones animees
-// (wiggle), label teinte du camp. Pas de prix.
+// Compact ribbon: a narrow box on one side. The team's gift list scrolls and loops, fading out at both
+// edges (rendered on a separate canvas then erased at the extremities). Animated icons (wiggle),
+// team-tinted label. No prices.
 const ribbonLayers = {};
 
 function getRibbonLayer(team, bw, bh) {
@@ -238,9 +234,9 @@ function getRibbonLayer(team, bw, bh) {
   return c;
 }
 
-// Pictogramme de l'EFFET dans la DA du jeu (memes traces que le rail duel : ecusson, coeur, eclair, baie),
-// dessine sur un contexte donne. C'est l'element principal de chaque ligne ; le cadeau TikTok n'est qu'un
-// petit badge a cote (consigne Abdel : « the effect explicit action in the game accompagne de l'icone »).
+// Effect glyph in the game's visual language (matching the duel rail: shield, heart, bolt, berry),
+// drawn onto a given context. This is the primary element per row; the TikTok gift image is only
+// a small secondary badge (the game effect leads, the gift icon confirms it).
 export function paintEffectGlyph(o, label, x, y, s, rgb) {
   o.save();
   o.lineJoin = 'round';
@@ -303,7 +299,7 @@ export function paintEffectGlyph(o, label, x, y, s, rgb) {
     o.strokeStyle = 'rgba(255,255,255,0.85)';
     o.stroke();
   } else if (label === 'BERRY') {
-    // la baie du plateau : rond vert lumineux
+    // Board berry: glowing green circle.
     o.fillStyle = 'rgba(130,214,120,0.96)';
     o.shadowColor = 'rgba(130,214,120,0.8)';
     o.shadowBlur = 14;
@@ -319,7 +315,7 @@ export function paintEffectGlyph(o, label, x, y, s, rgb) {
     o.arc(x - s * 0.25, y - s * 0.25, s * 0.18, 0, Math.PI * 2);
     o.fill();
   } else if (label === 'STEAL') {
-    // fleche courbe qui ramene vers soi : le vol d'une part de l'adversaire
+    // Curved arrow turning inward: stealing a share from the opponent.
     o.lineWidth = 4.5;
     o.strokeStyle = 'rgba(' + rgb + ',0.95)';
     o.shadowColor = 'rgba(' + rgb + ',0.6)';
@@ -346,8 +342,8 @@ export function paintEffectGlyph(o, label, x, y, s, rgb) {
   o.restore();
 }
 
-// ruban VERTICAL : colonne d'un camp qui defile de bas en haut (ou l'inverse), chaque cadeau = icone + effet
-// sur une ligne, projecteur au centre vertical, fondu haut et bas, plaque qualite prod.
+// Vertical ribbon: one team column scrolling up or down. Each entry shows an icon and effect label.
+// Spotlight at the vertical center, fade at top and bottom, production-quality card.
 function paintGiftRibbon(team, x0, y0, bw, bh, rgb, speed, direction) {
   const T = getTiles(team),
     n = T.length,
@@ -356,7 +352,7 @@ function paintGiftRibbon(team, x0, y0, bw, bh, rgb, speed, direction) {
     midY = bh / 2,
     icx = 52;
   ctx.save();
-  // plaque TRANSLUCIDE : l'ambiance du jeu passe derriere. Ombre portee douce, lisere teinte.
+  // Translucent card: game ambience shows through. Soft drop shadow, tinted border.
   ctx.shadowColor = 'rgba(0,0,0,0.35)';
   ctx.shadowBlur = 16;
   ctx.shadowOffsetY = 5;
@@ -382,9 +378,8 @@ function paintGiftRibbon(team, x0, y0, bw, bh, rgb, speed, direction) {
   if (oc) {
     const o = oc.getContext('2d');
     o.clearRect(0, 0, bw, bh);
-    // les deux colonnes partagent le meme defilement ; le cote 'sens>0' est le MIROIR vertical de l'autre :
-    // meme effet au centre au meme instant des deux cotes (Abdel : « LIFE au centre a gauche = LIFE a droite »),
-    // tout en glissant en sens opposes.
+    // Both columns share the same scroll position; the direction>0 side is the vertical mirror of the other:
+    // the same effect is centered on both sides at the same moment, while scrolling in opposite directions.
     const scrollBand = n * TH,
       scrollOffset = (((t * speed) % scrollBand) + scrollBand) % scrollBand;
     const firstTile = Math.floor(scrollOffset / TH) - 1;
@@ -395,12 +390,12 @@ function paintGiftRibbon(team, x0, y0, bw, bh, rgb, speed, direction) {
         cyB = i * TH - scrollOffset + TH / 2,
         cy = direction > 0 ? bh - cyB : cyB;
       if (cy < -TH || cy > bh + TH) continue;
-      // separateur discret entre deux paires
+      // Subtle divider between rows.
       const byB = i * TH - scrollOffset,
         by = direction > 0 ? bh - byB : byB;
       o.fillStyle = 'rgba(255,255,255,0.10)';
       o.fillRect(20, by - 0.5, bw - 40, 1);
-      // projecteur au centre vertical : le cadeau au milieu s'anime, les autres au repos
+      // Spotlight at the vertical center: the middle entry animates, others are idle.
       let envelope = 1 - Math.abs(cy - midY) / 95;
       envelope = envelope > 0 ? envelope * envelope * (3 - 2 * envelope) : 0;
       const ang = envelope * 0.17 * Math.sin(t * 9.2),
@@ -412,14 +407,14 @@ function paintGiftRibbon(team, x0, y0, bw, bh, rgb, speed, direction) {
         o.fillStyle = r;
         o.fillRect(icx - 66, cy - 66, 132, 132);
       }
-      // element principal : le pictogramme de l'EFFET dans la DA du jeu (anime au centre)
+      // Primary element: the effect glyph in the game's visual language (animated at center).
       o.save();
       o.translate(icx, cy);
       o.rotate(ang);
       o.scale(sc, sc);
       paintEffectGlyph(o, it.label, 0, 0, 22, rgb);
       o.restore();
-      // le mot de l'effet
+      // Effect label.
       o.shadowColor = 'rgba(0,0,0,0.6)';
       o.shadowBlur = 4;
       o.shadowOffsetY = 2;
@@ -429,7 +424,7 @@ function paintGiftRibbon(team, x0, y0, bw, bh, rgb, speed, direction) {
       o.shadowColor = 'transparent';
       o.shadowBlur = 0;
       o.shadowOffsetY = 0;
-      // le cadeau TikTok en petit badge a droite : secondaire, legerement attenue
+      // TikTok gift as a small badge on the right: secondary, slightly dimmed.
       const img = loadGiftImage(it.img),
         GB = 34,
         gx = bw - 24 - GB / 2;
@@ -442,7 +437,7 @@ function paintGiftRibbon(team, x0, y0, bw, bh, rgb, speed, direction) {
         o.drawImage(img, gx - GB / 2, cy - GB / 2, GB, GB);
       o.restore();
     }
-    // fondu haut et bas : on efface vraiment le contenu (transparence), la plaque translucide reste dessous
+    // Fade top and bottom: erase the layer content (alpha), the translucent card behind stays intact.
     o.globalCompositeOperation = 'destination-out';
     let gt = o.createLinearGradient(0, 0, 0, FADE);
     gt.addColorStop(0, 'rgba(0,0,0,1)');
@@ -463,18 +458,18 @@ function paintGiftRibbon(team, x0, y0, bw, bh, rgb, speed, direction) {
   ctx.restore();
 }
 
-// les plaques ne sont PAS permanentes (un panneau permanent est un declencheur TikTok documente) :
-// pattern etudie et REGLABLE en regie : visibles defileVisi s, cachees defileCache s, en boucle.
-// Fondu doux en entree comme en sortie. Aucun lien avec l'arrivee des cadeaux (pattern pur).
+// Ribbons are NOT permanent on screen (a permanent panel is a documented TikTok trigger).
+// Duration is configurable in the control room: visible for scrollVisible s, hidden for scrollHidden s, looping.
+// Soft fade in and out. Independent of incoming gifts (pure timing pattern).
 const SCROLL_FADE = 0.7; // s
 
 function scrollAlpha() {
-  // 0 est une valeur legitime pour cache (toujours visible) : ne pas la confondre avec « non regle »
+  // 0 is a valid hidden duration (always visible): do not treat it as unset.
   const visibleDuration = settings.scrollVisible > 0 ? settings.scrollVisible : 8,
     hiddenDuration = settings.scrollHidden == null ? 12 : settings.scrollHidden,
     P = visibleDuration + hiddenDuration,
     ph = t % P;
-  if (hiddenDuration <= 0) return 1; // option "toujours visible" (tests hors live)
+  if (hiddenDuration <= 0) return 1; // always-visible option (off-live testing)
   const a =
     ph < SCROLL_FADE
       ? ph / SCROLL_FADE
@@ -489,7 +484,7 @@ function scrollAlpha() {
 export function paintGiftScroll() {
   const al = scrollAlpha();
   if (al <= 0.01) return;
-  // deux colonnes verticales longues, placees sur le cote DROIT, SOUS le plateau (la gauche reste libre)
+  // Two tall vertical columns on the right side, below the board (left side stays free).
   const BW = 250,
     BH = 372,
     YB = L.scrollRowY,

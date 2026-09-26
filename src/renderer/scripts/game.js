@@ -1,5 +1,5 @@
-// Vipere Live, base minimale : un serpent IA qui mange et grandit dans la foret. Rien d'autre.
-// Vitesse constante, se toucher tue toujours, aucun texte sur le canvas, aucun son de fond.
+// Viper Live: game loop module. Single AI-driven snake duel in the forest.
+// Constant speed, self-collision always kills, no canvas text, no background sound.
 
 import { W, H, COLS, ROWS, CELL, X0, Y0, OX, WF, setFormat } from '../engine/layout.js';
 import { canvas, ctx, bindCanvas } from '../engine/canvas.js';
@@ -55,7 +55,7 @@ import { drawFrame } from '../engine/frame.js';
 
 let adjustCanvas = null;
 
-// applique le format demande en regie ; appele au debut de chaque manche (jamais en cours de manche)
+// Applies the format requested in settings; called at the start of each round (never mid-round).
 function applyFormat() {
   if (!setFormat(settings.format)) return;
   if (canvas) {
@@ -83,27 +83,27 @@ export let fruit = null,
   grew = false,
   aiMemory = {},
   trace = [];
-// anneaux qui restent a sortir de la coquille : le corps s'allonge pas apres pas depuis l'oeuf
+// segments still to push out of the shell: the body grows step by step from the egg
 let toPush = 0;
-// Cadeaux des spectateurs : une graine tombe, germe en 1 s, devient une baie mangeable. 3 au plus.
+// Viewer gifts: a seed drops, germinates in 1 s, becomes an edible berry. At most 3 active.
 export let seeds = [],
   berries = [],
   sparks = [],
   gifted = 0,
   giftsEaten = 0;
 
-// Deux camps, un serpent : Sun nourrit, Moon bloque. La manche tranche entre eux.
+// Two teams, two snakes: gold feeds (sun), shadow blocks (moon). The round decides between them.
 export let stones = [],
   round = null,
   rounds = [],
   berrylessTime = 0;
 let aiAdjustments = 0,
-  aiHolds = 0; // anti-tremblement : redecisions au franchissement, et decisions gardees
-let tickOrder = 0; // duel : alterne quel serpent est resolu en premier a chaque tick (equite)
+  aiHolds = 0; // anti-wiggle: re-decisions at crossing, and decisions held
+let tickOrder = 0; // duel: alternates which snake resolves first each tick (fairness)
 
 let wildDelay = 0;
 
-// Une erreur de rendu avalee en silence a casse le jeu sans que rien ne le dise : on garde le message.
+// A silently swallowed render error once broke the game with no indication: keep the last message.
 let lastError = null;
 const firstLine = (err) =>
   ((err && err.stack ? err.stack : '').split(String.fromCharCode(10))[1] || '').trim();
@@ -119,10 +119,10 @@ export let t = 0,
   avoidable = 0,
   deathLengths = [],
   dirs = [];
-// Un seul mode dans `main` : le duel Or contre Ombre. L'ancien mode solo vit sur la branche wip/solo-mode.
-// plafonds : faux par defaut, donc on pose autant de pierres, de ronces et de baies qu'on veut,
-// jusqu'a remplir le plateau. Vrai remet les plafonds du palier, seul etat dans lequel les
-// harnais d'equilibrage mesurent quelque chose de comparable.
+// Single mode: gold vs shadow duel.
+// caps: false by default, so stones, brambles, and berries can be placed without limit until the
+// board is full. True restores tier caps, the only state where balance harnesses measure
+// something comparable.
 export const settings = {
   ai: true,
   mockup: false,
@@ -136,64 +136,63 @@ export const settings = {
   cycle: 480,
   hour: 0.06,
   caps: false,
-  // avantage (super admin, regie) : -100 favorise Ombre, 0 neutre, +100 favorise Or.
-  // Invisible a l'ecran : il ne touche que la qualite de jeu de l'IA. Remis a 0 a chaque manche.
+  // advantage (super admin, control room): -100 favors shadow, 0 neutral, +100 favors gold.
+  // Not shown on screen: affects AI play quality only. Reset to 0 each round.
   advantage: 0,
-  // underdog (super admin) : le serpent le plus court reçoit en douce +audace et +portées. Aucun affichage.
+  // underdog (super admin): the shorter snake silently gets +recklessness and +reach. No display.
   underdog: false,
-  // plateforme (regie) : 'tiktok' affiche la legende des cadeaux et les colonnes de statuts qu'ils
-  // alimentent ; 'neutre' (YouTube, test de gameplay) les cache. Le jeu, lui, ne change pas.
+  // platform (control room): 'tiktok' shows the gift legend and status columns it feeds;
+  // 'neutral' (YouTube, gameplay tests) hides them. The game itself does not change.
   platform: 'tiktok',
-  // retourCadeau (regie) : prototype a valider par Abdel DANS le jeu, sur la vraie legende du bas.
-  // 'aucun', 'G1' ligne illuminee + donateur + trait qui se vide, 'G2' anneau autour de l'image,
-  // 'G3' pastille compteur, 'G4' bandeau donateur au-dessus de la colonne.
+  // giftFeedback (control room): gift arrival feedback variant.
+  // 'none', 'G1' lit row + donor + draining bar, 'G2' ring around the icon,
+  // 'G3' counter badge, 'G4' donor banner above the column.
   giftFeedback: 'G1',
-  // affichageCadeaux (regie) : forme de la legende. 'complet' = deux colonnes verticales avec prix + effet
-  // (tests hors live). 'aucun' = rien du tout. 'defile' = bandeaux qui glissent, icones animees, EFFET
-  // en toutes lettres SANS prix ni verbe d'envoi (live-safe : la regle du 25/07 vise le prix et l'appel a
-  // l'action, pas la reaction a un cadeau). Le retour a l'arrivee d'un cadeau reste porte par le bandeau P1.
+  // giftDisplay (control room): legend layout. 'full' = two vertical columns with price + effect
+  // (off-live tests). 'none' = hidden. 'scroll' = sliding banners, animated icons, EFFECT in full
+  // caps WITHOUT price or send verb (live-safe: the 25/07 rule targets price and call-to-action,
+  // not the reaction to a gift). Gift arrival feedback is still carried by the P1 banner.
   giftDisplay: 'scroll',
-  // pattern d'apparition du mode 'defile' (reglable en regie, teste en direct) : secondes visibles puis
-  // secondes cachees, en boucle. defileCache=0 => toujours visible (tests hors live seulement).
+  // 'scroll' mode visibility pattern (configurable in control room, testable live): seconds visible
+  // then seconds hidden, looping. scrollHidden=0 => always visible (off-live tests only).
   scrollVisible: 8,
   scrollHidden: 12,
-  // nomsDonateurs (regie) : affiche ou non le pseudo du spectateur sur la ligne du cadeau (G1) et le bandeau (G4).
+  // donorNames (control room): whether to show the viewer's nickname on the gift row (G1) and banner (G4).
   donorNames: true,
-  // bandeau (regie) : prototype du bandeau d'activite en haut-centre (arrivees, cadeaux, likes, partages),
-  // porte par un mini serpent au rendu reel. 'aucun', 'P1' orbite, 'P2' porteur, 'P3' mascotte. A valider par Abdel.
-  // meteo de la foret (regie) : 'pluie' d'origine, 'neige', 'automne', 'ete', 'orage', 'etoiles', 'brume'.
-  // ambianceAuto : a chaque manche, une heure et une meteo tirees au sort. Prototype, a valider par Abdel.
+  // banner (control room): activity banner at top-center (joins, gifts, likes, shares), rendered as
+  // a mini snake. 'none', 'P1' orbit, 'P2' carrier, 'P3' mascot.
+  // weather (control room): forest weather. 'rain' default, 'snow', 'autumn', 'summer', 'storm', 'stars', 'mist'.
+  // autoAmbience: each round draws a random hour and weather.
   weather: 'rain',
   autoAmbience: true,
-  // format (regie) : 'vertical' 9:16 TikTok ou 'horizontal' 16:9 YouTube, applique a la prochaine manche.
+  // format (control room): 'portrait' 9:16 (TikTok) or 'landscape' 16:9 (YouTube), applied at next round.
   format: 'portrait',
   banner: 'P1',
-  // classement (regie) : prototype du classement des donateurs de la manche, sur l'ecran de fin.
-  // 'aucun', 'C1' podium, 'C2' deux colonnes par camp, 'C3' MVP ; mises en avant du MVP : 'M1' couronne et
-  // rayons, 'M2' couronne et serpent qui tourne autour, 'M3' podium a trois marches. A valider par Abdel.
+  // ranking (control room): end-of-round donor ranking screen.
+  // 'none', 'C1' podium, 'C2' two columns by team, 'C3' MVP; MVP highlights: 'M1' crown and rays,
+  // 'M2' crown with orbiting snake, 'M3' three-step podium.
   ranking: 'C3',
-  // fluide (regie) : coupe tous les halos flous (shadowBlur) du canevas de jeu. Mesure dans le moteur de
-  // l'exe, plateau charge : 28 images par seconde avec les flous, 45 sans. Change l'aspect : a juger a l'ecran.
+  // smooth (control room): disables all blur halos (shadowBlur) on the game canvas.
+  // Measured in the exe engine on a loaded board: 28 fps with blur, 45 without. Changes the look.
   smooth: false,
-  // superIA (super admin) : true = les deux camps jouent avec ia-super.js (recherche adverse).
-  // 'or' ou 'ombre' = un seul camp (tournois des harnais). Suspendue pendant une scene.
+  // superAi (super admin): true = both teams use the adversarial search AI.
+  // 'gold' or 'shadow' = one team only (harness tournaments). Suspended during a scene.
   superAi: false,
-  // debugIA (super admin, regie) : calque des decisions de l'IA sur le plateau. Coupe par defaut ;
-  // coupe, l'IA ne remplit rien et le calque n'est pas dessine (zero effet sur le jeu).
+  // aiDebug (super admin, control room): AI decision overlay on the board. Off by default;
+  // when off, the AI fills nothing and the overlay is not drawn (zero effect on gameplay).
   aiDebug: false,
 };
 
 export const px = (gx, gy) => ({ x: X0 + gx * CELL + CELL / 2, y: Y0 + gy * CELL + CELL / 2 });
 export const getAmbience = () => (window.AMBIENCES || []).find((a) => a.id === 'forest') || null;
 
-export let HOLD_SECONDS = 5; // secondes a tenir l'anneau plein pour gagner (reglerTenue pour le bench)
-// compteurs de moments de depense (proxy de profit) : tenues entamees, sursis entames, parades
+export let HOLD_SECONDS = 5; // seconds to hold the full ring to win (setHoldSeconds for the harness)
+// engagement-moment counters (proxy for profit): holds started, reprieve periods, parries
 let moments = { holds: 0, reprieve: 0, parries: 0, rounds: 0 };
 
-// eclaterAnneaux : convertit des segments en baies actives (coupe duel ou mort duel).
-// Appeler sous charger(i) : zoneMorte utilise le bon contexte de tete (duel verifie les deux).
-// camp : les anneaux laches gardent la couleur du serpent qui les a perdus (Abdel : « the food
-// dropped need to be the same color as the snake who dropped it »). Sans camp, baie verte normale.
+// burstSegments: converts segments into active berries (duel cut or duel death).
+// Call under loadBody(i): isDeadZone uses the correct head context (duel checks both).
+// team: dropped segments keep the color of the snake that lost them. No team = neutral green berry.
 function burstSegments(segs, team) {
   segs.forEach((s) => {
     if (isDeadZone(s, 0)) return;
@@ -208,8 +207,8 @@ function burstSegments(segs, team) {
   });
 }
 
-// semerPour(i, pseudo) : seme une baie dans la moitie du plateau proche de la tete de corps i.
-// Doit etre appele pendant le traitement d'un evenement duel ; charger(0) apres la boucle.
+// plantSeedFor(i, nickname): plants a berry in the half of the board nearest to body i's head.
+// Must be called while processing a duel event; call loadBody(0) after the loop.
 export function plantSeedFor(i, nickname) {
   const headIndex = bodies[i] && bodies[i].snake[0];
   const rivalHeadIndex = bodies[1 - i] && bodies[1 - i].snake[0];
@@ -229,12 +228,12 @@ export function plantSeedFor(i, nickname) {
     storeBody();
     return 0;
   }
-  // Fiable (Abdel, reco validee) : la baie tombe PRES de la tete du camp, pas n'importe ou dans sa moitie.
-  // Cases triees par distance a la tete (hors zone morte, donc jamais franchies avant d'etre actives),
-  // tirage parmi les 4 plus proches. Un spam de 15 roses forme une grappe autour de la tete, mangee
-  // dans les secondes qui suivent ; les cases se remplissent de proche en proche.
-  // Devant lui, jamais derriere (Abdel) : on garde les cases dont le produit scalaire avec sa direction
-  // est positif (devant ou de cote-devant) ; repli sur toutes si aucune.
+  // Berry drops NEAR the team's head, not anywhere in its half.
+  // Cells sorted by distance from head (outside dead zone, so never crossed before activating);
+  // pick among the 4 closest. A burst of 15 gifts clusters around the head, eaten within seconds;
+  // cells fill outward from the head.
+  // Prefer cells ahead: keep those with a positive dot product against the snake's direction
+  // (ahead or side-ahead); fall back to all cells if none.
   const dirI = bodies[i].dir || { x: 1, y: 0 };
   const inFront = l.filter((c) => (c.x - headIndex.x) * dirI.x + (c.y - headIndex.y) * dirI.y > 0);
   if (inFront.length) l = inFront;
@@ -252,14 +251,14 @@ export function plantSeedFor(i, nickname) {
     t: 0,
     team: bodies[i].team,
     owner: bodies[i].team,
-  }); // teinte du camp, et RESERVEE a ce camp (Abdel : pas de vol de rose)
+  }); // tinted by the team, and RESERVED for that team (no stealing berries)
   gifted++;
   storeBody();
   return 1;
 }
 
-// couperDuel(adverseIdx, k) : coupe k anneaux de la queue du corps adverse, les eclate en baies.
-// Retourne le nombre d'anneaux effectivement coupes. Finit avec ranger() mais PAS charger(0).
+// cutDuel(adverseIdx, k): removes k segments from the tail of the opponent body, bursting them as berries.
+// Returns the number of segments actually cut. Ends with storeBody() but NOT loadBody(0).
 export function cutDuel(adverseIdx, k, thiefIndex) {
   loadBody(adverseIdx);
   if (!snake.length) {
@@ -267,11 +266,11 @@ export function cutDuel(adverseIdx, k, thiefIndex) {
     return 0;
   }
   if (bodies[adverseIdx].shieldTime > 0) {
-    // le bouclier pare la coupe entiere tant qu'il est actif ; le rail et la tete le montrent
+    // the shield parries the entire cut while active; the rail and head display it
     bodies[adverseIdx].parryTime = 0.9;
     moments.parries++;
     announceRescue(adverseIdx, 'shield');
-    // TEST equilibre : la coupe paree est RENDUE au serpent protege, il grandit de ce qu'elle aurait coupe
+    // Balance test: the parried cut is GIVEN BACK to the shielded snake; it grows by the amount that would have been cut.
     const gain = Math.max(1, Math.round(snake.length * CUT_FRACTION));
     toPush += gain;
     const pos = px(snake[0].x, snake[0].y);
@@ -285,7 +284,7 @@ export function cutDuel(adverseIdx, k, thiefIndex) {
     return 0;
   }
   if (snake.length - count < 3 && !bodies[adverseIdx].adult) {
-    // serpent jeune (jamais 10 anneaux) : la coupe descend jusqu'a MIN_JEUNE, on ne tue pas un serpent au berceau
+    // young snake (never reaches 10 segments): cut down to YOUNG_MIN_LENGTH, never kill a snake in its shell
     count = Math.max(0, snake.length - YOUNG_MIN_LENGTH);
     if (count <= 0) {
       storeBody();
@@ -293,7 +292,7 @@ export function cutDuel(adverseIdx, k, thiefIndex) {
     }
   }
   if (snake.length - count < 3 && bodies[adverseIdx].lives > 0) {
-    // une vie encaisse la mort : la coupe s'arrete a 3 anneaux
+    // a life absorbs the death: cut stops at 3 segments
     bodies[adverseIdx].lives--;
     bodies[adverseIdx].parryTime = 0.9;
     announceRescue(adverseIdx, 'life');
@@ -314,7 +313,7 @@ export function cutDuel(adverseIdx, k, thiefIndex) {
     burst(p.x, p.y, 16, 'neutral-burst');
   }
   if (thiefIndex !== undefined && bodies[thiefIndex]) {
-    // VOL (Abdel : « steal 15% ») : les anneaux ne tombent pas en baies, ils passent directement au serpent du camp
+    // Steal: segments do not drop as berries, they pass directly to the thieving team's snake.
     bodies[thiefIndex].toPush = (bodies[thiefIndex].toPush || 0) + segs.length;
     segs.forEach((sg) => {
       const p = px(sg.x, sg.y);
@@ -323,7 +322,7 @@ export function cutDuel(adverseIdx, k, thiefIndex) {
   } else burstSegments(segs, bodies[adverseIdx].team);
   if (snake.length < 3 && bodies[adverseIdx].adult) {
     snake = [];
-    // adverseIdx a perdu : le camp oppose gagne
+    // adverseIdx lost: the opposing team wins
     const gagnant = bodies[adverseIdx].team === 'shadow' ? 'gold' : 'shadow';
     storeBody();
     endRound(gagnant, 'place');
@@ -334,7 +333,7 @@ export function cutDuel(adverseIdx, k, thiefIndex) {
   return count;
 }
 
-// opt regle la force d'un eclat : vitesse, poussee vers le haut, pesanteur, taille, opacite.
+// opt controls burst strength: speed, upward thrust, gravity, size, opacity.
 export function burst(x, y, n, tint, opt) {
   const o = opt || {},
     v0 = o.v0 !== undefined ? o.v0 : 60,
@@ -365,12 +364,12 @@ export function burst(x, y, n, tint, opt) {
 
 window.receiveEvent = receiveEvent;
 
-// La course dans le ciel : un soleil a gauche, une lune a droite, tous deux bas au depart.
-// Chaque baie mangee monte le soleil d'un cran, chaque rocher pose monte la lune d'un cran.
-// Le premier en haut termine la manche. Le serpent est la balle, pas le joueur.
+// Sky race: sun on the left, moon on the right, both starting low.
+// Each berry eaten raises the sun one notch; each stone placed raises the moon.
+// First to the top ends the round. The snake is the ball, not the player.
 function newRound() {
   applyFormat();
-  settings.advantage = 0; // le coup de pouce est un geste ponctuel, jamais un reglage qui traine
+  settings.advantage = 0; // advantage is a one-time nudge, not a persistent setting
   clearGiftFeedback();
   resetRoundDonations();
   if (settings.autoAmbience) {
@@ -396,7 +395,7 @@ function newRound() {
           ? 0.36
           : [0.02, 0.22, 0.36, 0.5, 0.64, 0.78][Math.floor(Math.random() * 6)];
   }
-  endScene(); // la scène ne survit pas à la manche ; l'underdog, oui (interrupteur explicite)
+  endScene(); // scene does not survive the round; underdog state does (explicit toggle)
   round = {
     t: 0,
     state: 'playing',
@@ -429,8 +428,8 @@ function newRound() {
   loadBody(0);
 }
 
-// L'affluence monte : le ciel s'allonge, jamais ne se raccourcit, et l'astre garde sa hauteur a l'ecran.
-// Sans cela une ruee ferait redescendre le soleil, et plus personne ne comprendrait la course.
+// Turnout grows: the sky only stretches, never shrinks, and the orb keeps its on-screen height.
+// Without this, a rush of viewers would push the sun back down, breaking race readability.
 function stretchSky(team, target, increment) {
   const heightKey = 'top' + team,
     skyKey = 'sky' + team,
@@ -441,15 +440,15 @@ function stretchSky(team, target, increment) {
   round[heightKey] = newHeight;
 }
 
-// Un cran de plus pour un camp. Le premier en haut du ciel gagne.
+// Advance one notch for a team. First to the top of the sky wins.
 export function rise(team, n) {
   return;
 }
 
-// Le compteur de serie. Il ne compte pas des points, il compte des MANCHES gagnees, et il
-// survit aux manches : c'est la seule memoire longue que le spectateur qui arrive en cours de
-// live peut lire d'un coup d'oeil. `pulse` part a zero quand le camp vient de marquer, ce qui
-// declenche le gonflement du chiffre : sans ca, l'increment passe inapercu sous le voile de fin.
+// Streak counter. Counts ROUNDS won, not points, and survives across rounds:
+// it is the only persistent score a viewer joining mid-stream can read at a glance.
+// `pulse` resets to zero when a team scores, triggering the number-grow animation;
+// without this, the increment would go unnoticed under the end-of-round veil.
 export let snakeScore = 0,
   scoreViewers = 0,
   snakePulse = 9,
@@ -466,7 +465,7 @@ function endRound(team, cause) {
     announceStreak(team);
   }
   if (team === 'draw') {
-    /* match nul : aucun point */
+    /* draw: no point */
   } else if (isSnakeTeam(team)) {
     snakeScore++;
     snakePulse = 0;
@@ -492,8 +491,8 @@ function endRound(team, cause) {
 
 export let egg = null;
 
-// Architecture multi-corps : motif charger/ranger.
-// On charge le corps i dans les variables de module, on travaille dessus, on range.
+// Multi-body architecture: load/store pattern.
+// Load body i into module variables, work on it, then store back.
 function createBody(team, tint, x0, y0, dir0) {
   return {
     team: team,
@@ -582,7 +581,7 @@ function hatch(keep) {
   subStep = 0;
   grew = false;
   aiMemory = {};
-  // Renaissance en cours de manche : les offrandes des spectateurs restent, seule la case de depart se libere
+  // Mid-round respawn: viewer offerings stay; only the spawn cell is cleared.
   if (keep) {
     const isOccupied = (c) => snake.some((s) => s.x === c.x && s.y === c.y);
     seeds = seeds.filter((g) => !isOccupied(g));
@@ -592,10 +591,10 @@ function hatch(keep) {
   requestAiMove();
 }
 
-// Duel : la tete adverse bouge en meme temps que la notre. Les deux serpents allaient l'un vers
-// l'autre sur la meme baie et se percutaient tete contre tete (sonde : 48 frontales en 90 s, toutes
-// perdues par Or qui avance en premier dans la boucle). Les quatre voisines de la tete adverse
-// sont donc interdites a l'IA, comme la couronne du rodeur : elle contourne au lieu de foncer.
+// In a duel, the opponent's head moves at the same time as ours. Both snakes approached
+// the same berry and collided head-on (probe: 48 head-ons in 90 s, all lost by gold resolved
+// first in the loop). The four neighbors of the opponent's head are therefore forbidden to the
+// AI: it routes around instead of charging.
 function opponentCrown(a) {
   const h = a.snake[0];
   if (!h) return [];
@@ -635,7 +634,7 @@ export function requestAiMove(keep) {
       opponentInvincible: !!(otherBody && otherBody.invincibleTime > 0),
       memory: aiMemory,
     };
-    // Scène : la moitié concernant le camp du serpent actif s'applique sur etat.
+    // Scene: the half concerning the active body's team is applied to state.
     if (scene && bodies[activeIndex]) {
       const teamScene = scene[bodies[activeIndex].team] || {};
       if (teamScene.stance) state.forcedStance = teamScene.stance;
@@ -651,7 +650,7 @@ export function requestAiMove(keep) {
       if (teamScene.encircle) state.encircle = true;
       if (teamScene.noKill) state.noKill = true;
     }
-    // Underdog : le plus court reçoit +audace et +2 cases de portée, en silence.
+    // Underdog: the shorter snake silently gets +recklessness and +2 cells of range.
     if (settings.underdog && bodies.length === 2) {
       const myLength = bodies[activeIndex].snake.length,
         oppLength = bodies[1 - activeIndex].snake.length;
@@ -677,7 +676,7 @@ export function requestAiMove(keep) {
     );
     if (superActive && keep) state.preferred = nextDir;
     let d = superActive ? window.ViperSuperAi.choose(state) : window.ViperAi.choose(state);
-    // garder : une direction deja annoncee (et dessinee) reste si elle est encore sure
+    // Hold: a direction already announced (and drawn) is kept if the AI still judges it safe.
     if (
       !superActive &&
       keep &&
@@ -687,8 +686,8 @@ export function requestAiMove(keep) {
       window.ViperAi.safeStep(state, nextDir)
     )
       d = nextDir;
-    // l'arriere est le cou, pas la derniere direction tentee (apres un pas rate contre un mur,
-    // dir pointe dans le mur et son inverse est parfois la seule issue)
+    // The back is the neck segment, not the last attempted direction (after a failed step into a wall,
+    // dir points into the wall and its inverse may be the only way out).
     const neck = snake[1]
       ? { x: snake[1].x - snake[0].x, y: snake[1].y - snake[0].y }
       : { x: -dir.x, y: -dir.y };
@@ -696,14 +695,14 @@ export function requestAiMove(keep) {
   } catch (err) {
     errors++;
     lastError =
-      'ia: ' + err.message + ' | ' + (err.stack || '').split('\n').slice(0, 3).join(' > ');
+      'ai: ' + err.message + ' | ' + (err.stack || '').split('\n').slice(0, 3).join(' > ');
   }
 }
 
 function die(cause) {
-  if (bodies[activeIndex]) bodies[activeIndex].deathCause = cause || 'self'; // pour les sondes : de quoi il est mort
-  // mort evitable : la tete avait encore une case libre a cote d'elle
-  // la queue ne libere pas sa case au pas d'une bouchee : elle compte comme occupee
+  if (bodies[activeIndex]) bodies[activeIndex].deathCause = cause || 'self'; // for probes: cause of death
+  // Avoidable death: the head still had a free neighbor cell.
+  // The tail does not free its cell on a bite step: it counts as occupied.
   const h = snake[0],
     currentSegs = grew ? snake : snake.slice(0, -1);
   if (
@@ -724,11 +723,11 @@ function die(cause) {
   deathLengths.push(snake.length);
   deaths++;
   trace = [];
-  // La mort ne tranche plus la manche : elle pousse la lune de quelques crans, puis le serpent revient.
-  // duel : pas de renaissance, pas de pause. Ramener a max(3, floor(L/2)).
-  // La moitie perdue eclate en baies. Sous 3 anneaux : mort seche, l'autre camp gagne.
+  // Death no longer ends the round: it advances the moon a few notches, then the snake respawns.
+  // Duel: no respawn pause. Shrink to max(3, floor(L/2)).
+  // The lost half bursts into berries. Below 3 segments: outright death, the opposing team wins.
   if (bodies[activeIndex].shieldTime > 0) {
-    // le bouclier pare la collision : aucun anneau perdu, il repart invincible
+    // the shield parries the collision: no segments lost, respawns invincible
     bodies[activeIndex].parryTime = 0.9;
     bodies[activeIndex].invincibleTime = 1.5;
     announceRescue(activeIndex, 'shield');
@@ -739,11 +738,10 @@ function die(cause) {
     requestAiMove();
     return;
   }
-  // Faute propre (mur, son propre corps) : AUCUN anneau perdu (Abdel : « the team should never lose
-  // because of a self mistake of the snake »). Il repart invincible 1,5 s et re-decide. Seuls le corps
-  // adverse et la frontale, c'est-a-dire le piege de l'autre, coutent la moitie.
-  // ... sauf si l'adversaire l'a acculee : son corps a 2 cases ou moins de ma tete, c'est SON piege
-  // (Abdel : « orange blocked blue on the side and led him to the wall, blue didn't lose anything »).
+  // Self fault (wall, own body): NO segments lost. Respawns invincible for 1.5 s and re-decides.
+  // Only the opponent's body and head-on collisions (the opponent's trap) cost half the body.
+  // Exception: if the opponent cornered it (within 2 cells of the head), it counts as an opponent
+  // trap, not a self fault.
   const opponentBody = rival();
   const h0 = snake[0];
   const cornered = !!(
@@ -779,21 +777,20 @@ function die(cause) {
     snake = [];
     const opponent = rival();
     endRound(opponent ? opponent.team : 'gold', 'place');
-  } else requestAiMove(); // sinon il garde son cap dans le mur et remeurt a la fin de l'invincibilite
+  } else requestAiMove(); // otherwise it keeps heading into the wall and dies again when invincibility ends
   return;
 }
 
 function step() {
   if (!snake.length) return false;
-  // duel : l'adversaire a bouge depuis la derniere decision, on re-decide sur sa position reelle.
-  // Sans ca, toutes les morts etaient "evitables" (sonde) : la tete fonçait dans une case qu'il
-  // venait de prendre. Avec, la couronne de sa tete est a jour et les frontales disparaissent.
-  // Anti-tremblement (Abdel, 2026-09-19 : « really a wiggle when they are head to head, very
-  // subtle »). La tete est dessinee en glissant vers la case que vise dirProchaine, decidee a la fin
-  // du pas precedent. Redecider ici changeait souvent d'avis tete contre tete (3 262 fois en 45 min
-  // de duel) : la tete s'inclinait d'un cote puis partait de l'autre, sa pointe sautait d'une
-  // demi-case. On redecide toujours, mais on GARDE la direction annoncee tant que l'IA la juge
-  // encore sure (pasSur) : la reactivite face au danger reste entiere, seuls les caprices partent.
+  // Duel: the opponent has moved since the last decision; re-decide on its real position.
+  // Without this, all deaths were "avoidable" (probe): the head charged into a cell the opponent
+  // had just taken. With it, the opponent's crown is current and head-ons vanish.
+  // Anti-wiggle: the head is drawn sliding toward the cell targeted by nextDir, decided at the end
+  // of the previous step. Re-deciding here often reversed course head-to-head (3,262 times in 45 min
+  // of duel): the head tilted one way then launched the other, its tip jumping half a cell.
+  // We always re-decide, but KEEP the announced direction as long as the AI judges it safe
+  // (safeStep): full reactivity to danger stays, only spurious changes are dropped.
   const prevDir = { ...nextDir };
   requestAiMove(!window.VIPER_ALWAYS_REDECIDE);
   if (prevDir.x !== nextDir.x || prevDir.y !== nextDir.y) aiAdjustments++;
@@ -807,7 +804,7 @@ function step() {
     };
   if (nextDir.x !== dir.x || nextDir.y !== dir.y) {
     turns++;
-    // escalier : a, b, a, b sur quatre pas de suite
+    // staircase: a, b, a, b over four consecutive steps
     const n = dirs.length,
       c = nextDir;
     if (
@@ -826,7 +823,7 @@ function step() {
   if (dirs.length > 4) dirs.shift();
   const nx = snake[0].x + dir.x,
     ny = snake[0].y + dir.y;
-  // invincibilite temporaire (apres absorption d'une mort par vie, ou apres collision en duel)
+  // temporary invincibility (after a life absorbs a death, or after a head-on collision in a duel)
   const isInvincible = bodies[activeIndex].invincibleTime > 0;
   if (nx < 0 || nx >= COLS || ny < 0 || ny >= ROWS) {
     if (!isInvincible) {
@@ -844,7 +841,7 @@ function step() {
     die('bramble');
     return false;
   }
-  // baie reservee a l'autre camp : le serpent passe dessus sans la manger (Abdel : « avoid the stealing case »)
+  // berry reserved for the other team: the snake passes over it without eating
   const myTeam = bodies[activeIndex] ? bodies[activeIndex].team : null;
   const berryIdx = berries.findIndex(
     (b) => b.x === nx && b.y === ny && !(b.owner && myTeam && b.owner !== myTeam),
@@ -854,14 +851,14 @@ function step() {
   const growByEating = eating && snake.length < maxLength();
   const growing = isPushing || growByEating;
   if (isPushing) toPush--;
-  // la queue libere sa case au meme pas, sauf si le serpent mange ; en duel, le corps adverse bloque aussi
+  // the tail frees its cell on the same step, except when eating; in a duel, the opponent's body also blocks
   const otherBodyDuel = rival();
   const blocking = (growing ? snake : snake.slice(0, -1)).concat(
     otherBodyDuel ? otherBodyDuel.snake : [],
   );
   if (!isInvincible && blocking.some((s) => s.x === nx && s.y === ny)) {
-    // duel, tete contre tete : la faute est partagee, les deux serpents encaissent. Sinon celui qui
-    // avance en premier dans la boucle perd toutes les frontales.
+    // Duel, head-on: both snakes take the hit (shared fault). Otherwise the snake resolved first in
+    // the loop absorbs all head-ons.
     const opponentHead = otherBodyDuel && otherBodyDuel.snake[0];
     if (
       opponentHead &&
@@ -897,7 +894,7 @@ function step() {
     const b = berries[berryIdx];
     berries.splice(berryIdx, 1);
     if (!b || !b.wild) giftsEaten++;
-    // halo de la couleur de la baie mangee : or, ombre, ou vert (baie sans camp)
+    // halo tinted by the eaten berry: gold, shadow, or green (no team)
     halos.push({
       x: p.x,
       y: p.y,
@@ -920,7 +917,7 @@ function step() {
   return true;
 }
 
-// Trace lissee : un arc de Bezier par case, de milieu a milieu (virages arrondis, continuite exacte)
+// Smooth trace: one Bezier arc per cell, midpoint to midpoint (rounded turns, exact continuity).
 function vertex(k) {
   if (k < 0) {
     const h = positionHistory[0];
@@ -952,20 +949,20 @@ function computeTrace() {
   return pts;
 }
 
-// Avance la logique de dt secondes (sans rendu : sert aussi au harnais Node)
+// Advances logic by dt seconds (no rendering: also used by the Node harness).
 function advance(dt) {
   t += dt;
   updateTier(dt);
-  // le gonflement du chiffre vit HORS de la manche : il commence justement quand elle finit
+  // score animation lives OUTSIDE the round: it starts exactly when the round ends
   snakePulse += dt;
   viewersPulse += dt;
-  // le cycle du jour tourne tout seul : nuit, lever, plein jour, coucher, en boucle
+  // day cycle advances on its own: night, sunrise, noon, sunset, looping
   if (settings.cycle > 0) settings.hour = (settings.hour + dt / settings.cycle) % 1;
   if (scene && round && round.state === 'playing') {
     scene.remaining -= dt;
     if (scene.remaining <= 0) endScene();
   }
-  // graines : elles germent, puis deviennent des baies mangeables
+  // seeds: they germinate, then become edible berries
   for (let i = seeds.length - 1; i >= 0; i--) {
     const g = seeds[i];
     g.t += dt;
@@ -1012,7 +1009,7 @@ function advance(dt) {
       e.vy *= fr;
     }
   }
-  // rochers : l'ombre, puis la pierre, puis l'effacement
+  // stones: shadow first, then the stone, then fade out
   for (let i = stones.length - 1; i >= 0; i--) {
     const r = stones[i];
     r.t += dt;
@@ -1021,7 +1018,7 @@ function advance(dt) {
       requestAiMove();
       playStone();
       const pixelPos = px(r.x, r.y);
-      // des mottes de terre qui retombent au pied, sans jamais gicler
+      // clods of dirt falling at the base, never shooting outward
       burst(pixelPos.x, pixelPos.y + 14, 7, 'dust', {
         v0: 18,
         v1: 65,
@@ -1048,7 +1045,7 @@ function advance(dt) {
       bramble.step = 0;
       extendBramble(bramble);
     }
-    // chaque segment qui devient dur remue la terre a son pied
+    // each segment that hardens kicks up dirt at its base
     bramble.seg.forEach((g) => {
       if (g.t >= BRAMBLE_WARNING && g.t - dt < BRAMBLE_WARNING) {
         const pixelPos = px(g.x, g.y);
@@ -1068,13 +1065,13 @@ function advance(dt) {
   if (round) {
     if (round.state === 'playing') {
       round.t += dt;
-      // la cible ne monte qu'avec l'affluence : une ruee ne rend pas la manche triviale,
-      // et une salle qui se vide ne punit pas ceux qui restent
+      // target rises only with turnout: a rush does not trivialize the round,
+      // and a thinning crowd does not punish remaining viewers
       stretchSky('Sun', tier.skySun, dt * 14);
       stretchSky('Moon', tier.skyMoon, dt * 2);
-      // La cible s'allonge avec l'affluence, donc la recolte se remet a l'echelle comme le fait
-      // deja etirer() pour les astres. Sans ca, un anneau plein retombait a 17 % quand la foule
-      // arrivait, et le spectateur voyait la progression RECULER.
+      // Target grows with turnout, so harvest rescales the same way stretchSky() does for the orbs.
+      // Without this, a full ring would fall to 17 % when the crowd arrived and viewers would see
+      // progress GO BACKWARD.
       if (tier.target > round.target) {
         const avant = round.target;
         round.target = Math.min(tier.target, round.target + dt * 14);
@@ -1082,12 +1079,8 @@ function advance(dt) {
       }
       round.pulseSun += dt;
       round.pulseMoon += dt;
-      // Temps ecoule. En base, le serpent n'a pas tenu son pari, les spectateurs l'emportent :
-      // le code donnait l'inverse, contre son propre commentaire et contre spec-modes.md.
-      // Corrige le 2026-09-18 sur OK d'Abdel. En versus, le plus haut l'emporte, egalite a Moon.
-      // Duel, victoire a l'anneau (Abdel, 2026-09-18) : un camp gagne quand son demi-anneau est
-      // plein (LONG_CIBLE_DUEL anneaux, le bas-centre atteint) et qu'il le TIENT TENUE_DUEL
-      // secondes sans etre coupe en dessous. Le chrono reste la fin de secours.
+      // Duel, ring win: a team wins when its half-ring is full (TARGET_LENGTH segments)
+      // and it holds for HOLD_SECONDS without being cut below. The timer is the fallback.
       const fullBodies = [];
       for (let i = 0; i < bodies.length; i++) {
         const c = bodies[i];
@@ -1100,9 +1093,9 @@ function advance(dt) {
         c.reprieve = enSursis;
         if (c.hold >= HOLD_SECONDS) fullBodies.push(c);
       }
-      // EGALITE STRICTE : avant, la boucle finissait sur `break` des que corps[0] tenait son
-      // anneau, donc Or passait devant Ombre du seul fait de son rang dans le tableau. On
-      // depouille maintenant les deux, et la plus longue tenue gagne ; tenue identique = nul.
+      // Strict tie-break: previously the loop broke on the first body holding its ring,
+      // so gold could beat shadow by array order alone. Both are now evaluated: longer hold wins;
+      // identical hold = draw.
       if (fullBodies.length === 1) endRound(fullBodies[0].team, 'ring');
       else if (fullBodies.length > 1) {
         const a = fullBodies[0],
@@ -1110,43 +1103,37 @@ function advance(dt) {
         endRound(a.hold === b.hold ? 'draw' : a.hold > b.hold ? a.team : b.team, 'ring');
       }
       if (round.state !== 'playing') return;
-      // duel : chrono propre (TEST equilibre : 120 s, les publics calmes ne remplissent jamais l'anneau)
+      // duel: round timer (balance test: at 120 s, calm audiences never fill the ring)
       if (round.t >= (settings.duelDuration || settings.duration)) {
-        // plus long gagne ; egalite = ombre (comme Moon en versus). Aucun progres des deux cotes (personne
-        // n'a depasse la longueur de naissance) : match nul, aucun point (Abdel).
+        // Longer wins. Both snakes at or below START_LENGTH: draw, no point.
         const l0 = bodies[0].snake.length,
           l1 = bodies[1].snake.length;
-        // EGALITE STRICTE : l'egalite de longueur allait silencieusement a Ombre (« comme Moon en
-        // versus »), ce qui est un biais de camp. Sans spectateur les deux serpents finissent
-        // souvent a la meme longueur (5 % des manches mesurees) : c'est un match nul, aucun point.
-        if (l0 === l1) endRound('draw', 'timeScale');
-        else if (l0 <= START_LENGTH && l1 <= START_LENGTH) endRound('draw', 'timeScale');
-        else endRound(l0 > l1 ? 'gold' : 'shadow', 'timeScale');
+        // Strict tie-break: equal length was silently awarded to shadow (team bias). Without viewers,
+        // both snakes often end at the same length (5 % of measured rounds): that is a draw, no point.
+        if (l0 === l1) endRound('draw', 'timeout');
+        else if (l0 <= START_LENGTH && l1 <= START_LENGTH) endRound('draw', 'timeout');
+        else endRound(l0 > l1 ? 'gold' : 'shadow', 'timeout');
       }
-      // garde-fou : sans spectateur le plateau reste vide et rien ne peut arriver
-      // ARBITRAGE, 2026-09-18. Abdel a demande deux choses contradictoires le meme jour :
-      // « unlimited food », puis « i dont want food to be abundant unless a user drops a lot of
-      // food ». Tranche ainsi : **illimite pour ce que le public donne** (semer n'a plus de
-      // plafond), **rationne pour ce que la foret donne toute seule**. La foret n'est donc plus
-      // qu'un filet de securite : elle ne nourrit que si le plateau est vide de toute nourriture,
-      // et sa cadence RALENTIT a mesure que le public devient genereux, jusqu'a se taire.
+      // Safety net: without viewers the board stays empty and nothing can happen.
+      // Viewer gifts are unlimited (no cap on seeds), but the forest feeds on its own
+      // only when the board is empty of all food, and its cadence slows as viewer generosity
+      // grows, falling silent at high turnout.
       if (!seeds.length && !berries.length) {
         berrylessTime += dt;
-        // Plus le public est actif, plus la foret se tait : c'est la generosite reelle du public
-        // qui regle l'abondance, pas une horloge fixe. A cadence 20, la foret est deja 2 fois
-        // plus lente ; a cadence 200, 11 fois.
-        // Duel (Abdel) : la foret nourrit en quantite moderee quand le plateau est vide, une baie verte
-        // neutre a intervalle, posee a EGALE distance des deux tetes (a 1 case pres).
+        // The more active the audience, the quieter the forest: viewer generosity sets abundance,
+        // not a fixed clock. At cadence 20, the forest is already 2x slower; at cadence 200, 11x.
+        // Duel: the forest provides a moderate supply when the board is empty, placing a neutral
+        // green berry at intervals, equidistant from both heads (within 1 cell).
         const wildFreqBase = FOREST_BERRY_INTERVAL;
         const wildFreq = wildFreqBase / (1 + cadence / 20);
         if (!wildDelay) wildDelay = jitter(wildFreq);
         if (wildFreq > 0 && berrylessTime >= wildDelay) {
           berrylessTime = 0;
           wildDelay = jitter(wildFreq);
-          // La baie sauvage obeit a la regle comme tout le reste. Son delai est nul, elle ne
-          // peut donc pas etre franchie avant d'etre active, mais la regle ne sert pas qu'a ca :
-          // une nourriture qui parait sous son nez est un cadeau gratuit, sans decision, et elle
-          // n'a aucune raison de se comporter autrement qu'une baie semee. Meme delai, GERME.
+          // Wild berries follow the same dead-zone rule as seeded ones. Zero delay means they
+          // cannot be crossed before activating, but the rule does more than that: food appearing
+          // right under the snake's nose is a free gift requiring no decision; it should behave
+          // like any seeded berry. Same delay, GERMINATES.
           let l = freeCells().filter((c) => !isDeadZone(c, SEED_GROW_TIME));
           if (bodies[0] && bodies[1] && bodies[0].snake[0] && bodies[1].snake[0]) {
             const a = bodies[0].snake[0],
@@ -1183,8 +1170,8 @@ function advance(dt) {
       return;
     }
   }
-  // Equite du duel : resoudre toujours Or puis Ombre donne l'initiative permanente au premier
-  // servi (banc : 38-2). On alterne donc l'ordre a chaque tick, aucun camp ne garde la main.
+  // Duel fairness: always resolving gold then shadow gives the first-served team permanent
+  // initiative (bench: 38-2). Order alternates each tick so no team keeps the advantage.
   tickOrder = 1 - tickOrder;
   if (tickOrder) {
     for (let _i = bodies.length - 1; _i >= 0; _i--) {
@@ -1201,9 +1188,9 @@ function advance(dt) {
   loadBody(0);
 }
 
-// Avance le corps charge (actif) de dt secondes. Appele depuis avancer apres charger(i).
+// Advances the loaded (active) body by dt seconds. Called from advance() after loadBody(i).
 function advanceBody(dt) {
-  // minuteries par corps en duel (surgeT, invincT, coupT)
+  // per-body timers in duel (boostTime, invincibleTime, cutTime)
   if (bodies[activeIndex].boostTime > 0)
     bodies[activeIndex].boostTime = Math.max(0, bodies[activeIndex].boostTime - dt);
   if (bodies[activeIndex].invincibleTime > 0)
@@ -1236,7 +1223,7 @@ function advanceBody(dt) {
       });
       if (ua < EMERGE_TIME && uu >= EMERGE_TIME) playHatch(a0, 'birth');
     }
-    // le serpent sort avant la fin de l'animation, la coquille finit de s'ouvrir derriere lui
+    // the snake emerges before the animation ends; the shell finishes opening behind it
     if (!egg.emerged && egg.t >= HATCH_TIME * EMERGE_TIME) {
       egg.emerged = true;
       const p = px(egg.x, egg.y);
@@ -1247,7 +1234,7 @@ function advanceBody(dt) {
     if (!egg || !egg.emerged) return;
   }
   const boosted = bodies[activeIndex].boostTime > 0;
-  subStep += dt * SPEED * (boosted ? BOOST_FACTOR : 1); // like : poussee de tempo
+  subStep += dt * SPEED * (boosted ? BOOST_FACTOR : 1); // like: boost cadence
   while (subStep >= 1) {
     subStep -= 1;
     if (!step()) return;
@@ -1261,8 +1248,8 @@ function loop(ts) {
   lastFrameTime = now;
   const n = settings.timeScale;
   for (let i = 0; i < n; i++) advance(dt);
-  // trace calculee par corps ; invariant corps[0] charge a l'issue
-  // ranger() recopie la variable de module `trace` dans le corps : c'est donc elle qu'on remplit
+  // trace computed per body; invariant: body[0] is loaded on exit.
+  // storeBody() copies the module variable `trace` back into the body, so fill that one.
   for (let _i = 0; _i < bodies.length; _i++) {
     loadBody(_i);
     trace = computeTrace();
@@ -1274,7 +1261,7 @@ function loop(ts) {
     drawFrame(dt);
   } catch (err) {
     errors++;
-    lastError = 'rendu: ' + err.message + ' | ' + firstLine(err);
+    lastError = 'render: ' + err.message + ' | ' + firstLine(err);
   }
   requestAnimationFrame(loop);
 }
@@ -1286,7 +1273,7 @@ window.Viper = {
   toggleSound: toggleSound,
   newRound: newRound,
   tension: () => tension,
-  // Scène courante (super admin) : lecture, lancement par nom, arrêt immédiat.
+  // Current scene (super admin): read, launch by name, stop immediately.
   scene: sceneState,
   launchScene: launchScene,
   stopScene: endScene,
@@ -1370,7 +1357,7 @@ window.Viper = {
         }
       : null,
   }),
-  // reglage de la course pour les harnais d'equilibrage
+  // race parameters for the balance harnesses
   setSky: (id, sun, moon) => {
     const p = TIERS.find((x) => x.id === id);
     if (!p) return;
@@ -1390,7 +1377,7 @@ window.Viper = {
     const p = TIERS.find((x) => x.id === id);
     if (p) p.hit = v;
   },
-  // flair par camp en duel (regie, harnais) : s'applique aux corps courants et aux prochains
+  // per-team flair in duel (control room, harnesses): applied to current and future bodies
   setFlair: (team, v) => {
     FLAIR_BY_TEAM[team] = v;
     bodies.forEach((c) => {
@@ -1446,7 +1433,7 @@ window.Viper = {
 function start() {
   bindCanvas(document.getElementById('scene'));
   if (!canvas) return;
-  // rendu net : la surface suit la taille affichee et la densite de l'ecran
+  // sharp render: canvas surface matches displayed size and screen pixel ratio
   const adjust = () => {
     const r = canvas.getBoundingClientRect(),
       dpr = Math.min(window.devicePixelRatio || 1, 2);

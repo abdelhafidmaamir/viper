@@ -1,7 +1,7 @@
 (function () {
   'use strict';
   if (!('BroadcastChannel' in window)) {
-    document.body.innerHTML = '<p>BroadcastChannel indisponible dans ce navigateur.</p>';
+    document.body.innerHTML = '<p>BroadcastChannel not available in this browser.</p>';
     return;
   }
   var channel = new BroadcastChannel('viper-duel'),
@@ -39,7 +39,7 @@
     if (e.platform) {
       var isNeutral = e.platform === 'neutral';
       document.getElementById('platformState').textContent =
-        'actif : ' + (isNeutral ? 'Neutre (cadeaux caches)' : 'TikTok (cadeaux affiches)');
+        'active: ' + (isNeutral ? 'Neutral (gifts hidden)' : 'TikTok (gifts shown)');
       document.getElementById('platformNeutral').style.borderColor = isNeutral
         ? 'var(--accent)'
         : '';
@@ -55,45 +55,42 @@
     if (window.__syncScene) window.__syncScene(e.scene || null, !!e.underdog);
     var p = e.bridge || {};
     document.getElementById('bridgeLight').className = 'light' + (p.connected ? ' ok' : '');
-    /* en live (pont connecte), les boutons de test sont bloques : leurs faux pseudos ne doivent jamais passer a l'antenne */
-    Array.prototype.forEach.call(
-      document.querySelectorAll('[data-t],#testClassement'),
-      function (b) {
-        b.disabled = !!p.connected;
-        b.title = p.connected ? 'Bloque pendant le live : le pont TikFinity est connecte' : '';
-      },
-    );
+    /* while live (bridge connected), test buttons are disabled: fake nicknames must never reach the broadcast */
+    Array.prototype.forEach.call(document.querySelectorAll('[data-t],#testRanking'), function (b) {
+      b.disabled = !!p.connected;
+      b.title = p.connected ? 'Locked while live: TikFinity bridge is connected' : '';
+    });
     document.getElementById('bridgeStatus').textContent = p.connected
-      ? 'connecte a ' + p.url
-      : 'deconnecte';
+      ? 'connected to ' + p.url
+      : 'disconnected';
     document.getElementById('bridgeLog').textContent =
       (p.last || 'waiting') +
       '\n' +
       (p.events || 0) +
-      ' evenements, ' +
+      ' events, ' +
       (p.gifts || 0) +
-      ' cadeaux' +
-      (p.error ? '\nerreur : ' + p.error : '');
+      ' gifts' +
+      (p.error ? '\nerror: ' + p.error : '');
     var d = e.duel;
     document.getElementById('state').textContent = d
-      ? 'Or ' +
+      ? 'Gold ' +
         ((d.gold && d.gold.length) || 0) +
-        ' anneaux, Ombre ' +
+        ' rings, Shadow ' +
         ((d.shadow && d.shadow.length) || 0) +
-        ' anneaux\nchrono ' +
+        ' rings\ntimer ' +
         Math.round(d.t || 0) +
         ' s' +
-        (d.winner ? '\nfin : ' + d.winner : '') +
-        (e.metrics && e.metrics.errors ? '\nerreurs moteur : ' + e.metrics.errors : '')
-      : 'pas de duel en cours';
+        (d.winner ? '\nend: ' + d.winner : '') +
+        (e.metrics && e.metrics.errors ? '\nengine errors: ' + e.metrics.errors : '')
+      : 'no active duel';
   };
-  /* la fenetre jeu emet toutes les 500 ms : sans signe depuis 2 s, voyant rouge */
+  /* game window emits every 500 ms: no signal for 2 s turns the indicator red */
   setInterval(function () {
     var ok = Date.now() - lastSignal < 2000;
     document.getElementById('gameLight').className = 'light' + (ok ? ' ok' : '');
     document.getElementById('gameStatus').textContent = ok
-      ? 'fenetre jeu en ligne'
-      : 'aucun signe de la fenetre jeu (est-elle ouverte ?)';
+      ? 'game window online'
+      : 'no signal from the game window (is it open?)';
   }, 500);
   document.getElementById('smooth').onchange = function () {
     channel.postMessage({ cmd: 'setting', name: 'smooth', value: this.checked });
@@ -107,14 +104,14 @@
   document.getElementById('round').onclick = function () {
     channel.postMessage({ cmd: 'round' });
   };
-  /* Super admin : section visible seulement avec ?admin=1 dans l'URL de la regie */
+  /* Admin section: visible only with ?admin=1 in the control room URL */
   if (/[?&]admin=1/.test(location.search)) {
     var admin = document.getElementById('admin'),
       thumbSlider = document.getElementById('thumb');
     admin.hidden = false;
     function showThumb(v) {
       document.getElementById('thumbState').textContent =
-        v === 0 ? 'neutre (0)' : v > 0 ? 'Or +' + v : 'Ombre +' + -v;
+        v === 0 ? 'neutral (0)' : v > 0 ? 'Gold +' + v : 'Shadow +' + -v;
     }
     var dbg = document.getElementById('aiDebug');
     dbg.onchange = function () {
@@ -272,25 +269,25 @@
     });
     document.getElementById('sceneStop').onclick = function () {
       channel.postMessage({ cmd: 'sceneStop' });
-      /* reset local immediat : les pastilles et le bouton illumine s'eteignent sans attendre le
-         prochain retour d'etat du jeu (qui n'arrive que 500 ms plus tard) */
+      /* Reset locally at once: badges and the lit button clear without waiting for the next game
+         state message, which arrives up to 500 ms later. */
       currentScene = null;
       eff.hidden = true;
       efO.innerHTML = '';
       efOm.innerHTML = '';
       paintScene();
     };
-    /* Retour visuel de la scene en cours : bouton actif surligne, jauge qui se vide, chrono, effet par camp.
-       La fenetre jeu remonte etat.scene toutes les 500 ms ; on lit cette valeur et on peint la regie.
-       Rien de tout ca ne va a l'ecran du jeu. */
+    /* Visual feedback for the active scene: active button highlighted, gauge draining, timer, per-team effect badges.
+       The game window pushes state.scene every 500 ms; control room reads and repaints.
+       None of this reaches the game screen. */
     var LABELS = {
       ballet: 'Ballet',
-      race: 'Course a la baie',
-      huntGold: 'Or chasse Ombre',
-      huntShadow: 'Ombre chasse Or',
+      race: 'Berry race',
+      huntGold: 'Gold hunts Shadow',
+      huntShadow: 'Shadow hunts Gold',
     };
     function renderBadges(effects) {
-      if (!effects || !Object.keys(effects).length) return '<span class="note">au naturel</span>';
+      if (!effects || !Object.keys(effects).length) return '<span class="note">none</span>';
       var out = [],
         hotBadge = function (t) {
           return '<span class="badge hot">' + t + '</span>';
@@ -305,19 +302,18 @@
       else if (effects.stance === 'defense') out.push(coldBadge('defense'));
       else if (effects.stance === 'neutral') out.push(plainBadge('neutral'));
       if (effects.pA || effects.pD)
-        out.push(plainBadge('portees ' + (effects.pA || 12) + '/' + (effects.pD || 10)));
-      if (effects.hunt != null)
-        out.push(hotBadge('chasse ' + Math.round(effects.hunt * 100) + '%'));
+        out.push(plainBadge('range ' + (effects.pA || 12) + '/' + (effects.pD || 10)));
+      if (effects.hunt != null) out.push(hotBadge('hunt ' + Math.round(effects.hunt * 100) + '%'));
       if (effects.flair != null)
         out.push(plainBadge('flair ' + Math.round(effects.flair * 100) + '%'));
       if (effects.recklessness != null)
-        out.push(plainBadge('audace ' + Math.round(effects.recklessness * 100)));
-      if (effects.berryRace) out.push(coldBadge('course baie'));
-      if (effects.lure) out.push(hotBadge('cible tete adverse'));
-      if (effects.repel) out.push(coldBadge('fuit tete adverse'));
-      if (effects.noKill) out.push(coldBadge('sans coup fatal'));
-      if (effects.encircle) out.push(hotBadge('orbite dist 2'));
-      if (effects.immediateTrap) out.push(hotBadge('piege !'));
+        out.push(plainBadge('recklessness ' + Math.round(effects.recklessness * 100)));
+      if (effects.berryRace) out.push(coldBadge('berry race'));
+      if (effects.lure) out.push(hotBadge('target opponent head'));
+      if (effects.repel) out.push(coldBadge('flee opponent head'));
+      if (effects.noKill) out.push(coldBadge('no lethal blow'));
+      if (effects.encircle) out.push(hotBadge('orbit dist 2'));
+      if (effects.immediateTrap) out.push(hotBadge('trap!'));
       return out.join('');
     }
     var sceneStatusEl = document.getElementById('sceneState'),
@@ -325,7 +321,7 @@
       efO = document.getElementById('effectGold'),
       efOm = document.getElementById('effectShadow'),
       vud = document.getElementById('underdogLight');
-    /* la fenetre jeu emet toutes les 500 ms : on interpole entre deux ticks pour une jauge fluide */
+    /* game window emits every 500 ms: interpolate between ticks for a smooth gauge */
     var currentScene = null,
       sceneUdOn = false,
       sceneStamp = 0;
@@ -354,10 +350,10 @@
       }
     };
     function paintScene() {
-      /* remise a zero puis rallumage du bouton actif */
+      /* clear all buttons, then re-highlight the active one */
       Array.prototype.forEach.call(document.querySelectorAll('button[data-s]'), function (b) {
         b.classList.remove('active');
-        b.querySelector('.jauge').style.width = '0';
+        b.querySelector('.gauge').style.width = '0';
         b.querySelector('.cd').textContent = '';
       });
       if (currentScene) {
@@ -368,19 +364,19 @@
           var fraction = currentScene.duration
             ? Math.max(0, Math.min(1, remaining / currentScene.duration))
             : 0;
-          b.querySelector('.jauge').style.width = (fraction * 100).toFixed(1) + '%';
+          b.querySelector('.gauge').style.width = (fraction * 100).toFixed(1) + '%';
           b.querySelector('.cd').textContent = Math.ceil(remaining) + 's';
         }
         sceneStatusEl.innerHTML =
           '<b>' +
           (LABELS[currentScene.name] || currentScene.name) +
-          '</b> en cours, ' +
+          '</b> active, ' +
           Math.ceil(remaining) +
-          ' s restantes' +
-          (sceneUdOn ? ' &middot; underdog actif' : '');
+          ' s remaining' +
+          (sceneUdOn ? ' &middot; underdog active' : '');
       } else {
         sceneStatusEl.textContent =
-          'aucune scene en cours' + (sceneUdOn ? ' (underdog actif en fond)' : '');
+          'no active scene' + (sceneUdOn ? ' (underdog running in background)' : '');
       }
     }
     setInterval(paintScene, 100);
@@ -389,7 +385,7 @@
       channel.postMessage({ cmd: 'setting', name: 'advantage', value: v });
       showThumb(v);
     };
-    /* la fenetre jeu remet a 0 a chaque manche : la glissiere suit son etat reel */
+    /* game window resets to 0 each round: slider follows the real state */
     window.__syncThumb = function (v) {
       if (document.activeElement !== thumbSlider && +thumbSlider.value !== v) {
         thumbSlider.value = v;
@@ -406,15 +402,15 @@
   document.getElementById('bridgeStop').onclick = function () {
     channel.postMessage({ cmd: 'bridge-stop' });
   };
-  /* Public simule : meme reglage que regie-base.js (gestes par minute, 95 % de likes, 5 % de cadeaux,
-     et pour un cadeau en duel : 1 sur 60 vie, 1 sur 30 bouclier, 1 sur 15 vol, 1 sur 8 tempo, sinon rose).
-     Les evenements passent par le canal, comme un vrai spectateur. */
+  /* Simulated audience: events/min with 95% likes and 5% gifts. For a duel gift:
+     1-in-60 life, 1-in-30 shield, 1-in-15 steal, 1-in-8 boost, otherwise rose.
+     Events pass through the channel, same path as a real viewer. */
   (function () {
     var DENSITY_LEVELS = [
-        ['Personne', 0],
-        ['Calme', 12],
-        ['Anime', 100],
-        ['Foule', 550],
+        ['None', 0],
+        ['Quiet', 12],
+        ['Lively', 100],
+        ['Crowd', 550],
       ],
       SHARES = { like: 0.95, gifts: 0.05 };
     var NAMES = {
@@ -447,8 +443,8 @@
       intervalHandle = null,
       sent = { like: 0, gifts: 0 },
       densityIndex = 0;
-    /* Deux comportements : « Bataille d'equipes » (public-simule.js : deux equipes qui regardent la partie et
-       depensent avec tactique) ou « Hasard » (l'ancien tirage aveugle). Bataille par defaut. */
+    /* Two modes: "Team Battle" (simulated-audience.js: two teams watching and spending tactically)
+       or "Random" (blind random draw). Team Battle by default. */
     var teamBattle = true,
       audienceBrain = window.ViperCrowd ? window.ViperCrowd.create() : null,
       lastTick = 0;
@@ -488,7 +484,7 @@
       var formatLine = function (c) {
         return (
           Math.round(v[c].spend) +
-          ' pieces | ' +
+          ' coins | ' +
           Object.keys(N)
             .map(function (k) {
               return N[k] + ' ' + v.counts[c][k];
@@ -502,18 +498,18 @@
       document.getElementById('spendShadow').textContent = formatLine('shadow');
       document.getElementById('crowdLog').textContent = v.log.length
         ? v.log.join(String.fromCharCode(10))
-        : 'en attente du premier cadeau';
+        : 'waiting for the first gift';
     };
     function showStatus() {
       var g = DENSITY_LEVELS[densityIndex][1];
       audienceStatusEl.textContent = g
         ? DENSITY_LEVELS[densityIndex][0] +
-          ' (hasard) : environ ' +
+          ' (random): about ' +
           Math.round(g * SHARES.gifts) +
-          ' cadeaux par minute, tires au sort. Envoyes : ' +
+          ' gifts per minute, drawn at random. Sent: ' +
           sent.gifts +
-          ' cadeaux.'
-        : 'Personne : aucun spectateur simule.';
+          ' gifts.'
+        : 'None: no simulated viewer.';
     }
     function restart() {
       if (intervalHandle) clearInterval(intervalHandle);
@@ -527,13 +523,13 @@
       if (teamBattle && audienceBrain) {
         audienceStatusEl.textContent =
           DENSITY_LEVELS[densityIndex][0] +
-          " : deux equipes se battent pour leur serpent. La barre est la ferveur de l'equipe, le journal dit pourquoi elle depense.";
+          ': two teams support their snake. The bar shows team fervor; the log explains why they spend.';
         return;
       }
       intervalHandle = setInterval(function () {
         var team = Math.random() < 0.5 ? 'gold' : 'shadow',
           nickname = NICKNAMES[Math.floor(Math.random() * NICKNAMES.length)];
-        /* plus de likes simules : le like n'a plus d'effet en duel (Abdel, 2026-09-19) */
+        /* simulated likes removed: likes have no effect in duel mode */
         if (Math.random() < (g * SHARES.gifts) / 240) {
           var r = Math.random(),
             v = r < 1 / 60 ? 100 : r < 1 / 30 ? 30 : r < 1 / 15 ? 20 : r < 1 / 8 ? 10 : 1;
@@ -576,7 +572,7 @@
       message: { event: 'like', data: { likeCount: 50, uniqueId: 'control-room' } },
     });
   };
-  /* cadeaux : data-g = nom|diamants|repeat ; une rafale envoie un message intermediaire puis le final */
+  /* gifts: data-g = name|diamonds|repeat; a streak sends one intermediate message then the final */
   Array.prototype.forEach.call(document.querySelectorAll('[data-g]'), function (b) {
     b.onclick = function () {
       var p = b.getAttribute('data-g').split('|'),

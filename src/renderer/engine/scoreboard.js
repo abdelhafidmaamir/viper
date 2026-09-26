@@ -14,58 +14,50 @@ import {
   scoreViewers,
 } from '../scripts/game.js';
 
-// Mode de base, sans un mot : l'anneau du plateau est le METRE DE VICTOIRE GLOBAL. Il compte la
-// progression sur tout le run, des grades deja faits jusqu'au dernier. Il monte a chaque bouchee et
-// fait le tour complet au dernier grade. Il PEUT redescendre : chaque coeur arrache par la meute
-// (rose premium) recule la progression, et la portion perdue brule alors en rouge avant de refluer.
-// Le rail gauche, lui, montre le detail du grade courant (jauge qui se remplit puis se vide a chaque
-// grade) : deux echelles distinctes, macro au bord et micro dans le rail.
-
-// Le compteur de serie, sous le plateau. Emplacement mesure : le plateau finit a Y0+ROWS*CELL,
-// soit 1220, et le fil de commentaires TikTok demarre a 1290. La bande 1226-1284 est le seul
-// endroit a la fois dans la zone sure et jamais recouvert par l'interface.
-// Il se lit sans un mot : a gauche une tete de serpent et son nombre de manches gagnees, a
-// droite une foule et le sien. Pas de libelle, comme l'anneau et les astres.
-// Idee d'Abdel : le mode versus place le soleil a gauche et la lune a droite, un camp par cote.
-// Le compteur reprend la meme grammaire. En mode de base `peindreCourse` ne dessine rien, donc
-// les deux bandes laterales, x 40 a 124 et 956 a 1040, sont libres sur toute la hauteur et sont
-// dans la zone sure (SR_X=40, SR_W=1000). Le plateau va de x=124 a x=956, il n'est pas touche.
-// Poser un camp par cote libere la hauteur, qui etait le vrai plafond de la version en bas :
-// entre l'anneau (1234) et le fil de commentaires (1290) il n'y avait que 56 px.
-// La hauteur choisie, 258 a 400, est celle du haut des colonnes d'astres (CIEL_HAUT=260).
-// Les colonnes laterales sont enfin larges. L'anneau va de X0-14=150 a X0+COLS*CELL+14=930, il
-// reste donc 150 px de chaque cote. En hauteur, la bande libre est celle entre le bas du chrome
-// du haut (260) et le sommet de la colonne de widgets cadeaux de TikTok (392) : 132 px.
-// La plaque prend 266 a 390, ce qui laisse 6 px sous le chrome et 2 px au-dessus des widgets.
-// Les deux camps tiennent dans UNE barre horizontale, centree, juste sous le plateau. Choix
-// d'Abdel : le tableau d'affichage se lit sous le jeu, comme une borne d'arcade, pas sur le cote.
-// La bande sous l'anneau (1232) et le fil de commentaires est etroite, la barre est donc basse
-// et compacte : glyphe puis chiffre, cote a cote, un filet vertical entre les deux camps.
-const SC_SPACING = 122; // ecart entre les centres des deux camps, de part et d'autre de W/2
-const SC_GLYPH_OFFSET = 32; // ecart glyphe-chiffre a l'interieur d'un camp
-const SC_R = 13; // rayon du glyphe, compact
+// Scoreboard under the board. The board ends at Y0+ROWS*CELL (1220) and the TikTok
+// comment feed starts at 1290. The band 1226-1284 is the only location both in the safe
+// zone and never covered by the interface.
+// Reads without labels: snake head and win count on the left, crowd glyph and count on the
+// right. No text, consistent with the ring and stars.
+// In duel mode, each team occupies one side. The two lateral columns (x 40-124 and 956-1040)
+// are free for the full height and are within the safe zone (SR_X=40, SR_W=1000).
+// The board spans x=124 to x=956 and is not touched.
+// One team per side frees up height, which was the real constraint for the bottom-bar version:
+// between the ring (1234) and the comment feed (1290) there were only 56 px.
+// The chosen height (258-400) aligns with the top of the star columns (CIEL_HAUT=260).
+// The lateral columns are wide. The ring runs from X0-14=150 to X0+COLS*CELL+14=930,
+// leaving 150 px on each side. The free band sits between the top chrome bottom (260)
+// and the TikTok gift widget top (392): 132 px.
+// The plate occupies 266-390, leaving 6 px below the chrome and 2 px above the widgets.
+// Both teams fit in a single horizontal bar, centered, just below the board. The scoreboard
+// reads under the game like an arcade cabinet, not on the side. The bar under the ring (1232)
+// and the comment feed is narrow, so it is low and compact: glyph then count, side by side,
+// a vertical rule between the two teams.
+const SC_SPACING = 122; // distance between the two team centers, on each side of W/2
+const SC_GLYPH_OFFSET = 32; // glyph-to-count distance within a team
+const SC_R = 13; // glyph radius, compact
 const SC_BW = 250,
-  SC_BH = 48; // largeur et hauteur de la plaque de fond, reduites
+  SC_BH = 48; // plate width and height, kept compact
 
 export const smooth01 = (x) => (x <= 0 ? 0 : x >= 1 ? 1 : x * x * (3 - 2 * x));
 
-// Le gonflement d'un chiffre qui vient de marquer : une poussee franche puis un retour amorti.
-// 0,9 s, pas plus : au-dela le chiffre danse encore quand le spectateur a deja tourne la page.
+// Score digit bounce on a new point: a sharp push then a damped return.
+// 0.9 s maximum: beyond that the digit is still dancing when the viewer has already moved on.
 function bounce(p) {
   if (p >= 0.9) return 1;
   const u = p / 0.9;
-  // plafonne a 1,25 : au-dela, un chiffre a deux chiffres deborde de la bande de 84 px
+  // capped at 1.25: beyond that a two-digit number overflows the 84 px band
   return 1 + 0.3 * Math.sin(Math.PI * smooth01(u * 1.25)) * (1 - u);
 }
 
-// La tete de serpent du compteur : la meme silhouette qu'en jeu, en petit. Deux yeux, pas un
-// pictogramme abstrait : c'est ce qui rend le camp evident sans legende.
+// Snake head glyph for the scoreboard: the same silhouette as in-game, at small scale.
+// Two eyes, not an abstract pictogram: this is what makes the team obvious without a label.
 export function paintSnakeGlyph(x, y, r, tint) {
   ctx.fillStyle = tint || '#e8f1dc';
   ctx.beginPath();
   ctx.arc(x, y, r, 0, Math.PI * 2);
   ctx.fill();
-  // le cou, un moignon vers l'arriere, pour qu'on lise une tete et non une bille
+  // neck stub pointing back, so it reads as a head and not a ball
   ctx.lineCap = 'round';
   ctx.lineWidth = r * 1.15;
   ctx.strokeStyle = tint || '#d9e7cc';
@@ -81,17 +73,16 @@ export function paintSnakeGlyph(x, y, r, tint) {
   }
 }
 
-// Le camp des spectateurs, ce sont des gens. Deux essais rates avant celui-ci : trois disques qui
-// se chevauchaient, lus comme une icone de chat, puis une pierre, qui disait ce que le camp POSE
-// et non ce qu'il EST. Ici, deux silhouettes tete-et-epaules franchement separees par un vide,
-// la plus petite en retrait : c'est le signe universel de « des gens », et deux suffisent a dire
-// le pluriel. Le vide entre elles est creuse en `destination-out`, sinon les deux corps fusionnent
-// en une tache a cette taille.
+// Viewer team glyph: two people. Two rejected designs before this: three overlapping discs
+// (read as a chat icon) and a stone (shows what the team gives, not what it is).
+// Two head-and-shoulders silhouettes with a clear gap between them, the smaller one receding:
+// the universal sign for people, and two is enough to imply plurality. The gap between
+// them is cut with `destination-out`; without it the two bodies merge into one blob at this size.
 export function paintPersonGlyph(x, y, r) {
   ctx.beginPath();
   ctx.arc(x, y - r * 0.95, r * 0.62, 0, Math.PI * 2);
   ctx.fill();
-  // les epaules : un arc large ferme a plat, la forme qui fait lire un buste et non un champignon
+  // shoulders: a wide arc closed flat, the shape that reads as a torso not a mushroom
   ctx.beginPath();
   ctx.moveTo(x - r * 1.05, y + r * 1.15);
   ctx.quadraticCurveTo(x - r * 1.02, y + r * 0.02, x, y + r * 0.02);
@@ -100,12 +91,12 @@ export function paintPersonGlyph(x, y, r) {
   ctx.fill();
 }
 
-// Un camp : son glyphe puis son nombre de manches gagnees, cote a cote sur la ligne SC_CY.
-// Seuls le glyphe et le chiffre respirent quand le camp marque, jamais la plaque : sinon la
-// barre entiere danse et les deux camps ne se comparent plus.
-// teinte (duel) : les deux camps sont des viperes, chacune dans sa couleur
-// miroir (camp de droite) : le chiffre passe cote centre et le glyphe a l'extremite, comme une
-// plaque de score de football : glyphe, chiffre | chiffre, glyphe
+// One team: its glyph then its round win count, side by side on the SC_CY line.
+// Only the glyph and the digit animate on a score event, never the plate: otherwise
+// the whole bar dances and the two teams can no longer be compared.
+// tint (duel): both teams are snakes, each in its team color.
+// mirrored (right team): the count moves to the center side and the glyph to the edge,
+// like a football scoreboard: glyph, count | count, glyph.
 function teamBar(cx, n, sun, pulse, tint, mirrored) {
   const sg = mirrored ? -1 : 1;
   const k = bounce(pulse),
@@ -113,7 +104,7 @@ function teamBar(cx, n, sun, pulse, tint, mirrored) {
   const glow = tint ? tint : sun ? 'rgba(242,197,124,0.85)' : 'rgba(143,168,216,0.85)';
   ctx.save();
   ctx.translate(cx - sg * SC_GLYPH_OFFSET, SC_CY);
-  ctx.scale(sg * k, 1); // miroir : le glyphe de droite regarde dans l'autre sens
+  ctx.scale(sg * k, 1); // mirror: the right-team glyph faces the other way
   if (lively > 0.02) {
     ctx.shadowColor = glow;
     ctx.shadowBlur = 26 * lively;
@@ -138,18 +129,17 @@ function teamBar(cx, n, sun, pulse, tint, mirrored) {
 }
 
 export function paintScore() {
-  // en mode versus les deux colonnes appartiennent aux astres (CIEL_X=62), le compteur s'efface
-  // en duel il reste : une vipere par camp, Or a gauche, Ombre a droite, meme plaque, meme logique
+  // In duel mode: one snake per team, gold on the left, shadow on the right, same plate, same logic.
 
   const cx = W / 2;
-  // Duel (Abdel, 2026-09-21, variante T1) : le temps restant de la manche, en chiffres, entre les deux
-  // scores, comme une carte de score de foot. La plaque s'elargit pour lui faire place ; glyphes inchanges.
+  // The remaining round time is shown in digits between the two scores, like a football scorecard.
+  // The plate widens to accommodate it; glyphs are unchanged.
   const timer = round,
     bw = timer ? SC_BW + 84 : SC_BW,
     spacing = timer ? SC_SPACING + 84 : SC_SPACING;
   ctx.save();
-  // la plaque : le compteur doit tenir aussi bien en plein jour que dans la nuit, il porte donc
-  // son propre fond, sombre et discret. Une seule plaque pour les deux camps.
+  // plate: the scoreboard must read in full daylight and at night, so it carries its own
+  // dark, discreet background. A single plate for both teams.
   ctx.fillStyle = 'rgba(6,11,8,0.46)';
   ctx.beginPath();
   ctx.roundRect(cx - bw / 2, SC_CY - SC_BH / 2, bw, SC_BH, SC_BH / 2);
@@ -175,7 +165,7 @@ export function paintScore() {
       r <= 20 && round.state === 'playing' ? 'rgba(240,78,62,0.95)' : 'rgba(255,255,255,0.72)';
     ctx.fillText(txt, cx, SC_CY + 1);
   } else {
-    // un filet vertical, entre les deux camps
+    // vertical rule between the two teams
     ctx.beginPath();
     ctx.moveTo(cx, SC_CY - 13);
     ctx.lineTo(cx, SC_CY + 13);
@@ -186,11 +176,10 @@ export function paintScore() {
   teamBar(cx + spacing / 2, scoreViewers, false, viewersPulse, SHADOW, true);
 }
 
-// Maquette de l'interface TikTok, pour juger le jeu en conditions reelles au lieu de juger un
-// canvas nu. Ce n'est PAS un repere abstrait comme `reglages.zones` : ce sont les elements
-// eux-memes, dessines aux positions mesurees sur la capture d'Abdel, pour qu'on voie ce qui
-// recouvre quoi, ce qui reste lisible, et ou l'oeil du spectateur va reellement.
-// Purement visuel, aucun effet sur le jeu, absent par defaut.
+// TikTok interface overlay, for judging the game under real conditions rather than on a bare
+// canvas. These are not abstract reference zones: they are the actual UI elements drawn at
+// measured positions so you can see what covers what, what stays readable, and where the
+// viewer's eye actually lands. Purely visual, no effect on the game, absent by default.
 export function pill(x, y, w, h, tint, r) {
   ctx.fillStyle = tint;
   ctx.beginPath();

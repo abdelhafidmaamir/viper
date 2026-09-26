@@ -34,6 +34,12 @@ renders, pass a side-by-side `--diagnostic=screenshots` run against the previous
       own their state. Dead code from removed modes went with them, and every golden digest
       stayed identical at each step.
 
+- [x] **English codebase.** Every binding, object field, protocol command, setting value and
+      control-room id is English. Bindings were renamed through the TypeScript language service
+      with a check that every identifier still resolves to the same declaration; fields and values
+      went through a golden-master bisection that caught a broken prefix test. Preferences saved
+      under the old storage keys are still read.
+
 ## Branching
 
 `main` is always shippable. Work happens on short-lived branches merged through pull requests;
@@ -41,12 +47,10 @@ experiments that are not shipping yet live on `wip/*` branches and never block `
 
 ## Next
 
-1. **English identifiers.** Rename per module (`VipereBase` becomes `Viper`, `reglages` becomes
-   `settings`), with a compatibility shim for the control-room protocol until both sides move.
-2. **Strict TypeScript everywhere**, and zero lint warnings.
-3. **Deterministic visual regression.** Inject a seeded RNG and clock so screenshots can be
+1. **Strict TypeScript everywhere**, and zero lint warnings.
+2. **Deterministic visual regression.** Inject a seeded RNG and clock so screenshots can be
    pixel-diffed on CI.
-4. **Releases.** Signed, versioned GitHub releases.
+3. **Releases.** Signed, versioned GitHub releases.
 
 ## Toolchain notes
 
@@ -57,5 +61,4 @@ experiments that are not shipping yet live on `wip/*` branches and never block `
 
 ## Known debt
 
-- Renderer identifiers, comments and the control-room UI are still in French.
 - Lint rules for `src/renderer/**` are relaxed to warnings on purpose (see `eslint.config.js`).

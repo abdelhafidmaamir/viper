@@ -49,10 +49,10 @@ export function paintRace() {
   return;
 }
 
-// Le vide entre les deux silhouettes se creuse en `destination-out`. Sur le canvas principal ce
-// mode trouerait l'image entiere, fond compris, puisque le compteur est dessine par-dessus tout.
-// Le glyphe est donc cuit une seule fois dans un sprite hors ecran, ou le decoupage ne concerne
-// que lui. Bonus : il est paye une fois pour toute la partie et non a chaque image.
+// The gap between the two silhouettes uses `destination-out` compositing. On the main canvas this
+// mode would punch through the entire image including the background because the counter is drawn
+// on top of everything. The glyph is therefore baked once into an offscreen sprite where clipping
+// affects only itself. Paid once per match, not per frame.
 export const VIEWERS_RS = 48;
 
 export let viewersSprite = null;
@@ -93,8 +93,8 @@ export let smoothedFps = 60,
   worstDtTimer = 0,
   displayedWorstDt = 0;
 
-// Point du rail du timer a la distance s du haut-centre, dans le sens horaire (le sens ou le trait
-// rouge est dessine). Meme geometrie que ctx.roundRect(x,y,w,h,r).
+// Point on the timer rail at arc length s from the top center, clockwise (the direction the red
+// stroke is drawn). Same geometry as ctx.roundRect(x, y, w, h, r).
 export function pointRail(x, y, w, h, r, s) {
   const straightLen = w / 2 - r,
     q = (Math.PI * r) / 2,
@@ -129,8 +129,8 @@ export function paintRound() {
   return;
 }
 
-// Mode fluide : on masque la propriete shadowBlur du canevas principal (elle devient sans effet), et on la
-// rend quand le mode est coupe. Une seule bascule, aucun des 47 endroits qui posent un flou n'est touche.
+// Smooth mode: shadow blur on the main canvas is suppressed (becomes a no-op) and restored when
+// smooth mode is off. A single toggle; none of the 47 shadow-blur sites need touching.
 export let smoothModeActive = false;
 
 export function setSmoothMode() {
@@ -184,8 +184,8 @@ export function drawFrame(dt) {
     ctx.fillRect(0, 0, W, H);
     return;
   }
-  // En 16:9 l'ambiance couvre tout le cadre (les cotes compris) : on lui passe la largeur totale et on la
-  // decale de la marge ; le jeu et le HUD, eux, restent dessines dans la composition verticale intacte.
+  // In 16:9 the ambience covers the full frame including side margins: it receives the total width
+  // and is offset by the margin, while the game and HUD remain drawn in the original vertical composition.
   const inFrame = (f) => {
     if (!OX) return f(e);
     const sW = e.W,
@@ -219,7 +219,7 @@ export function drawFrame(dt) {
       tint: bodies[activeIndex].tint,
     });
     if (bodies[activeIndex].shieldTime > 0 && trace.length) {
-      // bouclier actif : bulle autour de la tete, qui respire, et qui s'affine sur les 3 dernieres secondes
+      // Active shield: pulsing bubble around the head, fading over the last 3 seconds.
       const h = trace[0],
         bt = bodies[activeIndex].shieldTime,
         shieldFade = Math.min(1, bt / 3);
@@ -249,7 +249,7 @@ export function drawFrame(dt) {
   }
   loadBody(0);
   if (settings.aiDebug) paintAiDebug();
-  // Mesure de fluidite (calque Debug IA seulement) : images par seconde lissees et pire image des 2 dernieres secondes
+  // Performance readout (AI debug layer only): smoothed frames per second and worst frame time over the last 2 seconds.
   smoothedFps += ((dt > 0 ? 1 / dt : 60) - smoothedFps) * 0.05;
   worstDtTimer += dt;
   if (dt > worstDt) worstDt = dt;
@@ -266,7 +266,7 @@ export function drawFrame(dt) {
     ctx.fillRect(20, 20, 330, 34);
     ctx.fillStyle = smoothedFps < 50 ? '#ff6a5a' : '#9be28a';
     ctx.fillText(
-      Math.round(smoothedFps) + ' ips   pire image ' + Math.round(displayedWorstDt * 1000) + ' ms',
+      Math.round(smoothedFps) + ' fps   worst frame ' + Math.round(displayedWorstDt * 1000) + ' ms',
       28,
       45,
     );
@@ -281,14 +281,13 @@ export function drawFrame(dt) {
   paintScore();
   const hasGifts = settings.platform !== 'neutral';
   if (hasGifts) paintDuelStatus();
-  // affichageCadeaux : 'defile' (bandeaux qui defilent, avec le pattern visible/cache), 'complet' (ancienne legende), 'aucun' (rien)
+  // settings.giftDisplay: 'scroll' (scrolling banners), 'full' (full legend panel), unset for no display.
   if (hasGifts) {
     const giftDisplayMode = settings.giftDisplay || 'full';
     if (giftDisplayMode === 'scroll') paintGiftScroll();
     else if (giftDisplayMode === 'full') paintDuelLegend();
   }
-  // Ecran de fin du duel, peint APRES le score et la legende (Abdel : « your grey veil just apply to gift and do
-  // not consider the whole screen, make it smoother ») : un seul voile, plein ecran, et le classement devant tout.
+  // End screen painted AFTER the score and legend: one full-screen veil with the ranking on top.
   if (round && round.state !== 'playing') paintEndScreen();
   paintBanner();
   if (settings.mockup) paintLiveMockup();
@@ -296,7 +295,7 @@ export function drawFrame(dt) {
   if (settings.zones) {
     ctx.save();
     ctx.globalAlpha = 0.2;
-    // ce que l'interface TikTok recouvre, aux positions MESUREES sur la capture d'Abdel
+    // TikTok UI overlay zones, at positions measured from a real capture.
     ctx.fillStyle = '#f0f';
     ctx.fillRect(0, 0, W, SR_Y);
     ctx.fillRect(0, SR_Y + SR_H, W, H - SR_Y - SR_H);

@@ -72,7 +72,7 @@ through the owner's functions, so every write to a piece of state is found in on
 ## Event flow
 
 1. TikFinity pushes a JSON event over the WebSocket (`tikfinity-bridge.js`).
-2. The bridge normalises it and calls `window.recevoirEvenement(event)`.
+2. The bridge normalises it and calls `window.receiveEvent(event)`.
 3. The engine applies the effect. The gift value selects the effect (speed boost, steal, shield,
    extra life) and the gift name selects the team.
 4. The control room receives a state snapshot twice per second and sends commands back (new

@@ -2,8 +2,7 @@
 
 export const GOLD = '#F2C57C';
 
-// Duel : la nourriture ne peut pas etre or (couleur du camp Or) : vert tendre, distinct des deux
-// camps et du fond de foret (Abdel, 2026-09-18). En base elle reste or.
+// Berry color cannot be gold (team gold's color): soft green, distinct from both teams and the forest floor.
 const BERRY_GREEN = '#9BE28A',
   BERRY_GREEN_ALPHA = (a) => 'rgba(155,226,138,' + a + ')';
 
@@ -17,7 +16,7 @@ export const berryGlow = (a, team) =>
       ? 'rgba(180,212,222,' + a + ')'
       : BERRY_GREEN_ALPHA(a);
 
-export const SHADOW = '#b4d4de'; // couleur du second serpent (a verifier au contraste)
+export const SHADOW = '#b4d4de'; // color of the second snake (verify contrast)
 
 export const BLUE = '#8FA8D8',
   RED = '#D64A42',

@@ -7,15 +7,14 @@ import { COLS, ROWS } from './layout.js';
 import { STONE_WARNING } from './rules.js';
 import { rival, stones, snake } from '../scripts/game.js';
 
-// La tension, ce qui resserre l'image. L'avancement de la manche ne dit rien du risque :
-// on peut etre a une baie de gagner en pleine ouverture, ou coince des la deuxieme. Trois
-// choses la nourrissent : l'espace encore atteignable depuis la tete, la longueur du serpent,
-// et les cases mortes qui la touchent. Elle monte vite, elle redescend lentement.
+// Tension drives the camera tightening. Round progress says nothing about risk: a snake can be one
+// berry from winning in open space, or cornered at the second. Three factors feed it: reachable
+// space from the head, snake length, and dead cells adjacent to the head.
 export let tension = 0,
   tensionTarget = 0,
   tensionTimer = 0;
 
-// la tension se remesure dix fois par seconde, puis se lisse : vite vers le haut, lentement vers le bas
+// Remeasured ten times a second, then smoothed: rises fast, eases slowly.
 export function updateTension(dt) {
   tensionTimer -= dt;
   if (tensionTimer <= 0) {
@@ -42,7 +41,7 @@ export function measureTension() {
     [0, 1],
     [0, -1],
   ];
-  // 1. on remplit tout ce qui est atteignable depuis la tete, le plateau est petit
+  // 1. flood-fill from the head; the board is small enough for BFS every sample
   const visited = new Set([head.x + ',' + head.y]);
   let queue = [head],
     n = 0;
@@ -62,13 +61,13 @@ export function measureTension() {
     queue = nextCells;
   }
   const totalFree = Math.max(1, COLS * ROWS - wall.size);
-  // ce qui est coupe : le serpent s'est enferme dans une poche du plateau
+  // cutOff: snake walled into a pocket of the board
   const cutOff = 1 - Math.min(1, n / totalFree);
-  // ce qui est etroit : meme sans poche, il ne reste plus de quoi manoeuvrer
+  // narrow: even without a pocket, not enough room left to manoeuvre
   const narrow = 1 - Math.min(1, n / (snake.length * 2 + 16));
-  // la longueur seule, qui pese meme quand tout est ouvert
+  // lengthFactor: length alone, which weighs even in open space
   const lengthFactor = Math.min(1, snake.length / (COLS * ROWS * 0.3));
-  // ce qui touche deja la tete : mur, corps ou rocher pose
+  // stuckFactor: head neighbours blocked by wall, body or stone
   let blockedCount = 0;
   for (const d of VOISINS) {
     const x = head.x + d[0],
@@ -76,7 +75,7 @@ export function measureTension() {
     if (x < 0 || y < 0 || x >= COLS || y >= ROWS || wall.has(x + ',' + y)) blockedCount++;
   }
   const stuckFactor = Math.min(1, blockedCount / 3);
-  // les pierres posees : chacune retire une case et ferme une ligne de fuite
+  // stoneRatio: each active stone removes a cell and closes an escape lane
   const stoneRatio = Math.min(
     1,
     stones.filter((r) => r.t >= STONE_WARNING).length / Math.max(1, tier.maxStones),

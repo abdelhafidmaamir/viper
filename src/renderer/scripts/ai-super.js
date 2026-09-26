@@ -1,11 +1,6 @@
-// Super IA Vipere (duel) : recherche adverse comme aux echecs. A chaque decision, elle simule ses
-// coups ET les reponses de l'adversaire plusieurs pas a l'avance (minimax alpha-beta, coups
-// simultanes, approfondissement iteratif sous budget de temps), et juge chaque position par le
-// TERRITOIRE (cases qu'elle atteint avant lui, Voronoi), la longueur gagnee, les baies qu'elle
-// tient, et l'enfermement. Methode des IA de tournoi Tron / Battlesnake.
-// Interface identique a ia-humain.js : window.VipereSuperIA.choisir(etat) rend {x,y}.
-// Regles du duel qu'elle connait : la longueur est le score ; une collision provoquee par
-// l'adversaire coute la MOITIE des anneaux ; la case de queue se libere au pas suivant.
+// Viper super AI (duel): iterative-deepening minimax alpha-beta with simultaneous moves and
+// time budget. Scores positions by Voronoi territory, length gained, berry control, and enclosure.
+// Interface identical to ai-human.js. Duel rules: length is the score; collision costs half the segments; tail frees next step.
 (function () {
   'use strict';
   var DX = [0, 1, 0, -1],
@@ -75,7 +70,7 @@
     stack[sp++] = freeAt[c];
     stack[sp++] = fruit[c];
     owner[c] = s;
-    freeAt[c] = t + L0[s] + (s === 2 ? 1 : 0); // lui : une case de marge (ordre des pas, bouchee)
+    freeAt[c] = t + L0[s] + (s === 2 ? 1 : 0); // opponent: one cell of margin (step ordering, bite)
     if (fruit[c]) {
       fruit[c] = 0;
       g[s]++;
@@ -94,8 +89,8 @@
     freeAt[c] = pf;
   }
 
-  // Territoire de Voronoi a partir des deux tetes, en tenant compte des corps qui se retirent :
-  // une case est franchissable si elle sera libre au moment ou on y arrive.
+  // Voronoi territory from both heads, accounting for bodies that retract:
+  // a cell is traversable if it will be free when we arrive.
   function evaluate(h1, h2, t) {
     lab.fill(0);
     var qh = 0,
@@ -139,8 +134,8 @@
         lab[n] = l;
         dd[n] = d;
         Q[qt++] = n;
-        // la longueur est le score : la baie la plus proche que je tiens tire fort (pente 1,5 par
-        // pas), les suivantes un peu ; manger (W_BAIE) vaut toujours plus qu'approcher (W_PROCHE)
+        // Length is the score: the closest reachable berry pulls strongly (slope 1.5/step),
+        // subsequent ones pull weakly. Eating (W_BERRY) always outweighs approaching (W_CLOSE).
         if (l === 1) {
           T1++;
           if (fruit[n]) {
@@ -162,8 +157,8 @@
         W_BERRY * (g[1] - g0[1] - (g[2] - g0[2])) +
         F1 -
         F2;
-    // les baies naissent au hasard : la part de plateau que je tiens est ma chance d'etre le plus
-    // proche de la PROCHAINE baie. C'est ce qui fait gagner la course a la longueur sur la duree.
+    // Berries spawn randomly: my share of the board is my chance of being closest to the NEXT
+    // berry. This is what wins the length race over time.
     if (h2 >= 0) v += W_SHARE * (T1 / (T1 + T2 + 1) - 0.5);
     if (h2 >= 0) {
       var len2 = L0[2] + g[2];
@@ -175,7 +170,7 @@
 
   function collisionCost(s) {
     return 12.5 * (L0[s] + g[s]) + 60;
-  } // une collision = la moitie des anneaux
+  } // one collision = half the segments
 
   function maxN(h1, h2, k1, k2, t, depth, alpha, beta, ply) {
     if ((++nodeCount & 63) === 0 && now() > timeLimit) {
@@ -186,7 +181,7 @@
       x = h1 % cols,
       y = (h1 - x) / cols;
     for (var i = 0; i < 3 + (k1 < 0 ? 1 : 0); i++) {
-      // a la racine : le meilleur coup de l'iteration d'avant passe en premier (ordreRacine)
+      // at root: best move from the previous iteration goes first (rootOrder)
       var k =
         ply === 0
           ? rootOrder[i]
@@ -251,8 +246,8 @@
       x = h2 % cols,
       y = (h2 - x) / cols,
       pvLine = null;
-    // hors de portee dans l'horizon restant : ses coups ne peuvent pas m'atteindre, on ne deroule
-    // que son premier coup legal (tout droit d'abord). La recherche va deux fois plus profond.
+    // Out of reach within the remaining horizon: their moves cannot touch me, so only their
+    // first legal move (straight-ahead first) is tried. The search goes twice as deep.
     var farAway =
       c1 >= 0 &&
       Math.abs((c1 % cols) - x) + Math.abs((c1 - (c1 % cols)) / cols - y) > 2 * depth + 1;
@@ -274,7 +269,7 @@
       if (!c1x && !crash2 && c1 === c2) {
         c1x = true;
         crash2 = true;
-      } // frontale : les deux paient
+      } // head-on: both pay
       if (c1x || crash2) {
         v =
           (c1x ? -collisionCost(1) + t : 0) +
@@ -355,8 +350,8 @@
       opponent && opponent[1]
         ? indexDir(opponent[0].x - opponent[1].x, opponent[0].y - opponent[1].y)
         : -1;
-    // hasard minuscule pour que deux Super IA ne jouent pas en miroir, et preference pour la
-    // direction deja annoncee a l'ecran (anti-tremblement) tant qu'elle ne coute presque rien
+    // Tiny randomness so two super AIs don't mirror each other, and a preference for the
+    // direction already displayed (anti-jitter), as long as it costs almost nothing.
     for (i = 0; i < 4; i++) biases[i] = Math.random() * 0.15;
     margin = 0.5;
     if (e.preferred) {
@@ -398,7 +393,7 @@
       if (v < -1e8 || now() > timeLimit) break;
     }
     while (sp > 0) undoMove();
-    // aucune profondeur finie ou tout percute : le pas qui laisse le plus d'espace, jamais hors grille
+    // No depth completed or all moves crash: pick the step leaving the most territory, never outside the grid.
     if (chosen < 0 || scores[chosen] < -collisionCost(1) + 20) {
       var bestFallback = -1,
         bestTerritory = -1;
@@ -428,7 +423,7 @@
     }
     evaluate(h1, h2, 0);
     m.activeStance = rootValue > 25 ? 'attack' : rootValue < -25 ? 'defense' : 'neutral';
-    m.reason = 'super p' + depthReached;
+    m.reason = 'super d' + depthReached;
     if (dbgOn) {
       var dbg = (m.debug = {
         scores: {},

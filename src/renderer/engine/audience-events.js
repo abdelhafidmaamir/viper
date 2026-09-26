@@ -70,14 +70,13 @@ export function receiveEvent(ev) {
       likesByViewer[liker] = 0;
     }
   }
-  // Camp : explicite (regie), sinon par le NOM du cadeau TikTok (Abdel : « red 1 coin rose gives one
-  // point to Or, white 1 coin gives 1 point to the other ») : 'rose' -> Or, tout autre cadeau -> Ombre.
-  // Sans camp ni nom : tirage au sort (public simule).
+  // Team: explicit from the control room, or inferred from the TikTok gift name: 'rose' -> gold,
+  // any other gift -> shadow. No team and no name: random draw (simulated audience).
   const giftName = String(e.name || e.gift || e.gift || '').toLowerCase();
-  // Rose rouge ('rose') -> Or ; rose blanche (TikTok la nomme 'Rosa', ou 'rose blanche'/'white rose') -> Ombre.
-  // A 10 coins (Abdel) : une rose a 10 -> tempo Or, le 'Dyno' a 10 -> tempo Ombre : tout nom contenant 'rose' -> Or.
+  // Red rose ('rose') -> gold; white rose (TikTok calls it 'Rosa' or 'white rose') -> shadow.
+  // At 10 coins any name containing 'rose' -> gold.
   const v = e.value || 0;
-  // Cadeaux du camp Or par nom : rose (10), donut (30) ; tout le reste (Dyno, Capybara...) est Ombre.
+  // Gold team gifts by name: rose (10), donut (30); everything else (Dyno, Capybara...) is shadow.
   const isGoldGift =
     v >= BOOST_COST
       ? /rose|bouquet|bagel|donut|doughnut|teddy|bear/.test(giftName)
@@ -95,13 +94,12 @@ export function receiveEvent(ev) {
             ? 0
             : 1;
   countEvents(e.type === 'gift' ? n * 3 : n);
-  // Le like ne donne plus de poussee de vitesse en duel (Abdel, 2026-09-19 : « this is not a feature
-  // anymore, remove it »). Il compte toujours pour l'affluence (compter, plus haut), rien d'autre.
+  // Likes no longer grant a speed boost. They still count toward cadence (above), nothing else.
   if (e.type === 'like') return 0;
   if (e.type === 'gift') {
     recordGift(i, e.value || 0, e.nickname, n, e.avatar);
     if ((e.value || 0) >= LIFE_COST) {
-      // vie : quand une coupe devrait tuer le serpent, elle le laisse a 3 anneaux
+      // life: when a cut would kill the snake, it survives at 3 segments instead
       const prevLives = bodies[i].lives;
       bodies[i].lives += n;
       bodies[i].lifeBy = String(e.nickname || '');
@@ -112,11 +110,11 @@ export function receiveEvent(ev) {
         burst(headPos.x, headPos.y, 18, 'neutral-burst');
       }
       storeBody();
-      loadBody(0); // vie : eclat rouge, comme le coeur
+      loadBody(0); // life: red burst, like a heart
       return bodies[i].lives - prevLives;
     }
     if ((e.value || 0) >= SHIELD_COST) {
-      // bouclier : BOUCLIER_DUR secondes d'immunite aux coupes et aux collisions (Abdel : actif 15 s)
+      // shield: SHIELD_DURATION seconds of immunity to cuts and collisions
       bodies[i].shieldTime += SHIELD_DURATION * n;
       bodies[i].shieldBy = String(e.nickname || '');
       bodies[i].shieldAvatar = e.avatar;
@@ -130,7 +128,7 @@ export function receiveEvent(ev) {
       return n;
     }
     if ((e.value || 0) >= BOOST_COST && (e.value || 0) < CUT_COST) {
-      // tempo paye : TEMPO_DUR secondes de poussee sur SON serpent, cumulable (Abdel : le cadeau a 10 coins)
+      // paid boost: BOOST_DURATION seconds of speed on its snake, stackable
       bodies[i].boostTime += BOOST_DURATION * n;
       loadBody(i);
       if (snake.length) {
@@ -142,7 +140,7 @@ export function receiveEvent(ev) {
       return n;
     }
     if ((e.value || 0) >= CUT_COST) {
-      // coupe : 15 % de la longueur adverse, n fois
+      // cut: 15% of the rival's length, applied n times
       let total = 0;
       for (let q = 0; q < n; q++) {
         if (!(round && round.state === 'playing')) break;
@@ -151,12 +149,12 @@ export function receiveEvent(ev) {
       loadBody(0);
       return total;
     }
-    // bon marche : semer n baies pour le camp i
+    // cheap gift: plant n berries for team i
     let placed = 0;
     for (let q = 0; q < n; q++) placed += plantSeedFor(i, e.nickname);
     loadBody(0);
     return placed;
   }
-  // commentaire/partage : cadence seulement
+  // comment/share: cadence only
   return 0;
 }

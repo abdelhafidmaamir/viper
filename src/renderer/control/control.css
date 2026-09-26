@@ -124,7 +124,7 @@ pre {
 .light.ok {
   background: #7ac07a;
 }
-/* Etat visuel d'une scene en cours : le bouton correspondant s'illumine et sa base se remplit d'un liseret qui se vide au rythme du chrono. */
+/* Active scene visual: the matching button lights up and its base fills with a bar that drains in sync with the countdown. */
 button[data-s] {
   position: relative;
   overflow: hidden;

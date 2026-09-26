@@ -14,9 +14,7 @@ import { SHIELD_COST, CUT_COST, BOOST_COST, LIFE_COST } from './rules.js';
 import { settings, t } from '../scripts/game.js';
 
 export let giftFeedback = [[], []],
-  giftBanner = [null, null]; // [camp][ligne] = {t, pseudo, n} ; bandeau = {t, texte}
-
-// [camp][ligne] = {t, pseudo, n} ; bandeau = {t, texte}
+  giftBanner = [null, null]; // [team][line] = {t, nickname, n}; banner = {t, text}
 /** Clears the per-round gift feedback. */
 export function clearGiftFeedback() {
   giftFeedback = [[], []];

@@ -6,10 +6,10 @@ import { SHELL, SHADOW, GOLD, RED, berryTint } from './palette.js';
 import { HATCH_TIME, EMERGE_TIME, TRAIL_TIME } from './rules.js';
 import { egg, sparks, halos, px } from '../scripts/game.js';
 
-// Anime la naissance du serpent : un oeuf se pose, se fend et eclate.
-// Appeler a chaque image avec u de 0 a 1. Purement visuel, aucun effet de bord.
-// La naissance : l'oeuf respire, il se fend, il retient son souffle, puis il eclate
-// et le serpent en sort. Tout est en fonctions douces, rien ne demarre ni ne s'arrete net.
+// Animates snake birth: an egg lands, cracks and bursts.
+// Call each frame with u from 0 to 1. Purely visual, no side effects.
+// The egg breathes, cracks, holds its breath, then bursts open and the snake emerges.
+// All transitions are smooth functions; nothing starts or stops abruptly.
 export const smooth = (x) => (x <= 0 ? 0 : x >= 1 ? 1 : x * x * (3 - 2 * x));
 
 const easeOut = (x) => 1 - Math.pow(1 - Math.min(1, Math.max(0, x)), 3);
@@ -24,22 +24,22 @@ export function paintShell(u) {
     t = egg.t;
   const RX = CELL * 0.5,
     RY = CELL * 0.66;
-  const S = EMERGE_TIME; // instant de la rupture, en fraction de l'animation
-  const preFrac = Math.min(1, u / S); // avant la rupture
-  const postFrac = Math.max(0, (u - S) / (1 + TRAIL_TIME / HATCH_TIME - S)); // apres, jusqu'a l'effacement complet
+  const S = EMERGE_TIME; // split point, as a fraction of the animation
+  const preFrac = Math.min(1, u / S); // before the shell breaks
+  const postFrac = Math.max(0, (u - S) / (1 + TRAIL_TIME / HATCH_TIME - S)); // after, until the full fade
 
   ctx.save();
   ctx.translate(p.x, p.y);
 
   if (u < S) {
-    // 1. il respire et il tremble, de plus en plus, puis il se fige juste avant de ceder
-    const breath = smooth(preFrac / 0.82); // montee de l'agitation
-    const holdback = smooth(Math.max(0, (preFrac - 0.82) / 0.18)); // le temps suspendu avant la rupture
+    // 1. it breathes and trembles, increasingly, then freezes just before giving way
+    const breath = smooth(preFrac / 0.82); // agitation build-up
+    const holdback = smooth(Math.max(0, (preFrac - 0.82) / 0.18)); // suspended hold before the break
     const vivid = 1 - holdback;
     const frequency = 16 + 26 * breath;
     const sway = Math.sin(t * frequency) * 3.6 * breath * vivid;
     const roll = Math.sin(t * frequency * 0.5) * 0.09 * breath * vivid;
-    // ecrase et etire : il se tasse quand il tremble, il s'allonge quand il retient
+    // squash and stretch: it squashes when trembling, stretches when holding
     const squash = 1 + 0.07 * Math.sin(t * frequency * 2) * breath * vivid + 0.1 * holdback;
     const stretch = 1 - 0.05 * Math.sin(t * frequency * 2) * breath * vivid - 0.06 * holdback;
     const rx = RX * stretch,
@@ -47,7 +47,7 @@ export function paintShell(u) {
 
     ctx.translate(sway, 0);
     ctx.rotate(roll);
-    // l'ombre, qui se resserre quand il se dresse
+    // shadow, narrowing as the egg straightens up
     ctx.globalAlpha = 0.38;
     ctx.fillStyle = 'rgba(5,8,6,0.65)';
     ctx.beginPath();
@@ -55,7 +55,7 @@ export function paintShell(u) {
     ctx.fill();
     ctx.globalAlpha = 1;
 
-    // le halo, qui grandit puis se ramasse sur l'oeuf avant la rupture
+    // halo, growing then pulling back onto the egg before the break
     const halo = breath * (1 - 0.55 * holdback);
     if (halo > 0.01) {
       const R = ry * (1.35 + 0.7 * halo),
@@ -70,7 +70,7 @@ export function paintShell(u) {
 
     hatchingEgg(rx, ry, 1);
 
-    // les fentes : elles s'allongent depuis le sommet, de plus en plus nombreuses
+    // cracks: they lengthen from the top, growing in number
     const f = smooth(Math.max(0, (preFrac - 0.28) / 0.62));
     if (f > 0.01) {
       ctx.save();
@@ -97,11 +97,11 @@ export function paintShell(u) {
       ctx.restore();
     }
   } else {
-    // 2. la rupture : la lumiere jaillit, les morceaux partent en arc et retombent
+    // 2. the break: light bursts out, fragments fly in arcs and fall
     const e = easeOut(postFrac * 1.35),
       f = 1 - smooth(Math.max(0, (postFrac - 0.45) / 0.55));
 
-    // l'eclair, bref, puis l'anneau qui s'ouvre et s'efface
+    // brief flash, then a ring opening and fading
     const flash = Math.max(0, 1 - postFrac * 5.5);
     if (flash > 0.01) {
       const R = RY * (1 + 2.6 * (1 - flash)),
@@ -124,7 +124,7 @@ export function paintShell(u) {
       ctx.stroke();
     }
 
-    // huit morceaux de coquille, chacun sur son arc, qui tournent et retombent
+    // eight shell fragments, each on its own arc, spinning and falling
     const T = postFrac * 1.5;
     for (let i = 0; i < 8; i++) {
       const a = -Math.PI / 2 + (noise(i, 3) - 0.5) * 2.6 + (i - 3.5) * 0.34;
@@ -152,7 +152,7 @@ export function paintShell(u) {
       ctx.restore();
     }
 
-    // les deux moities, qui s'ouvrent comme un couvercle avant de partir
+    // the two halves open like a lid before flying apart
     [1, -1].forEach((sg) => {
       if (f <= 0.01) return;
       ctx.save();
@@ -165,14 +165,14 @@ export function paintShell(u) {
   }
   ctx.restore();
 
-  // une moitie d'oeuf, ou l'oeuf entier : part vaut 1 pour tout, 0.5 le haut, -0.5 le bas
+  // half an egg, or the whole egg: part=1 for whole, 0.5 for top half, -0.5 for bottom half
   function hatchingEgg(rx, ry, part) {
     const pts = [];
     for (let i = 0; i <= 52; i++) {
       const a = (i / 52) * Math.PI * 2,
         c = Math.cos(a),
         si = Math.sin(a);
-      const k = 1 - 0.17 * Math.max(0, -si); // sommet plus etroit que la base
+      const k = 1 - 0.17 * Math.max(0, -si); // top narrower than the base
       const x = c * rx * k,
         y = si * ry;
       if (part === 1 || (part > 0 ? y <= 0.5 : y >= -0.5)) pts.push([x, y]);
@@ -196,7 +196,7 @@ export function paintShell(u) {
     ctx.strokeStyle = 'rgba(120,128,118,0.45)';
     ctx.lineWidth = 2;
     ctx.stroke();
-    // un reflet doux en haut a gauche, c'est ce qui fait qu'on y croit
+    // soft highlight top-left, this is what makes it believable
     ctx.save();
     ctx.clip();
     ctx.globalAlpha = 0.5;
@@ -208,7 +208,7 @@ export function paintShell(u) {
   }
 }
 
-// Une baie mangee ne projette rien : elle s'allume sur place et se retire lentement.
+// An eaten berry emits no projectile: it lights up in place and fades slowly.
 const GLOW = { gifted: '242,197,124', nature: '207,227,198' };
 
 export function paintHalos() {
@@ -217,7 +217,7 @@ export function paintHalos() {
   ctx.globalCompositeOperation = 'lighter';
   halos.forEach((h) => {
     const u = h.t / h.duration;
-    // montee vive sur le premier cinquieme, puis une longue decrue douce
+    // quick rise over the first fifth, then a long gentle fade
     const i = u < 0.2 ? u / 0.2 : Math.pow(1 - (u - 0.2) / 0.8, 1.9);
     const R = CELL * (0.55 + 1.25 * u),
       c =
@@ -236,7 +236,7 @@ export function paintHalos() {
     ctx.beginPath();
     ctx.arc(h.x, h.y, R, 0, Math.PI * 2);
     ctx.fill();
-    // un coeur net au tout debut, le temps que l'oeil accroche
+    // sharp core at the very start, enough for the eye to lock on
     if (u < 0.35) {
       const j = 1 - u / 0.35;
       ctx.fillStyle = 'rgba(' + c + ',' + 0.35 * j * j + ')';
