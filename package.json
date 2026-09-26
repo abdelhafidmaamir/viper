@@ -11,7 +11,10 @@
     "node": ">=22"
   },
   "scripts": {
-    "build": "tsc -p tsconfig.build.json",
+    "build": "npm run build:main && npm run build:renderer",
+    "build:main": "tsc -p tsconfig.build.json",
+    "build:renderer": "vite build",
+    "dev": "npm run build:main && node scripts/dev.ts",
     "start": "npm run build && electron .",
     "start:landscape": "npm run build && electron . --orientation=landscape",
     "diagnose": "npm run build && electron . --diagnostic",
@@ -19,7 +22,7 @@
     "lint:fix": "eslint . --fix",
     "format": "prettier . --write",
     "format:check": "prettier . --check",
-    "typecheck": "tsc -p tsconfig.json",
+    "typecheck": "tsc -p tsconfig.json && tsc -p src/renderer/tsconfig.json",
     "test": "vitest run",
     "test:watch": "vitest",
     "check": "npm run format:check && npm run lint && npm run typecheck && npm run test",
@@ -48,6 +51,7 @@
     "simple-git-hooks": "^2.14.0",
     "typescript": "~6.0.3",
     "typescript-eslint": "^8.70.1",
+    "vite": "^8.3.1",
     "vitest": "^5.0.2"
   },
   "allowScripts": {

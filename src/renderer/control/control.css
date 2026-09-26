@@ -1,0 +1,204 @@
+:root {
+  --fond: #0c110e;
+  --panneau: #161d18;
+  --filet: #29332c;
+  --texte: #dfe6dc;
+  --attenue: #8e9a8f;
+  --accent: #b4d4de;
+  --or: #f2c57c;
+}
+* {
+  box-sizing: border-box;
+  margin: 0;
+  padding: 0;
+}
+html,
+body {
+  min-height: 100%;
+  background: var(--fond);
+  color: var(--texte);
+  font:
+    14px/1.45 'Zen Kaku Gothic New',
+    system-ui,
+    sans-serif;
+}
+body {
+  padding: 14px 16px;
+  max-width: 560px;
+  margin: 0 auto;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+h1 {
+  font-size: 16px;
+  font-weight: 700;
+}
+h2 {
+  font-size: 11px;
+  font-weight: 500;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--attenue);
+  margin-bottom: 6px;
+}
+section {
+  background: var(--panneau);
+  border: 1px solid var(--filet);
+  border-radius: 8px;
+  padding: 10px;
+  display: flex;
+  flex-direction: column;
+  gap: 7px;
+}
+.note {
+  color: var(--attenue);
+  font-size: 11px;
+  overflow-wrap: anywhere;
+}
+.ligne {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  align-items: center;
+}
+.rangee {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 5px;
+}
+button {
+  flex: 1 1 auto;
+  min-width: 0;
+  background: transparent;
+  color: var(--texte);
+  border: 1px solid var(--filet);
+  border-radius: 6px;
+  padding: 7px 8px;
+  font: 13px/1.2 inherit;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  cursor: pointer;
+}
+button:hover {
+  border-color: var(--accent);
+  color: var(--accent);
+}
+button.or {
+  border-color: #5c4a2e;
+}
+button.or:hover {
+  border-color: var(--or);
+  color: var(--or);
+}
+input[type='text'] {
+  background: transparent;
+  color: var(--texte);
+  border: 1px solid var(--filet);
+  border-radius: 6px;
+  padding: 6px 8px;
+  font:
+    12px/1.2 'IBM Plex Mono',
+    monospace;
+  min-width: 0;
+  flex: 1 1 auto;
+}
+pre {
+  font:
+    11px/1.5 'IBM Plex Mono',
+    monospace;
+  color: var(--attenue);
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+}
+.voyant {
+  display: inline-block;
+  width: 10px;
+  height: 10px;
+  border-radius: 50%;
+  background: #8a4b45;
+  vertical-align: -1px;
+  margin-right: 6px;
+}
+.voyant.ok {
+  background: #7ac07a;
+}
+/* Etat visuel d'une scene en cours : le bouton correspondant s'illumine et sa base se remplit d'un liseret qui se vide au rythme du chrono. */
+button[data-s] {
+  position: relative;
+  overflow: hidden;
+  transition:
+    border-color 0.15s,
+    color 0.15s,
+    background 0.15s;
+}
+button[data-s].actif {
+  border-color: var(--accent);
+  color: var(--accent);
+  background: rgba(180, 212, 222, 0.06);
+}
+button[data-s].actif.or {
+  border-color: var(--or);
+  color: var(--or);
+  background: rgba(242, 197, 124, 0.06);
+}
+button[data-s] .jauge {
+  position: absolute;
+  left: 0;
+  bottom: 0;
+  height: 3px;
+  background: var(--accent);
+  width: 0;
+  transition: width 0.2s linear;
+}
+button[data-s].or .jauge {
+  background: var(--or);
+}
+button[data-s] .cd {
+  position: absolute;
+  right: 6px;
+  top: 5px;
+  font:
+    11px/1 'IBM Plex Mono',
+    monospace;
+  color: inherit;
+  opacity: 0;
+}
+button[data-s].actif .cd {
+  opacity: 1;
+}
+.effet {
+  display: grid;
+  grid-template-columns: auto 1fr;
+  gap: 4px 8px;
+  font:
+    11px/1.35 'IBM Plex Mono',
+    monospace;
+  color: var(--attenue);
+}
+.effet .camp {
+  font-weight: 600;
+}
+.effet .camp.or {
+  color: var(--or);
+}
+.effet .camp.om {
+  color: var(--accent);
+}
+.pastille {
+  display: inline-block;
+  padding: 1px 6px;
+  margin: 0 3px 2px 0;
+  border: 1px solid var(--filet);
+  border-radius: 10px;
+  font-size: 10.5px;
+}
+.pastille.chaud {
+  border-color: var(--or);
+  color: var(--or);
+}
+.pastille.froid {
+  border-color: var(--accent);
+  color: var(--accent);
+}

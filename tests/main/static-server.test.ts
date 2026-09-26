@@ -137,3 +137,38 @@ describe('resolveRequestPath', () => {
     },
   );
 });
+
+describe('startStaticServer options', () => {
+  it('binds the preferred port, then falls back to a free one when it is taken', async () => {
+    const first = await startStaticServer(root, { preferredPort: 0 });
+    const port = Number(new URL(first.origin).port);
+    try {
+      const again = await startStaticServer(root, { preferredPort: port });
+      try {
+        expect(again.onPreferredPort).toBe(false);
+        expect(again.origin).not.toBe(first.origin);
+      } finally {
+        await again.close();
+      }
+    } finally {
+      await first.close();
+    }
+    const reused = await startStaticServer(root, { preferredPort: port });
+    expect(reused).toMatchObject({ origin: first.origin, onPreferredPort: true });
+    await reused.close();
+  });
+
+  it('adds document headers to HTML only', async () => {
+    const withPolicy = await startStaticServer(root, {
+      documentHeaders: { 'Content-Security-Policy': "default-src 'self'" },
+    });
+    try {
+      const page = await fetch(`${withPolicy.origin}/game.html`);
+      const script = await fetch(`${withPolicy.origin}/scripts/game.js`);
+      expect(page.headers.get('content-security-policy')).toBe("default-src 'self'");
+      expect(script.headers.get('content-security-policy')).toBeNull();
+    } finally {
+      await withPolicy.close();
+    }
+  });
+});

@@ -1,11 +1,9 @@
-import path from 'node:path';
-
 import { app } from 'electron';
 
 import { ConfigError, parseConfig, type AppConfig } from './config.js';
 import { runDiagnostic } from './diagnostics/index.js';
 import { evaluate } from './page/evaluate.js';
-import { startStaticServer, type StaticServer } from './static-server.js';
+import { hostRenderer } from './renderer-host.js';
 import { openControlWindow, openGameWindow } from './windows.js';
 
 /**
@@ -22,15 +20,13 @@ function keepRenderingWhenCovered(): void {
 async function start(config: AppConfig): Promise<void> {
   await app.whenReady();
 
-  const server: StaticServer = await startStaticServer(
-    path.join(app.getAppPath(), 'src', 'renderer'),
-  );
-  app.once('will-quit', () => void server.close());
+  const renderer = await hostRenderer(app.getAppPath(), config.rendererOrigin);
+  app.once('will-quit', () => void renderer.dispose());
   app.on('window-all-closed', () => {
     app.quit();
   });
 
-  const game = await openGameWindow(server.origin, {
+  const game = await openGameWindow(renderer.origin, {
     orientation: config.orientation,
     diagnostic: config.diagnostic !== null,
   });
@@ -47,7 +43,7 @@ async function start(config: AppConfig): Promise<void> {
       window.VipereBase.nouvelleManche();
     });
   }
-  const control = await openControlWindow(server.origin);
+  const control = await openControlWindow(renderer.origin);
 
   // A second launch focuses this instance instead of opening a competing local server.
   app.on('second-instance', () => {

@@ -21,6 +21,11 @@ export interface DiagnosticOptions {
 
 export interface AppConfig {
   readonly orientation: Orientation;
+  /**
+   * Development only: origin of the Vite dev server that serves the renderer with hot reload.
+   * Null in production, where the main process serves the built renderer itself.
+   */
+  readonly rendererOrigin: string | null;
   readonly diagnostic: {
     readonly name: DiagnosticName;
     readonly options: DiagnosticOptions;
@@ -41,6 +46,21 @@ const DEFAULTS = {
 function oneOf<T extends string>(flag: string, value: string, allowed: readonly T[]): T {
   if ((allowed as readonly string[]).includes(value)) return value as T;
   throw new ConfigError(`--${flag} must be one of ${allowed.join(', ')} (got "${value}").`);
+}
+
+/** Only a loopback http origin is accepted: these windows must never load remote content. */
+function loopbackOrigin(flag: string, value: string): string {
+  let url: URL;
+  try {
+    url = new URL(value);
+  } catch {
+    throw new ConfigError(`--${flag} must be a URL (got "${value}").`);
+  }
+  const loopback = ['127.0.0.1', 'localhost', '[::1]'].includes(url.hostname);
+  if (url.protocol !== 'http:' || !loopback) {
+    throw new ConfigError(`--${flag} must be an http loopback URL (got "${value}").`);
+  }
+  return url.origin;
 }
 
 function numberIn(flag: string, value: string, min: number, max: number): number {
@@ -66,6 +86,7 @@ export function parseConfig(argv: readonly string[]): AppConfig {
     allowPositionals: true,
     options: {
       orientation: { type: 'string' },
+      'renderer-url': { type: 'string' },
       diagnostic: { type: 'string' },
       out: { type: 'string' },
       weather: { type: 'string' },
@@ -85,13 +106,17 @@ export function parseConfig(argv: readonly string[]): AppConfig {
     ? oneOf('orientation', orientationFlag, ORIENTATIONS)
     : 'portrait';
 
+  const rendererFlag = text('renderer-url');
+  const rendererOrigin = rendererFlag ? loopbackOrigin('renderer-url', rendererFlag) : null;
+
   const diagnosticFlag = text('diagnostic');
-  if (!diagnosticFlag) return { orientation, diagnostic: null };
+  if (!diagnosticFlag) return { orientation, rendererOrigin, diagnostic: null };
 
   const hour = text('hour');
   const settle = text('settle');
   return {
     orientation,
+    rendererOrigin,
     diagnostic: {
       name: oneOf('diagnostic', diagnosticFlag, DIAGNOSTICS),
       options: {
