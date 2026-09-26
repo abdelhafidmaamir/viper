@@ -40,6 +40,9 @@ renders, pass a side-by-side `--diagnostic=screenshots` run against the previous
       went through a golden-master bisection that caught a broken prefix test. Preferences saved
       under the old storage keys are still read.
 
+- [x] **Releases.** A version tag verifies, packages and publishes a GitHub release with a
+      checksum; the executable carries the version and product metadata. Code signing is open.
+
 ## Branching
 
 `main` is always shippable. Work happens on short-lived branches merged through pull requests;
@@ -50,7 +53,6 @@ experiments that are not shipping yet live on `wip/*` branches and never block `
 1. **Strict TypeScript everywhere**, and zero lint warnings.
 2. **Deterministic visual regression.** Inject a seeded RNG and clock so screenshots can be
    pixel-diffed on CI.
-3. **Releases.** Signed, versioned GitHub releases.
 
 ## Toolchain notes
 
