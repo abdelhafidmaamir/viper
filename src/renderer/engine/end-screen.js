@@ -3,17 +3,8 @@
 
 import { CELL, H, L, OX, ROWS, W, WF, Y0 } from './layout.js';
 import { doux01 } from './scoreboard.js';
-import {
-  OMBRE,
-  OR,
-  ctx,
-  donsManche,
-  duel,
-  manche,
-  miniSerpent,
-  photoProfil,
-  reglages,
-} from '../scripts/game.js';
+import { donsManche, miniSerpent, photoProfil } from './announcements.js';
+import { OMBRE, OR, ctx, duel, manche, reglages } from '../scripts/game.js';
 
 // Fin de manche : la scene se voile, le camp gagnant s'affiche par la lumiere, sans un mot
 // le voile de fin, peint une seule fois au quart de la taille puis etire : un degrade radial plein ecran
