@@ -1,5 +1,5 @@
 // Game rules: board speed, hazard timings, crowd tiers, gift prices and durations, and the fixed
-// temperament both AIs share. Pure data, no state.
+// temperament both AIs share. The bench API retunes tier fields in place.
 
 export const VITESSE = 7;
 
