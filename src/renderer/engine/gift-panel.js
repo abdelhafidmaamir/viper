@@ -4,10 +4,9 @@
 
 import { L } from './layout.js';
 import { ctx } from './canvas.js';
+import { OMBRE, OR } from './palette.js';
 import {
   BOUCLIER_DUR,
-  OMBRE,
-  OR,
   TEMPO_DUR,
   bandeauCadeau,
   corps,

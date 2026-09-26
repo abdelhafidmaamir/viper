@@ -3,10 +3,8 @@
 
 import { SC_CY, W } from './layout.js';
 import { ctx } from './canvas.js';
+import { BLEU, OMBRE, OR } from './palette.js';
 import {
-  BLEU,
-  OMBRE,
-  OR,
   duel,
   glypheGens,
   manche,

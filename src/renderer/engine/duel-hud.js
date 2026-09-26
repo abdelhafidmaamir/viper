@@ -3,11 +3,10 @@
 
 import { CELL, COLS, H, ROWS, W, X0, Y0 } from './layout.js';
 import { ctx } from './canvas.js';
+import { OMBRE, OR } from './palette.js';
 import {
   BOUCLIER_DUR,
   LONG_CIBLE_DUEL,
-  OMBRE,
-  OR,
   SURSIS_DUEL,
   TEMPO_DUR,
   TENUE_DUEL,

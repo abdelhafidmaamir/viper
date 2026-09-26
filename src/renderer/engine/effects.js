@@ -2,21 +2,8 @@
 
 import { CELL } from './layout.js';
 import { ctx } from './canvas.js';
-import {
-  COQUILLE,
-  ECLOSION,
-  OMBRE,
-  OR,
-  ROUGE,
-  SORTIE,
-  TRAINE,
-  couvee,
-  duel,
-  etincelles,
-  halos,
-  px,
-  teinteBaie,
-} from '../scripts/game.js';
+import { COQUILLE, OMBRE, OR, ROUGE, teinteBaie } from './palette.js';
+import { ECLOSION, SORTIE, TRAINE, couvee, duel, etincelles, halos, px } from '../scripts/game.js';
 
 // Anime la naissance du serpent : un oeuf se pose, se fend et eclate.
 // Appeler a chaque image avec u de 0 a 1. Purement visuel, aucun effet de bord.
