@@ -48,12 +48,12 @@ function startRound(settings: Record<string, unknown>): void {
 describe('duel render loop', () => {
   it.each(['vertical', 'horizontal'])('plays 60 s in %s format without an error', (format) => {
     startRound({ format });
-    const callsBefore = sim.counter.calls;
+    const callsBefore = sim.drawCalls();
 
     playDuel(60);
 
     expect(sim.game.mesures()).toMatchObject({ erreurs: 0, derniereErreur: null });
-    expect(sim.counter.calls).toBeGreaterThan(callsBefore);
+    expect(sim.drawCalls()).toBeGreaterThan(callsBefore);
   });
 
   it.each(['defile', 'complet', 'aucun'])('draws the "%s" gift panel', (affichageCadeaux) => {
