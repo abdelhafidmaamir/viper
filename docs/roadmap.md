@@ -22,13 +22,25 @@ renders, pass a side-by-side `--diagnostic=screenshots` run against the previous
       found on the way: saved settings were lost on every launch (random port, so a new origin
       and empty storage), and a `__proto__` setting name could replace the settings prototype.
 
+- [x] **Golden-master net.** A seeded, deterministic replay of nine scenarios digests every
+      canvas call and the game state; it is identical on Windows and Linux.
+- [x] **Solo mode out of `main`.** The legacy solo mode (snake against the audience, prowler,
+      rocks, grades) was unreachable from the shipped app. It lives on `wip/solo-mode` and comes
+      back through a pull request if it is revived. The engine lost 815 lines and its lint warnings
+      with every golden digest unchanged.
+
+## Branching
+
+`main` is always shippable. Work happens on short-lived branches merged through pull requests;
+experiments that are not shipping yet live on `wip/*` branches and never block `main`.
+
 ## Next
 
 1. **Split the engine.** `game.js` (about 7,000 lines) becomes modules: config, state, rules,
    gifts, announcements, AI bridge, render layers, layout and format.
 2. **English identifiers.** Rename per module (`VipereBase` becomes `Viper`, `reglages` becomes
    `settings`), with a compatibility shim for the control-room protocol until both sides move.
-3. **Strict TypeScript everywhere**, and zero lint warnings (27 legacy warnings are tracked today).
+3. **Strict TypeScript everywhere**, and zero lint warnings.
 4. **Deterministic visual regression.** Inject a seeded RNG and clock so screenshots can be
    pixel-diffed on CI.
 5. **Releases.** Signed, versioned GitHub releases.

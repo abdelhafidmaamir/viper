@@ -77,7 +77,9 @@ function state(): string {
 
 beforeAll(() => {
   sim = bootGame({ seed: SEED, record: true });
-  sim.digest(); // discard load-time activity: pre-renders are covered by the first segment
+  // Scenarios start from a fixed generator state, independent of what loading consumed.
+  sim.reseed(SEED);
+  sim.digest();
 });
 
 describe('engine characterisation (seed 20260926)', () => {
