@@ -7,8 +7,6 @@ import { lueurBaie, teinteBaie } from './palette.js';
 import { ALERTE, GERME, RONCE_ALERTE, VIEROCHER, VIERONCE } from './rules.js';
 import { baies, graines, px, reglages, rochers, ronces } from '../scripts/game.js';
 
-// couleur du second serpent en mode duel (a verifier au contraste)
-
 // Ce que les spectateurs offrent : la graine tombe, l'ombre se resserre, la baie s'ouvre.
 const BAIE_RS = 58,
   BAIE_N = 48,

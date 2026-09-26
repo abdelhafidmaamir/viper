@@ -16,7 +16,7 @@ export const lueurBaie = (a, camp) =>
       ? 'rgba(180,212,222,' + a + ')'
       : BAIE_VERT_A(a);
 
-export const OMBRE = '#b4d4de';
+export const OMBRE = '#b4d4de'; // couleur du second serpent (a verifier au contraste)
 
 export const BLEU = '#8FA8D8',
   ROUGE = '#D64A42',
