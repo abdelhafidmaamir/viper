@@ -279,13 +279,8 @@
   // Mode de base : un rodeur. Le chat le nourrit en commentant, il grossit et accelere ;
   // les likes lui arrachent un morceau, les cadeaux l'assomment. Un seul objet, lisible en une seconde.
   let rodeur = null;
-  // Le rodeur est retire pour l'instant sur demande d'Abdel. Tout son code reste en place :
-  // remettre RODEUR a true le fait revenir tel quel, avec ses reglages mesures.
-  const RODEUR = false;
   const ROD = { v: 2.6, k: 0.1, fonte: 0.08 },
-    ROD_VMAX = 5.8,
-    ROD_FMAX = 40;
-  let BASE_SAUVAGE = 7;
+    ROD_VMAX = 5.8;
   // 1,3 s : sous une seconde la pierre "pop" au lieu de pousser, au-dela de 1,5 s le serpent, a
   // 7 cases par seconde sur un plateau de 16, a deja traverse toute case qu'on pourrait viser.
   const ALERTE = 1.3,
@@ -374,11 +369,10 @@
   // need to be able to reach stages were the snake is really long and becomes challenging ».
   // Le plafond suit donc l'affluence : salle vide 34, calme 52, animee 80, foule 120. `reglerLong`
   // le force pour les harnais, auquel cas le palier ne le touche plus.
-  let LONG_MAX = 34,
-    longForce = 0;
+  let longForce = 0;
   // duel : plafond = LONG_CIBLE_DUEL (l'anneau est plein a 60). Deux serpents a 120 sur 320 cases
   // s'enfermaient eux-memes (sonde : 62 morts/6 manches, toutes piegees ; a 60 : 30)
-  const longMax = () => longForce || (duel() ? LONG_CIBLE_DUEL : base() ? 120 : palier.long || 34); // base : libre ; duel : plafond LONG_CIBLE_DUEL
+  const longMax = () => longForce || (duel() ? LONG_CIBLE_DUEL : palier.long || 34); // duel : plafond LONG_CIBLE_DUEL
   let cadence = 0,
     palier = PALIERS[0],
     natureT = 0,
@@ -479,8 +473,6 @@
     // coupe, l'IA ne remplit rien et le calque n'est pas dessine (zero effet sur le jeu).
     debugIA: false,
   };
-  const base = () => reglages.mode === 'base';
-  const rode = () => base() && RODEUR;
   const duel = () => reglages.mode === 'duel';
 
   const px = (gx, gy) => ({ x: X0 + gx * CELL + CELL / 2, y: Y0 + gy * CELL + CELL / 2 });
@@ -501,18 +493,12 @@
   }
 
   let creditSun = 0,
-    creditMoon = 0,
-    creditLike = 0,
-    roseTotal = 0;
+    creditMoon = 0;
   // Economie calquee sur un vrai live : la rose est le cadeau dominant et joue CONTRE le serpent,
   // Le like, le commentaire et le partage sont sans effet (Abdel, 2026-09-19 : la poussee par likes est retiree).
   // La seule poussee de vitesse est le cadeau tempo (SURGE_FACT pendant TEMPO_DUR).
   const SURGE_FACT = 1.2; // Abdel, 2026-09-19 : « the actual speed boost value, tone it down a little » (etait 1,5)
   // ancien commentaire :  // le serpent va 50 % plus vite pendant la poussee
-  const ROSE_MUR = 6; // toutes les 6 roses, un mur (ronce) pousse en travers
-  const ROSE_COUP = 14; // toutes les 14 roses, le coup dur
-  const COUP_ANNEAUX = 2; // le coup dur lui arrache 2 anneaux
-  const COEUR_COUT = 10; // fantasme bourreau : une rose premium a 10 arrache un coeur (le compteur d'espoir)
   const FORET_DUEL = 8; // duel : secondes (x0.6 a 1.4) entre deux baies vertes neutres quand le plateau est vide, ralenti par l'affluence
   const TEMPO_COUT = 10,
     TEMPO_DUR = 10; // don 10-29 coins : 10 s de poussee de tempo payee (x1.5), au-dela du plafond des likes
@@ -530,44 +516,7 @@
   const ADULTE_DUEL = 10; // un serpent qui n'a jamais atteint 10 anneaux est 'jeune' : une coupe ne le descend jamais sous 3 et il n'est pas en sursis (pas de piege au depart)
   // compteurs de moments de depense (proxy de profit) : tenues entamees, sursis entames, parades
   let moments = { tenues: 0, sursis: 0, parades: 0, manches: 0 };
-  const RECUL_COEUR = 0.15; // chaque coeur perdu fait reculer la progression globale de 15 % (cale au bench : palier ou chaque profil hostile dynamique reste dispute, soutien protege a 100 %)
-  // Grades (mode base). Le serpent progresse en G1..G5, chaque grade debloqu une capacite.
-  const CROISSANCE_PAS = 1; // +1 segment par baie : le serpent devient long, la longueur fait le spectacle
-  const GRADES = [10, 14, 18, 22]; // crans requis par grade G1..G4 (64 baies pour G5) : serpent ~63 anneaux, fin tendue
   let baieCount = 0; // compteur de baies mangees pour la croissance decouplee (mode base)
-
-  // Le coup dur des roses : on arrache des anneaux par la queue, comme le rodeur mordait. Sous
-  // 3 anneaux, le serpent ne survit pas et la manche va aux spectateurs.
-  function retrecir(k) {
-    if (!serpent.length) return;
-    // mode base : passif G4 reduit le coup d'un anneau
-    if (base() && manche && manche.capacites && manche.capacites.passif) k = Math.max(1, k - 1);
-    // mode base : bouclier G2 absorbe le coup s'il est charge
-    if (
-      base() &&
-      manche &&
-      manche.capacites &&
-      manche.capacites.bouclier &&
-      manche.boucliersCharge
-    ) {
-      manche.boucliersCharge = false;
-      manche.boucliersT = 20;
-      return;
-    }
-    const p = px(serpent[serpent.length - 1].x, serpent[serpent.length - 1].y);
-    eclat(p.x, p.y, 18, 'rodeur');
-    // coup dur non annule : signaler dans le HUD
-    if (base() && manche) {
-      manche.coupT = 0.9;
-      manche.coupN = k;
-    }
-    serpent = serpent.slice(0, Math.max(0, serpent.length - k));
-    hist = hist.slice(0, Math.max(1, serpent.length + 3));
-    if (serpent.length < 3) {
-      serpent = [];
-      finir('viewers', 'place');
-    } else demanderIA();
-  }
 
   // eclaterAnneaux : convertit des segments en baies actives (coupe duel ou mort duel).
   // Appeler sous charger(i) : zoneMorte utilise le bon contexte de tete (duel verifie les deux).
@@ -711,36 +660,6 @@
     ranger();
     demanderIA();
     return nb;
-  }
-
-  // Bourreau : chaque coeur perdu fait aussi RECULER la progression globale vers G5. La rose ne se
-  // contente plus de vider l'espoir, elle repousse le sacre : l'anneau de victoire recule a l'ecran,
-  // la meute voit son attaque compter. RECUL_COEUR = part de la progression globale perdue par coeur.
-  function reculProgression(frac) {
-    if (!(base() && manche && manche.etat === 'en cours')) return;
-    const G = GRADES;
-    const TOT = G.reduce((a, b) => a + b, 0);
-    // fraction de l'anneau global AVANT le recul : c'est le haut de la bande qui va bruler en rouge
-    let faitsAv = 0;
-    for (let i = 0; i < manche.grade - 1 && i < G.length; i++) faitsAv += G[i];
-    manche.reculHaut = Math.min(1, (faitsAv + (manche.jauge || 0)) / TOT);
-    manche.reculT = 0.9; // duree du brulage rouge de la portion perdue sur l'anneau
-    let total = 0;
-    for (let i = 0; i < manche.grade - 1 && i < G.length; i++) total += G[i];
-    total = Math.max(0, (total + (manche.jauge || 0)) * (1 - frac));
-    let gr = 1,
-      rest = total;
-    while (gr - 1 < G.length && rest >= G[gr - 1]) {
-      rest -= G[gr - 1];
-      gr++;
-    }
-    manche.grade = gr;
-    manche.jauge = rest;
-    if (manche.capacites) {
-      manche.capacites.bouclier = manche.grade >= 2;
-      manche.capacites.mue = manche.grade >= 3;
-      manche.capacites.passif = manche.grade >= 4;
-    }
   }
 
   // Un geste qui ne pose rien se voit quand meme : une baie deja la se ranime
@@ -915,144 +834,8 @@
     return false;
   }
 
-  // Le rodeur nait dans le coin le plus loin de la tete, pour qu'on le voie venir.
-  function naitreRodeur(garder) {
-    const f = garder && rodeur ? rodeur.faim : 0;
-    const h = serpent[0] || { x: COLS / 2, y: ROWS / 2 };
-    const coins = [
-      { x: 0, y: 0 },
-      { x: COLS - 1, y: 0 },
-      { x: 0, y: ROWS - 1 },
-      { x: COLS - 1, y: ROWS - 1 },
-    ];
-    coins.sort(
-      (a, b) =>
-        Math.abs(b.x - h.x) + Math.abs(b.y - h.y) - (Math.abs(a.x - h.x) + Math.abs(a.y - h.y)),
-    );
-    rodeur = {
-      x: coins[0].x,
-      y: coins[0].y,
-      faim: f,
-      av: 0,
-      t: 0,
-      etourdi: garder ? 0.8 : 3,
-      coup: 0,
-      repas: 0,
-    };
-  }
-  // Un commentaire le nourrit : il grossit et il accelere, tout de suite.
-  function nourrir(n, pseudo) {
-    if (!rodeur) return 0;
-    rodeur.faim = Math.min(ROD_FMAX, rodeur.faim + n);
-    rodeur.repas = 0;
-    const p = px(rodeur.x, rodeur.y);
-    eclat(p.x, p.y, 4 + Math.min(10, n * 2), 'rodeur');
-    return 1;
-  }
-  // Un like lui arrache un morceau : il maigrit et il recule d'une case.
-  function blesser(n) {
-    if (!rodeur || rodeur.faim <= 0) return 0;
-    rodeur.faim = Math.max(0, rodeur.faim - n * palier.coup);
-    rodeur.coup = 0;
-    const h = serpent[0];
-    if (h) {
-      const dx = Math.sign(rodeur.x - h.x),
-        dy = Math.sign(rodeur.y - h.y);
-      if (Math.abs(rodeur.x - h.x) >= Math.abs(rodeur.y - h.y))
-        rodeur.x = Math.max(0, Math.min(COLS - 1, rodeur.x + dx || 1));
-      else rodeur.y = Math.max(0, Math.min(ROWS - 1, rodeur.y + dy || 1));
-      rodeur.av = 0;
-    }
-    const p = px(rodeur.x, rodeur.y);
-    eclat(p.x, p.y, 6, 'offerte');
-    return 1;
-  }
-  // Un cadeau l'assomme : il se fige, le serpent respire.
-  function etourdir(s) {
-    if (rodeur) {
-      rodeur.etourdi = Math.max(rodeur.etourdi, s);
-      const p = px(rodeur.x, rodeur.y);
-      eclat(p.x, p.y, 22, 'offerte');
-    }
-  }
-
-  // Le rodeur ne tue pas d'un coup : il arrache des anneaux, d'autant plus qu'il a ete nourri.
-  // La longueur du serpent devient la jauge de la manche, visible sans un mot.
-  function mordre() {
-    if (!serpent.length || !manche || manche.etat !== 'en cours') return;
-    const n = 3 + Math.floor(rodeur.faim / 7);
-    const p = px(rodeur.x, rodeur.y);
-    eclat(p.x, p.y, 18 + n * 2, 'rodeur');
-    morsures++;
-    serpent = serpent.slice(0, Math.max(0, serpent.length - n));
-    hist = hist.slice(0, Math.max(1, serpent.length + 3));
-    // il recule, repu, et laisse respirer : sinon il broute le serpent en une seconde
-    rodeur.etourdi = 0.55;
-    rodeur.repas = 0;
-    const h = serpent[0];
-    if (h) {
-      rodeur.x = Math.max(0, Math.min(COLS - 1, rodeur.x + (Math.sign(rodeur.x - h.x) || 1) * 2));
-      rodeur.y = Math.max(0, Math.min(ROWS - 1, rodeur.y + (Math.sign(rodeur.y - h.y) || 1) * 2));
-    }
-    if (serpent.length < 3) {
-      serpent = [];
-      finir('viewers', 'place');
-      return;
-    }
-    demanderIA();
-  }
-
   function rodeurVitesse() {
     return Math.min(ROD_VMAX, ROD.v + ROD.k * (rodeur ? rodeur.faim : 0));
-  }
-  function rodeurRayon() {
-    return 16 + 1.5 * Math.min(ROD_FMAX, rodeur ? rodeur.faim : 0);
-  }
-
-  // Il avance vers la tete, case par case, et contourne les pierres.
-  function avancerRodeur(dt) {
-    if (!rodeur || !serpent.length || couvee || !manche || manche.etat !== 'en cours') return;
-    rodeur.t += dt;
-    rodeur.coup += dt;
-    rodeur.repas += dt;
-    rodeur.faim = Math.max(0, rodeur.faim - dt * ROD.fonte);
-    if (rodeur.etourdi > 0) {
-      rodeur.etourdi -= dt;
-      return;
-    }
-    rodeur.av += dt * rodeurVitesse();
-    while (rodeur.av >= 1) {
-      rodeur.av -= 1;
-      const h = serpent[0];
-      const opts = [
-        { x: 1, y: 0 },
-        { x: -1, y: 0 },
-        { x: 0, y: 1 },
-        { x: 0, y: -1 },
-      ]
-        .map((d) => ({ x: rodeur.x + d.x, y: rodeur.y + d.y }))
-        .filter(
-          (c) =>
-            c.x >= 0 &&
-            c.y >= 0 &&
-            c.x < COLS &&
-            c.y < ROWS &&
-            !rochers.some((r) => r.t >= ALERTE && r.x === c.x && r.y === c.y),
-        );
-      if (!opts.length) break;
-      opts.sort(
-        (a, b) =>
-          Math.abs(a.x - h.x) + Math.abs(a.y - h.y) - (Math.abs(b.x - h.x) + Math.abs(b.y - h.y)),
-      );
-      const c = opts[0];
-      rodeur.x = c.x;
-      rodeur.y = c.y;
-      demanderIA();
-      if (serpent.some((s) => s.x === c.x && s.y === c.y)) {
-        mordre();
-        return;
-      }
-    }
   }
 
   // opt regle la force d'un eclat : vitesse, poussee vers le haut, pesanteur, taille, opacite.
@@ -1218,61 +1001,6 @@
       // commentaire/partage : cadence seulement
       return 0;
     }
-    if (base()) {
-      compter(e.type === 'cadeau' ? n * 3 : n);
-      if (rode()) {
-        if (e.type === 'like') return blesser(n);
-        if (e.type === 'commentaire') return nourrir(n, e.pseudo);
-        if (e.type === 'cadeau') {
-          blesser(n * 8);
-          etourdir(2 + 1.5 * n);
-          for (let i = 0; i < 2 * n; i++) semer(e.pseudo);
-          return 1;
-        }
-        return 0;
-      }
-      if (e.type === 'like') return 0; // Abdel, 2026-09-19 : le like n'a plus aucun effet
-      // La rose est l'arme de la foule et escalade avec le volume : chaque rose pose une pierre,
-      // toutes les 5 un mur pousse en travers, toutes les 10 le serpent perd des anneaux.
-      if (e.type === 'cadeau') {
-        // Rose premium (valeur >= COEUR_COUT) : l'arme reelle de la meute, elle arrache un coeur
-        // directement, sans collision. Un canal que l'IA ne peut pas esquiver. A 0 coeur, le prochain
-        // cadeau premium donne la manche aux spectateurs (le compteur d'espoir est vide).
-        if ((e.valeur || 0) >= COEUR_COUT) {
-          let pris = 0;
-          for (let i = 0; i < n; i++) {
-            if (!(manche && manche.etat === 'en cours')) break;
-            if (manche.vies > 0) {
-              manche.vies--;
-              pris++;
-              manche.invincT = Math.max(manche.invincT || 0, 0.8);
-              manche.coupT = 0.6;
-              manche.coupN = Math.max(manche.coupN || 0, 1); // fait clignoter le coeur perdu au HUD
-              if (serpent.length) {
-                const tp = px(serpent[0].x, serpent[0].y);
-                eclat(tp.x, tp.y, 16, 'rodeur');
-              }
-              reculProgression(RECUL_COEUR); // le sacre recule aussi
-            } else {
-              finir('viewers', 'coeur');
-              return pris;
-            }
-          }
-          return pris;
-        }
-        // Rose bon marche (valeur < COEUR_COUT) : harcelement, escalade avec le volume.
-        let k = 0;
-        for (let i = 0; i < n; i++) {
-          roseTotal++;
-          if (bloquer(e.pseudo)) k++;
-          if (roseTotal % ROSE_MUR === 0) planterRonce(e.pseudo);
-          if (roseTotal % ROSE_COUP === 0) retrecir(COUP_ANNEAUX);
-        }
-        return k;
-      }
-      // Commentaire et partage : sans effet pour l'instant, ils comptent juste dans la cadence.
-      return 0;
-    }
     if (e.type === 'like') {
       compter(n);
       if (manche) manche.sun += n;
@@ -1351,27 +1079,9 @@
       cible: palier.cible,
       recolte: 0,
     };
-    // mode base : etat de grade, vies et capacites
-    if (base()) {
-      manche.jauge = 0;
-      manche.grade = 1;
-      manche.vies = 3; // compteur d'espoir : 3 coeurs au depart, que la meute vide
-      manche.capacites = { bouclier: false, mue: false, passif: false };
-      manche.boucliersCharge = true;
-      manche.boucliersT = 0;
-      manche.mueT = 0;
-      manche.invincT = 0;
-      manche.coupT = 0;
-      manche.coupN = 0;
-      manche.reculT = 0;
-      manche.reculHaut = 0;
-      manche.surgeT = 0;
-    }
     baieCount = 0;
     creditSun = 0;
     creditMoon = 0;
-    creditLike = 0;
-    roseTotal = 0;
     rochers = [];
     ronces = [];
     sansBaie = 0;
@@ -1389,7 +1099,6 @@
       ranger();
     }
     charger(0);
-    if (rode()) naitreRodeur(false);
   }
 
   // L'affluence monte : le ciel s'allonge, jamais ne se raccourcit, et l'astre garde sa hauteur a l'ecran.
@@ -1406,7 +1115,7 @@
 
   // Un cran de plus pour un camp. Le premier en haut du ciel gagne.
   function monter(camp, n) {
-    if (!manche || manche.etat !== 'en cours' || base() || duel()) return;
+    if (!manche || manche.etat !== 'en cours' || duel()) return;
     if (camp === 'sun') {
       manche.cielSun += n;
       manche.pulseSun = 0;
@@ -1489,20 +1198,6 @@
   // Architecture multi-corps : motif charger/ranger.
   // base.js a ~106 references a `serpent`, `hist`, `dir`, etc. : on ne renomme pas ces variables.
   // On charge le corps i dans les variables de module, on travaille dessus, on range.
-  // Modes base et versus : corps=[un seul], invariant corps[0] toujours charge hors boucle.
-  const CHAMPS = [
-    'serpent',
-    'hist',
-    'dir',
-    'dirProchaine',
-    'avance',
-    'grandi',
-    'memoireIA',
-    'trace',
-    'aPousser',
-    'couvee',
-    'baieCount',
-  ];
   // flair : part de joueur presse dans l'IA (0 = IA prudente du mode base). Deux valeurs differentes
   // en duel, sinon les deux serpents jouent en miroir (Abdel, 2026-09-18).
   // EGALITE STRICTE (Abdel, 2026-09-18 : « without viewer interaction they are on the same playing
@@ -1696,7 +1391,6 @@
       baies = baies.filter((b) => !occupe(b));
       rochers = rochers.filter((r) => !occupe(r) && Math.abs(r.x - cx) + Math.abs(r.y - cy) > 2);
     }
-    if (rode() && garder) naitreRodeur(true);
     demanderIA();
   }
 
@@ -1707,22 +1401,6 @@
     return baies
       .filter((b) => !b.pour || !moi || b.pour === moi)
       .map((b) => ({ x: b.x, y: b.y, offerte: true }));
-  }
-
-  // Le rodeur et sa couronne sont des cases interdites pour l'IA : elle le voit venir et l'evite.
-  // La couronne s'elargit avec sa taille, comme la menace qu'il represente a l'ecran.
-  function menaceIA() {
-    if (!rode() || !rodeur) return [];
-    const r = 1 + Math.floor(rodeurRayon() / CELL),
-      l = [];
-    for (let dx = -r; dx <= r; dx++)
-      for (let dy = -r; dy <= r; dy++) {
-        if (Math.abs(dx) + Math.abs(dy) > r) continue;
-        const x = rodeur.x + dx,
-          y = rodeur.y + dy;
-        if (x >= 0 && y >= 0 && x < COLS && y < ROWS) l.push({ x, y });
-      }
-    return l;
   }
 
   // Duel : la tete adverse bouge en meme temps que la notre. Les deux serpents allaient l'un vers
@@ -1755,7 +1433,6 @@
           .filter((r) => r.t >= ALERTE * 0.6)
           .map((r) => ({ x: r.x, y: r.y }))
           .concat(roncesDures(0.6).map((g) => ({ x: g.x, y: g.y })))
-          .concat(menaceIA())
           .concat(duel() && autreCorps ? autreCorps.serpent : []),
         eviter: duel() && autreCorps ? couronneAdverse(autreCorps) : [],
         aGrandir: aPousser,
@@ -1926,28 +1603,7 @@
       } else demanderIA(); // sinon il garde son cap dans le mur et remeurt a la fin de l'invincibilite
       return;
     }
-    if (base()) {
-      if (rode()) {
-        if (rodeur) rodeur.faim = Math.min(ROD_FMAX, rodeur.faim + 3);
-      } else if (manche && manche.etat === 'en cours') {
-        // une vie absorbe la mort : on retire 4 anneaux mais on reste en jeu
-        if (manche.vies > 0) {
-          manche.vies--;
-          if (serpent.length) {
-            const tp = px(serpent[serpent.length - 1].x, serpent[serpent.length - 1].y);
-            eclat(tp.x, tp.y, 18, 'rodeur');
-            serpent = serpent.slice(0, Math.max(3, serpent.length - 4));
-            hist = hist.slice(0, Math.max(1, serpent.length + 3));
-          }
-          manche.invincT = 1.5;
-          reculProgression(RECUL_COEUR); // une mort encaissee coute aussi de la progression globale
-          // ne pas finir la manche : laisser le serpent renaitre dans la manche en cours
-        } else {
-          finir('viewers', 'mort');
-          return;
-        }
-      }
-    } else monter('moon', MORT_CRANS);
+    monter('moon', MORT_CRANS);
     pause = 0.8;
     serpent = [];
   }
@@ -1998,8 +1654,7 @@
     const nx = serpent[0].x + dir.x,
       ny = serpent[0].y + dir.y;
     // invincibilite temporaire (apres absorption d'une mort par vie, ou apres collision en duel)
-    const enInvinc =
-      (base() && manche && manche.invincT > 0) || (duel() && corps[actif].invincT > 0);
+    const enInvinc = duel() && corps[actif].invincT > 0;
     if (nx < 0 || nx >= COLS || ny < 0 || ny >= ROWS) {
       if (!enInvinc) {
         mourir('mur');
@@ -2016,10 +1671,6 @@
       mourir('ronce');
       return false;
     }
-    if (rode() && rodeur && rodeur.x === nx && rodeur.y === ny && rodeur.etourdi <= 0) {
-      mordre();
-      return false;
-    }
     // baie reservee a l'autre camp : le serpent passe dessus sans la manger (Abdel : « avoid the stealing case »)
     const moiCamp = duel() && corps[actif] ? corps[actif].camp : null;
     const iBaie = baies.findIndex(
@@ -2027,10 +1678,7 @@
     );
     const mange = iBaie >= 0;
     const sort = aPousser > 0;
-    // mode base : croissance decouplee, +1 segment 1 baie sur 2
-    const pousseManges = base()
-      ? mange && ++baieCount % CROISSANCE_PAS === 0 && serpent.length < longMax()
-      : mange && serpent.length < longMax();
+    const pousseManges = mange && serpent.length < longMax();
     const pousse = sort || pousseManges;
     if (sort) aPousser--;
     // la queue libere sa case au meme pas, sauf si le serpent mange ; en duel, le corps adverse bloque aussi
@@ -2038,19 +1686,7 @@
     const bloquant = (pousse ? serpent : serpent.slice(0, -1)).concat(
       duel() && autreCorpsDuel ? autreCorpsDuel.serpent : [],
     );
-    // mue G3 : si le pas suivant tuerait par auto-collision et mue prete, la declencher
-    if (
-      base() &&
-      manche &&
-      manche.capacites &&
-      manche.capacites.mue &&
-      manche.mueT <= 0 &&
-      bloquant.some((s) => s.x === nx && s.y === ny)
-    ) {
-      manche.mueT = 15; // active la mue pour 1 s (mueT > 14), puis cooldown jusqu'a 0
-    }
-    const enMue = base() && manche && manche.mueT > 14;
-    if (!enInvinc && !enMue && bloquant.some((s) => s.x === nx && s.y === ny)) {
+    if (!enInvinc && bloquant.some((s) => s.x === nx && s.y === ny)) {
       // duel, tete contre tete : la faute est partagee, les deux serpents encaissent. Sinon celui qui
       // avance en premier dans la boucle perd toutes les frontales.
       const ta = duel() && autreCorpsDuel && autreCorpsDuel.serpent[0];
@@ -2099,23 +1735,6 @@
                 : 'offerte',
       });
       monter('sun', 1);
-      if (base() && manche && manche.etat === 'en cours') {
-        manche.recolte++; // compteur conserve pour les mesures ; la victoire n'est plus la recolte
-        // La seule victoire du serpent en mode base est la montee au dernier grade (plus bas).
-        // jauge de grade : chaque baie ajoute un cran (x1.25 si passif G4 actif)
-        const bonusJauge = manche.capacites && manche.capacites.passif ? 1.25 : 1;
-        manche.jauge += bonusJauge;
-        const jmax = GRADES[Math.min(manche.grade - 1, 3)];
-        if (manche.jauge >= jmax) {
-          manche.jauge = 0;
-          manche.grade++;
-          if (manche.grade === 3) manche.vies++; // coeur gagne seulement a G3, jamais gratos a chaque grade
-          if (manche.grade === 2) manche.capacites.bouclier = true;
-          else if (manche.grade === 3) manche.capacites.mue = true;
-          else if (manche.grade === 4) manche.capacites.passif = true;
-          if (manche.grade >= 5 && manche.etat === 'en cours') finir('serpent', 'grade');
-        }
-      }
       const a = amb();
       if (sonActif && ac && a)
         try {
@@ -2165,18 +1784,6 @@
     // le gonflement du chiffre vit HORS de la manche : il commence justement quand elle finit
     pulseS += dt;
     pulseV += dt;
-    // mode base : minuteries des capacites (invincibilite, bouclier, mue)
-    if (base() && manche) {
-      if (manche.invincT > 0) manche.invincT = Math.max(0, manche.invincT - dt);
-      if (manche.boucliersT > 0) {
-        manche.boucliersT = Math.max(0, manche.boucliersT - dt);
-        if (manche.boucliersT <= 0 && !manche.boucliersCharge) manche.boucliersCharge = true;
-      }
-      if (manche.mueT > 0) manche.mueT = Math.max(0, manche.mueT - dt);
-      if (manche.coupT > 0) manche.coupT = Math.max(0, manche.coupT - dt);
-      if (manche.reculT > 0) manche.reculT = Math.max(0, manche.reculT - dt);
-      if (manche.surgeT > 0) manche.surgeT = Math.max(0, manche.surgeT - dt);
-    }
     // le cycle du jour tourne tout seul : nuit, lever, plein jour, coucher, en boucle
     if (reglages.cycle > 0) reglages.heure = (reglages.heure + dt / reglages.cycle) % 1;
     if (scene && manche && manche.etat === 'en cours') {
@@ -2351,11 +1958,7 @@
             else finir(l0 > l1 ? 'or' : 'ombre', 'temps');
           } else {
             finir(
-              base()
-                ? 'viewers'
-                : manche.cielSun / manche.hautSun > manche.cielMoon / manche.hautMoon
-                  ? 'sun'
-                  : 'moon',
+              manche.cielSun / manche.hautSun > manche.cielMoon / manche.hautMoon ? 'sun' : 'moon',
               'temps',
             );
           }
@@ -2376,13 +1979,7 @@
           // plus lente ; a cadence 200, 11 fois.
           // Duel (Abdel) : la foret nourrit en quantite moderee quand le plateau est vide, une baie verte
           // neutre a intervalle, posee a EGALE distance des deux tetes (a 1 case pres).
-          const sv0 = duel()
-            ? FORET_DUEL
-            : base()
-              ? BASE_SAUVAGE
-              : reglages.sauvage >= 0
-                ? palier.sauvage
-                : 0;
+          const sv0 = duel() ? FORET_DUEL : reglages.sauvage >= 0 ? palier.sauvage : 0;
           const sv = sv0 / (1 + cadence / 20);
           if (!delaiSauvage) delaiSauvage = souffle(sv);
           if (sv > 0 && sansBaie >= delaiSauvage) {
@@ -2427,8 +2024,7 @@
           if (natureT >= delaiNature) {
             natureT = 0;
             delaiNature = souffle(palier.nature);
-            if (rode()) nourrir(0.5, '');
-            else bloquer('');
+            bloquer('');
           }
         } else {
           natureT = 0;
@@ -2506,8 +2102,7 @@
       if (couvee.t >= ECLOSION + TRAINE) couvee = null;
       if (!couvee || !couvee.sorti) return;
     }
-    if (rode()) avancerRodeur(dt);
-    const surge = duel() ? corps[actif].surgeT > 0 : base() && manche && manche.surgeT > 0;
+    const surge = duel() && corps[actif].surgeT > 0;
     avance += dt * VITESSE * (surge ? SURGE_FACT : 1); // like : poussee de tempo
     while (avance >= 1) {
       avance -= 1;
@@ -2748,9 +2343,6 @@
     for (let i = 1; i < pts.length; i++) ctx.lineTo(pts[i].x, pts[i].y);
     ctx.closePath();
   }
-  function silhouetteRocher(j) {
-    traceRocher(pointsRocher(j));
-  }
   function corpsRocher(j) {
     const L = lumiere(),
       pts = pointsRocher(j);
@@ -2843,8 +2435,6 @@
       ctx.stroke();
     }
   }
-  // gardee pour compatibilite : le liseret et les plans sont desormais dans corpsRocher
-  function facetteRocher(j) {}
 
   // Cache de pierres. Le corps d'une pierre ne depend que de sa variante `j` et de la lumiere,
   // jamais de sa position ni de son animation de sortie, qui sont des transformations posees par
@@ -3214,73 +2804,9 @@
   }
 
   function peindreCourse() {
-    if (!manche || base() || duel()) return; // duel : pas d'astres, les demi-anneaux et la serie suffisent
+    if (!manche || duel()) return; // duel : pas d'astres, les demi-anneaux et la serie suffisent
     astre(CIEL_X, Math.min(1, manche.cielSun / manche.hautSun), true, manche.pulseSun);
     astre(W - CIEL_X, Math.min(1, manche.cielMoon / manche.hautMoon), false, manche.pulseMoon);
-  }
-
-  // Le rodeur : une masse sombre qui grossit avec sa faim, deux yeux tournes vers la tete.
-  // Il est le seul objet menacant de la scene, on doit le lire en une seconde.
-  function peindreRodeur() {
-    if (!rodeur || !serpent.length) return;
-    const p = px(rodeur.x, rodeur.y),
-      R = rodeurRayon(),
-      bat = 1 + 0.05 * Math.sin(rodeur.t * 5);
-    const gele = rodeur.etourdi > 0,
-      touche = Math.max(0, 1 - rodeur.coup / 0.35),
-      repu = Math.max(0, 1 - rodeur.repas / 0.35);
-    ctx.save();
-    // l'ombre au sol dit sa taille meme quand il passe devant le serpent
-    ctx.globalAlpha = 0.3;
-    ctx.fillStyle = '#05080600';
-    ctx.fillStyle = 'rgba(5,8,6,0.45)';
-    ctx.beginPath();
-    ctx.ellipse(p.x, p.y + R * 0.72, R * 0.95, R * 0.3, 0, 0, Math.PI * 2);
-    ctx.fill();
-    ctx.globalAlpha = 1;
-    ctx.shadowColor = gele ? 'rgba(242,197,124,0.8)' : 'rgba(214,74,66,0.85)';
-    ctx.shadowBlur = 26 + 22 * repu;
-    ctx.fillStyle = gele ? '#4a4238' : '#231416';
-    ctx.beginPath();
-    // silhouette irreguliere : douze rayons qui ondulent, jamais un disque propre
-    for (let i = 0; i <= 24; i++) {
-      const a = (i / 24) * Math.PI * 2,
-        on = 1 + 0.13 * Math.sin(a * 3 + rodeur.t * 2.6) + 0.07 * Math.sin(a * 5 - rodeur.t * 1.7);
-      const rx = p.x + Math.cos(a) * R * on * bat,
-        ry = p.y + Math.sin(a) * R * on * bat;
-      if (i === 0) ctx.moveTo(rx, ry);
-      else ctx.lineTo(rx, ry);
-    }
-    ctx.closePath();
-    ctx.fill();
-    ctx.shadowBlur = 0;
-    // le contour rougit quand on vient de le nourrir, palit quand un like l'entame
-    ctx.lineWidth = 3 + 3 * repu;
-    ctx.strokeStyle =
-      touche > 0
-        ? 'rgba(242,197,124,' + (0.3 + 0.7 * touche) + ')'
-        : 'rgba(214,74,66,' + (0.35 + 0.5 * repu) + ')';
-    ctx.stroke();
-    // les yeux suivent la tete
-    const h = serpent[0],
-      hp = px(h.x, h.y),
-      a = Math.atan2(hp.y - p.y, hp.x - p.x),
-      e = R * 0.3;
-    ctx.fillStyle = gele ? '#8e8578' : ROUGE;
-    ctx.shadowColor = ctx.fillStyle;
-    ctx.shadowBlur = 18;
-    [-0.42, 0.42].forEach((o) => {
-      ctx.beginPath();
-      ctx.arc(
-        p.x + Math.cos(a + o) * R * 0.46,
-        p.y + Math.sin(a + o) * R * 0.46,
-        e * 0.42,
-        0,
-        Math.PI * 2,
-      );
-      ctx.fill();
-    });
-    ctx.restore();
   }
 
   // Mode de base, sans un mot : l'anneau du plateau est le METRE DE VICTOIRE GLOBAL. Il compte la
@@ -3289,83 +2815,6 @@
   // (rose premium) recule la progression, et la portion perdue brule alors en rouge avant de refluer.
   // Le rail gauche, lui, montre le detail du grade courant (jauge qui se remplit puis se vide a chaque
   // grade) : deux echelles distinctes, macro au bord et micro dans le rail.
-  const TOTAL_CRANS = GRADES.reduce((a, b) => a + b, 0);
-  let anneau = 0;
-  function peindreBase(dt) {
-    // crans des grades deja franchis + jauge du grade courant, sur le total pour atteindre le sommet
-    const g = manche.grade || 1;
-    let faits = 0;
-    for (let i = 0; i < g - 1 && i < GRADES.length; i++) faits += GRADES[i];
-    const vise = Math.min(1, (faits + (manche.jauge || 0)) / TOTAL_CRANS);
-    // l'anneau rattrape sa cible en douceur, une bouchee se voit comme une poussee
-    anneau += (vise - anneau) * Math.min(1, (dt || 0.016) * 6);
-    const u = anneau;
-    // le perimetre compte les quatre arcs de coin. Les oublier raccourcissait le tiret ET son
-    // intervalle : un second tiret repartait et laissait un eclat d'or parasite dans les coins.
-    const x = X0 - 14,
-      y = Y0 - 14,
-      w = COLS * CELL + 28,
-      h = ROWS * CELL + 28,
-      r = 18,
-      per = 2 * (w + h) - 8 * r + 2 * Math.PI * r;
-    ctx.save();
-    // la piste vide, toujours visible : on voit le chemin qu'il reste a faire
-    ctx.lineWidth = 6;
-    ctx.lineJoin = 'round';
-    ctx.strokeStyle = 'rgba(255,255,255,0.09)';
-    ctx.beginPath();
-    ctx.roundRect(x, y, w, h, r);
-    ctx.stroke();
-    // la portion perdue brule en rouge meute : de la tete d'or qui reflue (u) jusqu'au niveau d'avant
-    // le recul (reculHaut). Elle se dessine SOUS l'or, s'estompe avec reculT : on voit l'or se faire
-    // manger. C'est le seul signal explicite que la progression globale vient de reculer.
-    const rt = manche.reculT || 0,
-      rh = manche.reculHaut || 0;
-    if (rt > 0 && rh > u + 0.001) {
-      const a = rt / 0.9; // 1 juste apres le coup, 0 a la fin du brulage
-      ctx.strokeStyle = 'rgba(228,64,58,' + (0.5 + 0.45 * a).toFixed(3) + ')';
-      ctx.shadowColor = 'rgba(228,64,58,0.8)';
-      ctx.shadowBlur = 20;
-      ctx.lineCap = 'round';
-      ctx.setLineDash([per * (rh - u), per * 2]);
-      ctx.lineDashOffset = -per * u;
-      ctx.beginPath();
-      ctx.roundRect(x, y, w, h, r);
-      ctx.stroke();
-      ctx.setLineDash([]);
-      ctx.shadowBlur = 0;
-    }
-    // la part remplie, qui part du milieu du haut et fait le tour
-    if (u > 0.001) {
-      ctx.strokeStyle = OR;
-      ctx.shadowColor = 'rgba(242,197,124,0.8)';
-      ctx.shadowBlur = 18;
-      ctx.lineCap = 'round';
-      ctx.setLineDash([per * u, per * 2]);
-      ctx.lineDashOffset = -per * 0.001;
-      ctx.beginPath();
-      ctx.roundRect(x, y, w, h, r);
-      ctx.stroke();
-      ctx.setLineDash([]);
-    }
-    ctx.restore();
-    // et le plateau s'eclaire tres legerement a mesure qu'il se remplit
-    if (u > 0.02) {
-      ctx.save();
-      ctx.globalAlpha = 0.09 * u;
-      ctx.fillStyle = OR;
-      ctx.fillRect(0, 0, W, H);
-      ctx.restore();
-    }
-    // flash rouge bref du plateau pendant le brulage : la bascule se sent, pas seulement se voit
-    if (rt > 0) {
-      ctx.save();
-      ctx.globalAlpha = 0.14 * (rt / 0.9);
-      ctx.fillStyle = 'rgba(228,64,58,1)';
-      ctx.fillRect(0, 0, W, H);
-      ctx.restore();
-    }
-  }
 
   // Le compteur de serie, sous le plateau. Emplacement mesure : le plateau finit a Y0+ROWS*CELL,
   // soit 1220, et le fil de commentaires TikTok demarre a 1290. La bande 1226-1284 est le seul
@@ -3523,215 +2972,6 @@
   // Gouttiere gauche = x=0..164, libre de chrome TikTok entre y=260 et y=1133 (Z_BANNIERE).
   // Aucun mot, aucun overlay sur les zones TikTok reservees.
   // De haut en bas : pips de grade, jauge verticale, coeurs de vie, icones de capacites.
-  function peindreGrade() {
-    if (!base() || !manche || manche.etat !== 'en cours') return;
-    const jaugeMax = GRADES[Math.min(manche.grade - 1, 3)];
-    const enCoup = manche.coupT > 0;
-    const enInvinc = manche.invincT > 0;
-    // Rail vertical : gouttiere gauche x=14..150, y=285..1115
-    const RCX = 82; // centre horizontal du rail
-    const RY0 = Y0 + 7; // haut du rail
-    const RY1 = Y0 + 837; // bas du rail (Z_BANNIERE commence a 1133, marge de 18 px)
-    ctx.save();
-    // icone losange (pip de grade) : demi-taille r, centre (cx,cy)
-    function losange(icx, icy, r) {
-      ctx.beginPath();
-      ctx.moveTo(icx, icy - r);
-      ctx.lineTo(icx + r * 0.6, icy);
-      ctx.lineTo(icx, icy + r);
-      ctx.lineTo(icx - r * 0.6, icy);
-      ctx.closePath();
-    }
-    // icone coeur : centre (cx,cy), taille s (~rayon)
-    function coeur(icx, icy, s) {
-      const k = s * 0.55;
-      ctx.beginPath();
-      ctx.moveTo(icx, icy + s * 0.8);
-      ctx.bezierCurveTo(
-        icx - s * 1.0,
-        icy + s * 0.2,
-        icx - s * 1.1,
-        icy - s * 0.5,
-        icx - k,
-        icy - s * 0.4,
-      );
-      ctx.bezierCurveTo(icx - k * 0.2, icy - s * 0.9, icx, icy - s * 0.55, icx, icy - s * 0.55);
-      ctx.bezierCurveTo(icx, icy - s * 0.55, icx + k * 0.2, icy - s * 0.9, icx + k, icy - s * 0.4);
-      ctx.bezierCurveTo(
-        icx + s * 1.1,
-        icy - s * 0.5,
-        icx + s * 1.0,
-        icy + s * 0.2,
-        icx,
-        icy + s * 0.8,
-      );
-      ctx.closePath();
-    }
-    // icone ecusson (bouclier) : centre (cx,cy), taille s
-    function ecusson(icx, icy, s) {
-      ctx.beginPath();
-      ctx.moveTo(icx, icy - s);
-      ctx.lineTo(icx + s * 0.8, icy - s * 0.6);
-      ctx.lineTo(icx + s * 0.8, icy + s * 0.1);
-      ctx.bezierCurveTo(icx + s * 0.8, icy + s * 0.7, icx, icy + s, icx, icy + s);
-      ctx.bezierCurveTo(icx, icy + s, icx - s * 0.8, icy + s * 0.7, icx - s * 0.8, icy + s * 0.1);
-      ctx.lineTo(icx - s * 0.8, icy - s * 0.6);
-      ctx.closePath();
-    }
-    // icone mue : deux chevrons superposes (onde)
-    function onde(icx, icy, s) {
-      ctx.beginPath();
-      ctx.moveTo(icx - s, icy - s * 0.2);
-      ctx.quadraticCurveTo(icx - s * 0.5, icy - s * 0.8, icx, icy - s * 0.2);
-      ctx.quadraticCurveTo(icx + s * 0.5, icy + s * 0.4, icx + s, icy - s * 0.2);
-      ctx.moveTo(icx - s, icy + s * 0.3);
-      ctx.quadraticCurveTo(icx - s * 0.5, icy - s * 0.3, icx, icy + s * 0.3);
-      ctx.quadraticCurveTo(icx + s * 0.5, icy + s * 0.9, icx + s, icy + s * 0.3);
-    }
-    // icone hexagone (passif)
-    function hexagone(icx, icy, s) {
-      ctx.beginPath();
-      for (let i = 0; i < 6; i++) {
-        const a = Math.PI / 6 + (i * Math.PI) / 3;
-        if (i === 0) ctx.moveTo(icx + s * Math.cos(a), icy + s * Math.sin(a));
-        else ctx.lineTo(icx + s * Math.cos(a), icy + s * Math.sin(a));
-      }
-      ctx.closePath();
-    }
-    // ---- 1. PIPS DE GRADE (5 losanges) ----
-    // 5 losanges, espaces de 52 px, debut a RY0+26
-    const PIP_R = 16,
-      PIP_PAS = 52;
-    for (let g = 0; g < 5; g++) {
-      const py = RY0 + 26 + g * PIP_PAS;
-      const allume = g < manche.grade;
-      ctx.save();
-      ctx.globalAlpha = allume ? 0.95 : 0.22;
-      losange(RCX, py, PIP_R);
-      if (allume) {
-        ctx.fillStyle = 'rgba(242,197,124,0.88)';
-        ctx.shadowColor = 'rgba(242,197,124,0.6)';
-        ctx.shadowBlur = 10;
-      } else {
-        ctx.fillStyle = 'rgba(255,255,255,0.30)';
-        ctx.shadowBlur = 0;
-      }
-      ctx.fill();
-      ctx.restore();
-    }
-    // ---- 2. BARRE DE JAUGE VERTICALE ----
-    // Plage y : fin pips = RY0+26+4*52+PIP_R = RY0+246, on ajoute 20 px de marge
-    const JY_BOT = RY0 + 26 + 4 * PIP_PAS + PIP_R + 20 + 220; // bas de la barre ~y=807
-    const JY_TOP = JY_BOT - 220; // haut de la barre ~y=587
-    const JW = 40; // largeur de la barre
-    const fill = Math.min(1, manche.jauge / Math.max(1, jaugeMax));
-    const trembleX = enCoup ? (Math.random() - 0.5) * 5 * manche.coupT : 0;
-    ctx.save();
-    ctx.translate(trembleX, 0);
-    // fond
-    ctx.fillStyle = 'rgba(255,255,255,0.10)';
-    ctx.beginPath();
-    ctx.roundRect(RCX - JW / 2, JY_TOP, JW, 220, JW / 2);
-    ctx.fill();
-    // remplissage de bas en haut
-    if (fill > 0.002) {
-      const fillH = Math.round(220 * fill);
-      ctx.fillStyle = enCoup ? 'rgba(210,74,66,0.92)' : 'rgba(242,197,124,0.88)';
-      ctx.shadowColor = enCoup ? 'rgba(210,74,66,0.6)' : 'rgba(242,197,124,0.55)';
-      ctx.shadowBlur = 12;
-      ctx.beginPath();
-      ctx.roundRect(RCX - JW / 2, JY_BOT - fillH, JW, fillH, JW / 2);
-      ctx.fill();
-      ctx.shadowBlur = 0;
-    }
-    // crans horizontaux (un par cran)
-    ctx.strokeStyle = 'rgba(0,0,0,0.35)';
-    ctx.lineWidth = 2;
-    for (let c = 1; c < jaugeMax; c++) {
-      const gy = JY_BOT - Math.round(220 * (c / jaugeMax));
-      ctx.beginPath();
-      ctx.moveTo(RCX - JW / 2 + 2, gy);
-      ctx.lineTo(RCX + JW / 2 - 2, gy);
-      ctx.stroke();
-    }
-    ctx.restore();
-    // ---- 3. COEURS DE VIE ----
-    // Debut sous la barre, espaces de 52 px
-    const HY0 = JY_BOT + 30;
-    const HR = 17,
-      H_PAS = 52;
-    const vAlpha = enInvinc ? 0.45 + 0.55 * Math.sin(t * 8) : 1;
-    for (let v = 0; v < 4; v++) {
-      const hy = HY0 + v * H_PAS;
-      const vivant = v < manche.vies;
-      // coup dur : clignoter en rouge les coeurs perdus
-      const rougi = enCoup && v >= manche.vies && v < manche.vies + manche.coupN;
-      ctx.save();
-      ctx.globalAlpha = vivant ? vAlpha : rougi ? 0.5 + 0.5 * Math.sin(t * 14) : 0.18;
-      coeur(RCX, hy, HR);
-      if (vivant) {
-        ctx.fillStyle = 'rgba(228,64,58,0.95)';
-        ctx.shadowColor = 'rgba(228,64,58,0.55)';
-        ctx.shadowBlur = 8;
-      } else if (rougi) {
-        ctx.fillStyle = 'rgba(210,74,66,0.90)';
-        ctx.shadowColor = 'rgba(210,74,66,0.6)';
-        ctx.shadowBlur = 8;
-      } else {
-        ctx.fillStyle = 'rgba(255,255,255,0.18)';
-        ctx.shadowBlur = 0;
-      }
-      ctx.fill();
-      ctx.restore();
-    }
-    // ---- 4. CAPACITES (3 icones) ----
-    // Debut sous les coeurs
-    const CY0 = HY0 + 4 * H_PAS + 26;
-    const CS = 18,
-      C_PAS = 62;
-    const capDef = [
-      { k: 'bouclier', dessiner: ecusson },
-      { k: 'mue', dessiner: onde },
-      { k: 'passif', dessiner: hexagone },
-    ];
-    capDef.forEach((c, i) => {
-      const cy = CY0 + i * C_PAS;
-      const actif = manche.capacites && manche.capacites[c.k];
-      const enRecharge = c.k === 'bouclier' && actif && !manche.boucliersCharge;
-      ctx.save();
-      ctx.globalAlpha = actif ? (enRecharge ? 0.5 : 0.92) : 0.22;
-      if (c.k === 'mue') {
-        // onde : trait seulement (pas de fill)
-        ctx.strokeStyle = actif ? 'rgba(242,197,124,0.90)' : 'rgba(255,255,255,0.55)';
-        ctx.lineWidth = 3;
-        ctx.lineCap = 'round';
-        onde(RCX, cy, CS);
-        ctx.stroke();
-      } else {
-        c.dessiner(RCX, cy, CS);
-        if (actif) {
-          ctx.fillStyle = 'rgba(242,197,124,0.88)';
-          ctx.shadowColor = 'rgba(242,197,124,0.5)';
-          ctx.shadowBlur = 10;
-        } else {
-          ctx.fillStyle = 'rgba(255,255,255,0.25)';
-          ctx.shadowBlur = 0;
-        }
-        ctx.fill();
-        // bouclier en recharge : petit arc par-dessus
-        if (enRecharge) {
-          ctx.strokeStyle = 'rgba(242,197,124,0.55)';
-          ctx.lineWidth = 3;
-          ctx.lineCap = 'round';
-          ctx.beginPath();
-          ctx.arc(RCX, cy + CS * 0.5 + 8, 7, 0, Math.PI * 1.4);
-          ctx.stroke();
-        }
-      }
-      ctx.restore();
-    });
-    ctx.restore();
-  }
 
   // Legende des cadeaux (duel) : sous le compteur, une colonne par camp. Chaque ligne = image du cadeau
   // TikTok (cadeaux/*.png, fond transparent), prix en coins, effet. Etape 1 (Abdel) : les deux roses.
@@ -3950,7 +3190,6 @@
     }
     return c;
   }
-  const PC_RUBAN = '10,15,12'; // couleur de la plaque, sert aussi au fondu des bords
   // Pictogramme de l'EFFET dans la DA du jeu (memes traces que le rail duel : ecusson, coeur, eclair, baie),
   // dessine sur un contexte donne. C'est l'element principal de chaque ligne ; le cadeau TikTok n'est qu'un
   // petit badge a cote (consigne Abdel : « the effect explicit action in the game accompagne de l'icone »).
@@ -4064,7 +3303,6 @@
     const T = tuiles(camp),
       n = T.length,
       TH = 132,
-      IMG = 62,
       FADE = 64,
       midY = bh / 2,
       icx = 52;
@@ -4278,8 +3516,7 @@
     if (t - sauveT[i] < 4) return;
     sauveT[i] = t;
     const camp = i === 0 ? 'or' : 'ombre',
-      qui = corps[i] && corps[i][quoi === 'vie' ? 'viePar' : 'bouclierPar'],
-      c = CADEAUX_DUEL[camp][quoi === 'vie' ? 4 : 3];
+      qui = corps[i] && corps[i][quoi === 'vie' ? 'viePar' : 'bouclierPar'];
     annoncer({
       genre: 'sauve',
       pseudo: qui || '',
@@ -4562,7 +3799,7 @@
   function peindreScore() {
     // en mode versus les deux colonnes appartiennent aux astres (CIEL_X=62), le compteur s'efface
     // en duel il reste : une vipere par camp, Or a gauche, Ombre a droite, meme plaque, meme logique
-    if (!base() && !duel()) return;
+    if (!duel()) return;
     const cx = W / 2;
     // Duel (Abdel, 2026-09-21, variante T1) : le temps restant de la manche, en chiffres, entre les deux
     // scores, comme une carte de score de foot. La plaque s'elargit pour lui faire place ; glyphes inchanges.
@@ -5367,11 +4604,6 @@
   }
   function peindreManche() {
     if (!manche) return;
-    if (base()) {
-      peindreBase(dtRendu);
-      if (manche.etat !== 'en cours') peindreFin();
-      return;
-    }
     if (duel()) {
       peindreDuel(dtRendu);
       return;
@@ -5963,7 +5195,6 @@
   // et le serpent en sort. Tout est en fonctions douces, rien ne demarre ni ne s'arrete net.
   const doux = (x) => (x <= 0 ? 0 : x >= 1 ? 1 : x * x * (3 - 2 * x));
   const sortant = (x) => 1 - Math.pow(1 - Math.min(1, Math.max(0, x)), 3);
-  const entrant = (x) => Math.pow(Math.min(1, Math.max(0, x)), 2.2);
   const bruit = (i, d) => {
     const v = Math.sin(i * 12.9898 + d * 78.233) * 43758.5453;
     return v - Math.floor(v);
@@ -6365,24 +5596,6 @@
       }
       // Ligne de direction facon Rocket League : trait plein = pas en cours (dir), trait pointille
       // blanc = intent decide par l'IA pour la prochaine case (dirProchaine), s'il differe.
-      const flechePointe = (x0, y0, dx, dy, len, col, largeur, tiret) => {
-        ctx.setLineDash(tiret || []);
-        ctx.strokeStyle = col;
-        ctx.lineWidth = largeur;
-        const xE = x0 + dx * len,
-          yE = y0 + dy * len;
-        ctx.beginPath();
-        ctx.moveTo(x0, y0);
-        ctx.lineTo(xE, yE);
-        // pointe : deux petits segments à 45° sur l'extremite
-        const t = 12;
-        ctx.moveTo(xE, yE);
-        ctx.lineTo(xE - dx * t - dy * t * 0.6, yE - dy * t + dx * t * 0.6);
-        ctx.moveTo(xE, yE);
-        ctx.lineTo(xE - dx * t + dy * t * 0.6, yE - dy * t - dx * t * 0.6);
-        ctx.stroke();
-        ctx.setLineDash([]);
-      };
       // Trajectoire anticipee facon indicateur de balle Rocket League : simulation greedy des 10
       // prochains pas. A chaque case, on prend la direction qui minimise la distance a la cible (baie
       // visee par l'IA, ou tete adverse s'il n'y en a pas), en evitant le corps. Le premier pas
@@ -6626,10 +5839,6 @@
     reglerFluide();
     const a = amb(),
       tete = trace.length ? trace[0] : { x: W / 2, y: H / 2 };
-    const prog =
-      manche && manche.etat === 'en cours'
-        ? Math.min(1, (manche.recolte || 0) / Math.max(1, manche.cible || 1))
-        : 0;
     const e = {
       t,
       dt,
@@ -6653,7 +5862,7 @@
           : manche && duel()
             ? Math.min(1, (manche.t || 0) / Math.max(1, reglages.dureeDuel || reglages.duree))
             : 0,
-      progression: base() ? prog : 0,
+      progression: 0,
       tension: tension,
       reduit: !!(
         window.matchMedia && window.matchMedia('(prefers-reduced-motion: reduce)').matches
@@ -6691,7 +5900,6 @@
     peindreOffrandes();
     peindreRochers();
     peindreRonces();
-    if (rode()) peindreRodeur();
 
     for (let _i = 0; _i < corps.length; _i++) {
       charger(_i);
@@ -6763,7 +5971,7 @@
     const avecCadeaux = reglages.plateforme !== 'neutre';
     if (duel()) {
       if (avecCadeaux) peindreStatutsDuel();
-    } else peindreGrade();
+    }
     // affichageCadeaux : 'defile' (bandeaux qui defilent, avec le pattern visible/cache), 'complet' (ancienne legende), 'aucun' (rien)
     if (avecCadeaux) {
       const mA = reglages.affichageCadeaux || 'complet';
@@ -6944,24 +6152,14 @@
     },
     reglerLong: (v) => {
       longForce = v;
-      LONG_MAX = v;
     },
     reglerRochers: (id, v) => {
       const p = PALIERS.find((x) => x.id === id);
       if (p) p.maxRochers = v;
     },
-    // reglage du rodeur pour les harnais : ce qu'un like arrache, et sa vitesse
     reglerCoup: (id, v) => {
       const p = PALIERS.find((x) => x.id === id);
       if (p) p.coup = v;
-    },
-    reglerRodeur: (v, k, f) => {
-      if (v) ROD.v = v;
-      if (k) ROD.k = k;
-      if (f !== undefined) ROD.fonte = f;
-    },
-    reglerSauvage: (v) => {
-      BASE_SAUVAGE = v;
     },
     // flair par camp en duel (regie, harnais) : s'applique aux corps courants et aux prochains
     reglerFlair: (camp, v) => {
@@ -7013,19 +6211,6 @@
         debug: c.memoireIA.debug || null,
       })),
     }),
-    // lecteur d'etat de grade pour le HUD et la regie (mode base uniquement)
-    etatGrade: () =>
-      manche && base()
-        ? {
-            grade: manche.grade,
-            jauge: manche.jauge,
-            jaugeMax: GRADES[Math.min(manche.grade - 1, 3)],
-            vies: manche.vies,
-            capacites: { ...manche.capacites },
-            invinc: manche.invincT > 0,
-            bouclier: manche.boucliersCharge,
-          }
-        : null,
   };
 
   function demarrer() {
