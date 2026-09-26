@@ -1,113 +1,40 @@
 // Vipere Live, base minimale : un serpent IA qui mange et grandit dans la foret. Rien d'autre.
 // Vitesse constante, se toucher tue toujours, aucun texte sur le canvas, aucun son de fond.
 
-let W = 1080,
-  H = 1920;
-const COLS = 16,
-  ROWS = 20,
-  VITESSE = 7,
+import {
+  W,
+  H,
+  COLS,
+  ROWS,
+  SR_X,
+  SR_Y,
+  SR_W,
+  SR_H,
+  Z_CADEAUX,
+  Z_BANNIERE,
+  Z_FIL,
+  Z_SAISIE,
+  CELL,
+  X0,
+  Y0,
+  L,
+  OX,
+  WF,
+  CIEL_BAS,
+  CIEL_HAUT,
+  SC_CY,
+  BD_W,
+  BD_CY,
+  BD_CX,
+  changerFormat,
+} from '../engine/layout.js';
+
+let ajusterCanvas = null;
+const VITESSE = 7,
   DEPART = 3;
-// Zone sure du LIVE, corrigee par Abdel : un LIVE n'a PAS la colonne de boutons like, partage
-// et commentaire du feed video, donc les cotes sont libres. Ce qui recouvre vraiment : l'overlay
-// du haut (badge LIVE, pseudo, spectateurs) et tout le bas (fil de commentaires a gauche,
-// barre de saisie et bouton cadeau). Un gros cadeau s'anime par dessus tout, on ne peut rien y faire.
-// Zones MESUREES sur une capture d'un vrai live envoyee par Abdel le 2026-09-18, en fraction de
-// la hauteur d'ecran, reportees sur 1080x1920. On ne retient que le chrome TikTok : la cam et le
-// jeu de ce streamer relevaient de SON arrangement, pas de l'interface (consigne d'Abdel).
-// Haut 0-260, fil de commentaires a partir de 1237 : la hauteur sure vaut 977 et non 1130.
-let SR_X = 0,
-  SR_Y = 260,
-  SR_W = 1080,
-  SR_H = 977;
-// Les autres zones du chrome, pour l'overlay de reperes et la maquette.
-const Z_CADEAUX = { x: 702, y: 392, w: 340, h: 343 }; // colonne de widgets cadeaux, a droite
-const Z_BANNIERE = { x: 45, y: 1133, w: 595, h: 98 }; // banniere « untel a offert x15 »
-const Z_FIL = { x: 0, y: 1237, w: 780, h: 478 }; // fil de commentaires
-const Z_SAISIE = { x: 0, y: 1751, w: 1080, h: 98 }; // barre de saisie et boutons
-// Le plateau tient dans la hauteur sure REELLE. 20 lignes de 47 plus l'anneau font 968 px pour
-// 977 disponibles ; a 52 il en fallait 1068 et les 91 px du haut passaient sous la barre de
-// l'hote en live. Les 16x20 cases sont conservees a l'identique, donc aucune regle, aucune
-// trajectoire et aucun equilibrage ne bouge : c'est un changement d'echelle, pas de plateau.
-const CELL = 47;
-let X0 = 164,
-  Y0 = 278;
-// Format d'image (Abdel 2026-09-23) : 'vertical' 9:16 (TikTok) ou 'horizontal' 16:9 (YouTube). Le plateau garde
-// sa grille et ses 47 px par case dans les deux formats : seuls son origine et les ancrages du HUD changent.
-// En horizontal, le HUD migre dans les flancs : tout ce qui est Or a gauche, tout ce qui est Ombre a droite.
-const FORMATS = {
-  vertical: {
-    ox: 0,
-    WF: 1080,
-    W: 1080,
-    H: 1920,
-    X0: 164,
-    Y0: 278,
-    scCy: 1276,
-    bdCx: 540,
-    bdW: 600,
-    bdCy: 154,
-    legY: 1372,
-    legCxG: 320,
-    legCxD: 760,
-    defY: 1330,
-    defXG: 528,
-    defXD: 794,
-    finBase: 1206,
-    cielBas: 1250,
-    cielHaut: 260,
-    srY: 260,
-    srH: 977,
-  },
-  // horizontal (Abdel 2026-09-23 : « just want the black space to be filled ») : la composition verticale est
-  // dessinee TELLE QUELLE au centre d'un cadre 16:9 (3414 x 1920), seule l'ambiance continue dans les cotes.
-  horizontal: {
-    ox: 1167,
-    WF: 3414,
-    W: 1080,
-    H: 1920,
-    X0: 164,
-    Y0: 278,
-    scCy: 1276,
-    bdCx: 540,
-    bdW: 600,
-    bdCy: 154,
-    legY: 1372,
-    legCxG: 320,
-    legCxD: 760,
-    defY: 1330,
-    defXG: 528,
-    defXD: 794,
-    finBase: 1206,
-    cielBas: 1250,
-    cielHaut: 260,
-    srY: 260,
-    srH: 977,
-  },
-};
-let L = FORMATS.vertical,
-  ajusterCanvas = null,
-  OX = 0,
-  WF = 1080; // OX : marge gauche du cadre, WF : largeur totale du cadre
 // applique le format demande en regie ; appele au debut de chaque manche (jamais en cours de manche)
 function appliquerFormat() {
-  const f = FORMATS[reglages.format] || FORMATS.vertical;
-  if (L === f) return;
-  L = f;
-  OX = f.ox;
-  WF = f.WF;
-  W = f.W;
-  H = f.H;
-  X0 = f.X0;
-  Y0 = f.Y0;
-  SC_CY = f.scCy;
-  BD_CX = f.bdCx;
-  BD_W = f.bdW;
-  BD_CY = f.bdCy;
-  CIEL_BAS = f.cielBas;
-  CIEL_HAUT = f.cielHaut;
-  SR_W = f.W;
-  SR_Y = f.srY;
-  SR_H = f.srH;
+  if (!changerFormat(reglages.format)) return;
   if (canvas) {
     canvas.style.aspectRatio = WF + '/' + H;
     if (WF > H) {
@@ -2732,8 +2659,6 @@ function corpsRonce(pts, f, L, R) {
 
 // La course dans le ciel, lisible sans un mot : le soleil monte a gauche, la lune a droite.
 // Une baie mangee, le soleil gagne un cran ; un rocher pose, la lune gagne le sien. Premier en haut.
-let CIEL_BAS = 1250,
-  CIEL_HAUT = 260;
 const CIEL_X = 62;
 
 function astre(x, u, sun, pulse) {
@@ -2828,7 +2753,6 @@ function peindreCourse() {
 // d'Abdel : le tableau d'affichage se lit sous le jeu, comme une borne d'arcade, pas sur le cote.
 // La bande sous l'anneau (1232) et le fil de commentaires est etroite, la barre est donc basse
 // et compacte : glyphe puis chiffre, cote a cote, un filet vertical entre les deux camps.
-let SC_CY = 1276; // ligne centrale de la barre, avec un peu d'air sous l'anneau
 const SC_ECART = 122; // ecart entre les centres des deux camps, de part et d'autre de W/2
 const SC_GX = 32; // ecart glyphe-chiffre a l'interieur d'un camp
 const SC_R = 13; // rayon du glyphe, compact
@@ -3524,9 +3448,6 @@ function sauve(i, quoi) {
 }
 const BD_DUR = 3.8,
   BD_H = 96;
-let BD_W = 600,
-  BD_CY = 154,
-  BD_CX = 540; // Abdel : P1 retenu, « a little higher », loin du chrono
 function annoncer(a) {
   if (!duel() || !reglages.bandeau || reglages.bandeau === 'aucun') return;
   if (a.genre === 'cadeau' || a.devant) {
