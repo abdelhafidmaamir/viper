@@ -80,7 +80,8 @@ src/
     game/                Typed entry and control-room link
     control.html         Private control room
     control/             Entry, styles and the legacy control-room script
-    scripts/             Game engine, AI, ambience, TikFinity bridge, simulated audience
+    engine/              Engine modules: rules, crowd, events, hazards, painters, layout
+    scripts/             Simulation core, AI, ambience, TikFinity bridge, simulated audience
     public/assets/gifts/ Gift artwork, copied as-is
   shared/                Control-room protocol and the legacy globals contract
 tests/                   Unit suites (main, renderer) and headless game suites

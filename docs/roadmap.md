@@ -29,6 +29,11 @@ renders, pass a side-by-side `--diagnostic=screenshots` run against the previous
       back through a pull request if it is revived. The engine lost 815 lines and its lint warnings
       with every golden digest unchanged.
 
+- [x] **Engine split.** `game.js` went from 7,077 to 1,455 lines. Rules, crowd pacing, audience
+      events, hazards, director scenes, tension, layout, sound and every painter are modules that
+      own their state. Dead code from removed modes went with them, and every golden digest
+      stayed identical at each step.
+
 ## Branching
 
 `main` is always shippable. Work happens on short-lived branches merged through pull requests;
@@ -36,14 +41,12 @@ experiments that are not shipping yet live on `wip/*` branches and never block `
 
 ## Next
 
-1. **Split the engine.** `game.js` (about 7,000 lines) becomes modules: config, state, rules,
-   gifts, announcements, AI bridge, render layers, layout and format.
-2. **English identifiers.** Rename per module (`VipereBase` becomes `Viper`, `reglages` becomes
+1. **English identifiers.** Rename per module (`VipereBase` becomes `Viper`, `reglages` becomes
    `settings`), with a compatibility shim for the control-room protocol until both sides move.
-3. **Strict TypeScript everywhere**, and zero lint warnings.
-4. **Deterministic visual regression.** Inject a seeded RNG and clock so screenshots can be
+2. **Strict TypeScript everywhere**, and zero lint warnings.
+3. **Deterministic visual regression.** Inject a seeded RNG and clock so screenshots can be
    pixel-diffed on CI.
-5. **Releases.** Signed, versioned GitHub releases.
+4. **Releases.** Signed, versioned GitHub releases.
 
 ## Toolchain notes
 

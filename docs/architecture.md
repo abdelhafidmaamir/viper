@@ -43,29 +43,31 @@ server.
 
 ## Main process
 
-| Module             | Responsibility                                                          |
-| ------------------ | ----------------------------------------------------------------------- |
-| `index.ts`         | Chromium flags, config, single-instance lock, startup sequence          |
-| `config.ts`        | Command-line parsing with `node:util` `parseArgs`, validated into types |
-| `static-server.ts` | Loopback static server; path resolution is a pure, tested function      |
-| `windows.ts`       | Game and control windows, security defaults, navigation lock            |
-| `renderer-host.ts` | Built renderer or Vite dev server; stable port; Content-Security-Policy |
-| `layout.ts`        | Deterministic window size for measurements, from the screen work area   |
-| `diagnostics/`     | One module per diagnostic behind a typed registry, exit code as result  |
-| `page/`            | Code that runs inside the game page, written as typed functions         |
+| Module               | Owns                                                  |
+| -------------------- | ----------------------------------------------------- |
+| `rules.js`           | Board speed, hazard timings, crowd tiers, gift prices |
+| `crowd.js`           | Audience cadence and the tier it selects              |
+| `audience-events.js` | Live events turned into board effects                 |
+| `hazards.js`         | Where stones and brambles may appear                  |
+| `scenes.js`          | Director scenes from the control room                 |
+| `tension.js`         | How cornered the leading snake is                     |
+| `layout.js`          | Frame geometry, grid, safe zones, format              |
+| `frame.js`           | One frame, composed in draw order                     |
+| `board-items.js`     | Berries, stones and brambles                          |
+| `effects.js`         | Eggshell, halos and sparks                            |
+| `duel-hud.js`        | Half-rings and team status columns                    |
+| `scoreboard.js`      | Score bar and round clock                             |
+| `gift-panel.js`      | Gift legend and scrolling columns                     |
+| `gift-feedback.js`   | Latest donor per gift line                            |
+| `end-screen.js`      | Winner veil and donor ranking                         |
+| `announcements.js`   | On-stream banner and its phrasing                     |
+| `debug-overlay.js`   | Operator-only AI and safe-zone layers                 |
+| `audio.js`           | Sound, armed on first gesture                         |
+| `canvas.js`          | The drawing surface                                   |
+| `palette.js`         | Team and effect colours                               |
 
-**Page-side code is real code.** Diagnostics drive the renderer through `evaluate(contents, fn,
-...args)`, which ships a self-contained function as source and its arguments as JSON. The
-function is typed against `page/game-api.d.ts`, linted like the rest, and a test runs every
-shipped function in a fresh V8 context, so a closure over main-process state fails in CI rather
-than on stream night.
-
-## Renderer
-
-Vite builds two pages. `game/main.ts` imports the engine scripts in dependency order, then links
-the window to the control room through `game/control-link.ts`, which is typed against
-`shared/control-protocol.ts` and unit-tested with a fake channel and storage. The wire format is
-unchanged, so the control-room script keeps working as-is until its own migration.
+A module owns the bindings it writes and exports them read-only; other modules change them
+through the owner's functions, so every write to a piece of state is found in one file.
 
 ## Event flow
 
