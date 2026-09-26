@@ -5,15 +5,8 @@
 import { L } from './layout.js';
 import { ctx } from './canvas.js';
 import { OMBRE, OR } from './palette.js';
-import {
-  BOUCLIER_DUR,
-  TEMPO_DUR,
-  bandeauCadeau,
-  corps,
-  reglages,
-  retourCadeaux,
-  t,
-} from '../scripts/game.js';
+import { BOUCLIER_DUR, TEMPO_DUR } from './rules.js';
+import { bandeauCadeau, corps, reglages, retourCadeaux, t } from '../scripts/game.js';
 
 // Legende des cadeaux (duel) : sous le compteur, une colonne par camp. Chaque ligne = image du cadeau
 // TikTok (cadeaux/*.png, fond transparent), prix en coins, effet. Etape 1 (Abdel) : les deux roses.
