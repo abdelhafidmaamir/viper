@@ -32,10 +32,10 @@
     return x - Math.floor(x);
   }
   /* impulsion périodique : 0 avant t0, puis une bosse de largeur `dur` toutes les `per` secondes */
-  function pulse(t, t0, per, dur) {
+  function pulse(t, t0, per, duration) {
     if (t < t0) return 0;
     var ph = fraction((t - t0) / per) * per;
-    return ph < dur ? Math.sin((Math.PI * ph) / dur) : 0;
+    return ph < duration ? Math.sin((Math.PI * ph) / duration) : 0;
   }
 
   /* ---------- géométrie du corps, une fonction paramétrique par état ---------- */
@@ -179,7 +179,7 @@
       g.save();
       g.translate(ex, ey);
       g.rotate(ang);
-      if (happy === 'neutre') {
+      if (happy === 'neutral') {
         /* nul : point rond, clignement vertical */
         g.scale(1, 1 - 0.85 * blink);
         g.beginPath();
@@ -312,7 +312,7 @@
     g.save();
     try {
       o = o || {};
-      var happy = o.etat !== 'triste';
+      var happy = o.state !== 'sad';
       var t = +o.t;
       if (!(t >= 0)) t = 0;
       var cx = +o.cx || 0,
@@ -329,8 +329,8 @@
         sighAmount;
       /* o.teinte (couleur CSS) et o.rgb ('r,g,b') : en duel, le serpent de fin porte la couleur du camp
          vainqueur. Corps, tete, halo, lueur et etincelles suivent ; sans teinte, rendu inchange. */
-      var bodyColor = o.teinte || BODY,
-        headColor = o.teinte || HEAD,
+      var bodyColor = o.tint || BODY,
+        headColor = o.tint || HEAD,
         rgb = o.rgb || '242,197,124';
 
       g.translate(cx, cy);
@@ -362,13 +362,13 @@
           paintTongue(g, h, t, u * aT);
         }
         g.restore();
-        paintSparks(g, t, u, o.teinte);
+        paintSparks(g, t, u, o.tint);
       } else {
         e = sm(t / 2.2);
         aT = sm((e - 0.86) / 0.14);
         sighAmount = sigh(t);
         /* triste teinte (match nul en duel : les deux serpents, chacun sa couleur) ; sans teinte, bleu froid */
-        var rgbSad = o.teinte ? rgb : '143,168,216';
+        var rgbSad = o.tint ? rgb : '143,168,216';
         halo(g, 'rgba(' + rgbSad + ',0.12)', u * (0.75 + 0.25 * sighAmount) * sm(t / 2.5), R * 1.1);
         g.globalAlpha = u;
         g.strokeStyle = bodyColor;
@@ -378,7 +378,7 @@
         h = paintBody(g, pathSad, t, e);
         g.shadowBlur = 0;
         if (aT > 0) {
-          paintHead(g, h, u * aT, o.teinte ? headColor : undefined);
+          paintHead(g, h, u * aT, o.tint ? headColor : undefined);
           paintEyes(g, h, false, t, u * aT);
           paintTear(g, h, t, u * aT);
         }
@@ -410,8 +410,8 @@
         c,
         h;
       var teams = [
-        o.or || { teinte: GOLD, rgb: '242,197,124' },
-        o.ombre || { teinte: BLUE, rgb: '143,168,216' },
+        o.gold || { tint: GOLD, rgb: '242,197,124' },
+        o.shadow || { tint: BLUE, rgb: '143,168,216' },
       ];
       g.translate(+o.cx || 0, +o.cy || 0);
       g.scale(k, k);
@@ -424,15 +424,15 @@
         g.save();
         if (i === 1) g.scale(-1, 1);
         g.globalAlpha = u;
-        g.strokeStyle = c.teinte;
+        g.strokeStyle = c.tint;
         g.lineWidth = 38;
         g.shadowColor = 'rgba(' + c.rgb + ',0.5)';
         g.shadowBlur = 26 * sm((t - 1) / 1.5);
         h = paintBody(g, pFace, t, e);
         g.shadowBlur = 0;
         if (aT > 0) {
-          paintHead(g, h, u * aT, c.teinte);
-          paintEyes(g, h, 'neutre', t, u * aT);
+          paintHead(g, h, u * aT, c.tint);
+          paintEyes(g, h, 'neutral', t, u * aT);
         }
         g.restore();
       }
@@ -444,8 +444,8 @@
         g.font = '700 78px system-ui, "Segoe UI", sans-serif';
         g.letterSpacing = '14px';
         var gr = g.createLinearGradient(-120, 0, 120, 0);
-        gr.addColorStop(0, teams[0].teinte);
-        gr.addColorStop(1, teams[1].teinte);
+        gr.addColorStop(0, teams[0].tint);
+        gr.addColorStop(1, teams[1].tint);
         g.fillStyle = gr;
         g.fillText('DRAW', 7, -R * 0.62 + R * 0.03 * (1 - a));
       }
@@ -455,8 +455,8 @@
     g.restore();
   }
 
-  window.FinSerpent = {
-    peindre: paint,
-    peindreNul: paintDraw,
+  window.SnakeEnding = {
+    paint: paint,
+    paintDraw: paintDraw,
   };
 })();

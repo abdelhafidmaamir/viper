@@ -12,19 +12,19 @@ import { bodies, settings, t } from '../scripts/game.js';
 // Legende des cadeaux (duel) : sous le compteur, une colonne par camp. Chaque ligne = image du cadeau
 // TikTok (cadeaux/*.png, fond transparent), prix en coins, effet. Etape 1 (Abdel) : les deux roses.
 export const DUEL_GIFTS = {
-  or: [
-    { img: 'rose-rouge', prix: 1, effet: '+1' },
-    { img: 'rose-10', prix: 10, effet: 'speed 10s' },
-    { img: 'bouquet', prix: 20, effet: 'steal 15%' },
-    { img: 'bagel', prix: 30, effet: 'shield 15s' },
-    { img: 'teddy', prix: 100, effet: '+1 life' },
+  gold: [
+    { img: 'rose-red', price: 1, effect: '+1' },
+    { img: 'rose-10', price: 10, effect: 'speed 10s' },
+    { img: 'bouquet', price: 20, effect: 'steal 15%' },
+    { img: 'bagel', price: 30, effect: 'shield 15s' },
+    { img: 'teddy', price: 100, effect: '+1 life' },
   ],
-  ombre: [
-    { img: 'rose-blanche', prix: 1, effet: '+1' },
-    { img: 'dyno', prix: 10, effet: 'speed 10s' },
-    { img: 'parfum', prix: 20, effet: 'steal 15%' },
-    { img: 'capybara', prix: 30, effet: 'shield 15s' },
-    { img: 'hand-heart', prix: 100, effet: '+1 life' },
+  shadow: [
+    { img: 'rose-white', price: 1, effect: '+1' },
+    { img: 'dyno', price: 10, effect: 'speed 10s' },
+    { img: 'perfume', price: 20, effect: 'steal 15%' },
+    { img: 'capybara', price: 30, effect: 'shield 15s' },
+    { img: 'hand-heart', price: 100, effect: '+1 life' },
   ],
   // a venir, une ligne par cadeau : {img:'dyno',prix:10,effet:'speed 10s'}, {prix:30,effet:'steal 15%'}, {prix:50,effet:'shield 15s'}, {prix:100,effet:'+1 life'}
 };
@@ -51,13 +51,13 @@ export function paintDuelLegend() {
     IMG = 64,
     CW = 400;
   ctx.save();
-  const mode = settings.retourCadeau || 'aucun';
+  const mode = settings.giftFeedback || 'none';
   [
-    ['or', L.legCxG, GOLD, '242,197,124'],
-    ['ombre', L.legCxD, SHADOW, '180,212,222'],
+    ['gold', L.legCxG, GOLD, '242,197,124'],
+    ['shadow', L.legCxD, SHADOW, '180,212,222'],
   ].forEach(([team, cx, tint, rgb]) => {
     const giftList = DUEL_GIFTS[team],
-      teamIdx = team === 'or' ? 0 : 1,
+      teamIdx = team === 'gold' ? 0 : 1,
       body = bodies[teamIdx];
     // G4 : bandeau donateur au-dessus de la colonne, il glisse vers le haut et s'efface
     const donorBanner = giftBanner[teamIdx];
@@ -71,7 +71,7 @@ export function paintDuelLegend() {
       ctx.font = '700 24px system-ui, sans-serif';
       ctx.textAlign = 'center';
       ctx.textBaseline = 'middle';
-      ctx.fillText(donorBanner.texte, cx, Y - LH / 2 - 16 + (1 - e2) * 18);
+      ctx.fillText(donorBanner.text, cx, Y - LH / 2 - 16 + (1 - e2) * 18);
       ctx.globalAlpha = 1;
     }
     giftList.forEach((c, k) => {
@@ -81,9 +81,9 @@ export function paintDuelLegend() {
         age = lineFeedback ? t - lineFeedback.t : 99;
       const remaining = body
         ? k === 1
-          ? Math.min(1, (body.surgeT || 0) / BOOST_DURATION)
+          ? Math.min(1, (body.boostTime || 0) / BOOST_DURATION)
           : k === 3
-            ? Math.min(1, (body.bouclierT || 0) / SHIELD_DURATION)
+            ? Math.min(1, (body.shieldTime || 0) / SHIELD_DURATION)
             : 0
         : 0;
       if (mode === 'G1' && (age < 1.8 || remaining > 0)) {
@@ -108,7 +108,7 @@ export function paintDuelLegend() {
       ctx.stroke();
       // image du cadeau, a gauche de la plaque
       // Ombre en miroir d'Or (Abdel, 2026-09-19) : image et pastille de prix a DROITE, effet aligne a droite
-      const mirrored = team === 'ombre';
+      const mirrored = team === 'shadow';
       const img = loadGiftImage(c.img);
       const ix = mirrored ? cx + CW / 2 - 16 - IMG : cx - CW / 2 + 16,
         iy = y - IMG / 2;
@@ -135,20 +135,20 @@ export function paintDuelLegend() {
       ctx.font = '900 18px system-ui, sans-serif';
       ctx.textAlign = 'center';
       ctx.textBaseline = 'middle';
-      ctx.fillText(String(c.prix), pcx, y + 1);
+      ctx.fillText(String(c.price), pcx, y + 1);
       ctx.fillStyle = 'rgba(255,255,255,0.92)';
       ctx.font = '700 30px system-ui, sans-serif';
       ctx.textAlign = mirrored ? 'right' : 'left';
-      ctx.fillText(c.effet, mirrored ? pcx - 29 : pcx + 29, y + 1);
+      ctx.fillText(c.effect, mirrored ? pcx - 29 : pcx + 29, y + 1);
       ctx.textAlign = 'left';
       if (mode === 'G1') {
-        if (lineFeedback && age < 2.2 && settings.nomsDonateurs !== false) {
+        if (lineFeedback && age < 2.2 && settings.donorNames !== false) {
           ctx.globalAlpha = age < 1.6 ? 1 : Math.max(0, 1 - (age - 1.6) / 0.6);
           ctx.fillStyle = tint;
           ctx.font = '600 19px system-ui, sans-serif';
           ctx.textAlign = mirrored ? 'left' : 'right';
           ctx.fillText(
-            lineFeedback.pseudo,
+            lineFeedback.nickname,
             mirrored ? cx - CW / 2 + 18 : cx + CW / 2 - 18,
             y - LH / 2 + 24,
           );
@@ -213,7 +213,7 @@ function getTiles(team) {
   if (teamTiles[team]) return teamTiles[team];
   const t = DUEL_GIFTS[team].map((c) => ({
     img: c.img,
-    label: EFFECT_LABEL[c.effet] || c.effet.toUpperCase(),
+    label: EFFECT_LABEL[c.effect] || c.effect.toUpperCase(),
   }));
   teamTiles[team] = t;
   return t;
@@ -470,8 +470,8 @@ const SCROLL_FADE = 0.7; // s
 
 function scrollAlpha() {
   // 0 est une valeur legitime pour cache (toujours visible) : ne pas la confondre avec « non regle »
-  const visibleDuration = settings.defileVisi > 0 ? settings.defileVisi : 8,
-    hiddenDuration = settings.defileCache == null ? 12 : settings.defileCache,
+  const visibleDuration = settings.scrollVisible > 0 ? settings.scrollVisible : 8,
+    hiddenDuration = settings.scrollHidden == null ? 12 : settings.scrollHidden,
     P = visibleDuration + hiddenDuration,
     ph = t % P;
   if (hiddenDuration <= 0) return 1; // option "toujours visible" (tests hors live)
@@ -492,12 +492,12 @@ export function paintGiftScroll() {
   // deux colonnes verticales longues, placees sur le cote DROIT, SOUS le plateau (la gauche reste libre)
   const BW = 250,
     BH = 372,
-    YB = L.defY,
-    XD = L.defXD,
-    XG = L.defXG;
+    YB = L.scrollRowY,
+    XD = L.scrollRightX,
+    XG = L.scrollLeftX;
   ctx.save();
   ctx.globalAlpha = al;
-  paintGiftRibbon('or', XG, YB, BW, BH, '242,197,124', 40, -1);
-  paintGiftRibbon('ombre', XD, YB, BW, BH, '180,212,222', 40, 1);
+  paintGiftRibbon('gold', XG, YB, BW, BH, '242,197,124', 40, -1);
+  paintGiftRibbon('shadow', XD, YB, BW, BH, '180,212,222', 40, 1);
   ctx.restore();
 }

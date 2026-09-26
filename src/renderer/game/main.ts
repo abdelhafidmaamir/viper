@@ -13,18 +13,18 @@ import './game.css';
 
 import { linkControlRoom } from './control-link.ts';
 
-const game = window.VipereBase;
-const bridge = window.PontTikFinity;
+const game = window.Viper;
+const bridge = window.TikFinityBridge;
 
-game.reglages.mode = 'duel';
-game.nouvelleManche();
+game.settings.mode = 'duel';
+game.newRound();
 
 linkControlRoom({
   game,
   bridge,
-  receiveEvent: (event) => window.recevoirEvenement(event),
-  readCrowd: () => window.VipereFoule.lireEtat(game),
+  receiveEvent: (event) => window.receiveEvent(event),
+  readCrowd: () => window.ViperCrowd.readState(game),
   storage: localStorage,
 });
 
-bridge.demarrer();
+bridge.start();

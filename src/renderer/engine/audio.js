@@ -114,14 +114,14 @@ export function toggleSound() {
 export function playBite(ambience) {
   if (soundEnabled && ac && ambience)
     try {
-      ambience.sonBouchee(ac, output, ambience.gamme[noteIndex++ % ambience.gamme.length]);
+      ambience.biteSound(ac, output, ambience.scale[noteIndex++ % ambience.scale.length]);
     } catch (er) {}
 }
 
 /** The ambience's hatching sounds: 'fissure' while the egg cracks, 'naissance' when it opens. */
 export function playHatch(ambience, moment) {
   try {
-    ambience.sonEclosion(ac, output, moment);
+    ambience.hatchSound(ac, output, moment);
   } catch (er) {}
 }
 

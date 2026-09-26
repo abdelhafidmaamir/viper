@@ -3,7 +3,7 @@
 
 import { paintEffectGlyph } from './gift-panel.js';
 import { BD_CX, BD_CY, BD_W, CELL, W } from './layout.js';
-import { glypheSerpent } from './scoreboard.js';
+import { paintSnakeGlyph } from './scoreboard.js';
 import { ctx } from './canvas.js';
 import { SHADOW, GOLD } from './palette.js';
 import { pointRail } from './frame.js';
@@ -30,7 +30,7 @@ export let seenThresholds = {},
   rescueTime = [-9, -9];
 
 export function teamName(c) {
-  return c === 'or' ? 'Or' : 'Ombre';
+  return c === 'gold' ? 'Or' : 'Ombre';
 }
 
 // Les mots du bandeau (Abdel, 2026-09-21 : « more natural and user friendly, not like a bot, a bit more warm »).
@@ -49,21 +49,21 @@ export const EFFECT_ACTIONS = [
 ];
 
 const PHRASES = {
-  arrivee: [
+  join: [
     "Welcome {nom}, glad you're here!",
     'Hey {nom}, good to see you!',
     '{nom} just joined us, say hi!',
   ],
-  partage: ['Thanks for sharing the live, {nom}!', '{nom} shared the live, thank you so much!'],
-  abonne: ['Thanks for the follow, {nom}!', '{nom} just followed, welcome aboard!'],
+  share: ['Thanks for sharing the live, {nom}!', '{nom} shared the live, thank you so much!'],
+  follow: ['Thanks for the follow, {nom}!', '{nom} just followed, welcome aboard!'],
   like: ['{nom} dropped {n} likes, thank you!', '{n} likes from {nom}, love it!'],
   // Abdel : ne jamais ecrire « Or » ni « Ombre », la couleur de la plaque et du nom le dit deja
-  cadeau: ['{nom} {q}! What a play!', 'Big play: {nom} {q}!', '{nom} {q} for the team!'],
-  premier: ['{nom} enters the game and {q}! Welcome!', 'First play by {nom}: {q}!'],
-  palier: ["We're {n} here now, welcome everyone!", "{n} of us watching, you're amazing!"],
-  serie: ['{n} wins in a row! Who can stop them?', "That's {n} in a row, unstoppable!"],
-  sauve: ["{nom}'s {q} just saved the day!", "What a save! {nom}'s {q} kept them alive."],
-  sauveSans: ['A {q} just saved the day!', 'What a save, that {q} kept them alive!'],
+  gift: ['{nom} {q}! What a play!', 'Big play: {nom} {q}!', '{nom} {q} for the team!'],
+  first: ['{nom} enters the game and {q}! Welcome!', 'First play by {nom}: {q}!'],
+  tier: ["We're {n} here now, welcome everyone!", "{n} of us watching, you're amazing!"],
+  streak: ['{n} wins in a row! Who can stop them?', "That's {n} in a row, unstoppable!"],
+  rescue: ["{nom}'s {q} just saved the day!", "What a save! {nom}'s {q} kept them alive."],
+  rescueWithout: ['A {q} just saved the day!', 'What a save, that {q} kept them alive!'],
 };
 
 const lastPhraseIdx = {};
@@ -84,19 +84,19 @@ export function announceRescue(i, effectType) {
   // un bouclier ou une vie offerts viennent d'eviter une perte
   if (t - rescueTime[i] < 4) return;
   rescueTime[i] = t;
-  const team = i === 0 ? 'or' : 'ombre',
-    donor = bodies[i] && bodies[i][effectType === 'vie' ? 'viePar' : 'bouclierPar'];
+  const team = i === 0 ? 'gold' : 'shadow',
+    donor = bodies[i] && bodies[i][effectType === 'life' ? 'lifeBy' : 'shieldBy'];
   addAnnouncement({
-    genre: 'sauve',
-    pseudo: donor || '',
-    texte: phrase(donor ? 'sauve' : 'sauveSans', {
+    kind: 'rescue',
+    nickname: donor || '',
+    text: phrase(donor ? 'rescue' : 'rescueWithout', {
       c: teamName(team),
-      q: effectType === 'vie' ? 'extra life' : 'shield',
+      q: effectType === 'life' ? 'extra life' : 'shield',
     }),
-    avatar: bodies[i] && bodies[i][effectType === 'vie' ? 'vieAvatar' : 'bouclierAvatar'],
-    camp: team,
-    effet: effectType === 'vie' ? 'LIFE' : 'SHIELD',
-    devant: true,
+    avatar: bodies[i] && bodies[i][effectType === 'life' ? 'lifeAvatar' : 'shieldAvatar'],
+    team: team,
+    effect: effectType === 'life' ? 'LIFE' : 'SHIELD',
+    ahead: true,
   });
 }
 
@@ -112,15 +112,15 @@ export function announceStreak(team) {
   }
   if (streakCount >= 2)
     addAnnouncement({
-      genre: 'serie',
-      pseudo: '',
-      texte: phrase('serie', {
+      kind: 'streak',
+      nickname: '',
+      text: phrase('streak', {
         c: teamName(team),
-        a: teamName(team === 'or' ? 'ombre' : 'or'),
+        a: teamName(team === 'gold' ? 'shadow' : 'gold'),
         n: streakCount,
       }),
-      camp: team,
-      devant: true,
+      team: team,
+      ahead: true,
     });
 }
 
@@ -130,9 +130,9 @@ export function resetRoundDonations() {
 }
 
 export function addAnnouncement(a) {
-  if (!settings.bandeau || settings.bandeau === 'aucun') return;
-  if (a.genre === 'cadeau' || a.devant) {
-    let k = announcements.findIndex((q) => q.genre !== 'cadeau');
+  if (!settings.banner || settings.banner === 'none') return;
+  if (a.kind === 'gift' || a.ahead) {
+    let k = announcements.findIndex((q) => q.kind !== 'gift');
     if (k < 0) k = announcements.length;
     announcements.splice(k, 0, a);
   } else announcements.push(a);
@@ -163,22 +163,22 @@ export function getProfilePhoto(url) {
 
 export function paintMiniSnake(pts, tint, scale) {
   const a = getAmbience();
-  if (!a || !a.peindreSerpent || pts.length < 2) return;
+  if (!a || !a.paintSnake || pts.length < 2) return;
   ctx.save();
   ctx.scale(scale, scale);
-  a.peindreSerpent(
+  a.paintSnake(
     ctx,
     pts.map((p) => ({ x: p.x / scale, y: p.y / scale })),
     CELL,
-    { teinte: tint },
+    { tint: tint },
   );
   ctx.restore();
 }
 
 export function paintBanner() {
-  const mode = settings.bandeau;
-  if (!mode || mode === 'aucun' || !round) return;
-  const holdActive = bodies.some((c) => c && (c.tenue || 0) > 0 && round.etat === 'en cours');
+  const mode = settings.banner;
+  if (!mode || mode === 'none' || !round) return;
+  const holdActive = bodies.some((c) => c && (c.hold || 0) > 0 && round.state === 'playing');
   if (holdActive) {
     currentAnnouncement = null;
     return;
@@ -195,10 +195,10 @@ export function paintBanner() {
     currentAnnouncement = null;
   const active = currentAnnouncement,
     age = active ? t - active.t0 : 0;
-  const tint = active && active.camp ? (active.camp === 'or' ? GOLD : SHADOW) : '#e8f1dc',
+  const tint = active && active.team ? (active.team === 'gold' ? GOLD : SHADOW) : '#e8f1dc',
     rgb =
-      active && active.camp
-        ? active.camp === 'or'
+      active && active.team
+        ? active.team === 'gold'
           ? '242,197,124'
           : '180,212,222'
         : '232,241,220';
@@ -231,8 +231,8 @@ export function paintBanner() {
         age < 0.9
           ? 1 + 0.14 * Math.sin(Math.min(1, Math.max(0, (age - 0.45) / 0.45)) * Math.PI)
           : 1;
-    const showNames = settings.nomsDonateurs !== false,
-      displayName = showNames && active.pseudo ? active.pseudo.slice(0, 18) : '',
+    const showNames = settings.donorNames !== false,
+      displayName = showNames && active.nickname ? active.nickname.slice(0, 18) : '',
       av = showNames ? getProfilePhoto(active.avatar) : null;
     // photo de profil du spectateur, ronde, cerclee de la couleur du camp ; sinon son initiale ; sinon le glyphe
     if (displayName) {
@@ -267,30 +267,30 @@ export function paintBanner() {
       ctx.arc(ax, BD_CY, (AV / 2) * pop, 0, Math.PI * 2);
       ctx.stroke();
       ctx.restore();
-    } else glypheSerpent(ax, BD_CY, 17 * pop, active.camp ? tint : null);
+    } else paintSnakeGlyph(ax, BD_CY, 17 * pop, active.team ? tint : null);
     // a droite : le glyphe de l'EFFET du jeu (plus l'artwork du cadeau, notion de cadeau retiree)
     const IM = 60,
-      aImg = !!active.effet;
+      aImg = !!active.effect;
     if (aImg) {
       ctx.save();
       ctx.translate(x + BD_W - 16 - IM / 2, BD_CY);
       ctx.scale(pop, pop);
-      paintEffectGlyph(ctx, active.effet, 0, 0, 22, rgb);
+      paintEffectGlyph(ctx, active.effect, 0, 0, 22, rgb);
       ctx.restore();
     }
     // la phrase : mots de couleur claire, le nom en gras dans la couleur du camp, deux lignes au plus
     const tx = ax + AV / 2 + 18,
       availableWidth = x + BD_W - (aImg ? IM + 30 : 22) - tx;
-    const parts = String(active.texte).split('{nom}'),
+    const parts = String(active.text).split('{nom}'),
       textTokens = [];
     parts.forEach((m, k) => {
-      if (k > 0) textTokens.push({ t: displayName || 'a viewer', fort: !!displayName });
-      (m.match(/\S+|\s+/g) || []).forEach((q) => textTokens.push({ t: q, fort: false }));
+      if (k > 0) textTokens.push({ t: displayName || 'a viewer', strong: !!displayName });
+      (m.match(/\S+|\s+/g) || []).forEach((q) => textTokens.push({ t: q, strong: false }));
     });
     const words = [];
     let cur = null;
     textTokens.forEach((q) => {
-      if (!q.fort && /^\s+$/.test(q.t)) {
+      if (!q.strong && /^\s+$/.test(q.t)) {
         cur = null;
         return;
       }
@@ -310,7 +310,7 @@ export function paintBanner() {
       words.forEach((w) => {
         w.l = 0;
         w.forEach((q) => {
-          ctx.font = q.fort ? fF : fN;
+          ctx.font = q.strong ? fF : fN;
           q.l = ctx.measureText(q.t).width;
           w.l += q.l;
         });
@@ -337,8 +337,8 @@ export function paintBanner() {
       li.forEach((w) => {
         let wx = tx + w.x;
         w.forEach((q) => {
-          ctx.font = (q.fort ? '800 ' : '500 ') + fontSize + 'px system-ui, sans-serif';
-          ctx.fillStyle = q.fort ? (active.camp ? tint : '#ffffff') : 'rgba(255,255,255,0.86)';
+          ctx.font = (q.strong ? '800 ' : '500 ') + fontSize + 'px system-ui, sans-serif';
+          ctx.fillStyle = q.strong ? (active.team ? tint : '#ffffff') : 'rgba(255,255,255,0.86)';
           ctx.fillText(q.t, wx, y0 + k * lineHeight);
           wx += q.l;
         });

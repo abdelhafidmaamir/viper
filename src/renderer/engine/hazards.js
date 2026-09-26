@@ -23,7 +23,7 @@ import {
 export function freeCells() {
   const occupied = new Set(snake.map((s) => s.x + ',' + s.y));
   const a = rival();
-  if (a) a.serpent.forEach((s) => occupied.add(s.x + ',' + s.y));
+  if (a) a.snake.forEach((s) => occupied.add(s.x + ',' + s.y));
   seeds.concat(berries, stones).forEach((o) => occupied.add(o.x + ',' + o.y));
   brambles.forEach((R) => R.seg.forEach((g) => occupied.add(g.x + ',' + g.y)));
   const l = [];
@@ -42,11 +42,11 @@ export function isDeadZone(c, delay) {
     dx = c.x - h.x,
     dy = c.y - h.y;
   const devant = dx * dir.x + dy * dir.y,
-    cote = Math.abs(dx * dir.y - dy * dir.x);
-  if (devant > 0 && cote <= 1 && devant <= SPEED * (delay + 0.25)) return true;
+    side = Math.abs(dx * dir.y - dy * dir.x);
+  if (devant > 0 && side <= 1 && devant <= SPEED * (delay + 0.25)) return true;
   const a = rival();
-  if (a && a.serpent.length) {
-    const h2 = a.serpent[0],
+  if (a && a.snake.length) {
+    const h2 = a.snake[0],
       dx2 = c.x - h2.x,
       dy2 = c.y - h2.y;
     const dev2 = dx2 * a.dir.x + dy2 * a.dir.y,
@@ -67,13 +67,13 @@ export function activeBrambles(k) {
   return l;
 }
 
-export const maxBrambles = () => Math.max(1, Math.round(tier.maxRochers / 2));
+export const maxBrambles = () => Math.max(1, Math.round(tier.maxStones / 2));
 
 // Elle prend racine hors de la zone morte, comme la pierre, mais elle pousse ensuite en travers
 // de la course du serpent : c'est une voie qu'elle ferme, pas une case.
 export function plantBramble(nickname) {
   if (!snake.length) return false;
-  if (settings.plafonds && brambles.length >= maxBrambles()) return false;
+  if (settings.caps && brambles.length >= maxBrambles()) return false;
   const h = snake[0],
     range = STONE_CLEARANCE();
   const isInLane = (c) => isDeadZone(c, BRAMBLE_WARNING);
@@ -98,10 +98,10 @@ export function plantBramble(nickname) {
   brambles.push({
     seg: [{ x: c.x, y: c.y, t: 0 }],
     ax: axis,
-    sens: growDir,
+    direction: growDir,
     t: 0,
-    pas: 0,
-    pseudo: nickname || '',
+    step: 0,
+    nickname: nickname || '',
   });
   playBramble();
   rise('moon', 1);
@@ -113,14 +113,14 @@ export function extendBramble(R) {
   const occupied = new Set(snake.map((g) => g.x + ',' + g.y));
   stones.forEach((r) => occupied.add(r.x + ',' + r.y));
   brambles.forEach((o) => o.seg.forEach((g) => occupied.add(g.x + ',' + g.y)));
-  for (const direction of [R.sens, -R.sens]) {
-    const tip = direction === R.sens ? R.seg[R.seg.length - 1] : R.seg[0];
+  for (const direction of [R.direction, -R.direction]) {
+    const tip = direction === R.direction ? R.seg[R.seg.length - 1] : R.seg[0];
     const n = { x: tip.x + R.ax.x * direction, y: tip.y + R.ax.y * direction, t: 0 };
     if (n.x < 0 || n.y < 0 || n.x >= COLS || n.y >= ROWS || occupied.has(n.x + ',' + n.y)) continue;
     if (isDeadZone(n, BRAMBLE_WARNING)) continue; // elle ne repousse pas sous ses pattes non plus
-    if (direction === R.sens) R.seg.push(n);
+    if (direction === R.direction) R.seg.push(n);
     else R.seg.unshift(n);
-    R.sens = direction;
+    R.direction = direction;
     playBrambleStep(R.seg.length - 1);
     requestAiMove();
     return true;
@@ -131,8 +131,8 @@ export function extendBramble(R) {
 // Les baies offertes sont vues tout de suite : une action de spectateur a un effet visible sans delai
 // En duel, une baie reservee a l'autre camp n'existe pas pour cette IA : elle ne la vise pas.
 export function allFruits() {
-  const myTeam = bodies[activeIndex] ? bodies[activeIndex].camp : null;
+  const myTeam = bodies[activeIndex] ? bodies[activeIndex].team : null;
   return berries
-    .filter((b) => !b.pour || !myTeam || b.pour === myTeam)
-    .map((b) => ({ x: b.x, y: b.y, offerte: true }));
+    .filter((b) => !b.owner || !myTeam || b.owner === myTeam)
+    .map((b) => ({ x: b.x, y: b.y, gifted: true }));
 }

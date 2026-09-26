@@ -34,36 +34,38 @@ export function recordGift(i, value, nickname, n, avatar) {
           : value >= BOOST_COST
             ? 1
             : 0;
-  const r = giftFeedback[i][k] || (giftFeedback[i][k] = { t: -9, pseudo: '', n: 0 });
+  const r = giftFeedback[i][k] || (giftFeedback[i][k] = { t: -9, nickname: '', n: 0 });
   r.t = t;
-  r.pseudo = String(nickname || '');
+  r.nickname = String(nickname || '');
   r.n += Math.max(1, n || 1);
-  const c = DUEL_GIFTS[i === 0 ? 'or' : 'ombre'][k];
-  const isFirst = !!(r.pseudo && !alreadyDonated[r.pseudo]);
-  if (r.pseudo) {
-    alreadyDonated[r.pseudo] = 1;
+  const c = DUEL_GIFTS[i === 0 ? 'gold' : 'shadow'][k];
+  const isFirst = !!(r.nickname && !alreadyDonated[r.nickname]);
+  if (r.nickname) {
+    alreadyDonated[r.nickname] = 1;
     const donorRecord =
-      roundDonations[r.pseudo] ||
-      (roundDonations[r.pseudo] = { camp: i === 0 ? 'or' : 'ombre', total: 0 });
+      roundDonations[r.nickname] ||
+      (roundDonations[r.nickname] = { team: i === 0 ? 'gold' : 'shadow', total: 0 });
     donorRecord.total += (value || 0) * Math.max(1, n || 1);
-    donorRecord.camp = i === 0 ? 'or' : 'ombre';
+    donorRecord.team = i === 0 ? 'gold' : 'shadow';
   }
-  if (r.pseudo && roundDonations[r.pseudo] && avatar) roundDonations[r.pseudo].avatar = avatar;
+  if (r.nickname && roundDonations[r.nickname] && avatar)
+    roundDonations[r.nickname].avatar = avatar;
   if (c)
     addAnnouncement({
-      genre: 'cadeau',
-      pseudo: r.pseudo,
+      kind: 'gift',
+      nickname: r.nickname,
       avatar,
-      texte: phrase(isFirst ? 'premier' : 'cadeau', {
-        c: teamName(i === 0 ? 'or' : 'ombre'),
-        q: EFFECT_ACTIONS[k] || c.effet,
+      text: phrase(isFirst ? 'first' : 'gift', {
+        c: teamName(i === 0 ? 'gold' : 'shadow'),
+        q: EFFECT_ACTIONS[k] || c.effect,
       }),
-      camp: i === 0 ? 'or' : 'ombre',
-      effet: EFFECT_LABEL[c.effet],
+      team: i === 0 ? 'gold' : 'shadow',
+      effect: EFFECT_LABEL[c.effect],
     });
   giftBanner[i] = {
     t,
-    texte:
-      (r.pseudo && settings.nomsDonateurs !== false ? r.pseudo + '  >  ' : '') + (c ? c.effet : ''),
+    text:
+      (r.nickname && settings.donorNames !== false ? r.nickname + '  >  ' : '') +
+      (c ? c.effect : ''),
   };
 }

@@ -13,8 +13,8 @@
 <section>
   <h2>Fenetre jeu</h2>
   <div class="note"><span class="voyant" id="vjeu"></span><span id="ejeu">aucun signe de la fenetre jeu</span></div>
-  <pre id="etat">en attente</pre>
-  <div class="rangee"><button id="manche">Nouvelle manche</button></div>
+  <pre id="state">en attente</pre>
+  <div class="rangee"><button id="round">Nouvelle manche</button></div>
 </section>
 
 <section>
@@ -22,7 +22,7 @@
   <div class="note">Change l'habillage de la fenetre jeu. Neutre cache la legende des cadeaux TikTok et les colonnes de statuts : il ne reste que le duel. Le choix est garde au prochain lancement.</div>
   <div class="rangee"><button id="pfTiktok">TikTok (cadeaux affiches)</button><button id="pfNeutre">Neutre, YouTube (gameplay seul)</button></div>
   <div class="note" id="pfEtat">?</div>
-  <label class="ligne"><input type="checkbox" id="fluide"> Mode fluide : sans halos flous (mesure dans l'exe, plateau charge : 28 images par seconde avec, 45 sans)</label>
+  <label class="ligne"><input type="checkbox" id="smooth"> Mode fluide : sans halos flous (mesure dans l'exe, plateau charge : 28 images par seconde avec, 45 sans)</label>
 </section>
 
 <section>
@@ -57,7 +57,7 @@
   <div class="rangee"><button id="likes">Likes x50</button></div>
   <h2 style="margin-top:8px">Public simule</h2>
   <div class="note">Les quatre affluences de l'ancienne regie. De faux spectateurs envoient likes et cadeaux au hasard, moitie Or, moitie Ombre, tant que ce n'est pas remis sur Personne. Les likes ne donnent plus de vitesse : seuls les cadeaux agissent.</div>
-  <div class="rangee" id="foule"></div>
+  <div class="rangee" id="crowd"></div>
   <div class="rangee"><button id="fmBataille">Bataille d'equipes</button><button id="fmHasard">Hasard</button></div>
   <div class="note" id="fouleEtat">Personne : aucun spectateur simule.</div>
   <div id="fouleEquipes" hidden>
@@ -77,40 +77,40 @@
     <span style="color:var(--or)">Or</span></div>
   <div class="note" id="pouceEtat">neutre (0)</div>
   <div class="note">Debug IA : trajet vise, rayons de vue, pas candidats notes, couronne evitee, flash vert garde / rouge change. A couper avant l'antenne.</div>
-  <label class="ligne"><input type="checkbox" id="debugIA"> Debug IA sur le plateau</label>
+  <label class="ligne"><input type="checkbox" id="aiDebug"> Debug IA sur le plateau</label>
 
   <h2 style="margin-top:8px">Retour visuel des cadeaux (prototype a valider)</h2>
   <div class="note">S'applique a la vraie legende du bas. Envoie un cadeau avec les boutons du simulateur pour voir chaque version. G1 ligne illuminee, donateur et trait qui se vide. G2 anneau autour de l'image. G3 pastille compteur. G4 bandeau donateur au-dessus.</div>
-  <div class="rangee" id="retours"><button data-r="aucun">Aucun</button><button data-r="G1">G1</button><button data-r="G2">G2</button><button data-r="G3">G3</button><button data-r="G4">G4</button></div>
+  <div class="rangee" id="retours"><button data-r="none">Aucun</button><button data-r="G1">G1</button><button data-r="G2">G2</button><button data-r="G3">G3</button><button data-r="G4">G4</button></div>
   <div class="note">Affichage des cadeaux : "Defile ON" = les deux bandeaux (effet sans prix, pattern visible/cache ci-dessous). "Defile OFF" = aucun affichage. "Complet" = ancienne legende avec prix, tests hors live seulement.</div>
   <div class="note">Format d'image (applique a la prochaine manche) : vertical 9:16 pour TikTok, horizontal 16:9 pour YouTube. Meme plateau, meme grille, HUD dans les flancs.</div>
-  <div class="rangee" id="formats"><button data-f="vertical">Vertical 9:16 (TikTok)</button><button data-f="horizontal">Horizontal 16:9 (YouTube)</button></div>
-  <div class="rangee" id="affichages"><button data-a="defile">Defile ON (live-safe)</button><button data-a="aucun">Defile OFF (rien)</button><button data-a="complet">Complet (prix, hors live)</button></div>
+  <div class="rangee" id="formats"><button data-f="portrait">Vertical 9:16 (TikTok)</button><button data-f="landscape">Horizontal 16:9 (YouTube)</button></div>
+  <div class="rangee" id="affichages"><button data-a="scroll">Defile ON (live-safe)</button><button data-a="none">Defile OFF (rien)</button><button data-a="full">Complet (prix, hors live)</button></div>
   <div class="ligne" id="patternDefile">Pattern defile :
-    <label>visible <select id="defileVisi"><option>4</option><option>6</option><option selected>8</option><option>10</option><option>12</option><option>15</option><option>20</option></select> s</label>
-    <label>cache <select id="defileCache"><option>0</option><option>6</option><option>8</option><option>10</option><option selected>12</option><option>15</option><option>20</option><option>30</option></select> s</label>
+    <label>visible <select id="scrollVisible"><option>4</option><option>6</option><option selected>8</option><option>10</option><option>12</option><option>15</option><option>20</option></select> s</label>
+    <label>cache <select id="scrollHidden"><option>0</option><option>6</option><option>8</option><option>10</option><option selected>12</option><option>15</option><option>20</option><option>30</option></select> s</label>
   </div>
   <div class="note">Bandeau d'activite en haut (prototype) : version, puis boutons de test</div>
-  <div class="rangee"><button data-b="aucun">Aucun</button><button data-b="P1">P1 orbite</button><button data-b="P2">P2 porteur</button><button data-b="P3">P3 mascotte</button></div>
-  <div class="rangee"><button data-t="arrivee">Test arrivee</button><button data-t="cadeauOr">Test cadeau Or</button><button data-t="cadeauOm">Test cadeau Ombre</button><button data-t="like">Test likes</button><button data-t="partage">Test partage</button><button data-t="palier">Test 50 spectateurs</button></div>
+  <div class="rangee"><button data-b="none">Aucun</button><button data-b="P1">P1 orbite</button><button data-b="P2">P2 porteur</button><button data-b="P3">P3 mascotte</button></div>
+  <div class="rangee"><button data-t="join">Test arrivee</button><button data-t="giftGold">Test cadeau Or</button><button data-t="giftShadow">Test cadeau Ombre</button><button data-t="like">Test likes</button><button data-t="share">Test partage</button><button data-t="tier">Test 50 spectateurs</button></div>
   <div class="note">Ambiance de la foret (prototype) : meteo, heure, ou tirage automatique a chaque manche</div>
-  <div class="rangee"><button data-m="pluie">Pluie</button><button data-m="neige">Neige</button><button data-m="automne">Automne</button><button data-m="ete">Ete</button><button data-m="printemps">Printemps</button><button data-m="orage">Orage</button><button data-m="etoiles">Etoiles filantes</button><button data-m="aurore">Aurore</button><button data-m="lucioles">Lucioles</button><button data-m="braises">Braises</button><button data-m="brume">Brume</button></div>
-  <div class="rangee"><button data-h="0.02">Nuit</button><button data-h="0.22">Lever</button><button data-h="0.5">Jour</button><button data-h="0.78">Coucher</button><label class="ligne"><input type="checkbox" id="ambianceAuto"> Auto par manche</label></div>
+  <div class="rangee"><button data-m="rain">Pluie</button><button data-m="snow">Neige</button><button data-m="autumn">Automne</button><button data-m="summer">Ete</button><button data-m="spring">Printemps</button><button data-m="storm">Orage</button><button data-m="stars">Etoiles filantes</button><button data-m="aurora">Aurore</button><button data-m="fireflies">Lucioles</button><button data-m="embers">Braises</button><button data-m="mist">Brume</button></div>
+  <div class="rangee"><button data-h="0.02">Nuit</button><button data-h="0.22">Lever</button><button data-h="0.5">Jour</button><button data-h="0.78">Coucher</button><label class="ligne"><input type="checkbox" id="autoAmbience"> Auto par manche</label></div>
   <div class="note">Classement des donateurs sur l'ecran de fin (prototype) : version, puis test (5 dons puis fin de manche)</div>
-  <div class="rangee"><button data-c="aucun">Aucun</button><button data-c="C1">C1 podium</button><button data-c="C2">C2 deux camps</button><button data-c="C3">C3 MVP</button><button data-c="M1">M1 couronne</button><button data-c="M2">M2 serpent</button><button data-c="M3">M3 podium</button><button id="testClassement">Tester</button></div>
-  <label class="ligne"><input type="checkbox" id="nomsDonateurs" checked> Afficher le nom des spectateurs sur les cadeaux</label>
+  <div class="rangee"><button data-c="none">Aucun</button><button data-c="C1">C1 podium</button><button data-c="C2">C2 deux camps</button><button data-c="C3">C3 MVP</button><button data-c="M1">M1 couronne</button><button data-c="M2">M2 serpent</button><button data-c="M3">M3 podium</button><button id="testClassement">Tester</button></div>
+  <label class="ligne"><input type="checkbox" id="donorNames" checked> Afficher le nom des spectateurs sur les cadeaux</label>
   <h2 style="margin-top:8px">Super IA</h2>
   <div class="note">Recherche adverse type echecs : chaque serpent simule ses coups et les reponses de l'autre plusieurs pas a l'avance, et joue le territoire. Appliquee aux deux camps. Suspendue pendant une scene.</div>
-  <label class="ligne"><span class="voyant" id="vsuper"></span><input type="checkbox" id="superIA"> Super IA (les deux serpents)</label>
+  <label class="ligne"><span class="voyant" id="vsuper"></span><input type="checkbox" id="superAi"> Super IA (les deux serpents)</label>
   <h2 style="margin-top:8px">Mise en scene</h2>
   <div class="note">Un clic force une situation invisible a l'ecran. Elle dure quelques secondes puis rend la main a l'IA. Underdog reste allume tant qu'on ne l'eteint pas.</div>
   <div class="rangee">
     <button data-s="ballet">Ballet<span class="jauge"></span><span class="cd"></span></button>
-    <button data-s="course">Course a la baie<span class="jauge"></span><span class="cd"></span></button>
+    <button data-s="race">Course a la baie<span class="jauge"></span><span class="cd"></span></button>
   </div>
   <div class="rangee">
-    <button class="or" data-s="chasseOr">Or chasse Ombre<span class="jauge"></span><span class="cd"></span></button>
-    <button data-s="chasseOm">Ombre chasse Or<span class="jauge"></span><span class="cd"></span></button>
+    <button class="or" data-s="huntGold">Or chasse Ombre<span class="jauge"></span><span class="cd"></span></button>
+    <button data-s="huntShadow">Ombre chasse Or<span class="jauge"></span><span class="cd"></span></button>
   </div>
   <div class="rangee">
     <label class="ligne" style="flex:1"><span class="voyant" id="vunderdog"></span><input type="checkbox" id="underdog"> Underdog (aide au plus court, invisible)</label>

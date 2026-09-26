@@ -39,8 +39,8 @@ async function start(config: AppConfig): Promise<void> {
 
   if (config.orientation === 'landscape') {
     await evaluate(game.webContents, () => {
-      window.VipereBase.reglages.format = 'horizontal';
-      window.VipereBase.nouvelleManche();
+      window.Viper.settings.format = 'landscape';
+      window.Viper.newRound();
     });
   }
   const control = await openControlWindow(renderer.origin);

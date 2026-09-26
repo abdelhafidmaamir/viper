@@ -90,28 +90,28 @@ export function installPageKit(): void {
 
     environment() {
       const element = canvas();
-      const duel = window.VipereBase.duel();
+      const duel = window.Viper.duel();
       return {
         window: `${String(innerWidth)}x${String(innerHeight)}`,
         devicePixelRatio,
         canvas: `${String(element.width)}x${String(element.height)}`,
-        snakeLengths: [duel?.or?.longueur ?? null, duel?.ombre?.longueur ?? null],
+        snakeLengths: [duel?.gold?.length ?? null, duel?.shadow?.length ?? null],
       };
     },
 
     startDuel(settings) {
-      const game = window.VipereBase;
-      Object.assign(game.reglages, { mode: 'duel' }, settings);
-      game.nouvelleManche();
+      const game = window.Viper;
+      Object.assign(game.settings, { mode: 'duel' }, settings);
+      game.newRound();
     },
 
     startCrowd(level) {
       if (crowdTimer !== undefined) return;
-      const crowd = window.VipereFoule.creer();
-      crowd.regler(level);
+      const crowd = window.ViperCrowd.create();
+      crowd.configure(level);
       crowdTimer = window.setInterval(() => {
-        const state = window.VipereFoule.lireEtat(window.VipereBase);
-        for (const event of crowd.tick(state, 0.5)) window.recevoirEvenement(event);
+        const state = window.ViperCrowd.readState(window.Viper);
+        for (const event of crowd.tick(state, 0.5)) window.receiveEvent(event);
       }, 500);
     },
 

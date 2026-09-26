@@ -34,7 +34,7 @@ export let X0 = 164,
 // sa grille et ses 47 px par case dans les deux formats : seuls son origine et les ancrages du HUD changent.
 // En horizontal, le HUD migre dans les flancs : tout ce qui est Or a gauche, tout ce qui est Ombre a droite.
 const FORMATS = {
-  vertical: {
+  portrait: {
     ox: 0,
     WF: 1080,
     W: 1080,
@@ -48,16 +48,16 @@ const FORMATS = {
     legY: 1372,
     legCxG: 320,
     legCxD: 760,
-    defY: 1330,
-    defXG: 528,
-    defXD: 794,
-    finBase: 1206,
+    scrollRowY: 1330,
+    scrollLeftX: 528,
+    scrollRightX: 794,
+    baseEnd: 1206,
     srY: 260,
     srH: 977,
   },
   // horizontal (Abdel 2026-09-23 : « just want the black space to be filled ») : la composition verticale est
   // dessinee TELLE QUELLE au centre d'un cadre 16:9 (3414 x 1920), seule l'ambiance continue dans les cotes.
-  horizontal: {
+  landscape: {
     ox: 1167,
     WF: 3414,
     W: 1080,
@@ -71,15 +71,15 @@ const FORMATS = {
     legY: 1372,
     legCxG: 320,
     legCxD: 760,
-    defY: 1330,
-    defXG: 528,
-    defXD: 794,
-    finBase: 1206,
+    scrollRowY: 1330,
+    scrollLeftX: 528,
+    scrollRightX: 794,
+    baseEnd: 1206,
     srY: 260,
     srH: 977,
   },
 };
-export let L = FORMATS.vertical,
+export let L = FORMATS.portrait,
   OX = 0,
   WF = 1080; // OX : marge gauche du cadre, WF : largeur totale du cadre
 
@@ -90,7 +90,7 @@ export let BD_W = 600,
 
 /** Applies a format. Returns false when it is already active, so callers can skip re-layout. */
 export function setFormat(format) {
-  const f = FORMATS[format] || FORMATS.vertical;
+  const f = FORMATS[format] || FORMATS.portrait;
   if (L === f) return false;
   L = f;
   OX = f.ox;

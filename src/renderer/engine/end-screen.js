@@ -2,7 +2,7 @@
 // MVP card). Painted last so it covers everything, including the HUD.
 
 import { CELL, H, L, OX, ROWS, W, WF, Y0 } from './layout.js';
-import { doux01 } from './scoreboard.js';
+import { smooth01 } from './scoreboard.js';
 import { roundDonations, paintMiniSnake, getProfilePhoto } from './announcements.js';
 import { ctx } from './canvas.js';
 import { SHADOW, GOLD } from './palette.js';
@@ -30,13 +30,13 @@ function getEndVeil() {
 }
 
 export function paintEndScreen() {
-  const u = Math.min(1, round.fin / 1.2),
-    v = round.vainqueur,
-    sun = v === 'sun' || v === 'serpent' || v === 'or';
+  const u = Math.min(1, round.end / 1.2),
+    v = round.winner,
+    sun = v === 'sun' || v === 'snake' || v === 'gold';
   ctx.save();
   // voile : montee douce (smootherstep sur 1,6 s), plus clair au centre ou se tient le serpent, plus dense aux bords
   {
-    const uv = Math.min(1, round.fin / 1.6),
+    const uv = Math.min(1, round.end / 1.6),
       kv = uv * uv * uv * (uv * (6 * uv - 15) + 10);
     // en 16:9 le voile couvre aussi les cotes (Abdel : « just the center is active and not the full image »)
     ctx.globalAlpha = kv;
@@ -50,32 +50,32 @@ export function paintEndScreen() {
     R = 320;
   // En duel, un camp gagne toujours : le serpent de fin est heureux et porte la couleur du vainqueur
   // (Abdel : « the winning snake color need to match the color of the winning team »).
-  const o = { etat: sun ? 'heureux' : 'triste', t: round.fin, cx: cx, cy: cy, R: R, u: u };
-  const rankingFactor = isRankingActive() ? doux01((round.fin - 2.0) / 0.9) : 0;
-  const grandMvp = /^M/.test(settings.classement || '');
+  const o = { state: sun ? 'happy' : 'sad', t: round.end, cx: cx, cy: cy, R: R, u: u };
+  const rankingFactor = isRankingActive() ? smooth01((round.end - 2.0) / 0.9) : 0;
+  const grandMvp = /^M/.test(settings.ranking || '');
   if (rankingFactor > 0) {
     o.R = R * (1 - (grandMvp ? 0.48 : 0.34) * rankingFactor);
     o.cy = cy - (grandMvp ? 250 : 190) * rankingFactor;
   }
-  if (v === 'nul') {
+  if (v === 'draw') {
     // Match nul : les deux serpents face a face, chacun sa couleur, mot DRAW (maquette A1 validee par Abdel).
-    if (window.FinSerpent && window.FinSerpent.peindreNul) {
-      window.FinSerpent.peindreNul(ctx, {
+    if (window.SnakeEnding && window.SnakeEnding.paintDraw) {
+      window.SnakeEnding.paintDraw(ctx, {
         ...o,
         R: R * 1.05,
-        or: { teinte: GOLD, rgb: '242,197,124' },
-        ombre: { teinte: SHADOW, rgb: '180,212,222' },
+        gold: { tint: GOLD, rgb: '242,197,124' },
+        shadow: { tint: SHADOW, rgb: '180,212,222' },
       });
     }
     if (rankingFactor > 0) paintRanking(rankingFactor);
     ctx.restore();
     return;
   } else {
-    o.etat = 'heureux';
-    o.teinte = v === 'ombre' ? SHADOW : GOLD;
-    o.rgb = v === 'ombre' ? '180,212,222' : '242,197,124';
+    o.state = 'happy';
+    o.tint = v === 'shadow' ? SHADOW : GOLD;
+    o.rgb = v === 'shadow' ? '180,212,222' : '242,197,124';
   }
-  if (window.FinSerpent) window.FinSerpent.peindre(ctx, o);
+  if (window.SnakeEnding) window.SnakeEnding.paint(ctx, o);
   if (rankingFactor > 0) paintRanking(rankingFactor);
   ctx.restore();
 }
@@ -85,24 +85,24 @@ export function paintEndScreen() {
 function topDonors(team) {
   return Object.keys(roundDonations)
     .map((p) => ({
-      pseudo: p,
-      camp: roundDonations[p].camp,
+      nickname: p,
+      team: roundDonations[p].team,
       total: roundDonations[p].total,
       avatar: roundDonations[p].avatar,
     }))
-    .filter((d) => d.total > 0 && (!team || d.camp === team))
+    .filter((d) => d.total > 0 && (!team || d.team === team))
     .sort((a, b) => b.total - a.total);
 }
 
 function isRankingActive() {
-  const m = settings.classement;
-  return m && m !== 'aucun' && topDonors().length > 0;
+  const m = settings.ranking;
+  return m && m !== 'none' && topDonors().length > 0;
 }
 
 function paintRankingRow(x, y, w, h, d, rank, appearance, mirrored, large) {
   if (appearance <= 0.01) return;
-  const tint = d.camp === 'or' ? GOLD : SHADOW,
-    rgb = d.camp === 'or' ? '242,197,124' : '180,212,222';
+  const tint = d.team === 'gold' ? GOLD : SHADOW,
+    rgb = d.team === 'gold' ? '242,197,124' : '180,212,222';
   ctx.save();
   ctx.globalAlpha = appearance;
   ctx.translate(0, (1 - appearance) * 22);
@@ -129,7 +129,7 @@ function paintRankingRow(x, y, w, h, d, rank, appearance, mirrored, large) {
   ctx.textBaseline = 'middle';
   ctx.fillText(String(rank), rx, y + 1);
   // photo de profil du donateur, entre le rang et le nom (initiale si TikFinity n'en fournit pas)
-  const showNames = settings.nomsDonateurs !== false,
+  const showNames = settings.donorNames !== false,
     AV = h * 0.66,
     sg = mirrored ? -1 : 1,
     pcx = rx + sg * (R + 12 + AV / 2),
@@ -152,7 +152,7 @@ function paintRankingRow(x, y, w, h, d, rank, appearance, mirrored, large) {
       ctx.textAlign = 'center';
       ctx.textBaseline = 'middle';
       ctx.fillText(
-        d.pseudo
+        d.nickname
           .replace(/[^A-Za-z0-9]/g, '')
           .charAt(0)
           .toUpperCase() || '?',
@@ -169,7 +169,7 @@ function paintRankingRow(x, y, w, h, d, rank, appearance, mirrored, large) {
   }
   const nameOffset = showNames ? AV + 12 : 0;
   const displayName =
-    settings.nomsDonateurs !== false ? d.pseudo.slice(0, large ? 20 : 14) : 'supporter ' + rank;
+    settings.donorNames !== false ? d.nickname.slice(0, large ? 20 : 14) : 'supporter ' + rank;
   ctx.fillStyle = tint;
   ctx.font = (large ? '700 34px' : '700 27px') + ' system-ui, sans-serif';
   ctx.textAlign = mirrored ? 'right' : 'left';
@@ -207,9 +207,9 @@ const elasticEase = (x) => {
 };
 
 function paintAvatar(cx, cy, r, d, scale) {
-  const tint = d.camp === 'or' ? GOLD : SHADOW,
-    rgb = d.camp === 'or' ? '242,197,124' : '180,212,222',
-    showNames = settings.nomsDonateurs !== false,
+  const tint = d.team === 'gold' ? GOLD : SHADOW,
+    rgb = d.team === 'gold' ? '242,197,124' : '180,212,222',
+    showNames = settings.donorNames !== false,
     ph = showNames ? getProfilePhoto(d.avatar) : null,
     R = r * scale;
   if (R <= 0.5) return;
@@ -233,7 +233,7 @@ function paintAvatar(cx, cy, r, d, scale) {
     ctx.textBaseline = 'middle';
     ctx.fillText(
       showNames
-        ? d.pseudo
+        ? d.nickname
             .replace(/[^A-Za-z0-9]/g, '')
             .charAt(0)
             .toUpperCase() || '?'
@@ -296,8 +296,8 @@ export function paintCrown(cx, cy, l, dropProgress) {
 
 function paintNameAndTotal(cx, y, d, bodyFontSize, appearance) {
   if (appearance <= 0.01) return;
-  const tint = d.camp === 'or' ? GOLD : SHADOW,
-    displayName = settings.nomsDonateurs !== false ? d.pseudo.slice(0, 18) : 'top supporter';
+  const tint = d.team === 'gold' ? GOLD : SHADOW,
+    displayName = settings.donorNames !== false ? d.nickname.slice(0, 18) : 'top supporter';
   ctx.save();
   ctx.globalAlpha = appearance;
   ctx.translate(0, (1 - appearance) * 16);
@@ -335,21 +335,21 @@ function paintMvp(mode, age, titleFn, appearanceFn) {
   const l = topDonors(),
     m = l[0],
     cx = W / 2,
-    rgb = m.camp === 'or' ? '242,197,124' : '180,212,222',
-    tint = m.camp === 'or' ? GOLD : SHADOW;
+    rgb = m.team === 'gold' ? '242,197,124' : '180,212,222',
+    tint = m.team === 'gold' ? GOLD : SHADOW;
   if (mode === 'M3') {
     // podium : trois marches, le premier au centre, plus haut, couronne
     titleFn('TOP SUPPORTERS', 760);
-    const base = L.finBase,
+    const base = L.baseEnd,
       steps = [
-        { d: l[0], x: cx, hh: 190, r: 60, rang: 1 },
-        { d: l[1], x: cx - 196, hh: 132, r: 46, rang: 2 },
-        { d: l[2], x: cx + 196, hh: 100, r: 42, rang: 3 },
+        { d: l[0], x: cx, hh: 190, r: 60, rank: 1 },
+        { d: l[1], x: cx - 196, hh: 132, r: 46, rank: 2 },
+        { d: l[2], x: cx + 196, hh: 100, r: 42, rank: 3 },
       ];
     steps.forEach((q, i) => {
       if (!q.d) return;
-      const a = doux01((age - 0.4 - (i === 0 ? 0.5 : i === 1 ? 0 : 0.25)) / 0.6),
-        tq = q.d.camp === 'or' ? '242,197,124' : '180,212,222',
+      const a = smooth01((age - 0.4 - (i === 0 ? 0.5 : i === 1 ? 0 : 0.25)) / 0.6),
+        tq = q.d.team === 'gold' ? '242,197,124' : '180,212,222',
         hh = q.hh * a;
       ctx.save();
       ctx.globalAlpha = a;
@@ -357,30 +357,30 @@ function paintMvp(mode, age, titleFn, appearanceFn) {
       ctx.beginPath();
       ctx.roundRect(q.x - 92, base - hh, 184, hh, [18, 18, 6, 6]);
       ctx.fill();
-      ctx.fillStyle = 'rgba(' + tq + ',' + (q.rang === 1 ? 0.12 : 0.06) + ')';
+      ctx.fillStyle = 'rgba(' + tq + ',' + (q.rank === 1 ? 0.12 : 0.06) + ')';
       ctx.fill();
       ctx.lineWidth = 1.5;
-      ctx.strokeStyle = 'rgba(' + tq + ',' + (q.rang === 1 ? 0.6 : 0.3) + ')';
+      ctx.strokeStyle = 'rgba(' + tq + ',' + (q.rank === 1 ? 0.6 : 0.3) + ')';
       ctx.stroke();
       ctx.fillStyle = 'rgba(' + tq + ',0.16)';
       ctx.font = '900 ' + Math.round(Math.min(90, q.hh * 0.6)) + 'px system-ui, sans-serif';
       ctx.textAlign = 'center';
       ctx.textBaseline = 'middle';
-      ctx.fillText(String(q.rang), q.x, base - hh / 2 + 4);
+      ctx.fillText(String(q.rank), q.x, base - hh / 2 + 4);
       ctx.restore();
       const ay = base - hh - q.r - 14;
       paintAvatar(q.x, ay, q.r, q.d, elasticEase(a));
-      if (q.rang === 1) {
+      if (q.rank === 1) {
         paintMvpSparks(q.x, ay, q.r + 8, q.r + 54, age, 12, '255,238,206');
         paintCrown(q.x + 2, ay - q.r + 8, q.r * 1.25, (age - 1.5) / 0.7);
       }
-      const displayName = settings.nomsDonateurs !== false ? q.d.pseudo.slice(0, 11) : '#' + q.rang;
+      const displayName = settings.donorNames !== false ? q.d.nickname.slice(0, 11) : '#' + q.rank;
       ctx.save();
       ctx.globalAlpha = a;
       ctx.textAlign = 'center';
       ctx.textBaseline = 'middle';
-      ctx.fillStyle = q.d.camp === 'or' ? GOLD : SHADOW;
-      let c = q.rang === 1 ? 26 : 22;
+      ctx.fillStyle = q.d.team === 'gold' ? GOLD : SHADOW;
+      let c = q.rank === 1 ? 26 : 22;
       ctx.font = '700 ' + c + 'px system-ui, sans-serif';
       while (c > 15 && ctx.measureText(displayName).width > 168) {
         c--;
@@ -403,7 +403,7 @@ function paintMvp(mode, age, titleFn, appearanceFn) {
     ctx.save();
     ctx.translate(cx, ay);
     ctx.rotate(age * 0.35);
-    ctx.globalAlpha = 0.5 * doux01(a0);
+    ctx.globalAlpha = 0.5 * smooth01(a0);
     for (let i = 0; i < 14; i++) {
       ctx.rotate((Math.PI * 2) / 14);
       ctx.fillStyle = 'rgba(' + rgb + ',' + (i % 2 ? 0.1 : 0.17) + ')';
@@ -429,7 +429,7 @@ function paintMvp(mode, age, titleFn, appearanceFn) {
   paintAvatar(cx, ay, AR, m, elasticEase(a0));
   paintMvpSparks(cx, ay, AR + 10, AR + (mode === 'M2' ? 70 : 90), age, 16, '255,238,206');
   paintCrown(cx + 3, ay - AR + 12, AR * 1.15, (age - 1.2) / 0.7);
-  paintNameAndTotal(cx, ay + AR + (mode === 'M2' ? 66 : 50), m, 44, doux01((age - 1.0) / 0.5));
+  paintNameAndTotal(cx, ay + AR + (mode === 'M2' ? 66 : 50), m, 44, smooth01((age - 1.0) / 0.5));
   l.slice(1, 3).forEach((d, i) =>
     paintRankingRow(
       i === 0 ? cx - 310 : cx + 8,
@@ -489,13 +489,13 @@ function paintRankingPanel(y0, y1, rgb, a) {
 }
 
 function paintRanking(k) {
-  const mode = settings.classement,
-    age = round.fin - 2.0,
+  const mode = settings.ranking,
+    age = round.end - 2.0,
     cx = W / 2,
-    appearanceFn = (i) => doux01((age - 0.5 - i * 0.22) / 0.5);
+    appearanceFn = (i) => smooth01((age - 0.5 - i * 0.22) / 0.5);
   const titleFn = (txt, y) => {
     ctx.save();
-    ctx.globalAlpha = doux01((age - 0.3) / 0.5) * 0.85;
+    ctx.globalAlpha = smooth01((age - 0.3) / 0.5) * 0.85;
     ctx.fillStyle = 'rgba(255,255,255,0.78)';
     ctx.font = '600 22px system-ui, sans-serif';
     ctx.textAlign = 'center';
@@ -508,12 +508,12 @@ function paintRanking(k) {
   };
   {
     const topDonor = topDonors()[0],
-      topDonorRgb = topDonor && topDonor.camp === 'ombre' ? '180,212,222' : '242,197,124';
+      topDonorRgb = topDonor && topDonor.team === 'shadow' ? '180,212,222' : '242,197,124';
     paintRankingPanel(
       /^M/.test(mode) ? 706 : 832,
       /^M/.test(mode) ? 1222 : mode === 'C3' ? 1150 : 1236,
       topDonorRgb,
-      doux01((age - 0.05) / 0.6),
+      smooth01((age - 0.05) / 0.6),
     );
   }
   if (/^M/.test(mode)) {
@@ -540,7 +540,7 @@ function paintRanking(k) {
   }
   if (mode === 'C2') {
     titleFn('TOP SUPPORTERS', 872);
-    ['or', 'ombre'].forEach((team, c) =>
+    ['gold', 'shadow'].forEach((team, c) =>
       topDonors(team)
         .slice(0, 3)
         .forEach((d, i) =>

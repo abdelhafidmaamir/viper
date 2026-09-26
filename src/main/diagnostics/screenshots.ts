@@ -29,16 +29,16 @@ export const screenshots: Diagnostic = async ({ game, options, write }) => {
       contents,
       (settings: Partial<GameSettings>, hour: number) => {
         window.__viperKit.startDuel(settings);
-        window.VipereBase.reglerHeure(hour);
+        window.Viper.setHour(hour);
       },
       {
         format: formatOf(orientation),
-        affichageCadeaux: 'defile',
-        defileCache: 0,
-        ambianceAuto: false,
+        giftDisplay: 'scroll',
+        scrollHidden: 0,
+        autoAmbience: false,
         cycle: 0,
-        plateforme: 'tiktok',
-        meteo: options.weather,
+        platform: 'tiktok',
+        weather: options.weather,
       },
       options.hour,
     );
@@ -46,13 +46,13 @@ export const screenshots: Diagnostic = async ({ game, options, write }) => {
     await capture(`${orientation}-board`);
 
     await evaluate(contents, () =>
-      window.recevoirEvenement({
-        type: 'cadeau',
+      window.receiveEvent({
+        type: 'gift',
         n: 1,
-        valeur: 30,
-        nom: 'bagel',
-        camp: 'or',
-        pseudo: 'karim.or',
+        value: 30,
+        name: 'bagel',
+        team: 'gold',
+        nickname: 'karim.or',
       }),
     );
     await delay(900);
@@ -60,27 +60,31 @@ export const screenshots: Diagnostic = async ({ game, options, write }) => {
 
     await evaluate(contents, () => {
       const gifts = [
-        ['or', 100, 'teddy', 'karim.or'],
-        ['ombre', 30, 'capybara', 'zoe_moon'],
-        ['or', 10, 'rose 10', 'soleil92'],
+        ['gold', 100, 'teddy', 'karim.or'],
+        ['shadow', 30, 'capybara', 'zoe_moon'],
+        ['gold', 10, 'rose 10', 'soleil92'],
       ] as const;
       for (const [camp, valeur, nom, pseudo] of gifts) {
-        window.recevoirEvenement({ type: 'cadeau', n: 1, valeur, nom, camp, pseudo });
+        window.receiveEvent({
+          type: 'gift',
+          n: 1,
+          value: valeur,
+          name: nom,
+          team: camp,
+          nickname: pseudo,
+        });
       }
-      window.setTimeout(() => window.VipereBase.finirTest?.('ombre'), 800);
+      window.setTimeout(() => window.Viper.endTest?.('shadow'), 800);
     });
     await delay(4200);
     await capture(`${orientation}-end-screen`);
   }
 
-  const metrics = await evaluate(contents, () => window.VipereBase.mesures());
-  await write(
-    'report.json',
-    json({ engineErrors: metrics.erreurs, lastError: metrics.derniereErreur }),
-  );
-  if (metrics.erreurs > 0) {
+  const metrics = await evaluate(contents, () => window.Viper.metrics());
+  await write('report.json', json({ engineErrors: metrics.errors, lastError: metrics.lastError }));
+  if (metrics.errors > 0) {
     throw new Error(
-      `Engine reported ${String(metrics.erreurs)} error(s): ${String(metrics.derniereErreur)}`,
+      `Engine reported ${String(metrics.errors)} error(s): ${String(metrics.lastError)}`,
     );
   }
 };

@@ -31,7 +31,7 @@ export function measureTension() {
     wall = new Set();
   for (let i = 0; i < snake.length - 1; i++) wall.add(snake[i].x + ',' + snake[i].y);
   const a = rival();
-  if (a) a.serpent.forEach((s) => wall.add(s.x + ',' + s.y));
+  if (a) a.snake.forEach((s) => wall.add(s.x + ',' + s.y));
   stones.forEach((r) => {
     if (r.t >= STONE_WARNING) wall.add(r.x + ',' + r.y);
   });
@@ -79,7 +79,7 @@ export function measureTension() {
   // les pierres posees : chacune retire une case et ferme une ligne de fuite
   const stoneRatio = Math.min(
     1,
-    stones.filter((r) => r.t >= STONE_WARNING).length / Math.max(1, tier.maxRochers),
+    stones.filter((r) => r.t >= STONE_WARNING).length / Math.max(1, tier.maxStones),
   );
   return Math.max(
     0,

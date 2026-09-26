@@ -124,71 +124,71 @@ export let t = 0,
 // jusqu'a remplir le plateau. Vrai remet les plafonds du palier, seul etat dans lequel les
 // harnais d'equilibrage mesurent quelque chose de comparable.
 export const settings = {
-  ia: true,
-  maquette: false,
-  temps: 1,
-  imprudence: 0,
+  ai: true,
+  mockup: false,
+  timeScale: 1,
+  recklessness: 0,
   zones: false,
-  duree: 240,
-  dureeDuel: 120,
-  sauvage: 1,
+  duration: 240,
+  duelDuration: 120,
+  wild: 1,
   mode: 'duel',
   cycle: 480,
-  heure: 0.06,
-  plafonds: false,
+  hour: 0.06,
+  caps: false,
   // avantage (super admin, regie) : -100 favorise Ombre, 0 neutre, +100 favorise Or.
   // Invisible a l'ecran : il ne touche que la qualite de jeu de l'IA. Remis a 0 a chaque manche.
-  avantage: 0,
+  advantage: 0,
   // underdog (super admin) : le serpent le plus court reçoit en douce +audace et +portées. Aucun affichage.
   underdog: false,
   // plateforme (regie) : 'tiktok' affiche la legende des cadeaux et les colonnes de statuts qu'ils
   // alimentent ; 'neutre' (YouTube, test de gameplay) les cache. Le jeu, lui, ne change pas.
-  plateforme: 'tiktok',
+  platform: 'tiktok',
   // retourCadeau (regie) : prototype a valider par Abdel DANS le jeu, sur la vraie legende du bas.
   // 'aucun', 'G1' ligne illuminee + donateur + trait qui se vide, 'G2' anneau autour de l'image,
   // 'G3' pastille compteur, 'G4' bandeau donateur au-dessus de la colonne.
-  retourCadeau: 'G1',
+  giftFeedback: 'G1',
   // affichageCadeaux (regie) : forme de la legende. 'complet' = deux colonnes verticales avec prix + effet
   // (tests hors live). 'aucun' = rien du tout. 'defile' = bandeaux qui glissent, icones animees, EFFET
   // en toutes lettres SANS prix ni verbe d'envoi (live-safe : la regle du 25/07 vise le prix et l'appel a
   // l'action, pas la reaction a un cadeau). Le retour a l'arrivee d'un cadeau reste porte par le bandeau P1.
-  affichageCadeaux: 'defile',
+  giftDisplay: 'scroll',
   // pattern d'apparition du mode 'defile' (reglable en regie, teste en direct) : secondes visibles puis
   // secondes cachees, en boucle. defileCache=0 => toujours visible (tests hors live seulement).
-  defileVisi: 8,
-  defileCache: 12,
+  scrollVisible: 8,
+  scrollHidden: 12,
   // nomsDonateurs (regie) : affiche ou non le pseudo du spectateur sur la ligne du cadeau (G1) et le bandeau (G4).
-  nomsDonateurs: true,
+  donorNames: true,
   // bandeau (regie) : prototype du bandeau d'activite en haut-centre (arrivees, cadeaux, likes, partages),
   // porte par un mini serpent au rendu reel. 'aucun', 'P1' orbite, 'P2' porteur, 'P3' mascotte. A valider par Abdel.
   // meteo de la foret (regie) : 'pluie' d'origine, 'neige', 'automne', 'ete', 'orage', 'etoiles', 'brume'.
   // ambianceAuto : a chaque manche, une heure et une meteo tirees au sort. Prototype, a valider par Abdel.
-  meteo: 'pluie',
-  ambianceAuto: true,
+  weather: 'rain',
+  autoAmbience: true,
   // format (regie) : 'vertical' 9:16 TikTok ou 'horizontal' 16:9 YouTube, applique a la prochaine manche.
-  format: 'vertical',
-  bandeau: 'P1',
+  format: 'portrait',
+  banner: 'P1',
   // classement (regie) : prototype du classement des donateurs de la manche, sur l'ecran de fin.
   // 'aucun', 'C1' podium, 'C2' deux colonnes par camp, 'C3' MVP ; mises en avant du MVP : 'M1' couronne et
   // rayons, 'M2' couronne et serpent qui tourne autour, 'M3' podium a trois marches. A valider par Abdel.
-  classement: 'C3',
+  ranking: 'C3',
   // fluide (regie) : coupe tous les halos flous (shadowBlur) du canevas de jeu. Mesure dans le moteur de
   // l'exe, plateau charge : 28 images par seconde avec les flous, 45 sans. Change l'aspect : a juger a l'ecran.
-  fluide: false,
+  smooth: false,
   // superIA (super admin) : true = les deux camps jouent avec ia-super.js (recherche adverse).
   // 'or' ou 'ombre' = un seul camp (tournois des harnais). Suspendue pendant une scene.
-  superIA: false,
+  superAi: false,
   // debugIA (super admin, regie) : calque des decisions de l'IA sur le plateau. Coupe par defaut ;
   // coupe, l'IA ne remplit rien et le calque n'est pas dessine (zero effet sur le jeu).
-  debugIA: false,
+  aiDebug: false,
 };
 
 export const px = (gx, gy) => ({ x: X0 + gx * CELL + CELL / 2, y: Y0 + gy * CELL + CELL / 2 });
-export const getAmbience = () => (window.AMBIANCES || []).find((a) => a.id === 'foret') || null;
+export const getAmbience = () => (window.AMBIENCES || []).find((a) => a.id === 'forest') || null;
 
 export let HOLD_SECONDS = 5; // secondes a tenir l'anneau plein pour gagner (reglerTenue pour le bench)
 // compteurs de moments de depense (proxy de profit) : tenues entamees, sursis entames, parades
-let moments = { tenues: 0, sursis: 0, parades: 0, manches: 0 };
+let moments = { holds: 0, reprieve: 0, parries: 0, rounds: 0 };
 
 // eclaterAnneaux : convertit des segments en baies actives (coupe duel ou mort duel).
 // Appeler sous charger(i) : zoneMorte utilise le bon contexte de tete (duel verifie les deux).
@@ -202,17 +202,17 @@ function burstSegments(segs, team) {
       p.x,
       p.y,
       4,
-      team === 'or' ? 'offerte-or' : team === 'ombre' ? 'offerte-ombre' : 'rodeur',
+      team === 'gold' ? 'gift-gold' : team === 'shadow' ? 'gift-shadow' : 'neutral-burst',
     );
-    berries.push({ x: s.x, y: s.y, pseudo: '', t: 0, sauvage: false, camp: team || null });
+    berries.push({ x: s.x, y: s.y, nickname: '', t: 0, wild: false, team: team || null });
   });
 }
 
 // semerPour(i, pseudo) : seme une baie dans la moitie du plateau proche de la tete de corps i.
 // Doit etre appele pendant le traitement d'un evenement duel ; charger(0) apres la boucle.
 export function plantSeedFor(i, nickname) {
-  const headIndex = bodies[i] && bodies[i].serpent[0];
-  const rivalHeadIndex = bodies[1 - i] && bodies[1 - i].serpent[0];
+  const headIndex = bodies[i] && bodies[i].snake[0];
+  const rivalHeadIndex = bodies[1 - i] && bodies[1 - i].snake[0];
   if (!headIndex) return 0;
   loadBody(i);
   let l = freeCells().filter((c) => !isDeadZone(c, SEED_GROW_TIME));
@@ -248,10 +248,10 @@ export function plantSeedFor(i, nickname) {
   seeds.push({
     x: c.x,
     y: c.y,
-    pseudo: nickname || '',
+    nickname: nickname || '',
     t: 0,
-    camp: bodies[i].camp,
-    pour: bodies[i].camp,
+    team: bodies[i].team,
+    owner: bodies[i].team,
   }); // teinte du camp, et RESERVEE a ce camp (Abdel : pas de vol de rose)
   gifted++;
   storeBody();
@@ -260,22 +260,22 @@ export function plantSeedFor(i, nickname) {
 
 // couperDuel(adverseIdx, k) : coupe k anneaux de la queue du corps adverse, les eclate en baies.
 // Retourne le nombre d'anneaux effectivement coupes. Finit avec ranger() mais PAS charger(0).
-export function cutDuel(adverseIdx, k, voleurIdx) {
+export function cutDuel(adverseIdx, k, thiefIndex) {
   loadBody(adverseIdx);
   if (!snake.length) {
     storeBody();
     return 0;
   }
-  if (bodies[adverseIdx].bouclierT > 0) {
+  if (bodies[adverseIdx].shieldTime > 0) {
     // le bouclier pare la coupe entiere tant qu'il est actif ; le rail et la tete le montrent
-    bodies[adverseIdx].pareT = 0.9;
-    moments.parades++;
-    announceRescue(adverseIdx, 'bouclier');
+    bodies[adverseIdx].parryTime = 0.9;
+    moments.parries++;
+    announceRescue(adverseIdx, 'shield');
     // TEST equilibre : la coupe paree est RENDUE au serpent protege, il grandit de ce qu'elle aurait coupe
     const gain = Math.max(1, Math.round(snake.length * CUT_FRACTION));
     toPush += gain;
     const pos = px(snake[0].x, snake[0].y);
-    burst(pos.x, pos.y, 20, 'coquille');
+    burst(pos.x, pos.y, 20, 'shell');
     storeBody();
     return 0;
   }
@@ -284,7 +284,7 @@ export function cutDuel(adverseIdx, k, voleurIdx) {
     storeBody();
     return 0;
   }
-  if (snake.length - count < 3 && !bodies[adverseIdx].adulte) {
+  if (snake.length - count < 3 && !bodies[adverseIdx].adult) {
     // serpent jeune (jamais 10 anneaux) : la coupe descend jusqu'a MIN_JEUNE, on ne tue pas un serpent au berceau
     count = Math.max(0, snake.length - YOUNG_MIN_LENGTH);
     if (count <= 0) {
@@ -292,39 +292,39 @@ export function cutDuel(adverseIdx, k, voleurIdx) {
       return 0;
     }
   }
-  if (snake.length - count < 3 && bodies[adverseIdx].vies > 0) {
+  if (snake.length - count < 3 && bodies[adverseIdx].lives > 0) {
     // une vie encaisse la mort : la coupe s'arrete a 3 anneaux
-    bodies[adverseIdx].vies--;
-    bodies[adverseIdx].pareT = 0.9;
-    announceRescue(adverseIdx, 'vie');
+    bodies[adverseIdx].lives--;
+    bodies[adverseIdx].parryTime = 0.9;
+    announceRescue(adverseIdx, 'life');
     count = Math.max(0, snake.length - 3);
     if (count <= 0) {
       storeBody();
       return 0;
     }
   }
-  bodies[adverseIdx].anneauHaut = snake.length / TARGET_LENGTH;
-  bodies[adverseIdx].reculT = 0.9;
-  bodies[adverseIdx].coupT = 0.9;
+  bodies[adverseIdx].ringPeak = snake.length / TARGET_LENGTH;
+  bodies[adverseIdx].recoilTime = 0.9;
+  bodies[adverseIdx].cutTime = 0.9;
   const segs = snake.slice(-count);
   snake = snake.slice(0, snake.length - count);
   positionHistory = positionHistory.slice(0, Math.max(1, snake.length + 3));
   if (segs.length) {
     const p = px(segs[0].x, segs[0].y);
-    burst(p.x, p.y, 16, 'rodeur');
+    burst(p.x, p.y, 16, 'neutral-burst');
   }
-  if (voleurIdx !== undefined && bodies[voleurIdx]) {
+  if (thiefIndex !== undefined && bodies[thiefIndex]) {
     // VOL (Abdel : « steal 15% ») : les anneaux ne tombent pas en baies, ils passent directement au serpent du camp
-    bodies[voleurIdx].aPousser = (bodies[voleurIdx].aPousser || 0) + segs.length;
+    bodies[thiefIndex].toPush = (bodies[thiefIndex].toPush || 0) + segs.length;
     segs.forEach((sg) => {
       const p = px(sg.x, sg.y);
-      burst(p.x, p.y, 3, bodies[voleurIdx].camp === 'or' ? 'offerte-or' : 'offerte-ombre');
+      burst(p.x, p.y, 3, bodies[thiefIndex].team === 'gold' ? 'gift-gold' : 'gift-shadow');
     });
-  } else burstSegments(segs, bodies[adverseIdx].camp);
-  if (snake.length < 3 && bodies[adverseIdx].adulte) {
+  } else burstSegments(segs, bodies[adverseIdx].team);
+  if (snake.length < 3 && bodies[adverseIdx].adult) {
     snake = [];
     // adverseIdx a perdu : le camp oppose gagne
-    const gagnant = bodies[adverseIdx].camp === 'ombre' ? 'or' : 'ombre';
+    const gagnant = bodies[adverseIdx].team === 'shadow' ? 'gold' : 'shadow';
     storeBody();
     endRound(gagnant, 'place');
     return count;
@@ -339,11 +339,11 @@ export function burst(x, y, n, tint, opt) {
   const o = opt || {},
     v0 = o.v0 !== undefined ? o.v0 : 60,
     v1 = o.v1 !== undefined ? o.v1 : 240;
-  const upBoost = o.haut !== undefined ? o.haut : 40,
+  const upBoost = o.top !== undefined ? o.top : 40,
     g = o.g !== undefined ? o.g : 520;
   const r = o.r !== undefined ? o.r : 1,
     a0 = o.a !== undefined ? o.a : 1,
-    d = o.duree !== undefined ? o.duree : 0.5;
+    d = o.duration !== undefined ? o.duration : 0.5;
   for (let i = 0; i < n; i++) {
     const a = Math.random() * Math.PI * 2,
       v = v0 + Math.random() * (v1 - v0);
@@ -353,8 +353,8 @@ export function burst(x, y, n, tint, opt) {
       vx: Math.cos(a) * v,
       vy: Math.sin(a) * v - upBoost,
       t: 0,
-      duree: d + Math.random() * 0.4 * d,
-      teinte: tint,
+      duration: d + Math.random() * 0.4 * d,
+      tint: tint,
       r,
       g,
       a: a0,
@@ -363,63 +363,63 @@ export function burst(x, y, n, tint, opt) {
   }
 }
 
-window.recevoirEvenement = receiveEvent;
+window.receiveEvent = receiveEvent;
 
 // La course dans le ciel : un soleil a gauche, une lune a droite, tous deux bas au depart.
 // Chaque baie mangee monte le soleil d'un cran, chaque rocher pose monte la lune d'un cran.
 // Le premier en haut termine la manche. Le serpent est la balle, pas le joueur.
 function newRound() {
   applyFormat();
-  settings.avantage = 0; // le coup de pouce est un geste ponctuel, jamais un reglage qui traine
+  settings.advantage = 0; // le coup de pouce est un geste ponctuel, jamais un reglage qui traine
   clearGiftFeedback();
   resetRoundDonations();
-  if (settings.ambianceAuto) {
+  if (settings.autoAmbience) {
     const weatherOptions = [
-      'pluie',
-      'neige',
-      'automne',
-      'ete',
-      'printemps',
-      'orage',
-      'etoiles',
-      'aurore',
-      'lucioles',
-      'braises',
-      'brume',
-    ].filter((keyMap) => keyMap !== settings.meteo);
-    settings.meteo = weatherOptions[Math.floor(Math.random() * weatherOptions.length)];
-    settings.heure = ['etoiles', 'aurore', 'lucioles'].includes(settings.meteo)
+      'rain',
+      'snow',
+      'autumn',
+      'summer',
+      'spring',
+      'storm',
+      'stars',
+      'aurora',
+      'fireflies',
+      'embers',
+      'mist',
+    ].filter((keyMap) => keyMap !== settings.weather);
+    settings.weather = weatherOptions[Math.floor(Math.random() * weatherOptions.length)];
+    settings.hour = ['stars', 'aurora', 'fireflies'].includes(settings.weather)
       ? 0.02
-      : settings.meteo === 'braises'
+      : settings.weather === 'embers'
         ? 0.78
-        : settings.meteo === 'printemps'
+        : settings.weather === 'spring'
           ? 0.36
           : [0.02, 0.22, 0.36, 0.5, 0.64, 0.78][Math.floor(Math.random() * 6)];
   }
   endScene(); // la scène ne survit pas à la manche ; l'underdog, oui (interrupteur explicite)
   round = {
     t: 0,
-    etat: 'en cours',
+    state: 'playing',
     sun: 0,
     moon: 0,
-    moonEv: 0,
-    vainqueur: null,
-    fin: 0,
-    cielSun: 0,
-    cielMoon: 0,
-    hautSun: tier.cielSun,
-    hautMoon: tier.cielMoon,
+    moonEvents: 0,
+    winner: null,
+    end: 0,
+    skySun: 0,
+    skyMoon: 0,
+    topSun: tier.skySun,
+    topMoon: tier.skyMoon,
     pulseSun: 9,
     pulseMoon: 9,
-    cible: tier.cible,
-    recolte: 0,
+    target: tier.target,
+    harvest: 0,
   };
   stones = [];
   brambles = [];
   berrylessTime = 0;
   bodies = [
-    nouveauCorps('or', GOLD, COLS / 2 - 1, Math.floor(ROWS / 2), { x: -1, y: 0 }),
-    nouveauCorps('ombre', SHADOW, COLS / 2, Math.floor(ROWS / 2), { x: 1, y: 0 }),
+    createBody('gold', GOLD, COLS / 2 - 1, Math.floor(ROWS / 2), { x: -1, y: 0 }),
+    createBody('shadow', SHADOW, COLS / 2, Math.floor(ROWS / 2), { x: 1, y: 0 }),
   ];
   for (let i = 0; i < bodies.length; i++) {
     loadBody(i);
@@ -432,8 +432,8 @@ function newRound() {
 // L'affluence monte : le ciel s'allonge, jamais ne se raccourcit, et l'astre garde sa hauteur a l'ecran.
 // Sans cela une ruee ferait redescendre le soleil, et plus personne ne comprendrait la course.
 function stretchSky(team, target, increment) {
-  const heightKey = 'haut' + team,
-    skyKey = 'ciel' + team,
+  const heightKey = 'top' + team,
+    skyKey = 'sky' + team,
     h = round[heightKey];
   if (target <= h) return;
   const newHeight = Math.min(target, h + increment);
@@ -454,18 +454,18 @@ export let snakeScore = 0,
   scoreViewers = 0,
   snakePulse = 9,
   viewersPulse = 9;
-const isSnakeTeam = (c) => c === 'serpent' || c === 'sun' || c === 'or';
+const isSnakeTeam = (c) => c === 'snake' || c === 'sun' || c === 'gold';
 
 function endRound(team, cause) {
-  if (!round || round.etat !== 'en cours') return;
-  round.etat = 'finie';
-  round.vainqueur = team;
-  round.fin = 0;
-  moments.manches++;
-  if (team === 'or' || team === 'ombre') {
+  if (!round || round.state !== 'playing') return;
+  round.state = 'over';
+  round.winner = team;
+  round.end = 0;
+  moments.rounds++;
+  if (team === 'gold' || team === 'shadow') {
     announceStreak(team);
   }
-  if (team === 'nul') {
+  if (team === 'draw') {
     /* match nul : aucun point */
   } else if (isSnakeTeam(team)) {
     snakeScore++;
@@ -475,18 +475,18 @@ function endRound(team, cause) {
     viewersPulse = 0;
   }
   rounds.push({
-    camp: team,
-    cause: cause || 'inconnue',
-    duree: round.t,
-    longueur: snake.length,
+    team: team,
+    cause: cause || 'unknown',
+    duration: round.t,
+    length: snake.length,
     sun: round.sun,
-    moon: round.moonEv,
-    cielSun: round.cielSun,
-    cielMoon: round.cielMoon,
-    cible: round.cible,
-    recolte: round.recolte,
+    moon: round.moonEvents,
+    skySun: round.skySun,
+    skyMoon: round.skyMoon,
+    target: round.target,
+    harvest: round.harvest,
     mode: settings.mode,
-    palier: tier.id,
+    tier: tier.id,
   });
 }
 
@@ -494,35 +494,35 @@ export let egg = null;
 
 // Architecture multi-corps : motif charger/ranger.
 // On charge le corps i dans les variables de module, on travaille dessus, on range.
-function nouveauCorps(team, tint, x0, y0, dir0) {
+function createBody(team, tint, x0, y0, dir0) {
   return {
-    camp: team,
-    teinte: tint,
+    team: team,
+    tint: tint,
     flair: FLAIR_BY_TEAM[team] || 0,
-    chasse: HUNT_BY_TEAM[team] || 0,
+    hunt: HUNT_BY_TEAM[team] || 0,
     x0: x0 !== undefined ? x0 : Math.floor(COLS / 2),
     y0: y0 !== undefined ? y0 : Math.floor(ROWS / 2),
     dir0: dir0 || { x: 1, y: 0 },
-    serpent: [],
-    hist: [],
+    snake: [],
+    positionHistory: [],
     dir: { x: 1, y: 0 },
-    dirProchaine: { x: 1, y: 0 },
-    avance: 0,
-    grandi: false,
-    memoireIA: {},
+    nextDir: { x: 1, y: 0 },
+    subStep: 0,
+    grew: false,
+    aiMemory: {},
     trace: [],
-    aPousser: 0,
-    couvee: null,
-    surgeT: 0,
-    invincT: 0,
-    coupT: 0,
-    reculT: 0,
-    creditLike: 0,
-    anneau: 0,
-    anneauHaut: 0,
-    bouclierT: 0,
-    vies: 0,
-    pareT: 0,
+    toPush: 0,
+    egg: null,
+    boostTime: 0,
+    invincibleTime: 0,
+    cutTime: 0,
+    recoilTime: 0,
+    likeCredit: 0,
+    ring: 0,
+    ringPeak: 0,
+    shieldTime: 0,
+    lives: 0,
+    parryTime: 0,
   };
 }
 export let bodies = [],
@@ -531,29 +531,29 @@ export let bodies = [],
 export function loadBody(i) {
   activeIndex = i;
   const c = bodies[i];
-  snake = c.serpent;
-  positionHistory = c.hist;
+  snake = c.snake;
+  positionHistory = c.positionHistory;
   dir = c.dir;
-  nextDir = c.dirProchaine;
-  subStep = c.avance;
-  grew = c.grandi;
-  aiMemory = c.memoireIA;
+  nextDir = c.nextDir;
+  subStep = c.subStep;
+  grew = c.grew;
+  aiMemory = c.aiMemory;
   trace = c.trace;
-  toPush = c.aPousser;
-  egg = c.couvee;
+  toPush = c.toPush;
+  egg = c.egg;
 }
 export function storeBody() {
   const c = bodies[activeIndex];
-  c.serpent = snake;
-  c.hist = positionHistory;
+  c.snake = snake;
+  c.positionHistory = positionHistory;
   c.dir = dir;
-  c.dirProchaine = nextDir;
-  c.avance = subStep;
-  c.grandi = grew;
-  c.memoireIA = aiMemory;
+  c.nextDir = nextDir;
+  c.subStep = subStep;
+  c.grew = grew;
+  c.aiMemory = aiMemory;
   c.trace = trace;
-  c.aPousser = toPush;
-  c.couvee = egg;
+  c.toPush = toPush;
+  c.egg = egg;
 }
 export const rival = () => (bodies.length > 1 ? bodies[1 - activeIndex] : null);
 
@@ -563,7 +563,7 @@ function spawn(keep, x0, y0, dir0) {
   snake = [];
   positionHistory = [];
   trace = [];
-  egg = { t: 0, x: cx, y: cy, garder: !!keep, dir0: dir0 || null };
+  egg = { t: 0, x: cx, y: cy, keep: !!keep, dir0: dir0 || null };
   if (!keep) {
     seeds = [];
     berries = [];
@@ -597,7 +597,7 @@ function hatch(keep) {
 // perdues par Or qui avance en premier dans la boucle). Les quatre voisines de la tete adverse
 // sont donc interdites a l'IA, comme la couronne du rodeur : elle contourne au lieu de foncer.
 function opponentCrown(a) {
-  const h = a.serpent[0];
+  const h = a.snake[0];
   if (!h) return [];
   return [
     [1, 0],
@@ -609,82 +609,82 @@ function opponentCrown(a) {
     .filter((c) => c.x >= 0 && c.y >= 0 && c.x < COLS && c.y < ROWS);
 }
 export function requestAiMove(keep) {
-  if (!settings.ia || !window.VipereIA || !snake.length) return;
+  if (!settings.ai || !window.ViperAi || !snake.length) return;
   try {
     const otherBody = rival();
     const state = {
       cols: COLS,
       rows: ROWS,
-      corps: snake,
+      body: snake,
       dir,
       fruits: allFruits(),
       obstacles: stones
         .filter((r) => r.t >= STONE_WARNING * 0.6)
         .map((r) => ({ x: r.x, y: r.y }))
         .concat(activeBrambles(0.6).map((g) => ({ x: g.x, y: g.y })))
-        .concat(otherBody ? otherBody.serpent : []),
-      eviter: otherBody ? opponentCrown(otherBody) : [],
-      aGrandir: toPush,
-      imprudence: settings.imprudence,
-      avantage: bodies[activeIndex]
-        ? ((bodies[activeIndex].camp === 'or' ? 1 : -1) * (settings.avantage || 0)) / 100
+        .concat(otherBody ? otherBody.snake : []),
+      avoid: otherBody ? opponentCrown(otherBody) : [],
+      toGrow: toPush,
+      recklessness: settings.recklessness,
+      advantage: bodies[activeIndex]
+        ? ((bodies[activeIndex].team === 'gold' ? 1 : -1) * (settings.advantage || 0)) / 100
         : 0,
       flair: bodies[activeIndex] ? bodies[activeIndex].flair : 0,
-      chasse: bodies[activeIndex] ? bodies[activeIndex].chasse : 0,
-      adversaire: otherBody ? otherBody.serpent : null,
-      adversaireInvincible: !!(otherBody && otherBody.invincT > 0),
-      memoire: aiMemory,
+      hunt: bodies[activeIndex] ? bodies[activeIndex].hunt : 0,
+      opponent: otherBody ? otherBody.snake : null,
+      opponentInvincible: !!(otherBody && otherBody.invincibleTime > 0),
+      memory: aiMemory,
     };
     // Scène : la moitié concernant le camp du serpent actif s'applique sur etat.
     if (scene && bodies[activeIndex]) {
-      const teamScene = scene[bodies[activeIndex].camp] || {};
-      if (teamScene.posture) state.postureForcee = teamScene.posture;
-      if (teamScene.pA) state.porteeAttaque = teamScene.pA;
-      if (teamScene.pD) state.porteeDefense = teamScene.pD;
-      if (teamScene.chasse != null) state.chasseForcee = teamScene.chasse;
-      if (teamScene.flair != null) state.flairForce = teamScene.flair;
-      if (teamScene.imprudence != null) state.imprudence = teamScene.imprudence;
-      if (teamScene.courseBaie) state.courseBaie = true;
-      if (teamScene.piegeImmediat) state.piegeImmediat = true;
-      if (teamScene.attirer) state.attirer = true;
-      if (teamScene.repousser) state.repousser = true;
-      if (teamScene.encercler) state.encercler = true;
-      if (teamScene.nePasTuer) state.nePasTuer = true;
+      const teamScene = scene[bodies[activeIndex].team] || {};
+      if (teamScene.stance) state.forcedStance = teamScene.stance;
+      if (teamScene.pA) state.attackRange = teamScene.pA;
+      if (teamScene.pD) state.defenseRange = teamScene.pD;
+      if (teamScene.hunt != null) state.forcedHunt = teamScene.hunt;
+      if (teamScene.flair != null) state.forcedFlair = teamScene.flair;
+      if (teamScene.recklessness != null) state.recklessness = teamScene.recklessness;
+      if (teamScene.berryRace) state.berryRace = true;
+      if (teamScene.immediateTrap) state.immediateTrap = true;
+      if (teamScene.lure) state.lure = true;
+      if (teamScene.repel) state.repel = true;
+      if (teamScene.encircle) state.encircle = true;
+      if (teamScene.noKill) state.noKill = true;
     }
     // Underdog : le plus court reçoit +audace et +2 cases de portée, en silence.
     if (settings.underdog && bodies.length === 2) {
-      const myLength = bodies[activeIndex].serpent.length,
-        oppLength = bodies[1 - activeIndex].serpent.length;
+      const myLength = bodies[activeIndex].snake.length,
+        oppLength = bodies[1 - activeIndex].snake.length;
       if (myLength < oppLength) {
-        state.imprudence = (state.imprudence || 0) + 0.03;
-        state.porteeAttaque = (state.porteeAttaque || 12) + 2;
-        state.porteeDefense = (state.porteeDefense || 10) + 2;
+        state.recklessness = (state.recklessness || 0) + 0.03;
+        state.attackRange = (state.attackRange || 12) + 2;
+        state.defenseRange = (state.defenseRange || 10) + 2;
       }
     }
-    if (settings.debugIA) {
+    if (settings.aiDebug) {
       state.debug = true;
-      aiMemory.dbgEviter = state.eviter;
+      aiMemory.dbgAvoid = state.avoid;
     } else if (aiMemory.debug) {
       delete aiMemory.debug;
-      delete aiMemory.dbgEviter;
+      delete aiMemory.dbgAvoid;
       delete aiMemory.dbgFlash;
     }
     const superActive = !!(
       !scene &&
-      window.VipereSuperIA &&
+      window.ViperSuperAi &&
       bodies[activeIndex] &&
-      (settings.superIA === true || settings.superIA === bodies[activeIndex].camp)
+      (settings.superAi === true || settings.superAi === bodies[activeIndex].team)
     );
-    if (superActive && keep) state.prefere = nextDir;
-    let d = superActive ? window.VipereSuperIA.choisir(state) : window.VipereIA.choisir(state);
+    if (superActive && keep) state.preferred = nextDir;
+    let d = superActive ? window.ViperSuperAi.choose(state) : window.ViperAi.choose(state);
     // garder : une direction deja annoncee (et dessinee) reste si elle est encore sure
     if (
       !superActive &&
       keep &&
       d &&
       (d.x !== nextDir.x || d.y !== nextDir.y) &&
-      window.VipereIA.pasSur &&
-      window.VipereIA.pasSur(state, nextDir)
+      window.ViperAi.safeStep &&
+      window.ViperAi.safeStep(state, nextDir)
     )
       d = nextDir;
     // l'arriere est le cou, pas la derniere direction tentee (apres un pas rate contre un mur,
@@ -701,7 +701,7 @@ export function requestAiMove(keep) {
 }
 
 function die(cause) {
-  if (bodies[activeIndex]) bodies[activeIndex].mortCause = cause || 'soi'; // pour les sondes : de quoi il est mort
+  if (bodies[activeIndex]) bodies[activeIndex].deathCause = cause || 'self'; // pour les sondes : de quoi il est mort
   // mort evitable : la tete avait encore une case libre a cote d'elle
   // la queue ne libere pas sa case au pas d'une bouchee : elle compte comme occupee
   const h = snake[0],
@@ -727,14 +727,14 @@ function die(cause) {
   // La mort ne tranche plus la manche : elle pousse la lune de quelques crans, puis le serpent revient.
   // duel : pas de renaissance, pas de pause. Ramener a max(3, floor(L/2)).
   // La moitie perdue eclate en baies. Sous 3 anneaux : mort seche, l'autre camp gagne.
-  if (bodies[activeIndex].bouclierT > 0) {
+  if (bodies[activeIndex].shieldTime > 0) {
     // le bouclier pare la collision : aucun anneau perdu, il repart invincible
-    bodies[activeIndex].pareT = 0.9;
-    bodies[activeIndex].invincT = 1.5;
-    announceRescue(activeIndex, 'bouclier');
+    bodies[activeIndex].parryTime = 0.9;
+    bodies[activeIndex].invincibleTime = 1.5;
+    announceRescue(activeIndex, 'shield');
     if (snake.length) {
       const pos = px(snake[0].x, snake[0].y);
-      burst(pos.x, pos.y, 20, 'coquille');
+      burst(pos.x, pos.y, 20, 'shell');
     }
     requestAiMove();
     return;
@@ -749,15 +749,15 @@ function die(cause) {
   const cornered = !!(
     opponentBody &&
     h0 &&
-    opponentBody.serpent.some((q) => Math.abs(q.x - h0.x) + Math.abs(q.y - h0.y) <= 2)
+    opponentBody.snake.some((q) => Math.abs(q.x - h0.x) + Math.abs(q.y - h0.y) <= 2)
   );
-  if (cornered && (cause === 'mur' || cause === 'soi')) {
+  if (cornered && (cause === 'wall' || cause === 'self')) {
     cause = 'adverse';
-    bodies[activeIndex].mortCause = 'adverse';
+    bodies[activeIndex].deathCause = 'adverse';
   }
-  if (cause === 'mur' || cause === 'soi') {
-    bodies[activeIndex].invincT = 1.5;
-    bodies[activeIndex].pareT = 0.4;
+  if (cause === 'wall' || cause === 'self') {
+    bodies[activeIndex].invincibleTime = 1.5;
+    bodies[activeIndex].parryTime = 0.4;
     if (snake.length) {
       const pos = px(snake[0].x, snake[0].y);
       burst(pos.x, pos.y, 10, 'poussiere');
@@ -766,19 +766,19 @@ function die(cause) {
     return;
   }
   const L = snake.length;
-  const threshold = Math.max(bodies[activeIndex].adulte ? 3 : YOUNG_MIN_LENGTH, Math.floor(L / 2));
+  const threshold = Math.max(bodies[activeIndex].adult ? 3 : YOUNG_MIN_LENGTH, Math.floor(L / 2));
   const lostSegments = snake.slice(threshold);
   snake = snake.slice(0, threshold);
   positionHistory = positionHistory.slice(0, Math.max(1, threshold + 3));
-  bodies[activeIndex].invincT = 1.5;
-  bodies[activeIndex].anneauHaut = L / TARGET_LENGTH;
-  bodies[activeIndex].reculT = 0.9;
-  bodies[activeIndex].coupT = 0.9;
-  burstSegments(lostSegments, bodies[activeIndex].camp);
-  if (snake.length < 3 && bodies[activeIndex].adulte) {
+  bodies[activeIndex].invincibleTime = 1.5;
+  bodies[activeIndex].ringPeak = L / TARGET_LENGTH;
+  bodies[activeIndex].recoilTime = 0.9;
+  bodies[activeIndex].cutTime = 0.9;
+  burstSegments(lostSegments, bodies[activeIndex].team);
+  if (snake.length < 3 && bodies[activeIndex].adult) {
     snake = [];
     const opponent = rival();
-    endRound(opponent ? opponent.camp : 'or', 'place');
+    endRound(opponent ? opponent.team : 'gold', 'place');
   } else requestAiMove(); // sinon il garde son cap dans le mur et remeurt a la fin de l'invincibilite
   return;
 }
@@ -795,10 +795,10 @@ function step() {
   // demi-case. On redecide toujours, mais on GARDE la direction annoncee tant que l'IA la juge
   // encore sure (pasSur) : la reactivite face au danger reste entiere, seuls les caprices partent.
   const prevDir = { ...nextDir };
-  requestAiMove(!window.VIPERE_REDECIDE_TOUJOURS);
+  requestAiMove(!window.VIPER_ALWAYS_REDECIDE);
   if (prevDir.x !== nextDir.x || prevDir.y !== nextDir.y) aiAdjustments++;
   else aiHolds++;
-  if (settings.debugIA)
+  if (settings.aiDebug)
     aiMemory.dbgFlash = {
       t,
       change: prevDir.x !== nextDir.x || prevDir.y !== nextDir.y,
@@ -827,27 +827,27 @@ function step() {
   const nx = snake[0].x + dir.x,
     ny = snake[0].y + dir.y;
   // invincibilite temporaire (apres absorption d'une mort par vie, ou apres collision en duel)
-  const isInvincible = bodies[activeIndex].invincT > 0;
+  const isInvincible = bodies[activeIndex].invincibleTime > 0;
   if (nx < 0 || nx >= COLS || ny < 0 || ny >= ROWS) {
     if (!isInvincible) {
-      die('mur');
+      die('wall');
       return false;
     }
     requestAiMove();
     return true;
   }
   if (stones.some((r) => r.t >= STONE_WARNING && r.x === nx && r.y === ny)) {
-    die('rocher');
+    die('stone');
     return false;
   }
   if (activeBrambles().some((g) => g.x === nx && g.y === ny)) {
-    die('ronce');
+    die('bramble');
     return false;
   }
   // baie reservee a l'autre camp : le serpent passe dessus sans la manger (Abdel : « avoid the stealing case »)
-  const myTeam = bodies[activeIndex] ? bodies[activeIndex].camp : null;
+  const myTeam = bodies[activeIndex] ? bodies[activeIndex].team : null;
   const berryIdx = berries.findIndex(
-    (b) => b.x === nx && b.y === ny && !(b.pour && myTeam && b.pour !== myTeam),
+    (b) => b.x === nx && b.y === ny && !(b.owner && myTeam && b.owner !== myTeam),
   );
   const eating = berryIdx >= 0;
   const isPushing = toPush > 0;
@@ -857,33 +857,33 @@ function step() {
   // la queue libere sa case au meme pas, sauf si le serpent mange ; en duel, le corps adverse bloque aussi
   const otherBodyDuel = rival();
   const blocking = (growing ? snake : snake.slice(0, -1)).concat(
-    otherBodyDuel ? otherBodyDuel.serpent : [],
+    otherBodyDuel ? otherBodyDuel.snake : [],
   );
   if (!isInvincible && blocking.some((s) => s.x === nx && s.y === ny)) {
     // duel, tete contre tete : la faute est partagee, les deux serpents encaissent. Sinon celui qui
     // avance en premier dans la boucle perd toutes les frontales.
-    const opponentHead = otherBodyDuel && otherBodyDuel.serpent[0];
+    const opponentHead = otherBodyDuel && otherBodyDuel.snake[0];
     if (
       opponentHead &&
       opponentHead.x === nx &&
       opponentHead.y === ny &&
-      otherBodyDuel.invincT <= 0
+      otherBodyDuel.invincibleTime <= 0
     ) {
       const myIdx = activeIndex;
-      die('frontale');
-      if (round && round.etat === 'en cours') {
+      die('headOn');
+      if (round && round.state === 'playing') {
         storeBody();
         loadBody(1 - myIdx);
-        die('frontale');
+        die('headOn');
         storeBody();
         loadBody(myIdx);
       }
       return false;
     }
     die(
-      otherBodyDuel && otherBodyDuel.serpent.some((s) => s.x === nx && s.y === ny)
+      otherBodyDuel && otherBodyDuel.snake.some((s) => s.x === nx && s.y === ny)
         ? 'adverse'
-        : 'soi',
+        : 'self',
     );
     return false;
   }
@@ -896,21 +896,21 @@ function step() {
     const p = px(nx, ny);
     const b = berries[berryIdx];
     berries.splice(berryIdx, 1);
-    if (!b || !b.sauvage) giftsEaten++;
+    if (!b || !b.wild) giftsEaten++;
     // halo de la couleur de la baie mangee : or, ombre, ou vert (baie sans camp)
     halos.push({
       x: p.x,
       y: p.y,
       t: 0,
-      duree: b && b.sauvage ? 0.85 : 1.1,
-      teinte:
-        b && b.sauvage
+      duration: b && b.wild ? 0.85 : 1.1,
+      tint:
+        b && b.wild
           ? 'nature'
-          : b && b.camp === 'or'
-            ? 'offerte-or'
-            : b && b.camp === 'ombre'
-              ? 'offerte-ombre'
-              : 'offerte',
+          : b && b.team === 'gold'
+            ? 'gift-gold'
+            : b && b.team === 'shadow'
+              ? 'gift-shadow'
+              : 'gifted',
     });
     rise('sun', 1);
     const a = getAmbience();
@@ -960,10 +960,10 @@ function advance(dt) {
   snakePulse += dt;
   viewersPulse += dt;
   // le cycle du jour tourne tout seul : nuit, lever, plein jour, coucher, en boucle
-  if (settings.cycle > 0) settings.heure = (settings.heure + dt / settings.cycle) % 1;
-  if (scene && round && round.etat === 'en cours') {
-    scene.restant -= dt;
-    if (scene.restant <= 0) endScene();
+  if (settings.cycle > 0) settings.hour = (settings.hour + dt / settings.cycle) % 1;
+  if (scene && round && round.state === 'playing') {
+    scene.remaining -= dt;
+    if (scene.remaining <= 0) endScene();
   }
   // graines : elles germent, puis deviennent des baies mangeables
   for (let i = seeds.length - 1; i >= 0; i--) {
@@ -974,16 +974,16 @@ function advance(dt) {
       berries.push({
         x: g.x,
         y: g.y,
-        pseudo: g.pseudo,
+        nickname: g.nickname,
         t: 0,
-        camp: g.camp || null,
-        pour: g.pour || null,
+        team: g.team || null,
+        owner: g.owner || null,
       });
       burst(
         px(g.x, g.y).x,
         px(g.x, g.y).y,
         6,
-        g.camp === 'or' ? 'offerte-or' : g.camp === 'ombre' ? 'offerte-ombre' : 'offerte',
+        g.team === 'gold' ? 'gift-gold' : g.team === 'shadow' ? 'gift-shadow' : 'gifted',
       );
       requestAiMove();
     }
@@ -994,12 +994,12 @@ function advance(dt) {
   updateTension(dt);
   for (let i = halos.length - 1; i >= 0; i--) {
     halos[i].t += dt;
-    if (halos[i].t >= halos[i].duree) halos.splice(i, 1);
+    if (halos[i].t >= halos[i].duration) halos.splice(i, 1);
   }
   for (let i = sparks.length - 1; i >= 0; i--) {
     const e = sparks[i];
     e.t += dt;
-    if (e.t >= e.duree) {
+    if (e.t >= e.duration) {
       sparks.splice(i, 1);
       continue;
     }
@@ -1025,12 +1025,12 @@ function advance(dt) {
       burst(pixelPos.x, pixelPos.y + 14, 7, 'poussiere', {
         v0: 18,
         v1: 65,
-        haut: -4,
+        top: -4,
         g: 260,
         frein: 3.4,
         r: 0.8,
         a: 0.4,
-        duree: 0.55,
+        duration: 0.55,
       });
     }
   }
@@ -1043,9 +1043,9 @@ function advance(dt) {
       requestAiMove();
       continue;
     }
-    bramble.pas += dt;
-    if (bramble.pas >= BRAMBLE_STEP && bramble.seg.length < BRAMBLE_MAX_SEGMENTS) {
-      bramble.pas = 0;
+    bramble.step += dt;
+    if (bramble.step >= BRAMBLE_STEP && bramble.seg.length < BRAMBLE_MAX_SEGMENTS) {
+      bramble.step = 0;
       extendBramble(bramble);
     }
     // chaque segment qui devient dur remue la terre a son pied
@@ -1055,30 +1055,30 @@ function advance(dt) {
         burst(pixelPos.x, pixelPos.y + 10, 4, 'poussiere', {
           v0: 12,
           v1: 44,
-          haut: -6,
+          top: -6,
           g: 200,
           frein: 3.2,
           r: 0.6,
           a: 0.32,
-          duree: 0.45,
+          duration: 0.45,
         });
       }
     });
   }
   if (round) {
-    if (round.etat === 'en cours') {
+    if (round.state === 'playing') {
       round.t += dt;
       // la cible ne monte qu'avec l'affluence : une ruee ne rend pas la manche triviale,
       // et une salle qui se vide ne punit pas ceux qui restent
-      stretchSky('Sun', tier.cielSun, dt * 14);
-      stretchSky('Moon', tier.cielMoon, dt * 2);
+      stretchSky('Sun', tier.skySun, dt * 14);
+      stretchSky('Moon', tier.skyMoon, dt * 2);
       // La cible s'allonge avec l'affluence, donc la recolte se remet a l'echelle comme le fait
       // deja etirer() pour les astres. Sans ca, un anneau plein retombait a 17 % quand la foule
       // arrivait, et le spectateur voyait la progression RECULER.
-      if (tier.cible > round.cible) {
-        const avant = round.cible;
-        round.cible = Math.min(tier.cible, round.cible + dt * 14);
-        if (avant > 0 && round.cible > avant) round.recolte *= round.cible / avant;
+      if (tier.target > round.target) {
+        const avant = round.target;
+        round.target = Math.min(tier.target, round.target + dt * 14);
+        if (avant > 0 && round.target > avant) round.harvest *= round.target / avant;
       }
       round.pulseSun += dt;
       round.pulseMoon += dt;
@@ -1091,37 +1091,37 @@ function advance(dt) {
       const fullBodies = [];
       for (let i = 0; i < bodies.length; i++) {
         const c = bodies[i];
-        const prevHold = c.tenue || 0;
-        c.tenue = c.serpent.length >= TARGET_LENGTH ? (c.tenue || 0) + dt : 0;
-        if (prevHold === 0 && c.tenue > 0) moments.tenues++;
-        if (c.serpent.length >= ADULT_LENGTH) c.adulte = true;
-        const enSursis = !c.couvee && c.serpent.length > 0 && c.serpent.length < REPRIEVE_LENGTH;
-        if (enSursis && !c.sursis) moments.sursis++;
-        c.sursis = enSursis;
-        if (c.tenue >= HOLD_SECONDS) fullBodies.push(c);
+        const prevHold = c.hold || 0;
+        c.hold = c.snake.length >= TARGET_LENGTH ? (c.hold || 0) + dt : 0;
+        if (prevHold === 0 && c.hold > 0) moments.holds++;
+        if (c.snake.length >= ADULT_LENGTH) c.adult = true;
+        const enSursis = !c.egg && c.snake.length > 0 && c.snake.length < REPRIEVE_LENGTH;
+        if (enSursis && !c.reprieve) moments.reprieve++;
+        c.reprieve = enSursis;
+        if (c.hold >= HOLD_SECONDS) fullBodies.push(c);
       }
       // EGALITE STRICTE : avant, la boucle finissait sur `break` des que corps[0] tenait son
       // anneau, donc Or passait devant Ombre du seul fait de son rang dans le tableau. On
       // depouille maintenant les deux, et la plus longue tenue gagne ; tenue identique = nul.
-      if (fullBodies.length === 1) endRound(fullBodies[0].camp, 'anneau');
+      if (fullBodies.length === 1) endRound(fullBodies[0].team, 'ring');
       else if (fullBodies.length > 1) {
         const a = fullBodies[0],
           b = fullBodies[1];
-        endRound(a.tenue === b.tenue ? 'nul' : a.tenue > b.tenue ? a.camp : b.camp, 'anneau');
+        endRound(a.hold === b.hold ? 'draw' : a.hold > b.hold ? a.team : b.team, 'ring');
       }
-      if (round.etat !== 'en cours') return;
+      if (round.state !== 'playing') return;
       // duel : chrono propre (TEST equilibre : 120 s, les publics calmes ne remplissent jamais l'anneau)
-      if (round.t >= (settings.dureeDuel || settings.duree)) {
+      if (round.t >= (settings.duelDuration || settings.duration)) {
         // plus long gagne ; egalite = ombre (comme Moon en versus). Aucun progres des deux cotes (personne
         // n'a depasse la longueur de naissance) : match nul, aucun point (Abdel).
-        const l0 = bodies[0].serpent.length,
-          l1 = bodies[1].serpent.length;
+        const l0 = bodies[0].snake.length,
+          l1 = bodies[1].snake.length;
         // EGALITE STRICTE : l'egalite de longueur allait silencieusement a Ombre (« comme Moon en
         // versus »), ce qui est un biais de camp. Sans spectateur les deux serpents finissent
         // souvent a la meme longueur (5 % des manches mesurees) : c'est un match nul, aucun point.
-        if (l0 === l1) endRound('nul', 'temps');
-        else if (l0 <= START_LENGTH && l1 <= START_LENGTH) endRound('nul', 'temps');
-        else endRound(l0 > l1 ? 'or' : 'ombre', 'temps');
+        if (l0 === l1) endRound('draw', 'timeScale');
+        else if (l0 <= START_LENGTH && l1 <= START_LENGTH) endRound('draw', 'timeScale');
+        else endRound(l0 > l1 ? 'gold' : 'shadow', 'timeScale');
       }
       // garde-fou : sans spectateur le plateau reste vide et rien ne peut arriver
       // ARBITRAGE, 2026-09-18. Abdel a demande deux choses contradictoires le meme jour :
@@ -1148,9 +1148,9 @@ function advance(dt) {
           // une nourriture qui parait sous son nez est un cadeau gratuit, sans decision, et elle
           // n'a aucune raison de se comporter autrement qu'une baie semee. Meme delai, GERME.
           let l = freeCells().filter((c) => !isDeadZone(c, SEED_GROW_TIME));
-          if (bodies[0] && bodies[1] && bodies[0].serpent[0] && bodies[1].serpent[0]) {
-            const a = bodies[0].serpent[0],
-              b = bodies[1].serpent[0];
+          if (bodies[0] && bodies[1] && bodies[0].snake[0] && bodies[1].snake[0]) {
+            const a = bodies[0].snake[0],
+              b = bodies[1].snake[0];
             const distDiff = (c) =>
               Math.abs(
                 Math.abs(c.x - a.x) +
@@ -1169,7 +1169,7 @@ function advance(dt) {
           if (!l.length) l = freeCells();
           if (l.length) {
             const c = l[Math.floor(Math.random() * l.length)];
-            berries.push({ x: c.x, y: c.y, pseudo: '', t: 0, sauvage: true });
+            berries.push({ x: c.x, y: c.y, nickname: '', t: 0, wild: true });
             requestAiMove();
           }
         }
@@ -1178,8 +1178,8 @@ function advance(dt) {
         wildDelay = 0;
       }
     } else {
-      round.fin += dt;
-      if (round.fin >= 8) newRound();
+      round.end += dt;
+      if (round.end >= 8) newRound();
       return;
     }
   }
@@ -1204,23 +1204,23 @@ function advance(dt) {
 // Avance le corps charge (actif) de dt secondes. Appele depuis avancer apres charger(i).
 function advanceBody(dt) {
   // minuteries par corps en duel (surgeT, invincT, coupT)
-  if (bodies[activeIndex].surgeT > 0)
-    bodies[activeIndex].surgeT = Math.max(0, bodies[activeIndex].surgeT - dt);
-  if (bodies[activeIndex].invincT > 0)
-    bodies[activeIndex].invincT = Math.max(0, bodies[activeIndex].invincT - dt);
-  if (bodies[activeIndex].coupT > 0)
-    bodies[activeIndex].coupT = Math.max(0, bodies[activeIndex].coupT - dt);
-  if (bodies[activeIndex].pareT > 0)
-    bodies[activeIndex].pareT = Math.max(0, bodies[activeIndex].pareT - dt);
-  if (bodies[activeIndex].bouclierT > 0)
-    bodies[activeIndex].bouclierT = Math.max(0, bodies[activeIndex].bouclierT - dt);
-  if (bodies[activeIndex].reculT > 0)
-    bodies[activeIndex].reculT = Math.max(0, bodies[activeIndex].reculT - dt);
+  if (bodies[activeIndex].boostTime > 0)
+    bodies[activeIndex].boostTime = Math.max(0, bodies[activeIndex].boostTime - dt);
+  if (bodies[activeIndex].invincibleTime > 0)
+    bodies[activeIndex].invincibleTime = Math.max(0, bodies[activeIndex].invincibleTime - dt);
+  if (bodies[activeIndex].cutTime > 0)
+    bodies[activeIndex].cutTime = Math.max(0, bodies[activeIndex].cutTime - dt);
+  if (bodies[activeIndex].parryTime > 0)
+    bodies[activeIndex].parryTime = Math.max(0, bodies[activeIndex].parryTime - dt);
+  if (bodies[activeIndex].shieldTime > 0)
+    bodies[activeIndex].shieldTime = Math.max(0, bodies[activeIndex].shieldTime - dt);
+  if (bodies[activeIndex].recoilTime > 0)
+    bodies[activeIndex].recoilTime = Math.max(0, bodies[activeIndex].recoilTime - dt);
   if (pause > 0) {
     pause -= dt;
     if (pause <= 0) {
       pause = 0;
-      spawn(!!(round && round.etat === 'en cours'));
+      spawn(!!(round && round.state === 'playing'));
     }
     return;
   }
@@ -1228,25 +1228,25 @@ function advanceBody(dt) {
     const avant = egg.t;
     egg.t += dt;
     const a0 = getAmbience();
-    if (isSoundReady() && a0 && a0.sonEclosion) {
+    if (isSoundReady() && a0 && a0.hatchSound) {
       const uu = egg.t / HATCH_TIME,
         ua = avant / HATCH_TIME;
       [0.34, 0.46, 0.55].forEach((keyMap) => {
         if (ua < keyMap && uu >= keyMap) playHatch(a0, 'fissure');
       });
-      if (ua < EMERGE_TIME && uu >= EMERGE_TIME) playHatch(a0, 'naissance');
+      if (ua < EMERGE_TIME && uu >= EMERGE_TIME) playHatch(a0, 'birth');
     }
     // le serpent sort avant la fin de l'animation, la coquille finit de s'ouvrir derriere lui
-    if (!egg.sorti && egg.t >= HATCH_TIME * EMERGE_TIME) {
-      egg.sorti = true;
+    if (!egg.emerged && egg.t >= HATCH_TIME * EMERGE_TIME) {
+      egg.emerged = true;
       const p = px(egg.x, egg.y);
-      burst(p.x, p.y, 18, 'coquille');
-      hatch(egg.garder);
+      burst(p.x, p.y, 18, 'shell');
+      hatch(egg.keep);
     }
     if (egg.t >= HATCH_TIME + TRAIL_TIME) egg = null;
-    if (!egg || !egg.sorti) return;
+    if (!egg || !egg.emerged) return;
   }
-  const boosted = bodies[activeIndex].surgeT > 0;
+  const boosted = bodies[activeIndex].boostTime > 0;
   subStep += dt * SPEED * (boosted ? BOOST_FACTOR : 1); // like : poussee de tempo
   while (subStep >= 1) {
     subStep -= 1;
@@ -1259,7 +1259,7 @@ function loop(ts) {
   const now = ts / 1000,
     dt = Math.min(now - lastFrameTime, 0.1);
   lastFrameTime = now;
-  const n = settings.temps;
+  const n = settings.timeScale;
   for (let i = 0; i < n; i++) advance(dt);
   // trace calculee par corps ; invariant corps[0] charge a l'issue
   // ranger() recopie la variable de module `trace` dans le corps : c'est donc elle qu'on remplit
@@ -1279,166 +1279,166 @@ function loop(ts) {
   requestAnimationFrame(loop);
 }
 
-window.VipereBase = {
-  reglages: settings,
-  naitre: spawn,
-  avancer: advance,
-  basculerSon: toggleSound,
-  nouvelleManche: newRound,
+window.Viper = {
+  settings: settings,
+  spawn: spawn,
+  advance: advance,
+  toggleSound: toggleSound,
+  newRound: newRound,
   tension: () => tension,
   // Scène courante (super admin) : lecture, lancement par nom, arrêt immédiat.
   scene: sceneState,
-  lancerScene: launchScene,
+  launchScene: launchScene,
   stopScene: endScene,
-  finirTest: (team) => {
-    endRound(team || 'or', 'test');
+  endTest: (team) => {
+    endRound(team || 'gold', 'test');
   },
-  sonActif: isSoundActive,
-  palier: () => ({
+  soundOn: isSoundActive,
+  tier: () => ({
     id: tier.id,
     cadence: Math.round(cadence),
-    hautSun: round ? Math.round(round.hautSun) : tier.cielSun,
-    hautMoon: round ? Math.round(round.hautMoon) : tier.cielMoon,
+    topSun: round ? Math.round(round.topSun) : tier.skySun,
+    topMoon: round ? Math.round(round.topMoon) : tier.skyMoon,
   }),
-  manche: () =>
+  round: () =>
     round && {
-      etat: round.etat,
+      state: round.state,
       t: round.t,
       sun: round.sun,
-      moon: round.moonEv,
-      vainqueur: round.vainqueur,
-      cielSun: round.cielSun,
-      cielMoon: round.cielMoon,
-      recolte: round.recolte,
-      cible: round.cible,
+      moon: round.moonEvents,
+      winner: round.winner,
+      skySun: round.skySun,
+      skyMoon: round.skyMoon,
+      harvest: round.harvest,
+      target: round.target,
     },
-  manches: () => rounds,
-  score: () => ({ serpent: snakeScore, viewers: scoreViewers }),
-  remettreScore: () => {
+  rounds: () => rounds,
+  score: () => ({ snake: snakeScore, viewers: scoreViewers }),
+  resetScore: () => {
     snakeScore = 0;
     scoreViewers = 0;
     snakePulse = 9;
     viewersPulse = 9;
   },
-  tremble: () => ({ retouches: aiAdjustments, gardes: aiHolds }),
-  mesures: () => ({
-    longueur: snake.length,
-    bouchees: berriesEaten,
-    morts: deaths,
-    erreurs: errors,
-    derniereErreur: lastError,
+  shake: () => ({ retouches: aiAdjustments, holds: aiHolds }),
+  metrics: () => ({
+    length: snake.length,
+    berriesEaten: berriesEaten,
+    deaths: deaths,
+    errors: errors,
+    lastError: lastError,
     t,
-    virages: turns,
-    escaliers: staircases,
-    evitables: avoidable,
-    longueursMort: deathLengths,
-    offertes: gifted,
-    mangeesOffertes: giftsEaten,
-    poses: stonesPlaced,
-    morsures: hits,
-    baies: berries.length + seeds.length,
+    turns: turns,
+    staircases: staircases,
+    avoidable: avoidable,
+    deathLengths: deathLengths,
+    giftsSpawned: gifted,
+    giftsEaten: giftsEaten,
+    stonesPlaced: stonesPlaced,
+    hits: hits,
+    berries: berries.length + seeds.length,
   }),
   duel: () => ({
     t: round && round.t,
-    vainqueur: round && round.vainqueur,
-    or: bodies[0]
+    winner: round && round.winner,
+    gold: bodies[0]
       ? {
-          longueur: bodies[0].serpent.length,
-          posture: (bodies[0].memoireIA && bodies[0].memoireIA.postureActive) || 'neutre',
-          raison: bodies[0].memoireIA && bodies[0].memoireIA.raison,
-          tenue: bodies[0].tenue || 0,
-          bouclierT: bodies[0].bouclierT,
-          vies: bodies[0].vies,
-          surgeT: bodies[0].surgeT,
-          invincT: bodies[0].invincT,
-          coupT: bodies[0].coupT,
-          reculT: bodies[0].reculT,
+          length: bodies[0].snake.length,
+          stance: (bodies[0].aiMemory && bodies[0].aiMemory.activeStance) || 'neutral',
+          reason: bodies[0].aiMemory && bodies[0].aiMemory.reason,
+          hold: bodies[0].hold || 0,
+          shieldTime: bodies[0].shieldTime,
+          lives: bodies[0].lives,
+          boostTime: bodies[0].boostTime,
+          invincibleTime: bodies[0].invincibleTime,
+          cutTime: bodies[0].cutTime,
+          recoilTime: bodies[0].recoilTime,
         }
       : null,
-    ombre: bodies[1]
+    shadow: bodies[1]
       ? {
-          longueur: bodies[1].serpent.length,
-          posture: (bodies[1].memoireIA && bodies[1].memoireIA.postureActive) || 'neutre',
-          raison: bodies[1].memoireIA && bodies[1].memoireIA.raison,
-          tenue: bodies[1].tenue || 0,
-          bouclierT: bodies[1].bouclierT,
-          vies: bodies[1].vies,
-          surgeT: bodies[1].surgeT,
-          invincT: bodies[1].invincT,
-          coupT: bodies[1].coupT,
-          reculT: bodies[1].reculT,
+          length: bodies[1].snake.length,
+          stance: (bodies[1].aiMemory && bodies[1].aiMemory.activeStance) || 'neutral',
+          reason: bodies[1].aiMemory && bodies[1].aiMemory.reason,
+          hold: bodies[1].hold || 0,
+          shieldTime: bodies[1].shieldTime,
+          lives: bodies[1].lives,
+          boostTime: bodies[1].boostTime,
+          invincibleTime: bodies[1].invincibleTime,
+          cutTime: bodies[1].cutTime,
+          recoilTime: bodies[1].recoilTime,
         }
       : null,
   }),
   // reglage de la course pour les harnais d'equilibrage
-  reglerCiel: (id, sun, moon) => {
+  setSky: (id, sun, moon) => {
     const p = TIERS.find((x) => x.id === id);
     if (!p) return;
-    if (sun) p.cielSun = sun;
-    if (moon) p.cielMoon = moon;
+    if (sun) p.skySun = sun;
+    if (moon) p.skyMoon = moon;
   },
-  reglerCible: (id, c) => {
+  setTarget: (id, c) => {
     const p = TIERS.find((x) => x.id === id);
-    if (p) p.cible = c;
+    if (p) p.target = c;
   },
-  reglerLong: forceLength,
-  reglerRochers: (id, v) => {
+  setMaxLength: forceLength,
+  setMaxStones: (id, v) => {
     const p = TIERS.find((x) => x.id === id);
-    if (p) p.maxRochers = v;
+    if (p) p.maxStones = v;
   },
-  reglerCoup: (id, v) => {
+  setHit: (id, v) => {
     const p = TIERS.find((x) => x.id === id);
-    if (p) p.coup = v;
+    if (p) p.hit = v;
   },
   // flair par camp en duel (regie, harnais) : s'applique aux corps courants et aux prochains
-  reglerFlair: (team, v) => {
+  setFlair: (team, v) => {
     FLAIR_BY_TEAM[team] = v;
     bodies.forEach((c) => {
-      if (c.camp === team) c.flair = v;
+      if (c.team === team) c.flair = v;
     });
   },
-  reglerTenue: (s) => {
+  setHoldSeconds: (s) => {
     HOLD_SECONDS = Math.max(0.5, +s || 5);
   },
   moments: () => Object.assign({}, moments),
-  razMoments: () => {
-    moments = { tenues: 0, sursis: 0, parades: 0, manches: 0 };
+  resetMoments: () => {
+    moments = { holds: 0, reprieve: 0, parries: 0, rounds: 0 };
   },
-  reglerChasse: (team, v) => {
+  setHunt: (team, v) => {
     HUNT_BY_TEAM[team] = v;
     bodies.forEach((c) => {
-      if (c.camp === team) c.chasse = v;
+      if (c.team === team) c.hunt = v;
     });
   },
-  reglerHeure: (h) => {
-    settings.heure = ((h % 1) + 1) % 1;
+  setHour: (h) => {
+    settings.hour = ((h % 1) + 1) % 1;
   },
-  couvee: () => egg && { t: egg.t, duree: HATCH_TIME },
-  planterRonce: () => plantBramble('sonde'),
-  interne: () => ({
-    serpent: snake,
+  egg: () => egg && { t: egg.t, duration: HATCH_TIME },
+  plantBramble: () => plantBramble('sonde'),
+  internal: () => ({
+    snake: snake,
     fruit,
     dir,
-    rochers: stones.map((r) => ({ x: r.x, y: r.y, t: r.t })),
-    ronces: brambles.map((bramble) => ({
+    stones: stones.map((r) => ({ x: r.x, y: r.y, t: r.t })),
+    brambles: brambles.map((bramble) => ({
       t: bramble.t,
       seg: bramble.seg.map((g) => ({ x: g.x, y: g.y, t: g.t })),
     })),
-    alerte: STONE_WARNING,
-    vitesse: SPEED,
-    ronceAlerte: BRAMBLE_WARNING,
-    ronceMax: BRAMBLE_MAX_SEGMENTS,
-    baies: berries.map((b) => ({ x: b.x, y: b.y, camp: b.camp || null })),
-    graines: seeds.map((g) => ({ x: g.x, y: g.y })),
-    corps: bodies.map((c) => ({
-      camp: c.camp,
-      longueur: c.serpent.length,
-      tete: c.serpent[0] || null,
-      serpent: c.serpent.map((s) => ({ x: s.x, y: s.y })),
+    warning: STONE_WARNING,
+    speed: SPEED,
+    brambleWarning: BRAMBLE_WARNING,
+    brambleMax: BRAMBLE_MAX_SEGMENTS,
+    berries: berries.map((b) => ({ x: b.x, y: b.y, team: b.team || null })),
+    seeds: seeds.map((g) => ({ x: g.x, y: g.y })),
+    body: bodies.map((c) => ({
+      team: c.team,
+      length: c.snake.length,
+      head: c.snake[0] || null,
+      snake: c.snake.map((s) => ({ x: s.x, y: s.y })),
       dir: { ...c.dir },
-      invincT: c.invincT,
-      mortCause: c.mortCause || null,
-      debug: c.memoireIA.debug || null,
+      invincibleTime: c.invincibleTime,
+      deathCause: c.deathCause || null,
+      debug: c.aiMemory.debug || null,
     })),
   }),
 };
@@ -1474,7 +1474,7 @@ function start() {
       ArrowRight: { x: 1, y: 0 },
     };
     const d = keyMap[ev.key];
-    if (d && !settings.ia && !(d.x === -dir.x && d.y === -dir.y)) {
+    if (d && !settings.ai && !(d.x === -dir.x && d.y === -dir.y)) {
       nextDir = d;
       ev.preventDefault();
     }

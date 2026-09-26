@@ -41,34 +41,34 @@ import {
 // d'Abdel : le tableau d'affichage se lit sous le jeu, comme une borne d'arcade, pas sur le cote.
 // La bande sous l'anneau (1232) et le fil de commentaires est etroite, la barre est donc basse
 // et compacte : glyphe puis chiffre, cote a cote, un filet vertical entre les deux camps.
-const SC_ECART = 122; // ecart entre les centres des deux camps, de part et d'autre de W/2
-const SC_GX = 32; // ecart glyphe-chiffre a l'interieur d'un camp
+const SC_SPACING = 122; // ecart entre les centres des deux camps, de part et d'autre de W/2
+const SC_GLYPH_OFFSET = 32; // ecart glyphe-chiffre a l'interieur d'un camp
 const SC_R = 13; // rayon du glyphe, compact
 const SC_BW = 250,
   SC_BH = 48; // largeur et hauteur de la plaque de fond, reduites
 
-export const doux01 = (x) => (x <= 0 ? 0 : x >= 1 ? 1 : x * x * (3 - 2 * x));
+export const smooth01 = (x) => (x <= 0 ? 0 : x >= 1 ? 1 : x * x * (3 - 2 * x));
 
 // Le gonflement d'un chiffre qui vient de marquer : une poussee franche puis un retour amorti.
 // 0,9 s, pas plus : au-dela le chiffre danse encore quand le spectateur a deja tourne la page.
-function bond(p) {
+function bounce(p) {
   if (p >= 0.9) return 1;
   const u = p / 0.9;
   // plafonne a 1,25 : au-dela, un chiffre a deux chiffres deborde de la bande de 84 px
-  return 1 + 0.3 * Math.sin(Math.PI * doux01(u * 1.25)) * (1 - u);
+  return 1 + 0.3 * Math.sin(Math.PI * smooth01(u * 1.25)) * (1 - u);
 }
 
 // La tete de serpent du compteur : la meme silhouette qu'en jeu, en petit. Deux yeux, pas un
 // pictogramme abstrait : c'est ce qui rend le camp evident sans legende.
-export function glypheSerpent(x, y, r, teinte) {
-  ctx.fillStyle = teinte || '#e8f1dc';
+export function paintSnakeGlyph(x, y, r, tint) {
+  ctx.fillStyle = tint || '#e8f1dc';
   ctx.beginPath();
   ctx.arc(x, y, r, 0, Math.PI * 2);
   ctx.fill();
   // le cou, un moignon vers l'arriere, pour qu'on lise une tete et non une bille
   ctx.lineCap = 'round';
   ctx.lineWidth = r * 1.15;
-  ctx.strokeStyle = teinte || '#d9e7cc';
+  ctx.strokeStyle = tint || '#d9e7cc';
   ctx.beginPath();
   ctx.moveTo(x - r * 0.2, y + r * 0.35);
   ctx.lineTo(x - r * 1.25, y + r * 0.72);
@@ -87,7 +87,7 @@ export function glypheSerpent(x, y, r, teinte) {
 // la plus petite en retrait : c'est le signe universel de « des gens », et deux suffisent a dire
 // le pluriel. Le vide entre elles est creuse en `destination-out`, sinon les deux corps fusionnent
 // en une tache a cette taille.
-export function personne(x, y, r) {
+export function paintPersonGlyph(x, y, r) {
   ctx.beginPath();
   ctx.arc(x, y - r * 0.95, r * 0.62, 0, Math.PI * 2);
   ctx.fill();
@@ -106,47 +106,47 @@ export function personne(x, y, r) {
 // teinte (duel) : les deux camps sont des viperes, chacune dans sa couleur
 // miroir (camp de droite) : le chiffre passe cote centre et le glyphe a l'extremite, comme une
 // plaque de score de football : glyphe, chiffre | chiffre, glyphe
-function campBarre(cx, n, sun, pulse, teinte, miroir) {
-  const sg = miroir ? -1 : 1;
-  const k = bond(pulse),
-    vif = Math.max(0, 1 - pulse / 0.9);
-  const lueur = teinte ? teinte : sun ? 'rgba(242,197,124,0.85)' : 'rgba(143,168,216,0.85)';
+function teamBar(cx, n, sun, pulse, tint, mirrored) {
+  const sg = mirrored ? -1 : 1;
+  const k = bounce(pulse),
+    lively = Math.max(0, 1 - pulse / 0.9);
+  const glow = tint ? tint : sun ? 'rgba(242,197,124,0.85)' : 'rgba(143,168,216,0.85)';
   ctx.save();
-  ctx.translate(cx - sg * SC_GX, SC_CY);
+  ctx.translate(cx - sg * SC_GLYPH_OFFSET, SC_CY);
   ctx.scale(sg * k, 1); // miroir : le glyphe de droite regarde dans l'autre sens
-  if (vif > 0.02) {
-    ctx.shadowColor = lueur;
-    ctx.shadowBlur = 26 * vif;
+  if (lively > 0.02) {
+    ctx.shadowColor = glow;
+    ctx.shadowBlur = 26 * lively;
   }
-  if (sun || teinte) glypheSerpent(0, 0, SC_R, teinte);
+  if (sun || tint) paintSnakeGlyph(0, 0, SC_R, tint);
   else paintViewersGlyph(0, 0, SC_R);
   ctx.restore();
 
   ctx.save();
-  ctx.translate(cx + sg * SC_GX, SC_CY);
+  ctx.translate(cx + sg * SC_GLYPH_OFFSET, SC_CY);
   ctx.scale(k, k);
-  if (vif > 0.02) {
-    ctx.shadowColor = lueur;
-    ctx.shadowBlur = 24 * vif;
+  if (lively > 0.02) {
+    ctx.shadowColor = glow;
+    ctx.shadowBlur = 24 * lively;
   }
   ctx.textAlign = 'center';
   ctx.textBaseline = 'middle';
   ctx.font = '500 30px "IBM Plex Mono", ui-monospace, monospace';
-  ctx.fillStyle = teinte || (sun ? GOLD : BLUE);
+  ctx.fillStyle = tint || (sun ? GOLD : BLUE);
   ctx.fillText(String(n), 0, 1);
   ctx.restore();
 }
 
-export function peindreScore() {
+export function paintScore() {
   // en mode versus les deux colonnes appartiennent aux astres (CIEL_X=62), le compteur s'efface
   // en duel il reste : une vipere par camp, Or a gauche, Ombre a droite, meme plaque, meme logique
 
   const cx = W / 2;
   // Duel (Abdel, 2026-09-21, variante T1) : le temps restant de la manche, en chiffres, entre les deux
   // scores, comme une carte de score de foot. La plaque s'elargit pour lui faire place ; glyphes inchanges.
-  const chrono = round,
-    bw = chrono ? SC_BW + 84 : SC_BW,
-    ecart = chrono ? SC_ECART + 84 : SC_ECART;
+  const timer = round,
+    bw = timer ? SC_BW + 84 : SC_BW,
+    spacing = timer ? SC_SPACING + 84 : SC_SPACING;
   ctx.save();
   // la plaque : le compteur doit tenir aussi bien en plein jour que dans la nuit, il porte donc
   // son propre fond, sombre et discret. Une seule plaque pour les deux camps.
@@ -158,9 +158,9 @@ export function peindreScore() {
   ctx.strokeStyle = 'rgba(255,255,255,0.10)';
   ctx.stroke();
   ctx.strokeStyle = 'rgba(255,255,255,0.16)';
-  if (chrono) {
-    const dureeM = settings.dureeDuel || settings.duree,
-      r = Math.max(0, Math.ceil(dureeM - (round.t || 0)));
+  if (timer) {
+    const matchDuration = settings.duelDuration || settings.duration,
+      r = Math.max(0, Math.ceil(matchDuration - (round.t || 0)));
     const txt = Math.floor(r / 60) + ':' + String(r % 60).padStart(2, '0');
     ctx.beginPath();
     ctx.moveTo(cx - 42, SC_CY - 13);
@@ -172,7 +172,7 @@ export function peindreScore() {
     ctx.textBaseline = 'middle';
     ctx.font = '500 24px "IBM Plex Mono", ui-monospace, monospace';
     ctx.fillStyle =
-      r <= 20 && round.etat === 'en cours' ? 'rgba(240,78,62,0.95)' : 'rgba(255,255,255,0.72)';
+      r <= 20 && round.state === 'playing' ? 'rgba(240,78,62,0.95)' : 'rgba(255,255,255,0.72)';
     ctx.fillText(txt, cx, SC_CY + 1);
   } else {
     // un filet vertical, entre les deux camps
@@ -182,8 +182,8 @@ export function peindreScore() {
     ctx.stroke();
   }
   ctx.restore();
-  campBarre(cx - ecart / 2, snakeScore, true, snakePulse, GOLD);
-  campBarre(cx + ecart / 2, scoreViewers, false, viewersPulse, SHADOW, true);
+  teamBar(cx - spacing / 2, snakeScore, true, snakePulse, GOLD);
+  teamBar(cx + spacing / 2, scoreViewers, false, viewersPulse, SHADOW, true);
 }
 
 // Maquette de l'interface TikTok, pour juger le jeu en conditions reelles au lieu de juger un
@@ -191,8 +191,8 @@ export function peindreScore() {
 // eux-memes, dessines aux positions mesurees sur la capture d'Abdel, pour qu'on voie ce qui
 // recouvre quoi, ce qui reste lisible, et ou l'oeil du spectateur va reellement.
 // Purement visuel, aucun effet sur le jeu, absent par defaut.
-export function pilule(x, y, w, h, te, r) {
-  ctx.fillStyle = te;
+export function pill(x, y, w, h, tint, r) {
+  ctx.fillStyle = tint;
   ctx.beginPath();
   ctx.roundRect(x, y, w, h, r === undefined ? h / 2 : r);
   ctx.fill();

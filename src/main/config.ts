@@ -38,7 +38,7 @@ export class ConfigError extends Error {
 
 const DEFAULTS = {
   outDir: 'diagnostics',
-  weather: 'pluie',
+  weather: 'rain',
   hour: 0.5,
   settleSeconds: 25,
 } as const;

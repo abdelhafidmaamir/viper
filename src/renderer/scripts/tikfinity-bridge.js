@@ -14,12 +14,12 @@
     attempts = 0,
     timer = null;
   var state = {
-    connecte: false,
+    connected: false,
     url: URL_PONT,
-    evenements: 0,
-    cadeaux: 0,
-    dernier: '',
-    erreur: '',
+    events: 0,
+    gifts: 0,
+    last: '',
+    error: '',
   };
   var onChange = null;
   function notify() {
@@ -35,34 +35,34 @@
   function process(m) {
     if (!m || !m.event) return null;
     var d = m.data || {};
-    state.evenements++;
+    state.events++;
     /* trace brute : le dernier message recu tel quel, pour diagnostiquer ce que TikFinity envoie vraiment */
-    state.brut = m.event + ' ' + JSON.stringify(d).slice(0, 300);
+    state.raw = m.event + ' ' + JSON.stringify(d).slice(0, 300);
     if (m.event === 'like') {
       var nl = Math.max(1, parseInt(d.likeCount) || 1);
-      state.dernier = 'like x' + nl + (d.uniqueId ? ' @' + d.uniqueId : '');
+      state.last = 'like x' + nl + (d.uniqueId ? ' @' + d.uniqueId : '');
       notify();
       return (
-        window.recevoirEvenement &&
-        window.recevoirEvenement({
+        window.receiveEvent &&
+        window.receiveEvent({
           type: 'like',
           n: nl,
-          pseudo: d.nickname || d.uniqueId || '',
+          nickname: d.nickname || d.uniqueId || '',
           avatar: d.profilePictureUrl || '',
         })
       );
     }
     /* arrivees, partages, abonnements : remontes au jeu pour le bandeau d'activite */
     if (m.event === 'member' || m.event === 'join' || m.event === 'share' || m.event === 'follow') {
-      var ty = m.event === 'share' ? 'partage' : m.event === 'follow' ? 'abonne' : 'arrivee';
-      state.dernier = ty + (d.uniqueId ? ' @' + d.uniqueId : '');
+      var ty = m.event === 'share' ? 'share' : m.event === 'follow' ? 'follow' : 'join';
+      state.last = ty + (d.uniqueId ? ' @' + d.uniqueId : '');
       notify();
       return (
-        window.recevoirEvenement &&
-        window.recevoirEvenement({
+        window.receiveEvent &&
+        window.receiveEvent({
           type: ty,
           n: 1,
-          pseudo: d.nickname || d.uniqueId || '',
+          nickname: d.nickname || d.uniqueId || '',
           avatar: d.profilePictureUrl || '',
         })
       );
@@ -70,36 +70,34 @@
     /* nombre de spectateurs : paliers salues par le bandeau */
     if (m.event === 'roomUser') {
       var vc = parseInt(d.viewerCount) || 0;
-      state.dernier = 'spectateurs ' + vc;
+      state.last = 'spectateurs ' + vc;
       notify();
-      return (
-        window.recevoirEvenement && window.recevoirEvenement({ type: 'spectateurs', total: vc })
-      );
+      return window.receiveEvent && window.receiveEvent({ type: 'viewers', total: vc });
     }
     if (m.event !== 'gift') return (notify(), null);
     /* rafale : giftType 1 -> ne compter que le message final (repeatEnd true) */
     var streakable = d.giftType === 1 || (d.gift && d.gift.gift_type === 1);
     var isFinal = d.repeatEnd === true || (d.gift && d.gift.repeat_end === 1);
     if (streakable && !isFinal) {
-      state.dernier = 'rafale en cours (' + (d.giftName || '?') + ')';
+      state.last = 'rafale en cours (' + (d.giftName || '?') + ')';
       notify();
       return null;
     }
     var n = Math.max(1, parseInt(d.repeatCount) || 1);
     var value = parseInt(d.diamondCount) || 0;
     var giftName = String(d.giftName || '');
-    state.cadeaux += n;
-    state.dernier =
+    state.gifts += n;
+    state.last =
       giftName + ' x' + n + ' (' + value + ' diamants)' + (d.uniqueId ? ' @' + d.uniqueId : '');
     notify();
     return (
-      window.recevoirEvenement &&
-      window.recevoirEvenement({
-        type: 'cadeau',
+      window.receiveEvent &&
+      window.receiveEvent({
+        type: 'gift',
         n: n,
-        valeur: value,
-        nom: giftName,
-        pseudo: d.nickname || d.uniqueId || '',
+        value: value,
+        name: giftName,
+        nickname: d.nickname || d.uniqueId || '',
         avatar: d.profilePictureUrl || '',
       })
     );
@@ -110,14 +108,14 @@
     try {
       ws = new WebSocket(state.url);
     } catch (e) {
-      state.erreur = String((e && e.message) || e);
+      state.error = String((e && e.message) || e);
       reschedule();
       return;
     }
     ws.onopen = function () {
       attempts = 0;
-      state.connecte = true;
-      state.erreur = '';
+      state.connected = true;
+      state.error = '';
       notify();
     };
     ws.onmessage = function (ev) {
@@ -125,19 +123,19 @@
       try {
         m = JSON.parse(ev.data);
       } catch (e) {
-        state.erreur = 'message illisible';
+        state.error = 'message illisible';
         notify();
         return;
       }
       try {
         process(m);
       } catch (e) {
-        state.erreur = 'traitement : ' + String((e && e.message) || e);
+        state.error = 'traitement : ' + String((e && e.message) || e);
         notify();
       }
     };
     ws.onclose = function () {
-      state.connecte = false;
+      state.connected = false;
       notify();
       reschedule();
     };
@@ -174,23 +172,23 @@
       } catch (e) {}
       ws = null;
     }
-    state.connecte = false;
+    state.connected = false;
     notify();
   }
 
-  window.PontTikFinity = {
-    demarrer: start,
-    arreter: stop,
-    traiter: process,
-    etat: function () {
+  window.TikFinityBridge = {
+    start: start,
+    stop: stop,
+    process: process,
+    state: function () {
       return {
-        connecte: state.connecte,
+        connected: state.connected,
         url: state.url,
-        evenements: state.evenements,
-        cadeaux: state.cadeaux,
-        dernier: state.dernier,
-        brut: state.brut || '',
-        erreur: state.erreur,
+        events: state.events,
+        gifts: state.gifts,
+        last: state.last,
+        raw: state.raw || '',
+        error: state.error,
       };
     },
     set surChangement(f) {

@@ -15,14 +15,14 @@ export function endScene() {
   scene = null;
 
   bodies.forEach((c) => {
-    c.invincT = 0; // ballet : invincibilité poussée à chaque tick, on la coupe net
-    if (c.memoireIA) {
-      c.memoireIA.posture = null; // la posture forcée s'oublie, elle sera recalculée
-      c.memoireIA.postureActive = 'neutre';
-      c.memoireIA.postureT = 0;
-      c.memoireIA.attaqueT = 0;
-      c.memoireIA.fatigue = 0;
-      c.memoireIA.raison = null;
+    c.invincibleTime = 0; // ballet : invincibilité poussée à chaque tick, on la coupe net
+    if (c.aiMemory) {
+      c.aiMemory.stance = null; // la posture forcée s'oublie, elle sera recalculée
+      c.aiMemory.activeStance = 'neutral';
+      c.aiMemory.stanceTime = 0;
+      c.aiMemory.attackTime = 0;
+      c.aiMemory.fatigue = 0;
+      c.aiMemory.reason = null;
     }
   });
 }
@@ -31,11 +31,11 @@ export function endScene() {
 export function sceneState() {
   return (
     scene && {
-      nom: scene.nom,
-      restant: Math.max(0, scene.restant),
-      duree: SCENES[scene.nom] && SCENES[scene.nom].duree,
-      or: scene.or || {},
-      ombre: scene.ombre || {},
+      name: scene.name,
+      remaining: Math.max(0, scene.remaining),
+      duration: SCENES[scene.name] && SCENES[scene.name].duration,
+      gold: scene.gold || {},
+      shadow: scene.shadow || {},
     }
   );
 }
@@ -44,7 +44,12 @@ export function sceneState() {
 export function launchScene(sceneName, duration) {
   const d = SCENES[sceneName];
   if (!d) return;
-  scene = { nom: sceneName, restant: duration || d.duree, or: d.or || {}, ombre: d.ombre || {} };
+  scene = {
+    name: sceneName,
+    remaining: duration || d.duration,
+    gold: d.gold || {},
+    shadow: d.shadow || {},
+  };
 }
 
 export const SCENES = {
@@ -53,60 +58,60 @@ export const SCENES = {
   // fermeture décisive : la pression, l'usure et l'orbite restent. Un serpent peut toujours mourir
   // d'une faute (mur, ronce, son propre corps), pas d'un piège volontaire de l'autre.
   ballet: {
-    duree: 20,
-    or: {
-      posture: 'attaque',
+    duration: 20,
+    gold: {
+      stance: 'attack',
       pA: 20,
       pD: 20,
-      chasse: 1,
+      hunt: 1,
       flair: 0.25,
-      attirer: true,
-      nePasTuer: true,
+      lure: true,
+      noKill: true,
     },
-    ombre: {
-      posture: 'attaque',
+    shadow: {
+      stance: 'attack',
       pA: 20,
       pD: 20,
-      chasse: 1,
+      hunt: 1,
       flair: 0.25,
-      attirer: true,
-      nePasTuer: true,
+      lure: true,
+      noKill: true,
     },
   },
-  course: {
-    duree: 15,
-    or: { courseBaie: true, pA: 12, pD: 10 },
-    ombre: { courseBaie: true, pA: 12, pD: 10 },
+  race: {
+    duration: 15,
+    gold: { berryRace: true, pA: 12, pD: 10 },
+    shadow: { berryRace: true, pA: 12, pD: 10 },
   },
   // Chasse unifiée (retour d'Abdel : « le mener à un mur, le pousser à l'erreur, l'encercler avec
   // son propre corps »). Un serpent va au contact, l'encercle et tente le piège même risqué ; l'autre
   // joue normalement, il ne sait pas qu'il est visé.
-  chasseOr: {
-    duree: 12,
-    or: {
-      posture: 'attaque',
+  huntGold: {
+    duration: 12,
+    gold: {
+      stance: 'attack',
       pA: 20,
       pD: 20,
-      chasse: 1,
+      hunt: 1,
       flair: 0.05,
-      attirer: true,
-      piegeImmediat: true,
-      encercler: true,
+      lure: true,
+      immediateTrap: true,
+      encircle: true,
     },
-    ombre: {},
+    shadow: {},
   },
-  chasseOm: {
-    duree: 12,
-    or: {},
-    ombre: {
-      posture: 'attaque',
+  huntShadow: {
+    duration: 12,
+    gold: {},
+    shadow: {
+      stance: 'attack',
       pA: 20,
       pD: 20,
-      chasse: 1,
+      hunt: 1,
       flair: 0.05,
-      attirer: true,
-      piegeImmediat: true,
-      encercler: true,
+      lure: true,
+      immediateTrap: true,
+      encircle: true,
     },
   },
 };

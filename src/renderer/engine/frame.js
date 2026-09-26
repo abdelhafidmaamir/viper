@@ -2,11 +2,11 @@
 // and keeps the frame-rate readout used by the debug overlay.
 
 import { paintBanner } from './announcements.js';
-import { peindreOffrandes, peindreRochers, peindreRonces } from './board-items.js';
+import { paintOfferings, paintStones, paintBrambles } from './board-items.js';
 import { ctx, setCtx } from './canvas.js';
 import { paintAiDebug, paintLiveMockup } from './debug-overlay.js';
-import { peindreDuel, peindreStatutsDuel } from './duel-hud.js';
-import { peindreCoquille, peindreEtincelles, peindreHalos } from './effects.js';
+import { paintDuel, paintDuelStatus } from './duel-hud.js';
+import { paintShell, paintSparks, paintHalos } from './effects.js';
 import { paintEndScreen } from './end-screen.js';
 import { paintGiftScroll, paintDuelLegend } from './gift-panel.js';
 import {
@@ -30,7 +30,7 @@ import {
 } from './layout.js';
 import { BLUE } from './palette.js';
 import { HATCH_TIME } from './rules.js';
-import { peindreScore, personne } from './scoreboard.js';
+import { paintScore, paintPersonGlyph } from './scoreboard.js';
 import { tension } from './tension.js';
 import {
   activeIndex,
@@ -66,16 +66,16 @@ export function paintViewersGlyph(x, y, r) {
       ctx.translate(VIEWERS_RS, VIEWERS_RS);
       const R = VIEWERS_RS * 0.66;
       ctx.fillStyle = BLUE;
-      personne(R * 0.86, -R * 0.16, R * 0.74);
+      paintPersonGlyph(R * 0.86, -R * 0.16, R * 0.74);
       ctx.globalCompositeOperation = 'destination-out';
       ctx.lineWidth = R * 0.3;
       ctx.strokeStyle = '#000';
       ctx.fillStyle = '#000';
-      personne(-R * 0.3, 0, R * 0.96);
+      paintPersonGlyph(-R * 0.3, 0, R * 0.96);
       ctx.stroke();
       ctx.globalCompositeOperation = 'source-over';
       ctx.fillStyle = BLUE;
-      personne(-R * 0.3, 0, R * 0.86);
+      paintPersonGlyph(-R * 0.3, 0, R * 0.86);
     } finally {
       setCtx(savedCtx);
     }
@@ -125,7 +125,7 @@ export function pointRail(x, y, w, h, r, s) {
 
 export function paintRound() {
   if (!round) return;
-  peindreDuel(frameDt);
+  paintDuel(frameDt);
   return;
 }
 
@@ -134,7 +134,7 @@ export function paintRound() {
 export let smoothModeActive = false;
 
 export function setSmoothMode() {
-  const wantsSmooth = !!settings.fluide;
+  const wantsSmooth = !!settings.smooth;
   if (wantsSmooth === smoothModeActive || !ctx) return;
   if (wantsSmooth)
     Object.defineProperty(ctx, 'shadowBlur', {
@@ -162,22 +162,22 @@ export function drawFrame(dt) {
     y0: Y0,
     cols: COLS,
     rows: ROWS,
-    tete: headPos,
-    monde: 0,
-    mondeSorte: null,
+    head: headPos,
+    world: 0,
+    worldKind: null,
     silence: 0,
-    heure: settings.heure,
-    meteo: settings.meteo,
-    meteoNet: !!(round && round.etat === 'en cours' && round.t < 0.3 && settings.ambianceAuto),
-    avance:
-      settings.avanceForcee !== undefined
-        ? settings.avanceForcee
+    hour: settings.hour,
+    weather: settings.weather,
+    weatherSnap: !!(round && round.state === 'playing' && round.t < 0.3 && settings.autoAmbience),
+    subStep:
+      settings.forcedStep !== undefined
+        ? settings.forcedStep
         : round
-          ? Math.min(1, (round.t || 0) / Math.max(1, settings.dureeDuel || settings.duree))
+          ? Math.min(1, (round.t || 0) / Math.max(1, settings.duelDuration || settings.duration))
           : 0,
     progression: 0,
     tension: tension,
-    reduit: !!(window.matchMedia && window.matchMedia('(prefers-reduced-motion: reduce)').matches),
+    reduced: !!(window.matchMedia && window.matchMedia('(prefers-reduced-motion: reduce)').matches),
   };
   if (!a) {
     ctx.fillStyle = '#141e17';
@@ -190,10 +190,10 @@ export function drawFrame(dt) {
     if (!OX) return f(e);
     const sW = e.W,
       sX = e.x0,
-      sT = e.tete;
+      sT = e.head;
     e.W = WF;
     e.x0 = X0 + OX;
-    e.tete = { x: sT.x + OX, y: sT.y };
+    e.head = { x: sT.x + OX, y: sT.y };
     ctx.save();
     ctx.translate(-OX, 0);
     try {
@@ -202,26 +202,26 @@ export function drawFrame(dt) {
       ctx.restore();
       e.W = sW;
       e.x0 = sX;
-      e.tete = sT;
+      e.head = sT;
     }
   };
-  inFrame((e2) => a.peindreFond(ctx, e2));
+  inFrame((e2) => a.paintBack(ctx, e2));
   ctx.save();
   paintRace();
-  peindreOffrandes();
-  peindreRochers();
-  peindreRonces();
+  paintOfferings();
+  paintStones();
+  paintBrambles();
 
   for (let _i = 0; _i < bodies.length; _i++) {
     loadBody(_i);
-    a.peindreSerpent(ctx, trace, CELL, {
+    a.paintSnake(ctx, trace, CELL, {
       ...e,
-      teinte: bodies[activeIndex].teinte,
+      tint: bodies[activeIndex].tint,
     });
-    if (bodies[activeIndex].bouclierT > 0 && trace.length) {
+    if (bodies[activeIndex].shieldTime > 0 && trace.length) {
       // bouclier actif : bulle autour de la tete, qui respire, et qui s'affine sur les 3 dernieres secondes
       const h = trace[0],
-        bt = bodies[activeIndex].bouclierT,
+        bt = bodies[activeIndex].shieldTime,
         shieldFade = Math.min(1, bt / 3);
       const rgb = activeIndex === 0 ? '242,197,124' : '180,212,222';
       const R = CELL * (0.62 + 0.04 * Math.sin(t * 5));
@@ -244,11 +244,11 @@ export function drawFrame(dt) {
       ctx.stroke();
       ctx.restore();
     }
-    if (egg) peindreCoquille(egg.t / HATCH_TIME);
+    if (egg) paintShell(egg.t / HATCH_TIME);
     storeBody();
   }
   loadBody(0);
-  if (settings.debugIA) paintAiDebug();
+  if (settings.aiDebug) paintAiDebug();
   // Mesure de fluidite (calque Debug IA seulement) : images par seconde lissees et pire image des 2 dernieres secondes
   smoothedFps += ((dt > 0 ? 1 / dt : 60) - smoothedFps) * 0.05;
   worstDtTimer += dt;
@@ -258,7 +258,7 @@ export function drawFrame(dt) {
     worstDt = 0;
     worstDtTimer = 0;
   }
-  if (settings.debugIA) {
+  if (settings.aiDebug) {
     ctx.save();
     ctx.font = 'bold 22px sans-serif';
     ctx.textAlign = 'left';
@@ -272,27 +272,27 @@ export function drawFrame(dt) {
     );
     ctx.restore();
   }
-  peindreHalos();
-  peindreEtincelles();
+  paintHalos();
+  paintSparks();
   ctx.restore();
   frameDt = dt;
   paintRound();
-  inFrame((e2) => a.peindreAvant(ctx, e2));
-  peindreScore();
-  const hasGifts = settings.plateforme !== 'neutre';
-  if (hasGifts) peindreStatutsDuel();
+  inFrame((e2) => a.paintFront(ctx, e2));
+  paintScore();
+  const hasGifts = settings.platform !== 'neutral';
+  if (hasGifts) paintDuelStatus();
   // affichageCadeaux : 'defile' (bandeaux qui defilent, avec le pattern visible/cache), 'complet' (ancienne legende), 'aucun' (rien)
   if (hasGifts) {
-    const giftDisplayMode = settings.affichageCadeaux || 'complet';
-    if (giftDisplayMode === 'defile') paintGiftScroll();
-    else if (giftDisplayMode === 'complet') paintDuelLegend();
+    const giftDisplayMode = settings.giftDisplay || 'full';
+    if (giftDisplayMode === 'scroll') paintGiftScroll();
+    else if (giftDisplayMode === 'full') paintDuelLegend();
   }
   // Ecran de fin du duel, peint APRES le score et la legende (Abdel : « your grey veil just apply to gift and do
   // not consider the whole screen, make it smoother ») : un seul voile, plein ecran, et le classement devant tout.
-  if (round && round.etat !== 'en cours') paintEndScreen();
+  if (round && round.state !== 'playing') paintEndScreen();
   paintBanner();
-  if (settings.maquette) paintLiveMockup();
-  inFrame((e2) => a.maj(dt, e2));
+  if (settings.mockup) paintLiveMockup();
+  inFrame((e2) => a.update(dt, e2));
   if (settings.zones) {
     ctx.save();
     ctx.globalAlpha = 0.2;

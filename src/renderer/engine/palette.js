@@ -7,12 +7,13 @@ export const GOLD = '#F2C57C';
 const BERRY_GREEN = '#9BE28A',
   BERRY_GREEN_ALPHA = (a) => 'rgba(155,226,138,' + a + ')';
 
-export const berryTint = (team) => (team === 'or' ? GOLD : team === 'ombre' ? SHADOW : BERRY_GREEN);
+export const berryTint = (team) =>
+  team === 'gold' ? GOLD : team === 'shadow' ? SHADOW : BERRY_GREEN;
 
 export const berryGlow = (a, team) =>
-  team === 'or'
+  team === 'gold'
     ? 'rgba(242,197,124,' + a + ')'
-    : team === 'ombre'
+    : team === 'shadow'
       ? 'rgba(180,212,222,' + a + ')'
       : BERRY_GREEN_ALPHA(a);
 

@@ -5,60 +5,60 @@
  * with the engine (docs/roadmap.md, step 3). Everything else goes through these types.
  */
 
-export const CONTROL_CHANNEL = 'vipere-duel';
+export const CONTROL_CHANNEL = 'viper-duel';
 
 /** How often the game publishes its state to the control room. */
 export const STATE_INTERVAL_MS = 500;
 
 export type ControlCommand =
-  | { readonly cmd: 'evenement'; readonly ev?: AudienceEvent }
+  | { readonly cmd: 'event'; readonly ev?: AudienceEvent }
   /** A raw TikFinity Event API message, injected through the same path as the WebSocket. */
-  | { readonly cmd: 'brut'; readonly message?: unknown }
-  | { readonly cmd: 'pont-demarrer'; readonly url?: string }
-  | { readonly cmd: 'pont-arreter' }
-  | { readonly cmd: 'manche' }
-  | { readonly cmd: 'reglage'; readonly nom: string; readonly valeur: unknown }
-  | { readonly cmd: 'scene'; readonly nom: string; readonly duree: number }
+  | { readonly cmd: 'raw'; readonly message?: unknown }
+  | { readonly cmd: 'bridge-start'; readonly url?: string }
+  | { readonly cmd: 'bridge-stop' }
+  | { readonly cmd: 'round' }
+  | { readonly cmd: 'setting'; readonly name: string; readonly value: unknown }
+  | { readonly cmd: 'scene'; readonly name: string; readonly duration: number }
   | { readonly cmd: 'sceneStop' }
-  | { readonly cmd: 'finTest'; readonly camp: Team };
+  | { readonly cmd: 'finTest'; readonly team: Team };
 
 export interface GameState {
   readonly pont: unknown;
-  readonly avantage: number;
+  readonly advantage: number;
   readonly underdog: boolean;
-  readonly foule: unknown;
-  readonly plateforme: GameSettings['plateforme'];
-  readonly fluide: boolean;
-  readonly retourCadeau: string;
-  readonly bandeau: string;
-  readonly classement: string;
-  readonly meteo: string;
-  readonly ambianceAuto: boolean;
-  readonly heure: number;
-  readonly nomsDonateurs: boolean;
-  readonly superIA: boolean;
-  readonly debugIA: boolean;
+  readonly crowd: unknown;
+  readonly platform: GameSettings['platform'];
+  readonly smooth: boolean;
+  readonly giftFeedback: string;
+  readonly banner: string;
+  readonly ranking: string;
+  readonly weather: string;
+  readonly autoAmbience: boolean;
+  readonly hour: number;
+  readonly donorNames: boolean;
+  readonly superAi: boolean;
+  readonly aiDebug: boolean;
   readonly scene: unknown;
   readonly duel: {
     readonly t: number;
-    readonly vainqueur: DuelSnapshot['vainqueur'];
-    readonly or: { readonly longueur: number | undefined };
-    readonly ombre: { readonly longueur: number | undefined };
+    readonly winner: DuelSnapshot['winner'];
+    readonly gold: { readonly length: number | undefined };
+    readonly shadow: { readonly length: number | undefined };
   } | null;
-  readonly mesures: { readonly erreurs: number };
+  readonly metrics: { readonly errors: number };
 }
 
 export interface GameStateMessage {
-  readonly etat: GameState;
+  readonly state: GameState;
 }
 
 const COMMANDS: ReadonlySet<string> = new Set<ControlCommand['cmd']>([
-  'evenement',
-  'brut',
-  'pont-demarrer',
-  'pont-arreter',
-  'manche',
-  'reglage',
+  'event',
+  'raw',
+  'bridge-start',
+  'bridge-stop',
+  'round',
+  'setting',
   'scene',
   'sceneStop',
   'finTest',

@@ -17,15 +17,15 @@ export const frameTiming: Diagnostic = async ({ game, orientation, options, writ
     contents,
     (settings: Partial<GameSettings>, hour: number) => {
       window.__viperKit.startDuel(settings);
-      window.VipereBase.reglerHeure(hour);
+      window.Viper.setHour(hour);
       window.__viperKit.startCrowd(3);
     },
     {
       format: formatOf(orientation),
-      dureeDuel: 600,
-      ambianceAuto: false,
+      duelDuration: 600,
+      autoAmbience: false,
       cycle: 0,
-      meteo: options.weather,
+      weather: options.weather,
     },
     options.hour,
   );
@@ -40,8 +40,8 @@ export const frameTiming: Diagnostic = async ({ game, orientation, options, writ
       await evaluate(
         contents,
         (name: string, at: number) => {
-          window.VipereBase.reglages.meteo = name;
-          window.VipereBase.reglerHeure(at);
+          window.Viper.settings.weather = name;
+          window.Viper.setHour(at);
         },
         weather,
         hour,

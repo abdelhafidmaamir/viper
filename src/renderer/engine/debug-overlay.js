@@ -14,7 +14,7 @@ import {
   Z_COMMENTS,
   Z_INPUT,
 } from './layout.js';
-import { pilule } from './scoreboard.js';
+import { pill } from './scoreboard.js';
 import { ctx } from './canvas.js';
 import {
   activeIndex,
@@ -42,17 +42,17 @@ export function paintLiveMockup() {
   ctx.beginPath();
   ctx.arc(84, 150, 42, 0, Math.PI * 2);
   ctx.fill();
-  pilule(138, 126, 190, 26, LIGHT, 8); // le pseudo
-  pilule(138, 160, 96, 18, GRAY, 7); // les abonnes
-  pilule(404, 122, 150, 58, 'rgba(232,64,84,0.80)'); // + Suivre
-  pilule(740, 124, 180, 54, DARK); // les avatars et le nombre de spectateurs
+  pill(138, 126, 190, 26, LIGHT, 8); // le pseudo
+  pill(138, 160, 96, 18, GRAY, 7); // les abonnes
+  pill(404, 122, 150, 58, 'rgba(232,64,84,0.80)'); // + Suivre
+  pill(740, 124, 180, 54, DARK); // les avatars et le nombre de spectateurs
   ctx.fillStyle = LIGHT;
   [768, 806].forEach((x) => {
     ctx.beginPath();
     ctx.arc(x, 151, 21, 0, Math.PI * 2);
     ctx.fill();
   });
-  pilule(840, 142, 56, 18, LIGHT, 7);
+  pill(840, 142, 56, 18, LIGHT, 7);
   ctx.strokeStyle = LIGHT;
   ctx.lineWidth = 5;
   ctx.lineCap = 'round';
@@ -63,9 +63,9 @@ export function paintLiveMockup() {
   ctx.lineTo(1002, 170);
   ctx.stroke();
   // la seconde rangee : classement, galerie, recherche
-  pilule(30, 216, 368, 42, DARK, 12);
-  pilule(414, 216, 236, 42, DARK, 12);
-  pilule(666, 216, 384, 42, DARK, 12);
+  pill(30, 216, 368, 42, DARK, 12);
+  pill(414, 216, 236, 42, DARK, 12);
+  pill(666, 216, 384, 42, DARK, 12);
 
   // 2. la colonne de widgets cadeaux, a droite : c'est elle qui borne le compteur par le bas
   const Z = Z_GIFTS;
@@ -75,9 +75,9 @@ export function paintLiveMockup() {
   ctx.fill();
   for (let i = 0; i < 5; i++) {
     const y = Z.y + 22 + i * 66;
-    pilule(Z.x + 16, y, 52, 52, LIGHT, 14); // l'icone du cadeau
-    pilule(Z.x + 82, y + 10, 190, 16, GRAY, 8); // le libelle
-    pilule(Z.x + 82, y + 32, 120, 14, GRAY, 7);
+    pill(Z.x + 16, y, 52, 52, LIGHT, 14); // l'icone du cadeau
+    pill(Z.x + 82, y + 10, 190, 16, GRAY, 8); // le libelle
+    pill(Z.x + 82, y + 32, 120, 14, GRAY, 7);
   }
 
   // 3. la banniere de cadeau, puis le fil de commentaires, puis la barre de saisie
@@ -90,9 +90,9 @@ export function paintLiveMockup() {
   ctx.beginPath();
   ctx.arc(B.x + 50, B.y + B.h / 2, 34, 0, Math.PI * 2);
   ctx.fill();
-  pilule(B.x + 98, B.y + 22, 210, 20, LIGHT, 8);
-  pilule(B.x + 98, B.y + 54, 140, 16, GRAY, 7);
-  pilule(B.x + 430, B.y + 28, 120, 40, LIGHT, 10);
+  pill(B.x + 98, B.y + 22, 210, 20, LIGHT, 8);
+  pill(B.x + 98, B.y + 54, 140, 16, GRAY, 7);
+  pill(B.x + 430, B.y + 28, 120, 40, LIGHT, 10);
   const F = Z_COMMENTS;
   // 4 commentaires et demi a la fois, compte par Abdel sur un vrai live : le plus ancien est
   // coupe net par le haut du fil, il ne s'affiche jamais en entier. On decoupe donc a la zone
@@ -113,13 +113,13 @@ export function paintLiveMockup() {
     ctx.beginPath();
     ctx.arc(F.x + 58, y + 43, 26, 0, Math.PI * 2);
     ctx.fill();
-    pilule(F.x + 98, y + 20, lg * 0.34, 16, LIGHT, 7);
-    pilule(F.x + 98, y + 50, lg * 0.62, 16, GRAY, 7);
+    pill(F.x + 98, y + 20, lg * 0.34, 16, LIGHT, 7);
+    pill(F.x + 98, y + 50, lg * 0.62, 16, GRAY, 7);
   }
   ctx.restore();
   const S = Z_INPUT;
-  pilule(S.x + 24, S.y, 560, S.h, 'rgba(0,0,0,0.42)', 28);
-  pilule(S.x + 52, S.y + 38, 260, 22, GRAY, 10);
+  pill(S.x + 24, S.y, 560, S.h, 'rgba(0,0,0,0.42)', 28);
+  pill(S.x + 52, S.y + 38, 260, 22, GRAY, 10);
   ctx.fillStyle = 'rgba(0,0,0,0.42)';
   [648, 744, 840, 936].forEach((x) => {
     ctx.beginPath();
@@ -169,26 +169,26 @@ export function paintAiDebug() {
     ctx.clip();
     // Super IA : territoire de Voronoi teinte par camp (vu par Or, peint une fois), et la reponse
     // que ce serpent PREDIT chez l'adversaire (pointille blanc partant de la tete adverse)
-    if (g.superIA) {
-      const S = g.superIA,
+    if (g.superAi) {
+      const S = g.superAi,
         opponentBody = bodies[1 - i];
-      if (i === 0 && S.vor)
-        for (let n = 0; n < S.vor.length; n++) {
-          const l = S.vor[n];
+      if (i === 0 && S.voronoi)
+        for (let n = 0; n < S.voronoi.length; n++) {
+          const l = S.voronoi[n];
           if (l !== 1 && l !== 2) continue;
           const vx = n % COLS,
             vy = (n - vx) / COLS;
           ctx.fillStyle = l === 1 ? 'rgba(242,197,124,0.10)' : 'rgba(180,212,222,0.10)';
           ctx.fillRect(X0 + vx * CELL + 2, Y0 + vy * CELL + 2, CELL - 4, CELL - 4);
         }
-      if (S.adv && S.adv.length && opponentBody && opponentBody.serpent[0]) {
-        const o0 = px(opponentBody.serpent[0].x, opponentBody.serpent[0].y);
+      if (S.rival && S.rival.length && opponentBody && opponentBody.snake[0]) {
+        const o0 = px(opponentBody.snake[0].x, opponentBody.snake[0].y);
         ctx.setLineDash([5, 6]);
         ctx.strokeStyle = 'rgba(255,255,255,0.7)';
         ctx.lineWidth = 2.5;
         ctx.beginPath();
         ctx.moveTo(o0.x, o0.y);
-        S.adv.forEach((q) => {
+        S.rival.forEach((q) => {
           const o = px(q.x, q.y);
           ctx.lineTo(o.x, o.y);
         });
@@ -204,14 +204,14 @@ export function paintAiDebug() {
     // respecte dirProchaine (l'intent decide). Resultat : une ligne courbe reelle, pas un rail.
     const pts = [{ x: p.x, y: p.y }];
     const otherBody = bodies[1 - activeIndex];
-    const aiTarget = g.cible || (otherBody && otherBody.serpent[0]);
+    const aiTarget = g.target || (otherBody && otherBody.snake[0]);
     let hx = h.x,
       hy = h.y,
       dx = dir.x,
       dy = dir.y;
     const occ = new Set(snake.map((s) => s.y * COLS + s.x));
     // Super IA : la ligne est la VRAIE variante principale calculee par la recherche, pas une estimation
-    const hasAiRoute = !!(g.superIA && g.route && g.route.length);
+    const hasAiRoute = !!(g.superAi && g.route && g.route.length);
     if (hasAiRoute)
       g.route.forEach((q) => {
         const o = px(q.x, q.y);
@@ -282,13 +282,11 @@ export function paintAiDebug() {
       ctx.arc(pts[k].x, pts[k].y, 4, 0, Math.PI * 2);
       ctx.fill();
     }
-    if (!g.superIA)
-      drawLozenge(g.porteeAttaque || 12, g.posture === 'attaque' ? 0.55 : 0.22, [10, 8]);
-    if (!g.superIA)
-      drawLozenge(g.porteeDefense || 10, g.posture === 'defense' ? 0.55 : 0.22, [3, 6]);
+    if (!g.superAi) drawLozenge(g.attackRange || 12, g.stance === 'attack' ? 0.55 : 0.22, [10, 8]);
+    if (!g.superAi) drawLozenge(g.defenseRange || 10, g.stance === 'defense' ? 0.55 : 0.22, [3, 6]);
     // 4. couronne adverse evitee
     ctx.setLineDash([]);
-    (aiMemory.dbgEviter || []).forEach((q) => {
+    (aiMemory.dbgAvoid || []).forEach((q) => {
       const o = px(q.x, q.y),
         r = CELL / 2 - 3;
       ctx.fillStyle = 'rgba(255,90,90,0.10)';
@@ -303,8 +301,8 @@ export function paintAiDebug() {
       ctx.stroke();
     });
     // 1. baie visee : cerclee (le trajet est deja peint plus haut, en trajectoire anticipee)
-    if (g.cible) {
-      const o = px(g.cible.x, g.cible.y);
+    if (g.target) {
+      const o = px(g.target.x, g.target.y);
       ctx.strokeStyle = c(0.95);
       ctx.lineWidth = 3;
       ctx.beginPath();
@@ -321,7 +319,7 @@ export function paintAiDebug() {
       const v = g.scores[key],
         [dx, dy] = key.split(',').map(Number),
         o = { x: p.x + dx * CELL * 0.95, y: p.y + dy * CELL * 0.95 };
-      const chosen = g.choix && g.choix.x === dx && g.choix.y === dy;
+      const chosen = g.choice && g.choice.x === dx && g.choice.y === dy;
       if (typeof v === 'number' || v === 'ok') {
         const f = typeof v === 'number' ? (mx > mn ? (v - mn) / (mx - mn) : 1) : 0.5;
         ctx.strokeStyle = chosen ? 'rgba(255,255,255,0.95)' : c(0.3 + 0.5 * f);
@@ -366,12 +364,12 @@ export function paintAiDebug() {
     }
     ctx.restore();
     // Super IA : barre d'evaluation facon echecs au-dessus du plateau (part d'Or a gauche), une seule fois
-    if (g.superIA && i === 0) {
-      const S = g.superIA,
+    if (g.superAi && i === 0) {
+      const S = g.superAi,
         bx = X0,
         by = Y0 - 34,
         bw = COLS * CELL,
-        part = Math.max(0.04, Math.min(0.96, 0.5 + S.valeur / 300));
+        part = Math.max(0.04, Math.min(0.96, 0.5 + S.value / 300));
       ctx.save();
       ctx.fillStyle = 'rgba(180,212,222,0.85)';
       ctx.fillRect(bx, by, bw, 10);
@@ -383,16 +381,16 @@ export function paintAiDebug() {
       ctx.textAlign = 'left';
       ctx.fillText(
         'Super IA   prof ' +
-          S.prof +
+          S.depth +
           '   ' +
-          S.noeuds +
+          S.nodes +
           ' noeuds   eval Or ' +
-          (S.valeur > 0 ? '+' : '') +
-          S.valeur.toFixed(0) +
+          (S.value > 0 ? '+' : '') +
+          S.value.toFixed(0) +
           '   territoire ' +
-          S.terrMoi +
+          S.ownTerritory +
           ' / ' +
-          S.terrLui,
+          S.rivalTerritory,
         bx,
         by - 8,
       );
@@ -400,12 +398,12 @@ export function paintAiDebug() {
     }
     // 5. etiquette (hors clip, au-dessus de la tete)
     const txt =
-      (g.posture || 'neutre') +
+      (g.stance || 'neutral') +
       ' | ' +
-      (g.raison || '?') +
+      (g.reason || '?') +
       ' | poche ' +
-      (g.poche != null ? g.poche : '?') +
-      (g.piege != null ? ' | adv ' + g.piege : '');
+      (g.pocket != null ? g.pocket : '?') +
+      (g.trap != null ? ' | adv ' + g.trap : '');
     ctx.save();
     ctx.font = 'bold 15px sans-serif';
     ctx.textAlign = 'center';
