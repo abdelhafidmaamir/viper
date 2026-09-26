@@ -6,14 +6,14 @@ import { doux01 } from './scoreboard.js';
 import { donsManche, miniSerpent, photoProfil } from './announcements.js';
 import { ctx } from './canvas.js';
 import { OMBRE, OR } from './palette.js';
-import { duel, manche, reglages } from '../scripts/game.js';
+import { manche, reglages } from '../scripts/game.js';
 
 // Fin de manche : la scene se voile, le camp gagnant s'affiche par la lumiere, sans un mot
 // le voile de fin, peint une seule fois au quart de la taille puis etire : un degrade radial plein ecran
 // recalcule a chaque image couterait cher pour rien
-export let voileFinC = null;
+let voileFinC = null;
 
-export function voileFin() {
+function voileFin() {
   if (voileFinC) return voileFinC;
   const c = document.createElement('canvas');
   c.width = 270;
@@ -39,16 +39,9 @@ export function peindreFin() {
     const uv = Math.min(1, manche.fin / 1.6),
       kv = uv * uv * uv * (uv * (6 * uv - 15) + 10);
     // en 16:9 le voile couvre aussi les cotes (Abdel : « just the center is active and not the full image »)
-    if (duel()) {
-      ctx.globalAlpha = kv;
-      if (OX) ctx.drawImage(voileFin(), -OX, 0, WF, H);
-      else ctx.drawImage(voileFin(), 0, 0, W, H);
-    } // en 16:9 le meme voile radial s'etire sur tout le cadre, sans raccord
-    else {
-      ctx.globalAlpha = 0.55 * u;
-      ctx.fillStyle = '#050806';
-      ctx.fillRect(0, 0, W, H);
-    }
+    ctx.globalAlpha = kv;
+    if (OX) ctx.drawImage(voileFin(), -OX, 0, WF, H);
+    else ctx.drawImage(voileFin(), 0, 0, W, H);
   }
   ctx.globalAlpha = 1;
   // Le serpent de fin remplace l'astre : il salue quand il gagne, il baisse la tete quand il perd.
@@ -64,7 +57,7 @@ export function peindreFin() {
     o.R = R * (1 - (grandMvp ? 0.48 : 0.34) * kCl);
     o.cy = cy - (grandMvp ? 250 : 190) * kCl;
   }
-  if (duel() && v === 'nul') {
+  if (v === 'nul') {
     // Match nul : les deux serpents face a face, chacun sa couleur, mot DRAW (maquette A1 validee par Abdel).
     if (window.FinSerpent && window.FinSerpent.peindreNul) {
       window.FinSerpent.peindreNul(ctx, {
@@ -77,7 +70,7 @@ export function peindreFin() {
     if (kCl > 0) peindreClassement(kCl);
     ctx.restore();
     return;
-  } else if (duel()) {
+  } else {
     o.etat = 'heureux';
     o.teinte = v === 'ombre' ? OMBRE : OR;
     o.rgb = v === 'ombre' ? '180,212,222' : '242,197,124';
@@ -89,7 +82,7 @@ export function peindreFin() {
 
 // Classement des donateurs de la manche, sur l'ecran de fin (prototype, Abdel 2026-09-21). Memes plaques
 // que la legende des cadeaux, pseudo dans la couleur de son camp, total en pieces. Rendu seul.
-export function topDons(camp) {
+function topDons(camp) {
   return Object.keys(donsManche)
     .map((p) => ({
       pseudo: p,
@@ -101,12 +94,12 @@ export function topDons(camp) {
     .sort((a, b) => b.total - a.total);
 }
 
-export function classementActif() {
+function classementActif() {
   const m = reglages.classement;
-  return duel() && m && m !== 'aucun' && topDons().length > 0;
+  return m && m !== 'aucun' && topDons().length > 0;
 }
 
-export function ligneClassement(x, y, w, h, d, rang, app, miroir, grand) {
+function ligneClassement(x, y, w, h, d, rang, app, miroir, grand) {
   if (app <= 0.01) return;
   const teinte = d.camp === 'or' ? OR : OMBRE,
     rgb = d.camp === 'or' ? '242,197,124' : '180,212,222';
@@ -203,7 +196,7 @@ export function ligneClassement(x, y, w, h, d, rang, app, miroir, grand) {
 // --- Mise en avant du MVP (Abdel, 2026-09-21 : « crucial, it is used to flatter the viewer, MVP mis en
 // avant with like a crown »). Photo de profil en grand, couronne doree, nom et total ; M1 rayons, M2 le vrai
 // serpent tourne autour de lui, M3 podium a trois marches.
-export const elast = (x) => {
+const elast = (x) => {
   x = Math.max(0, Math.min(1, x));
   return x === 0
     ? 0
@@ -212,7 +205,7 @@ export const elast = (x) => {
       : Math.pow(2, -10 * x) * Math.sin(((x * 10 - 0.75) * 2 * Math.PI) / 3) + 1;
 };
 
-export function peindreAvatar(cx, cy, r, d, ech) {
+function peindreAvatar(cx, cy, r, d, ech) {
   const teinte = d.camp === 'or' ? OR : OMBRE,
     rgb = d.camp === 'or' ? '242,197,124' : '180,212,222',
     montre = reglages.nomsDonateurs !== false,
@@ -300,7 +293,7 @@ export function couronne(cx, cy, l, chute) {
   ctx.restore();
 }
 
-export function nomEtTotal(cx, y, d, corpsN, app) {
+function nomEtTotal(cx, y, d, corpsN, app) {
   if (app <= 0.01) return;
   const teinte = d.camp === 'or' ? OR : OMBRE,
     nom = reglages.nomsDonateurs !== false ? d.pseudo.slice(0, 18) : 'top supporter';
@@ -323,7 +316,7 @@ export function nomEtTotal(cx, y, d, corpsN, app) {
   ctx.restore();
 }
 
-export function etincellesMvp(cx, cy, r0, r1, age, n, rgb) {
+function etincellesMvp(cx, cy, r0, r1, age, n, rgb) {
   for (let i = 0; i < n; i++) {
     const ph = (age * 0.45 + i / n) % 1,
       ang = i * 2.399 + age * 0.3,
@@ -336,7 +329,7 @@ export function etincellesMvp(cx, cy, r0, r1, age, n, rgb) {
   }
 }
 
-export function peindreMvp(mode, age, titre, app) {
+function peindreMvp(mode, age, titre, app) {
   const l = topDons(),
     m = l[0],
     cx = W / 2,
@@ -443,7 +436,7 @@ export function peindreMvp(mode, age, titre, app) {
 // Le panneau du classement (Abdel : « not separated and isolated well enough with the background, it feels like
 // just floating ») : une vraie carte opaque, bordee de la couleur du premier, avec un filet clair en haut et une
 // ombre portee faite de contours fondus (pas de flou), qui pose le classement devant le plateau.
-export function panneauClassement(y0, y1, rgb, a) {
+function panneauClassement(y0, y1, rgb, a) {
   if (a <= 0.01) return;
   const x0 = W / 2 - 352,
     w = 704,
@@ -483,7 +476,7 @@ export function panneauClassement(y0, y1, rgb, a) {
   ctx.restore();
 }
 
-export function peindreClassement(k) {
+function peindreClassement(k) {
   const mode = reglages.classement,
     age = manche.fin - 2.0,
     cx = W / 2,

@@ -11,7 +11,6 @@ import {
   VIEROCHER,
   VIERONCE,
   baies,
-  duel,
   graines,
   px,
   reglages,
@@ -22,12 +21,12 @@ import {
 // couleur du second serpent en mode duel (a verifier au contraste)
 
 // Ce que les spectateurs offrent : la graine tombe, l'ombre se resserre, la baie s'ouvre.
-export const BAIE_RS = 58,
+const BAIE_RS = 58,
   BAIE_N = 48,
   cacheBaie = new Map();
 
-export function spriteBaie(ph, camp) {
-  const cle = ph + (duel() ? 'd' : 'b') + (camp || '');
+function spriteBaie(ph, camp) {
+  const cle = ph + 'd' + (camp || '');
   let s = cacheBaie.get(cle);
   if (s) return s;
   const si = Math.sin((ph / BAIE_N) * Math.PI * 2),
@@ -184,7 +183,7 @@ export function fissure(x, y, ouv, j) {
 }
 
 // Une motte arrachee au flanc de la pierre : elle devale, tombe, et se tasse au pied.
-export function motte(x, y, k, i, j) {
+function motte(x, y, k, i, j) {
   if (k <= 0 || k >= 1) return;
   const cote = i % 2 ? 1 : -1,
     d = 8 + 5 * ((i + j + 5) % 3);
@@ -200,7 +199,7 @@ export function motte(x, y, k, i, j) {
 
 // Le grain hache, meme principe que l'ambiance : un bruit deterministe, donc une pierre a
 // toujours exactement la meme forme et la meme mousse tant qu'elle est au meme endroit.
-export const HACHE = (i, d) => {
+const HACHE = (i, d) => {
   const v = Math.sin((i + 1) * 12.9898 + (d + 7) * 78.233) * 43758.5453;
   return v - Math.floor(v);
 };
@@ -221,7 +220,7 @@ export function lumiere() {
 // La pierre : une silhouette irreguliere a onze sommets, deux plans casses net, une fissure
 // eclairee d'un cote, du grain, de la mousse du cote du jour, et un liseret de lumiere qui ne
 // court que sur les aretes tournees vers la source.
-export function pointsRocher(j, ech) {
+function pointsRocher(j, ech) {
   const n = 11,
     R = 23 * (ech || 1),
     pts = [];
@@ -233,14 +232,14 @@ export function pointsRocher(j, ech) {
   return pts;
 }
 
-export function traceRocher(pts) {
+function traceRocher(pts) {
   ctx.beginPath();
   ctx.moveTo(pts[0].x, pts[0].y);
   for (let i = 1; i < pts.length; i++) ctx.lineTo(pts[i].x, pts[i].y);
   ctx.closePath();
 }
 
-export function corpsRocher(j) {
+function corpsRocher(j) {
   const L = lumiere(),
     pts = pointsRocher(j);
   // le corps : un degrade oriente par la lumiere, du flanc eclaire au flanc dans l'ombre
@@ -333,12 +332,12 @@ export function corpsRocher(j) {
 // clip, quatorze eclats de grain, six ellipses de mousse et onze aretes de liseret. Mesure au
 // profileur, `routines/profil-rendu.js` : 2170 des 4582 operations canvas par image, soit 47 %.
 // On le peint donc une fois par variante et par palier de lumiere, dans un canvas hors ecran.
-export const ROC_RS = 40,
+const ROC_RS = 40,
   cacheRocher = new Map();
 
-export let cacheRocherCle = null;
+let cacheRocherCle = null;
 
-export function spriteRocher(j) {
+function spriteRocher(j) {
   const cle = Math.round(((((reglages.heure || 0) % 1) + 1) % 1) * 180);
   if (cle !== cacheRocherCle) {
     cacheRocher.clear();
@@ -361,7 +360,7 @@ export function spriteRocher(j) {
 }
 
 // Remplace un appel a corpsRocher : meme dessin, meme origine, une seule operation canvas.
-export function poserRocher(j) {
+function poserRocher(j) {
   ctx.drawImage(spriteRocher(j), -ROC_RS, -ROC_RS);
 }
 
@@ -445,7 +444,7 @@ export function peindreRochers() {
 // La ronce : une liane, pas un trait. Le corps est un contour rempli, epais a la racine et fin a
 // la pointe, avec son ombre de contact au sol, un ruban de lumiere du cote de la source, des
 // feuilles a nervure et des epines crochues qui n'apparaissent que sur la part qui tue.
-export function pointsRonce(R) {
+function pointsRonce(R) {
   const pts = [];
   R.seg.forEach((g, i) => {
     const p = px(g.x, g.y),
@@ -470,7 +469,7 @@ export function pointsRonce(R) {
 
 // Le contour de la tige : on longe la ligne d'un cote, on revient de l'autre, la demi-epaisseur
 // decroit vers la pointe. C'est ce qui fait une plante plutot qu'un tuyau d'epaisseur constante.
-export function contourRonce(pts, ep, dx, dy) {
+function contourRonce(pts, ep, dx, dy) {
   const n = pts.length;
   const nor = (i) => {
     const a = pts[Math.max(0, i - 1)],
@@ -519,7 +518,7 @@ export function feuille(x, y, an, L, clair, f, ouv) {
   ctx.restore();
 }
 
-export function epine(x, y, an, L, te, f) {
+function epine(x, y, an, L, te, f) {
   ctx.save();
   ctx.translate(x, y);
   ctx.rotate(an);
@@ -543,7 +542,7 @@ export function epine(x, y, an, L, te, f) {
 // ses courbes. Mesure au profileur : 1406 des 4582 operations canvas par image, soit 31 %.
 // Une ronce posee ne bouge plus, donc son sprite ne se repeint qu'a l'ouverture et a la mort.
 // Le decalage est entier, pour que la recopie soit au pixel pres et non reechantillonnee.
-export const RON_M = 26;
+const RON_M = 26;
 
 export function peindreRonces() {
   const L = lumiere();
@@ -584,7 +583,7 @@ export function peindreRonces() {
   });
 }
 
-export function corpsRonce(pts, f, L, R) {
+function corpsRonce(pts, f, L, R) {
   ctx.save();
   ctx.lineJoin = 'round';
   ctx.lineCap = 'round';

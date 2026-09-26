@@ -50,33 +50,6 @@ function bruitFiltre(dur, gain, f0, f1, q, retard) {
   src.start(t0);
   src.stop(t0 + dur + 0.02);
 }
-// La pierre s'annonce : la terre gronde doucement pendant qu'elle se bombe.
-export function sonPoussee(alerte) {
-  if (!sonActif || !ac) return;
-  try {
-    // La sub porte la masse sur une vraie enceinte, mais un telephone ne rend rien sous 400 Hz :
-    // l'avertissement doit donc vivre dans le grain median, sinon il est muet la ou le jeu se joue.
-    bruitFiltre(alerte * 0.95, 0.016, 90, 240, 1.6);
-    bruitFiltre(alerte * 0.95, 0.022, 520, 1400, 0.8); // le grain de terre qui se dechire, audible partout
-    [0.14, 0.44, 0.76].forEach((k, i) => {
-      // trois craquements secs, de plus en plus haut
-      bruitFiltre(0.05, 0.04 + 0.012 * i, 1500 + 500 * i, 800, 1.2, alerte * k);
-    });
-    const t0 = ac.currentTime,
-      o = ac.createOscillator(),
-      g = ac.createGain();
-    o.type = 'sine';
-    o.frequency.setValueAtTime(38, t0);
-    o.frequency.linearRampToValueAtTime(58, t0 + alerte);
-    g.gain.setValueAtTime(0.0001, t0);
-    g.gain.exponentialRampToValueAtTime(0.05, t0 + alerte * 0.8);
-    g.gain.exponentialRampToValueAtTime(0.0002, t0 + alerte * 1.15);
-    o.connect(g);
-    g.connect(sortie);
-    o.start(t0);
-    o.stop(t0 + alerte * 1.2);
-  } catch (er) {}
-}
 // Elle se cale : rien ne frappe, la terre se referme autour d'elle.
 export function sonPose() {
   if (!sonActif || !ac) return;

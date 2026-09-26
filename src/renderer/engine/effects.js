@@ -3,7 +3,7 @@
 import { CELL } from './layout.js';
 import { ctx } from './canvas.js';
 import { COQUILLE, OMBRE, OR, ROUGE, teinteBaie } from './palette.js';
-import { ECLOSION, SORTIE, TRAINE, couvee, duel, etincelles, halos, px } from '../scripts/game.js';
+import { ECLOSION, SORTIE, TRAINE, couvee, etincelles, halos, px } from '../scripts/game.js';
 
 // Anime la naissance du serpent : un oeuf se pose, se fend et eclate.
 // Appeler a chaque image avec u de 0 a 1. Purement visuel, aucun effet de bord.
@@ -11,7 +11,7 @@ import { ECLOSION, SORTIE, TRAINE, couvee, duel, etincelles, halos, px } from '.
 // et le serpent en sort. Tout est en fonctions douces, rien ne demarre ni ne s'arrete net.
 export const doux = (x) => (x <= 0 ? 0 : x >= 1 ? 1 : x * x * (3 - 2 * x));
 
-export const sortant = (x) => 1 - Math.pow(1 - Math.min(1, Math.max(0, x)), 3);
+const sortant = (x) => 1 - Math.pow(1 - Math.min(1, Math.max(0, x)), 3);
 
 export const bruit = (i, d) => {
   const v = Math.sin(i * 12.9898 + d * 78.233) * 43758.5453;
@@ -205,7 +205,7 @@ export function peindreCoquille(u) {
 }
 
 // Une baie mangee ne projette rien : elle s'allume sur place et se retire lentement.
-export const LUEUR = { offerte: '242,197,124', nature: '207,227,198' };
+const LUEUR = { offerte: '242,197,124', nature: '207,227,198' };
 
 export function peindreHalos() {
   if (!halos.length) return;
@@ -221,7 +221,7 @@ export function peindreHalos() {
           ? '242,197,124'
           : h.teinte === 'offerte-ombre'
             ? '180,212,222'
-            : h.teinte === 'offerte' && duel()
+            : h.teinte === 'offerte'
               ? '155,226,138'
               : LUEUR[h.teinte] || LUEUR.nature;
     const g = ctx.createRadialGradient(h.x, h.y, 0, h.x, h.y, R);
