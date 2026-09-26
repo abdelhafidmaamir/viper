@@ -160,7 +160,7 @@ describe('applyCommand', () => {
     const { deps, game } = fakeDeps();
     applyCommand({ cmd: 'scene', name: 'face', duration: 15 }, deps);
     applyCommand({ cmd: 'sceneStop' }, deps);
-    applyCommand({ cmd: 'finTest', team: 'shadow' }, deps);
+    applyCommand({ cmd: 'endTest', team: 'shadow' }, deps);
     expect(game.launchScene).toHaveBeenCalledWith('face', 15);
     expect(game.stopScene).toHaveBeenCalledOnce();
     expect(game.endTest).toHaveBeenCalledWith('shadow');
@@ -177,7 +177,7 @@ describe('snapshot', () => {
       shadow: { length: 12 },
     });
     expect(snapshot(deps)).toMatchObject({
-      pont: { connected: false },
+      bridge: { connected: false },
       platform: 'tiktok',
       donorNames: true,
       duel: { t: 42, winner: null, gold: { length: 9 }, shadow: { length: 12 } },

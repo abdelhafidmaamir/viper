@@ -269,7 +269,7 @@
     function view() {
       return {
         density: density,
-        journal: history.slice(),
+        log: history.slice(),
         counts: { gold: teams.gold.count, shadow: teams.shadow.count },
         gold: {
           fervor: teams.gold.fervor,

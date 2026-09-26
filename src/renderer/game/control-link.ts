@@ -116,7 +116,7 @@ export function applyCommand(command: ControlCommand, deps: GameLinkDeps): void 
     case 'sceneStop':
       game.stopScene();
       return;
-    case 'finTest':
+    case 'endTest':
       game.endTest?.(command.team);
       return;
   }
@@ -126,7 +126,7 @@ export function snapshot({ game, bridge, readCrowd }: GameLinkDeps): GameState {
   const settings = game.settings;
   const duel = game.duel();
   return {
-    pont: bridge.state(),
+    bridge: bridge.state(),
     advantage: settings.advantage || 0,
     underdog: settings.underdog,
     crowd: readCrowd(),

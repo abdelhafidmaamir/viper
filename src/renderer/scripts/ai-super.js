@@ -452,7 +452,7 @@
       for (i = 0; i < 4; i++)
         if (!(k1 >= 0 && i === ((k1 + 2) & 3)))
           dbg.scores[DX[i] + ',' + DY[i]] =
-            scores[i] < -collisionCost(1) + 20 ? 'refuse' : scores[i];
+            scores[i] < -collisionCost(1) + 20 ? 'refused' : scores[i];
       if (pvLine)
         for (i = 0; i + 1 < pvLine.length; i += 2) {
           if (pvLine[i] >= 0)

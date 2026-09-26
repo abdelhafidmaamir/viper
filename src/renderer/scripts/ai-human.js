@@ -248,7 +248,7 @@
       var d = DIRS[k],
         key = d.x + ',' + d.y;
       if (d.x === back.x && d.y === back.y) continue;
-      if (!(key in g.scores)) g.scores[key] = isStepSafe(e, d) ? 'ok' : 'refuse';
+      if (!(key in g.scores)) g.scores[key] = isStepSafe(e, d) ? 'ok' : 'refused';
     }
     if (r.d) {
       var tx = t.x + r.d.x,
@@ -557,7 +557,7 @@
       for (i = 0; i < e.fruits.length; i++)
         if (e.fruits[i].x === tx && e.fruits[i].y === ty) eats = true;
       if (bNow[ty * e.cols + tx]) {
-        if (dbg) dbg.scores[d.x + ',' + d.y] = 'refuse';
+        if (dbg) dbg.scores[d.x + ',' + d.y] = 'refused';
         continue;
       }
       var c = copyBody(e.body);

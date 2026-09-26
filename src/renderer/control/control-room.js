@@ -38,19 +38,23 @@
     if (cf && document.activeElement !== cf) cf.checked = !!e.smooth;
     if (e.platform) {
       var isNeutral = e.platform === 'neutral';
-      document.getElementById('pfEtat').textContent =
+      document.getElementById('platformState').textContent =
         'actif : ' + (isNeutral ? 'Neutre (cadeaux caches)' : 'TikTok (cadeaux affiches)');
-      document.getElementById('pfNeutre').style.borderColor = isNeutral ? 'var(--accent)' : '';
-      document.getElementById('pfNeutre').style.color = isNeutral ? 'var(--accent)' : '';
-      document.getElementById('pfTiktok').style.borderColor = isNeutral ? '' : 'var(--accent)';
-      document.getElementById('pfTiktok').style.color = isNeutral ? '' : 'var(--accent)';
+      document.getElementById('platformNeutral').style.borderColor = isNeutral
+        ? 'var(--accent)'
+        : '';
+      document.getElementById('platformNeutral').style.color = isNeutral ? 'var(--accent)' : '';
+      document.getElementById('platformTiktok').style.borderColor = isNeutral
+        ? ''
+        : 'var(--accent)';
+      document.getElementById('platformTiktok').style.color = isNeutral ? '' : 'var(--accent)';
     }
     if (window.__crowdState) window.__crowdState(e.crowd || null);
     if (window.__syncThumb) window.__syncThumb(e.advantage || 0);
     if (window.__syncSuper) window.__syncSuper(!!e.superAi);
     if (window.__syncScene) window.__syncScene(e.scene || null, !!e.underdog);
-    var p = e.pont || {};
-    document.getElementById('vpont').className = 'voyant' + (p.connected ? ' ok' : '');
+    var p = e.bridge || {};
+    document.getElementById('bridgeLight').className = 'light' + (p.connected ? ' ok' : '');
     /* en live (pont connecte), les boutons de test sont bloques : leurs faux pseudos ne doivent jamais passer a l'antenne */
     Array.prototype.forEach.call(
       document.querySelectorAll('[data-t],#testClassement'),
@@ -59,10 +63,10 @@
         b.title = p.connected ? 'Bloque pendant le live : le pont TikFinity est connecte' : '';
       },
     );
-    document.getElementById('epont').textContent = p.connected
+    document.getElementById('bridgeStatus').textContent = p.connected
       ? 'connecte a ' + p.url
       : 'deconnecte';
-    document.getElementById('plog').textContent =
+    document.getElementById('bridgeLog').textContent =
       (p.last || 'waiting') +
       '\n' +
       (p.events || 0) +
@@ -86,18 +90,18 @@
   /* la fenetre jeu emet toutes les 500 ms : sans signe depuis 2 s, voyant rouge */
   setInterval(function () {
     var ok = Date.now() - lastSignal < 2000;
-    document.getElementById('vjeu').className = 'voyant' + (ok ? ' ok' : '');
-    document.getElementById('ejeu').textContent = ok
+    document.getElementById('gameLight').className = 'light' + (ok ? ' ok' : '');
+    document.getElementById('gameStatus').textContent = ok
       ? 'fenetre jeu en ligne'
       : 'aucun signe de la fenetre jeu (est-elle ouverte ?)';
   }, 500);
   document.getElementById('smooth').onchange = function () {
     channel.postMessage({ cmd: 'setting', name: 'smooth', value: this.checked });
   };
-  document.getElementById('pfTiktok').onclick = function () {
+  document.getElementById('platformTiktok').onclick = function () {
     channel.postMessage({ cmd: 'setting', name: 'platform', value: 'tiktok' });
   };
-  document.getElementById('pfNeutre').onclick = function () {
+  document.getElementById('platformNeutral').onclick = function () {
     channel.postMessage({ cmd: 'setting', name: 'platform', value: 'neutral' });
   };
   document.getElementById('round').onclick = function () {
@@ -106,10 +110,10 @@
   /* Super admin : section visible seulement avec ?admin=1 dans l'URL de la regie */
   if (/[?&]admin=1/.test(location.search)) {
     var admin = document.getElementById('admin'),
-      thumbSlider = document.getElementById('pouce');
+      thumbSlider = document.getElementById('thumb');
     admin.hidden = false;
     function showThumb(v) {
-      document.getElementById('pouceEtat').textContent =
+      document.getElementById('thumbState').textContent =
         v === 0 ? 'neutre (0)' : v > 0 ? 'Or +' + v : 'Ombre +' + -v;
     }
     var dbg = document.getElementById('aiDebug');
@@ -210,7 +214,7 @@
         });
       };
     });
-    document.getElementById('testClassement').onclick = function () {
+    document.getElementById('testRanking').onclick = function () {
       [
         ['gold', 100, 'teddy bear', 'karim.or'],
         ['gold', 30, 'bagel', 'lea_gold'],
@@ -225,7 +229,7 @@
         });
       });
       setTimeout(function () {
-        channel.postMessage({ cmd: 'finTest', team: 'shadow' });
+        channel.postMessage({ cmd: 'endTest', team: 'shadow' });
       }, 1500);
     };
     Array.prototype.forEach.call(document.querySelectorAll('[data-m]'), function (b) {
@@ -254,7 +258,7 @@
       channel.postMessage({ cmd: 'setting', name: 'superAi', value: sup.checked });
     };
     window.__syncSuper = function (on) {
-      document.getElementById('vsuper').className = 'voyant' + (on ? ' ok' : '');
+      document.getElementById('superLight').className = 'light' + (on ? ' ok' : '');
       if (document.activeElement !== sup && sup.checked !== !!on) sup.checked = !!on;
     };
     var ud = document.getElementById('underdog');
@@ -289,13 +293,13 @@
       if (!effects || !Object.keys(effects).length) return '<span class="note">au naturel</span>';
       var out = [],
         hotBadge = function (t) {
-          return '<span class="pastille chaud">' + t + '</span>';
+          return '<span class="badge hot">' + t + '</span>';
         },
         coldBadge = function (t) {
-          return '<span class="pastille froid">' + t + '</span>';
+          return '<span class="badge cold">' + t + '</span>';
         },
         plainBadge = function (t) {
-          return '<span class="pastille">' + t + '</span>';
+          return '<span class="badge">' + t + '</span>';
         };
       if (effects.stance === 'attack') out.push(hotBadge('attack'));
       else if (effects.stance === 'defense') out.push(coldBadge('defense'));
@@ -316,11 +320,11 @@
       if (effects.immediateTrap) out.push(hotBadge('piege !'));
       return out.join('');
     }
-    var sceneStatusEl = document.getElementById('sceneEtat'),
-      eff = document.getElementById('sceneEffet'),
-      efO = document.getElementById('effetOr'),
-      efOm = document.getElementById('effetOm'),
-      vud = document.getElementById('vunderdog');
+    var sceneStatusEl = document.getElementById('sceneState'),
+      eff = document.getElementById('sceneEffect'),
+      efO = document.getElementById('effectGold'),
+      efOm = document.getElementById('effectShadow'),
+      vud = document.getElementById('underdogLight');
     /* la fenetre jeu emet toutes les 500 ms : on interpole entre deux ticks pour une jauge fluide */
     var currentScene = null,
       sceneUdOn = false,
@@ -337,7 +341,7 @@
             shadow: sc.shadow,
           }
         : null;
-      vud.className = 'voyant' + (udOn ? ' ok' : '');
+      vud.className = 'light' + (udOn ? ' ok' : '');
       if (document.activeElement !== ud && ud.checked !== !!udOn) ud.checked = !!udOn;
       if (sc) {
         eff.hidden = false;
@@ -352,7 +356,7 @@
     function paintScene() {
       /* remise a zero puis rallumage du bouton actif */
       Array.prototype.forEach.call(document.querySelectorAll('button[data-s]'), function (b) {
-        b.classList.remove('actif');
+        b.classList.remove('active');
         b.querySelector('.jauge').style.width = '0';
         b.querySelector('.cd').textContent = '';
       });
@@ -360,7 +364,7 @@
         var remaining = Math.max(0, currentScene.remaining - (Date.now() - sceneStamp) / 1000);
         var b = document.querySelector('button[data-s="' + currentScene.name + '"]');
         if (b) {
-          b.classList.add('actif');
+          b.classList.add('active');
           var fraction = currentScene.duration
             ? Math.max(0, Math.min(1, remaining / currentScene.duration))
             : 0;
@@ -393,13 +397,13 @@
       }
     };
   }
-  document.getElementById('pgo').onclick = function () {
+  document.getElementById('bridgeStart').onclick = function () {
     channel.postMessage({
       cmd: 'bridge-start',
-      url: document.getElementById('purl').value.trim(),
+      url: document.getElementById('bridgeUrl').value.trim(),
     });
   };
-  document.getElementById('pstop').onclick = function () {
+  document.getElementById('bridgeStop').onclick = function () {
     channel.postMessage({ cmd: 'bridge-stop' });
   };
   /* Public simule : meme reglage que regie-base.js (gestes par minute, 95 % de likes, 5 % de cadeaux,
@@ -439,7 +443,7 @@
       'nora',
     ];
     var audienceBox = document.getElementById('crowd'),
-      audienceStatusEl = document.getElementById('fouleEtat'),
+      audienceStatusEl = document.getElementById('crowdState'),
       intervalHandle = null,
       sent = { like: 0, gifts: 0 },
       densityIndex = 0;
@@ -448,9 +452,9 @@
     var teamBattle = true,
       audienceBrain = window.ViperCrowd ? window.ViperCrowd.create() : null,
       lastTick = 0;
-    var battleButton = document.getElementById('fmBataille'),
-      randomButton = document.getElementById('fmHasard'),
-      zone = document.getElementById('fouleEquipes');
+    var battleButton = document.getElementById('crowdBattle'),
+      randomButton = document.getElementById('crowdRandom'),
+      zone = document.getElementById('crowdTeams');
     function markMode() {
       [
         [battleButton, teamBattle],
@@ -492,12 +496,12 @@
             .join(', ')
         );
       };
-      document.getElementById('fvOr').style.width = Math.round(v.gold.fervor * 100) + '%';
-      document.getElementById('fvOm').style.width = Math.round(v.shadow.fervor * 100) + '%';
-      document.getElementById('fdOr').textContent = formatLine('gold');
-      document.getElementById('fdOm').textContent = formatLine('shadow');
-      document.getElementById('fouleJournal').textContent = v.journal.length
-        ? v.journal.join(String.fromCharCode(10))
+      document.getElementById('fervorGold').style.width = Math.round(v.gold.fervor * 100) + '%';
+      document.getElementById('fervorShadow').style.width = Math.round(v.shadow.fervor * 100) + '%';
+      document.getElementById('spendGold').textContent = formatLine('gold');
+      document.getElementById('spendShadow').textContent = formatLine('shadow');
+      document.getElementById('crowdLog').textContent = v.log.length
+        ? v.log.join(String.fromCharCode(10))
         : 'en attente du premier cadeau';
     };
     function showStatus() {
@@ -569,7 +573,7 @@
   document.getElementById('likes').onclick = function () {
     channel.postMessage({
       cmd: 'raw',
-      message: { event: 'like', data: { likeCount: 50, uniqueId: 'regie' } },
+      message: { event: 'like', data: { likeCount: 50, uniqueId: 'control-room' } },
     });
   };
   /* cadeaux : data-g = nom|diamants|repeat ; une rafale envoie un message intermediaire puis le final */
@@ -590,7 +594,7 @@
               giftType: 1,
               repeatCount: n - 2 > 0 ? n - 2 : 1,
               repeatEnd: false,
-              uniqueId: 'regie',
+              uniqueId: 'control-room',
             },
           },
         });
@@ -604,7 +608,7 @@
             giftType: 1,
             repeatCount: n,
             repeatEnd: true,
-            uniqueId: 'regie',
+            uniqueId: 'control-room',
           },
         },
       });

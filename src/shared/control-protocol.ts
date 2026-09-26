@@ -20,10 +20,10 @@ export type ControlCommand =
   | { readonly cmd: 'setting'; readonly name: string; readonly value: unknown }
   | { readonly cmd: 'scene'; readonly name: string; readonly duration: number }
   | { readonly cmd: 'sceneStop' }
-  | { readonly cmd: 'finTest'; readonly team: Team };
+  | { readonly cmd: 'endTest'; readonly team: Team };
 
 export interface GameState {
-  readonly pont: unknown;
+  readonly bridge: unknown;
   readonly advantage: number;
   readonly underdog: boolean;
   readonly crowd: unknown;
@@ -61,7 +61,7 @@ const COMMANDS: ReadonlySet<string> = new Set<ControlCommand['cmd']>([
   'setting',
   'scene',
   'sceneStop',
-  'finTest',
+  'endTest',
 ]);
 
 /** Narrows an untrusted channel payload to a command envelope with a known `cmd`. */

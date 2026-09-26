@@ -178,7 +178,7 @@
   const KEYS = [
     {
       t: 0.0,
-      name: 'nuit',
+      name: 'night',
       top: [14, 26, 23],
       mid: [10, 17, 15],
       bottom: [6, 10, 9],
@@ -187,9 +187,9 @@
       glowX: 0.5,
       glowY: 0.4,
       glowRadius: 0.64,
-      rai: [150, 186, 196],
-      raiA: 0.03,
-      raiX: 0.52,
+      ray: [150, 186, 196],
+      rayAlpha: 0.03,
+      rayX: 0.52,
       pt: [214, 232, 176],
       ptA: 0.7,
       ptR: 1.0,
@@ -200,7 +200,7 @@
     },
     {
       t: 0.22,
-      name: 'lever',
+      name: 'dawn',
       top: [56, 54, 52],
       mid: [32, 46, 38],
       bottom: [13, 23, 18],
@@ -209,9 +209,9 @@
       glowX: 0.16,
       glowY: 0.52,
       glowRadius: 0.74,
-      rai: [248, 196, 142],
-      raiA: 0.075,
-      raiX: 0.18,
+      ray: [248, 196, 142],
+      rayAlpha: 0.075,
+      rayX: 0.18,
       pt: [248, 224, 182],
       ptA: 0.34,
       ptR: 0.8,
@@ -222,7 +222,7 @@
     },
     {
       t: 0.5,
-      name: 'jour',
+      name: 'day',
       top: [58, 86, 64],
       mid: [36, 58, 42],
       bottom: [17, 30, 22],
@@ -231,9 +231,9 @@
       glowX: 0.5,
       glowY: 0.14,
       glowRadius: 0.82,
-      rai: [226, 240, 198],
-      raiA: 0.05,
-      raiX: 0.5,
+      ray: [226, 240, 198],
+      rayAlpha: 0.05,
+      rayX: 0.5,
       pt: [240, 246, 214],
       ptA: 0.2,
       ptR: 0.62,
@@ -244,7 +244,7 @@
     },
     {
       t: 0.78,
-      name: 'coucher',
+      name: 'dusk',
       top: [70, 50, 40],
       mid: [40, 44, 33],
       bottom: [14, 22, 17],
@@ -253,9 +253,9 @@
       glowX: 0.86,
       glowY: 0.56,
       glowRadius: 0.72,
-      rai: [250, 176, 110],
-      raiA: 0.085,
-      raiX: 0.84,
+      ray: [250, 176, 110],
+      rayAlpha: 0.085,
+      rayX: 0.84,
       pt: [250, 206, 150],
       ptA: 0.4,
       ptR: 0.86,
@@ -265,14 +265,14 @@
       vignette: 0.54,
     },
   ];
-  const COLORS = ['top', 'mid', 'bottom', 'glow', 'rai', 'pt', 'veil'];
+  const COLORS = ['top', 'mid', 'bottom', 'glow', 'ray', 'pt', 'veil'];
   const NUMBERS = [
     'glowAlpha',
     'glowX',
     'glowY',
     'glowRadius',
-    'raiA',
-    'raiX',
+    'rayAlpha',
+    'rayX',
     'ptA',
     'ptR',
     'ptHalo',
@@ -722,7 +722,7 @@
         }
       },
     },
-    nuit: {
+    night: {
       tones: [
         ['#16243e', '#0a1222'],
         ['#1c2e4c', '#0c1628'],
@@ -807,7 +807,7 @@
     summer: 'summer',
     storm: 'storm',
     embers: 'embers',
-    stars: 'nuit',
+    stars: 'night',
     aurora: 'aurora',
     fireflies: 'fireflies',
     mist: 'mist',
@@ -1010,8 +1010,8 @@
     }
     if (m === 'embers') {
       // des braises eparses dans la cendre : chacune respire a son rythme, un coeur clair dans un petit halo
-      const hb = tint('braiseSol', halo, [255, 120, 40], 64, 64),
-        hc = tint('braiseCoeur', halo, [255, 214, 150], 64, 64);
+      const hb = tint('emberGround', halo, [255, 120, 40], 64, 64),
+        hc = tint('emberCore', halo, [255, 214, 150], 64, 64);
       for (let i = 0; i < 34; i++) {
         const k = i % 3,
           x = rand(i, 861) * W,
@@ -1036,7 +1036,7 @@
       // la neige renvoie l'aurore : un reflet vert qui respire sur les cretes
       g.globalAlpha = (0.13 + 0.06 * Math.sin(t * 0.4)) * P;
       g.drawImage(
-        tint('reflet', halo, [110, 255, 190], 64, 64),
+        tint('glint', halo, [110, 255, 190], 64, 64),
         -200 + Math.sin(t * 0.13) * 160,
         y0 - 40,
         W + 400,
@@ -1407,7 +1407,7 @@
   }
 
   function activeCounts(e) {
-    const density = e.worldKind === 'averse' ? 1 + 1.2 * e.world : 1;
+    const density = e.worldKind === 'downpour' ? 1 + 1.2 * e.world : 1;
     return {
       nl: Math.min(N_FAR, Math.round(N_FAR * density)),
       np: Math.min(N_NEAR, Math.round(N_NEAR * density)),
@@ -1471,7 +1471,7 @@
       // fondent dans le noir. Une seule image posee, aucun objet clair qui bouge.
       {
         if (!canopy) canopy = buildCanopyModel();
-        const dense = 0.55 + 6.5 * A.raiA; // raiA sert maintenant de force de contre-jour
+        const dense = 0.55 + 6.5 * A.rayAlpha; // raiA sert maintenant de force de contre-jour
         const lh = H * 0.46,
           marge = W * 0.16;
         // elle glisse dans sa marge, et penche du cote oppose a la lumiere
@@ -1518,7 +1518,7 @@
       if (Pciel > 0.01) {
         g.save();
         g.globalCompositeOperation = 'lighter';
-        const starImg = tint('etoile', halo, [226, 234, 255], 64, 64);
+        const starImg = tint('star', halo, [226, 234, 255], 64, 64);
         for (let i = 0; i < 70; i++) {
           const x = rand(i, 201) * W,
             y = rand(i, 203) * H,
@@ -1658,11 +1658,11 @@
       g.fillStyle = rgba(lerpColor(A.glow, [255, 255, 255], 0.2), 0.22);
       g.fillRect(GX0, GY0, GX1 - GX0, GY1 - GY0);
       g.restore();
-      g.strokeStyle = rgba(A.rai, 0.035);
+      g.strokeStyle = rgba(A.ray, 0.035);
       g.lineWidth = 2;
       g.strokeRect(GX0, GY0, GX1 - GX0, GY1 - GY0);
 
-      if (e.worldKind === 'averse' && e.world > 0) {
+      if (e.worldKind === 'downpour' && e.world > 0) {
         g.fillStyle = 'rgba(6,10,8,' + 0.18 * e.world + ')';
         g.fillRect(0, 0, W, H);
       }
@@ -1690,7 +1690,7 @@
       const px = e.x0 + x * c + c / 2,
         py = e.y0 + y * c + c / 2;
       g.fillStyle = '#D9A27A';
-      if (o && o.kind === 'branche') {
+      if (o && o.kind === 'branch') {
         g.save();
         g.translate(px, py);
         g.rotate((((x * 7 + y * 3) % 5) - 2) * 0.09);
@@ -1799,7 +1799,7 @@
         k = activeCounts(e),
         silenceFactor = 1 - 0.7 * (e.silence || 0);
       // la pluie prend la couleur de l'heure, et force un peu quand la manche avance
-      const color = lerpColor([180, 212, 222], A.rai, 0.55),
+      const color = lerpColor([180, 212, 222], A.ray, 0.55),
         force = (1 + 0.35 * progress) * silenceFactor * (e.reduced ? 0.5 : 1) * rainFactor();
 
       {
@@ -1842,7 +1842,7 @@
         const Pn = weight('snow');
         if (Pn > 0.01) {
           const advance = Math.min(1, Math.max(0, e.subStep || 0));
-          const snowflakeImg = tint('flocon', halo, [236, 244, 255], 64, 64);
+          const snowflakeImg = tint('flake', halo, [236, 244, 255], 64, 64);
           // trois profondeurs. Loin : une poussiere de points nets, lente, presque verticale.
           g.fillStyle = '#eef4ff';
           for (let i = 0; i < 130; i++) {
@@ -1965,8 +1965,8 @@
           g.globalCompositeOperation = 'source-over';
         };
         paintRising(weight('summer'), 34, 341, [250, 232, 160], 'spore', 30, 5, 0.12, 0);
-        paintRising(weight('embers'), 46, 441, [255, 140, 60], 'braise', 120, 6, 0.34, 0.5);
-        paintRising(weight('fireflies'), 60, 461, [210, 255, 120], 'luciole', 10, 10, 0.32, 1);
+        paintRising(weight('embers'), 46, 441, [255, 140, 60], 'ember', 120, 6, 0.34, 0.5);
+        paintRising(weight('fireflies'), 60, 461, [210, 255, 120], 'firefly', 10, 10, 0.32, 1);
         const Pb = weight('mist');
         if (Pb > 0.01) {
           const mistImg = tint('mist', halo, [196, 210, 208], 64, 64);
@@ -2006,7 +2006,7 @@
       g.globalAlpha = 1;
       // les gouttes : la pluie s'ecarte autour de la tete du serpent
       if (!dropTemplate) dropTemplate = buildDropModel();
-      const gImg = tint('goutte', dropTemplate, color, 24, 128);
+      const gImg = tint('drop', dropTemplate, color, 24, 128);
       const traceDrops = (i0, i1, isNear) => {
         const dropLen = isNear ? 40 : 22,
           narrowWidth = (dropLen * 24) / 128;
@@ -2029,7 +2029,7 @@
       traceDrops(N_FAR, N_FAR + k.np, true);
       g.restore();
 
-      if (e.worldKind === 'lune' && e.world > 0) {
+      if (e.worldKind === 'moonlight' && e.world > 0) {
         g.save();
         g.globalAlpha = 0.75 * e.world;
         g.shadowColor = 'rgba(220,230,245,0.8)';
@@ -2067,7 +2067,7 @@
         const y = ((ly[i] + e.t * lv[i]) % (H + 160)) - 80,
           x = lx[i] + Math.sin(e.t * 0.5 + lph[i]) * 8,
           r = lr[i];
-        const c = lerpColor([226, 242, 248], A.rai, 0.45);
+        const c = lerpColor([226, 242, 248], A.ray, 0.45);
         g.globalAlpha = 0.13;
         const rg2 = g.createRadialGradient(x - r * 0.3, y - r * 0.35, r * 0.1, x, y, r);
         rg2.addColorStop(0, rgba(c, 0.85));
@@ -2249,7 +2249,7 @@
     // La naissance : de petits craquements secs pendant la fente, puis un accord chaud qui s'ouvre.
     hatchSound(ac, destination, phase) {
       const t0 = ac.currentTime;
-      if (phase === 'fissure') {
+      if (phase === 'crack') {
         const o = ac.createOscillator(),
           gg = ac.createGain(),
           f = 1400 + Math.random() * 700;

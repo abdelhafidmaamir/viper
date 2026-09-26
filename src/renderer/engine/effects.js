@@ -266,7 +266,7 @@ export function paintSparks() {
               ? RED
               : e.tint === 'shell'
                 ? SHELL
-                : e.tint === 'poussiere'
+                : e.tint === 'dust'
                   ? '#6b7383'
                   : '#cfe3c6';
     ctx.beginPath();

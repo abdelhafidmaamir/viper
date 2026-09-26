@@ -760,7 +760,7 @@ function die(cause) {
     bodies[activeIndex].parryTime = 0.4;
     if (snake.length) {
       const pos = px(snake[0].x, snake[0].y);
-      burst(pos.x, pos.y, 10, 'poussiere');
+      burst(pos.x, pos.y, 10, 'dust');
     }
     requestAiMove();
     return;
@@ -1022,7 +1022,7 @@ function advance(dt) {
       playStone();
       const pixelPos = px(r.x, r.y);
       // des mottes de terre qui retombent au pied, sans jamais gicler
-      burst(pixelPos.x, pixelPos.y + 14, 7, 'poussiere', {
+      burst(pixelPos.x, pixelPos.y + 14, 7, 'dust', {
         v0: 18,
         v1: 65,
         top: -4,
@@ -1052,7 +1052,7 @@ function advance(dt) {
     bramble.seg.forEach((g) => {
       if (g.t >= BRAMBLE_WARNING && g.t - dt < BRAMBLE_WARNING) {
         const pixelPos = px(g.x, g.y);
-        burst(pixelPos.x, pixelPos.y + 10, 4, 'poussiere', {
+        burst(pixelPos.x, pixelPos.y + 10, 4, 'dust', {
           v0: 12,
           v1: 44,
           top: -6,
@@ -1232,7 +1232,7 @@ function advanceBody(dt) {
       const uu = egg.t / HATCH_TIME,
         ua = avant / HATCH_TIME;
       [0.34, 0.46, 0.55].forEach((keyMap) => {
-        if (ua < keyMap && uu >= keyMap) playHatch(a0, 'fissure');
+        if (ua < keyMap && uu >= keyMap) playHatch(a0, 'crack');
       });
       if (ua < EMERGE_TIME && uu >= EMERGE_TIME) playHatch(a0, 'birth');
     }
@@ -1320,7 +1320,7 @@ window.Viper = {
     snakePulse = 9;
     viewersPulse = 9;
   },
-  shake: () => ({ retouches: aiAdjustments, holds: aiHolds }),
+  shake: () => ({ adjustments: aiAdjustments, holds: aiHolds }),
   metrics: () => ({
     length: snake.length,
     berriesEaten: berriesEaten,
@@ -1414,7 +1414,7 @@ window.Viper = {
     settings.hour = ((h % 1) + 1) % 1;
   },
   egg: () => egg && { t: egg.t, duration: HATCH_TIME },
-  plantBramble: () => plantBramble('sonde'),
+  plantBramble: () => plantBramble('probe'),
   internal: () => ({
     snake: snake,
     fruit,
