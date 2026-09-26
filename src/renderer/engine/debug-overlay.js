@@ -15,11 +15,11 @@ import {
   Z_SAISIE,
 } from './layout.js';
 import { pilule } from './scoreboard.js';
+import { ctx } from './canvas.js';
 import {
   actif,
   charger,
   corps,
-  ctx,
   dir,
   dirProchaine,
   duel,

@@ -23,6 +23,7 @@ import {
   CIEL_HAUT,
   changerFormat,
 } from '../engine/layout.js';
+import { canvas, ctx, lierCanvas, setCtx } from '../engine/canvas.js';
 import {
   armerSon,
   basculerSon,
@@ -81,9 +82,7 @@ function appliquerFormat() {
   if (ajusterCanvas) ajusterCanvas();
 }
 
-export let canvas, ctx;
-
-let ronces = [];
+export let ronces = [];
 
 export let halos = [];
 export let serpent = [],
@@ -1951,8 +1950,7 @@ function spriteBaie(ph, camp) {
   s = document.createElement('canvas');
   s.width = 2 * BAIE_RS;
   s.height = 2 * BAIE_RS;
-  const avant = ctx;
-  ctx = s.getContext('2d');
+  const avant = setCtx(s.getContext('2d'));
   ctx.translate(BAIE_RS, BAIE_RS);
   try {
     ctx.globalAlpha = 0.35 + 0.15 * si;
@@ -1974,7 +1972,7 @@ function spriteBaie(ph, camp) {
     ctx.arc(-5, -5, 5, 0, Math.PI * 2);
     ctx.fill();
   } finally {
-    ctx = avant;
+    setCtx(avant);
   }
   cacheBaie.set(cle, s);
   return s;
@@ -2261,13 +2259,12 @@ function spriteRocher(j) {
   s = document.createElement('canvas');
   s.width = 2 * ROC_RS;
   s.height = 2 * ROC_RS;
-  const avant = ctx;
-  ctx = s.getContext('2d');
+  const avant = setCtx(s.getContext('2d'));
   ctx.translate(ROC_RS, ROC_RS);
   try {
     corpsRocher(j);
   } finally {
-    ctx = avant;
+    setCtx(avant);
   }
   cacheRocher.set(j, s);
   return s;
@@ -2476,13 +2473,12 @@ function peindreRonces() {
       const c = document.createElement('canvas');
       c.width = Math.max(1, Math.ceil(bx + RON_M) - ox);
       c.height = Math.max(1, Math.ceil(by + RON_M) - oy);
-      const avant = ctx;
-      ctx = c.getContext('2d');
+      const avant = setCtx(c.getContext('2d'));
       ctx.translate(-ox, -oy);
       try {
         corpsRonce(pts, f, L, R);
       } finally {
-        ctx = avant;
+        setCtx(avant);
       }
       R.sprite = c;
       R.sig = sig;
@@ -2622,8 +2618,7 @@ export function glypheGens(x, y, r) {
   if (!spriteGens) {
     const s = document.createElement('canvas');
     s.width = s.height = 2 * GENS_RS;
-    const avant = ctx;
-    ctx = s.getContext('2d');
+    const avant = setCtx(s.getContext('2d'));
     try {
       ctx.translate(GENS_RS, GENS_RS);
       const R = GENS_RS * 0.66;
@@ -2639,7 +2634,7 @@ export function glypheGens(x, y, r) {
       ctx.fillStyle = BLEU;
       personne(-R * 0.3, 0, R * 0.86);
     } finally {
-      ctx = avant;
+      setCtx(avant);
     }
     spriteGens = s;
   }
@@ -3205,9 +3200,8 @@ window.VipereBase = {
 };
 
 function demarrer() {
-  canvas = document.getElementById('scene');
+  lierCanvas(document.getElementById('scene'));
   if (!canvas) return;
-  ctx = canvas.getContext('2d');
   // rendu net : la surface suit la taille affichee et la densite de l'ecran
   const ajuster = () => {
     const r = canvas.getBoundingClientRect(),

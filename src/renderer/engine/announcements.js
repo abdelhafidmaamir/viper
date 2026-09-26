@@ -4,18 +4,8 @@
 import { glypheEffet } from './gift-panel.js';
 import { BD_CX, BD_CY, BD_W, CELL, W } from './layout.js';
 import { glypheSerpent } from './scoreboard.js';
-import {
-  OMBRE,
-  OR,
-  amb,
-  corps,
-  ctx,
-  duel,
-  manche,
-  pointRail,
-  reglages,
-  t,
-} from '../scripts/game.js';
+import { ctx } from './canvas.js';
+import { OMBRE, OR, amb, corps, duel, manche, pointRail, reglages, t } from '../scripts/game.js';
 
 // ===== Bandeau d'activite, haut-centre (prototype, Abdel 2026-09-21 : « welcome people, thanks donations,
 // like and share, with a cute animation of the snake », puis « more polished »). Une annonce a la fois,

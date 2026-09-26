@@ -2,11 +2,11 @@
 // between them.
 
 import { SC_CY, W } from './layout.js';
+import { ctx } from './canvas.js';
 import {
   BLEU,
   OMBRE,
   OR,
-  ctx,
   duel,
   glypheGens,
   manche,

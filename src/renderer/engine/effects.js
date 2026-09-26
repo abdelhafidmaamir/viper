@@ -1,6 +1,7 @@
 // Transient effects: the hatching eggshell, the halos around bites and the spark bursts.
 
 import { CELL } from './layout.js';
+import { ctx } from './canvas.js';
 import {
   COQUILLE,
   ECLOSION,
@@ -10,7 +11,6 @@ import {
   SORTIE,
   TRAINE,
   couvee,
-  ctx,
   duel,
   etincelles,
   halos,

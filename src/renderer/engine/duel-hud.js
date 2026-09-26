@@ -2,6 +2,7 @@
 // speed) and the heart and crest glyphs they use.
 
 import { CELL, COLS, H, ROWS, W, X0, Y0 } from './layout.js';
+import { ctx } from './canvas.js';
 import {
   BOUCLIER_DUR,
   LONG_CIBLE_DUEL,
@@ -11,7 +12,6 @@ import {
   TEMPO_DUR,
   TENUE_DUEL,
   corps,
-  ctx,
   dtRendu,
   fumeeTimer,
   manche,

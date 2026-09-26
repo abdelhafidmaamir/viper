@@ -3,6 +3,7 @@
 // action, so the columns show effects, not costs, and fade out on a configurable cycle.
 
 import { L } from './layout.js';
+import { ctx } from './canvas.js';
 import {
   BOUCLIER_DUR,
   OMBRE,
@@ -10,7 +11,6 @@ import {
   TEMPO_DUR,
   bandeauCadeau,
   corps,
-  ctx,
   duel,
   reglages,
   retourCadeaux,
