@@ -338,7 +338,7 @@ export function peindreDuel(dt) {
 }
 
 // icones du rail duel (memes traces que coeur/ecusson de peindreGrade, qui y sont locales)
-export function coeurDuel(icx, icy, s) {
+function coeurDuel(icx, icy, s) {
   // coeur classique et symetrique : deux lobes ronds, une pointe (le trace de peindreGrade se deformait a 24 px)
   ctx.beginPath();
   ctx.moveTo(icx, icy + s * 0.85);
@@ -361,7 +361,7 @@ export function coeurDuel(icx, icy, s) {
   ctx.closePath();
 }
 
-export function ecussonDuel(icx, icy, s) {
+function ecussonDuel(icx, icy, s) {
   ctx.beginPath();
   ctx.moveTo(icx, icy - s);
   ctx.lineTo(icx + s * 0.8, icy - s * 0.6);

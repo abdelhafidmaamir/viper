@@ -6,15 +6,16 @@ import { BD_CX, BD_CY, BD_W, CELL, W } from './layout.js';
 import { glypheSerpent } from './scoreboard.js';
 import { ctx } from './canvas.js';
 import { OMBRE, OR } from './palette.js';
-import { amb, corps, duel, manche, pointRail, reglages, t } from '../scripts/game.js';
+import { amb, corps, manche, pointRail, reglages, t } from '../scripts/game.js';
 
 // ===== Bandeau d'activite, haut-centre (prototype, Abdel 2026-09-21 : « welcome people, thanks donations,
 // like and share, with a cute animation of the snake », puis « more polished »). Une annonce a la fois,
 // les cadeaux passent devant. Meme plaque que les lignes de la legende, et le VRAI rendu du serpent en
 // petit. Masque pendant la tenue de l'anneau (le compte a rebours occupe la meme place). Rendu seul.
-export let annonces = [],
-  annonceCur = null,
-  likesPar = {};
+let annonces = [],
+  annonceCur = null;
+// Likes counted per viewer, announced every tenth one.
+export const likesPar = {};
 
 // memoire du LIVE (pas de la manche) : paliers de spectateurs deja salues, premiers cadeaux, serie de victoires,
 // et dons de la manche en cours par spectateur (pour le classement de fin de manche).
@@ -46,7 +47,7 @@ export const DONS = [
   'grants an extra life',
 ];
 
-export const MOTS = {
+const MOTS = {
   arrivee: [
     "Welcome {nom}, glad you're here!",
     'Hey {nom}, good to see you!',
@@ -64,7 +65,7 @@ export const MOTS = {
   sauveSans: ['A {q} just saved the day!', 'What a save, that {q} kept them alive!'],
 };
 
-export const dernierMot = {};
+const dernierMot = {};
 
 export function dire(cle, v) {
   const l = MOTS[cle];
@@ -98,7 +99,7 @@ export function sauve(i, quoi) {
   });
 }
 
-export const BD_DUR = 3.8,
+const BD_DUR = 3.8,
   BD_H = 96;
 
 // Serie de victoires d'un camp : annoncee a partir de la deuxieme manche gagnee d'affilee.
@@ -128,7 +129,7 @@ export function oublierDonsManche() {
 }
 
 export function annoncer(a) {
-  if (!duel() || !reglages.bandeau || reglages.bandeau === 'aucun') return;
+  if (!reglages.bandeau || reglages.bandeau === 'aucun') return;
   if (a.genre === 'cadeau' || a.devant) {
     let k = annonces.findIndex((q) => q.genre !== 'cadeau');
     if (k < 0) k = annonces.length;
@@ -138,9 +139,9 @@ export function annoncer(a) {
 }
 
 // photos de profil des spectateurs (URL fournie par TikFinity) : cache borne, image prete ou rien
-export const photos = {};
+const photos = {};
 
-export let nbPhotos = 0;
+let nbPhotos = 0;
 
 export function photoProfil(url) {
   if (!url || typeof url !== 'string' || !/^https?:/.test(url)) return null;
@@ -175,7 +176,7 @@ export function miniSerpent(pts, teinte, ech) {
 
 export function peindreBandeau() {
   const mode = reglages.bandeau;
-  if (!duel() || !mode || mode === 'aucun' || !manche) return;
+  if (!mode || mode === 'aucun' || !manche) return;
   const tenue = corps.some((c) => c && (c.tenue || 0) > 0 && manche.etat === 'en cours');
   if (tenue) {
     annonceCur = null;

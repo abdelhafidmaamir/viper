@@ -33,7 +33,7 @@ export let X0 = 164,
 // Format d'image (Abdel 2026-09-23) : 'vertical' 9:16 (TikTok) ou 'horizontal' 16:9 (YouTube). Le plateau garde
 // sa grille et ses 47 px par case dans les deux formats : seuls son origine et les ancrages du HUD changent.
 // En horizontal, le HUD migre dans les flancs : tout ce qui est Or a gauche, tout ce qui est Ombre a droite.
-export const FORMATS = {
+const FORMATS = {
   vertical: {
     ox: 0,
     WF: 1080,
@@ -52,8 +52,6 @@ export const FORMATS = {
     defXG: 528,
     defXD: 794,
     finBase: 1206,
-    cielBas: 1250,
-    cielHaut: 260,
     srY: 260,
     srH: 977,
   },
@@ -77,8 +75,6 @@ export const FORMATS = {
     defXG: 528,
     defXD: 794,
     finBase: 1206,
-    cielBas: 1250,
-    cielHaut: 260,
     srY: 260,
     srH: 977,
   },
@@ -87,8 +83,6 @@ export let L = FORMATS.vertical,
   OX = 0,
   WF = 1080; // OX : marge gauche du cadre, WF : largeur totale du cadre
 
-export let CIEL_BAS = 1250,
-  CIEL_HAUT = 260;
 export let SC_CY = 1276; // ligne centrale de la barre, avec un peu d'air sous l'anneau
 export let BD_W = 600,
   BD_CY = 154,
@@ -109,8 +103,6 @@ export function changerFormat(format) {
   BD_CX = f.bdCx;
   BD_W = f.bdW;
   BD_CY = f.bdCy;
-  CIEL_BAS = f.cielBas;
-  CIEL_HAUT = f.cielHaut;
   SR_W = f.W;
   SR_Y = f.srY;
   SR_H = f.srH;

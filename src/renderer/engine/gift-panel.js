@@ -10,7 +10,6 @@ import {
   TEMPO_DUR,
   bandeauCadeau,
   corps,
-  duel,
   reglages,
   retourCadeaux,
   t,
@@ -36,9 +35,9 @@ export const CADEAUX_DUEL = {
   // a venir, une ligne par cadeau : {img:'dyno',prix:10,effet:'speed 10s'}, {prix:30,effet:'steal 15%'}, {prix:50,effet:'shield 15s'}, {prix:100,effet:'+1 life'}
 };
 
-export const imgCadeaux = {};
+const imgCadeaux = {};
 
-export function imageCadeau(nom) {
+function imageCadeau(nom) {
   if (imgCadeaux[nom] !== undefined) return imgCadeaux[nom];
   if (typeof Image === 'undefined') {
     imgCadeaux[nom] = null;
@@ -51,7 +50,6 @@ export function imageCadeau(nom) {
 }
 
 export function peindreLegendeDuel() {
-  if (!duel()) return;
   // Compact (Abdel : 5 cadeaux par cote a venir, anglais, sans 'pour X', la couleur suffit) :
   // 5 lignes de 92 px tiennent entre 1340 et 1800.
   const Y = L.legY,
@@ -211,9 +209,9 @@ export const EFFET_LABEL = {
   '+1 life': 'LIFE',
 };
 
-export const tuilesCamp = {};
+const tuilesCamp = {};
 
-export function tuiles(camp) {
+function tuiles(camp) {
   if (tuilesCamp[camp]) return tuilesCamp[camp];
   const t = CADEAUX_DUEL[camp].map((c) => ({
     img: c.img,
@@ -226,9 +224,9 @@ export function tuiles(camp) {
 // un ruban compact : boite etroite posee sur un cote ; la liste d'un camp glisse, boucle, et s'ESTOMPE en
 // fondu transparent aux deux bords (rendu sur un calque a part puis efface aux extremites). Icones animees
 // (wiggle), label teinte du camp. Pas de prix.
-export const calquesRuban = {};
+const calquesRuban = {};
 
-export function calqueRuban(camp, bw, bh) {
+function calqueRuban(camp, bw, bh) {
   let c = calquesRuban[camp];
   if (!c) {
     if (typeof document === 'undefined') return null;
@@ -352,7 +350,7 @@ export function glypheEffet(o, label, x, y, s, rgb) {
 
 // ruban VERTICAL : colonne d'un camp qui defile de bas en haut (ou l'inverse), chaque cadeau = icone + effet
 // sur une ligne, projecteur au centre vertical, fondu haut et bas, plaque qualite prod.
-export function rubanCadeaux(camp, x0, y0, bw, bh, rgb, vitesse, sens) {
+function rubanCadeaux(camp, x0, y0, bw, bh, rgb, vitesse, sens) {
   const T = tuiles(camp),
     n = T.length,
     TH = 132,
@@ -469,10 +467,10 @@ export function rubanCadeaux(camp, x0, y0, bw, bh, rgb, vitesse, sens) {
 // les plaques ne sont PAS permanentes (un panneau permanent est un declencheur TikTok documente) :
 // pattern etudie et REGLABLE en regie : visibles defileVisi s, cachees defileCache s, en boucle.
 // Fondu doux en entree comme en sortie. Aucun lien avec l'arrivee des cadeaux (pattern pur).
-export const DEFILE_FONDU = 0.7;
+const DEFILE_FONDU = 0.7;
 
 // s
-export function alphaDefile() {
+function alphaDefile() {
   // 0 est une valeur legitime pour cache (toujours visible) : ne pas la confondre avec « non regle »
   const vis = reglages.defileVisi > 0 ? reglages.defileVisi : 8,
     cache = reglages.defileCache == null ? 12 : reglages.defileCache,
@@ -491,7 +489,6 @@ export function alphaDefile() {
 }
 
 export function peindreDefileCadeaux() {
-  if (!duel()) return;
   const al = alphaDefile();
   if (al <= 0.01) return;
   // deux colonnes verticales longues, placees sur le cote DROIT, SOUS le plateau (la gauche reste libre)

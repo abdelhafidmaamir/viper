@@ -5,7 +5,6 @@ import { SC_CY, W } from './layout.js';
 import { ctx } from './canvas.js';
 import { BLEU, OMBRE, OR } from './palette.js';
 import {
-  duel,
   glypheGens,
   manche,
   pulseS,
@@ -42,16 +41,16 @@ import {
 // d'Abdel : le tableau d'affichage se lit sous le jeu, comme une borne d'arcade, pas sur le cote.
 // La bande sous l'anneau (1232) et le fil de commentaires est etroite, la barre est donc basse
 // et compacte : glyphe puis chiffre, cote a cote, un filet vertical entre les deux camps.
-export const SC_ECART = 122;
+const SC_ECART = 122;
 
 // ecart entre les centres des deux camps, de part et d'autre de W/2
-export const SC_GX = 32;
+const SC_GX = 32;
 
 // ecart glyphe-chiffre a l'interieur d'un camp
-export const SC_R = 13;
+const SC_R = 13;
 
 // rayon du glyphe, compact
-export const SC_BW = 250,
+const SC_BW = 250,
   SC_BH = 48;
 
 // largeur et hauteur de la plaque de fond, reduites
@@ -59,7 +58,7 @@ export const doux01 = (x) => (x <= 0 ? 0 : x >= 1 ? 1 : x * x * (3 - 2 * x));
 
 // Le gonflement d'un chiffre qui vient de marquer : une poussee franche puis un retour amorti.
 // 0,9 s, pas plus : au-dela le chiffre danse encore quand le spectateur a deja tourne la page.
-export function bond(p) {
+function bond(p) {
   if (p >= 0.9) return 1;
   const u = p / 0.9;
   // plafonne a 1,25 : au-dela, un chiffre a deux chiffres deborde de la bande de 84 px
@@ -114,7 +113,7 @@ export function personne(x, y, r) {
 // teinte (duel) : les deux camps sont des viperes, chacune dans sa couleur
 // miroir (camp de droite) : le chiffre passe cote centre et le glyphe a l'extremite, comme une
 // plaque de score de football : glyphe, chiffre | chiffre, glyphe
-export function campBarre(cx, n, sun, pulse, teinte, miroir) {
+function campBarre(cx, n, sun, pulse, teinte, miroir) {
   const sg = miroir ? -1 : 1;
   const k = bond(pulse),
     vif = Math.max(0, 1 - pulse / 0.9);
@@ -148,11 +147,11 @@ export function campBarre(cx, n, sun, pulse, teinte, miroir) {
 export function peindreScore() {
   // en mode versus les deux colonnes appartiennent aux astres (CIEL_X=62), le compteur s'efface
   // en duel il reste : une vipere par camp, Or a gauche, Ombre a droite, meme plaque, meme logique
-  if (!duel()) return;
+
   const cx = W / 2;
   // Duel (Abdel, 2026-09-21, variante T1) : le temps restant de la manche, en chiffres, entre les deux
   // scores, comme une carte de score de foot. La plaque s'elargit pour lui faire place ; glyphes inchanges.
-  const chrono = duel() && manche,
+  const chrono = manche,
     bw = chrono ? SC_BW + 84 : SC_BW,
     ecart = chrono ? SC_ECART + 84 : SC_ECART;
   ctx.save();
@@ -190,8 +189,8 @@ export function peindreScore() {
     ctx.stroke();
   }
   ctx.restore();
-  campBarre(cx - ecart / 2, scoreSerpent, true, pulseS, duel() ? OR : null);
-  campBarre(cx + ecart / 2, scoreViewers, false, pulseV, duel() ? OMBRE : null, true);
+  campBarre(cx - ecart / 2, scoreSerpent, true, pulseS, OR);
+  campBarre(cx + ecart / 2, scoreViewers, false, pulseV, OMBRE, true);
 }
 
 // Maquette de l'interface TikTok, pour juger le jeu en conditions reelles au lieu de juger un

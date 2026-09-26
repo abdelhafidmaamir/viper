@@ -22,7 +22,6 @@ import {
   corps,
   dir,
   dirProchaine,
-  duel,
   memoireIA,
   px,
   ranger,
@@ -204,7 +203,7 @@ export function peindreDebugIA() {
     // visee par l'IA, ou tete adverse s'il n'y en a pas), en evitant le corps. Le premier pas
     // respecte dirProchaine (l'intent decide). Resultat : une ligne courbe reelle, pas un rail.
     const pts = [{ x: p.x, y: p.y }];
-    const autreC = duel() ? corps[1 - actif] : null;
+    const autreC = corps[1 - actif];
     const cibleAnt = g.cible || (autreC && autreC.serpent[0]);
     let hx = h.x,
       hy = h.y,
