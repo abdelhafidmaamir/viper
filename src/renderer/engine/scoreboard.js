@@ -4,15 +4,8 @@
 import { SC_CY, W } from './layout.js';
 import { ctx } from './canvas.js';
 import { BLEU, OMBRE, OR } from './palette.js';
-import {
-  glypheGens,
-  manche,
-  pulseS,
-  pulseV,
-  reglages,
-  scoreSerpent,
-  scoreViewers,
-} from '../scripts/game.js';
+import { glypheGens } from './frame.js';
+import { manche, pulseS, pulseV, reglages, scoreSerpent, scoreViewers } from '../scripts/game.js';
 
 // Mode de base, sans un mot : l'anneau du plateau est le METRE DE VICTOIRE GLOBAL. Il compte la
 // progression sur tout le run, des grades deja faits jusqu'au dernier. Il monte a chaque bouchee et
@@ -41,19 +34,12 @@ import {
 // d'Abdel : le tableau d'affichage se lit sous le jeu, comme une borne d'arcade, pas sur le cote.
 // La bande sous l'anneau (1232) et le fil de commentaires est etroite, la barre est donc basse
 // et compacte : glyphe puis chiffre, cote a cote, un filet vertical entre les deux camps.
-const SC_ECART = 122;
-
-// ecart entre les centres des deux camps, de part et d'autre de W/2
-const SC_GX = 32;
-
-// ecart glyphe-chiffre a l'interieur d'un camp
-const SC_R = 13;
-
-// rayon du glyphe, compact
+const SC_ECART = 122; // ecart entre les centres des deux camps, de part et d'autre de W/2
+const SC_GX = 32; // ecart glyphe-chiffre a l'interieur d'un camp
+const SC_R = 13; // rayon du glyphe, compact
 const SC_BW = 250,
-  SC_BH = 48;
+  SC_BH = 48; // largeur et hauteur de la plaque de fond, reduites
 
-// largeur et hauteur de la plaque de fond, reduites
 export const doux01 = (x) => (x <= 0 ? 0 : x >= 1 ? 1 : x * x * (3 - 2 * x));
 
 // Le gonflement d'un chiffre qui vient de marquer : une poussee franche puis un retour amorti.

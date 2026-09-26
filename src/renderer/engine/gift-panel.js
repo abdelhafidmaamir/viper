@@ -5,15 +5,9 @@
 import { L } from './layout.js';
 import { ctx } from './canvas.js';
 import { OMBRE, OR } from './palette.js';
-import {
-  BOUCLIER_DUR,
-  TEMPO_DUR,
-  bandeauCadeau,
-  corps,
-  reglages,
-  retourCadeaux,
-  t,
-} from '../scripts/game.js';
+import { BOUCLIER_DUR, TEMPO_DUR } from './rules.js';
+import { bandeauCadeau, retourCadeaux } from './gift-feedback.js';
+import { corps, reglages, t } from '../scripts/game.js';
 
 // Legende des cadeaux (duel) : sous le compteur, une colonne par camp. Chaque ligne = image du cadeau
 // TikTok (cadeaux/*.png, fond transparent), prix en coins, effet. Etape 1 (Abdel) : les deux roses.
@@ -467,9 +461,8 @@ function rubanCadeaux(camp, x0, y0, bw, bh, rgb, vitesse, sens) {
 // les plaques ne sont PAS permanentes (un panneau permanent est un declencheur TikTok documente) :
 // pattern etudie et REGLABLE en regie : visibles defileVisi s, cachees defileCache s, en boucle.
 // Fondu doux en entree comme en sortie. Aucun lien avec l'arrivee des cadeaux (pattern pur).
-const DEFILE_FONDU = 0.7;
+const DEFILE_FONDU = 0.7; // s
 
-// s
 function alphaDefile() {
   // 0 est une valeur legitime pour cache (toujours visible) : ne pas la confondre avec « non regle »
   const vis = reglages.defileVisi > 0 ? reglages.defileVisi : 8,

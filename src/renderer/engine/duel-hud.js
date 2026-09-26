@@ -4,20 +4,12 @@
 import { CELL, COLS, H, ROWS, W, X0, Y0 } from './layout.js';
 import { ctx } from './canvas.js';
 import { OMBRE, OR } from './palette.js';
-import {
-  BOUCLIER_DUR,
-  LONG_CIBLE_DUEL,
-  SURSIS_DUEL,
-  TEMPO_DUR,
-  TENUE_DUEL,
-  corps,
-  dtRendu,
-  fumeeTimer,
-  manche,
-  pointRail,
-  reglages,
-  t,
-} from '../scripts/game.js';
+import { BOUCLIER_DUR, LONG_CIBLE_DUEL, SURSIS_DUEL, TEMPO_DUR } from './rules.js';
+import { dtRendu, pointRail } from './frame.js';
+import { TENUE_DUEL, corps, manche, reglages, t } from '../scripts/game.js';
+
+// Smoke puffs shed by the burning timer rail.
+const fumeeTimer = [];
 
 export function peindreDuel(dt) {
   if (!manche) return;
