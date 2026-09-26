@@ -21,7 +21,6 @@ import {
   WF,
   CIEL_BAS,
   CIEL_HAUT,
-  SC_CY,
   BD_W,
   BD_CY,
   BD_CX,
@@ -48,6 +47,9 @@ import {
 } from '../engine/gift-panel.js';
 import { peindreFin } from '../engine/end-screen.js';
 import { peindreDebugIA, peindreMaquetteLive } from '../engine/debug-overlay.js';
+import { peindreCoquille, peindreEtincelles, peindreHalos } from '../engine/effects.js';
+import { glypheSerpent, peindreScore, personne } from '../engine/scoreboard.js';
+import { peindreDuel, peindreStatutsDuel } from '../engine/duel-hud.js';
 
 let ajusterCanvas = null;
 const VITESSE = 7,
@@ -72,7 +74,7 @@ export let canvas, ctx;
 
 let ronces = [];
 
-let halos = [];
+export let halos = [];
 export let serpent = [],
   hist = [],
   dir = { x: 1, y: 0 },
@@ -85,7 +87,7 @@ export let fruit = null,
 // anneaux qui restent a sortir de la coquille : le corps s'allonge pas apres pas depuis l'oeuf
 let aPousser = 0;
 // Cadeaux des spectateurs : une graine tombe, germe en 1 s, devient une baie mangeable. 3 au plus.
-let graines = [],
+export let graines = [],
   baies = [],
   etincelles = [],
   offertes = 0,
@@ -331,9 +333,9 @@ const coupeDe = (L) => Math.max(1, Math.round(L * COUPE_FRAC));
 export const BOUCLIER_COUT = 30,
   VIE_COUT = 100,
   BOUCLIER_DUR = 15; // dons duel : bouclier a 50 = 15 s d'immunite, cumulables sans plafond, vie a 100, sans plafond (Abdel : « no cap »)
-let TENUE_DUEL = 5; // secondes a tenir l'anneau plein pour gagner (reglerTenue pour le bench)
-const LONG_CIBLE_DUEL = 40; // longueur cible pour l'anneau duel (TEST equilibre 2026-09-18 : 60 -> 40, revert si ca ne marche pas)
-const SURSIS_DUEL = 5; // sous cette longueur, le demi-anneau vire au rouge : moment 'vie'
+export let TENUE_DUEL = 5; // secondes a tenir l'anneau plein pour gagner (reglerTenue pour le bench)
+export const LONG_CIBLE_DUEL = 40; // longueur cible pour l'anneau duel (TEST equilibre 2026-09-18 : 60 -> 40, revert si ca ne marche pas)
+export const SURSIS_DUEL = 5; // sous cette longueur, le demi-anneau vire au rouge : moment 'vie'
 const DEPART_DUEL = 5,
   MIN_JEUNE = 2; // duel : naissance a 5 anneaux ; un serpent jeune peut etre coupe jusqu'a 1 anneau, jamais tue (Abdel)
 const ADULTE_DUEL = 10; // un serpent qui n'a jamais atteint 10 anneaux est 'jeune' : une coupe ne le descend jamais sous 3 et il n'est pas en sursis (pas de piege au depart)
@@ -954,7 +956,7 @@ function monter(camp, n) {
 // survit aux manches : c'est la seule memoire longue que le spectateur qui arrive en cours de
 // live peut lire d'un coup d'oeil. `pulse` part a zero quand le camp vient de marquer, ce qui
 // declenche le gonflement du chiffre : sans ca, l'increment passe inapercu sous le voile de fin.
-let scoreSerpent = 0,
+export let scoreSerpent = 0,
   scoreViewers = 0,
   pulseS = 9,
   pulseV = 9;
@@ -1013,10 +1015,10 @@ function finir(camp, cause) {
 
 // Une manche commence par une naissance : une coquille blanche se pose au centre du plateau,
 // elle se fend, elle eclate, et le serpent en sort. Tant qu'elle est la, rien ne bouge.
-const ECLOSION = 1.4,
+export const ECLOSION = 1.4,
   SORTIE = 0.6,
   TRAINE = 0.55;
-let couvee = null;
+export let couvee = null;
 
 // Architecture multi-corps : motif charger/ranger.
 // base.js a ~106 references a `serpent`, `hist`, `dir`, etc. : on ne renomme pas ces variables.
@@ -1929,7 +1931,7 @@ export const OR = '#F2C57C';
 // camps et du fond de foret (Abdel, 2026-09-18). En base elle reste or.
 const BAIE_VERT = '#9BE28A',
   BAIE_VERT_A = (a) => 'rgba(155,226,138,' + a + ')';
-const teinteBaie = (camp) =>
+export const teinteBaie = (camp) =>
   camp === 'or' ? OR : camp === 'ombre' ? OMBRE : duel() ? BAIE_VERT : OR;
 const lueurBaie = (a, camp) =>
   camp === 'or'
@@ -2034,7 +2036,7 @@ function peindreOffrandes() {
   });
 }
 
-const BLEU = '#8FA8D8',
+export const BLEU = '#8FA8D8',
   ROUGE = '#D64A42',
   COQUILLE = '#F6F3EA';
 
@@ -2615,98 +2617,13 @@ function peindreCourse() {
   astre(W - CIEL_X, Math.min(1, manche.cielMoon / manche.hautMoon), false, manche.pulseMoon);
 }
 
-// Mode de base, sans un mot : l'anneau du plateau est le METRE DE VICTOIRE GLOBAL. Il compte la
-// progression sur tout le run, des grades deja faits jusqu'au dernier. Il monte a chaque bouchee et
-// fait le tour complet au dernier grade. Il PEUT redescendre : chaque coeur arrache par la meute
-// (rose premium) recule la progression, et la portion perdue brule alors en rouge avant de refluer.
-// Le rail gauche, lui, montre le detail du grade courant (jauge qui se remplit puis se vide a chaque
-// grade) : deux echelles distinctes, macro au bord et micro dans le rail.
-
-// Le compteur de serie, sous le plateau. Emplacement mesure : le plateau finit a Y0+ROWS*CELL,
-// soit 1220, et le fil de commentaires TikTok demarre a 1290. La bande 1226-1284 est le seul
-// endroit a la fois dans la zone sure et jamais recouvert par l'interface.
-// Il se lit sans un mot : a gauche une tete de serpent et son nombre de manches gagnees, a
-// droite une foule et le sien. Pas de libelle, comme l'anneau et les astres.
-// Idee d'Abdel : le mode versus place le soleil a gauche et la lune a droite, un camp par cote.
-// Le compteur reprend la meme grammaire. En mode de base `peindreCourse` ne dessine rien, donc
-// les deux bandes laterales, x 40 a 124 et 956 a 1040, sont libres sur toute la hauteur et sont
-// dans la zone sure (SR_X=40, SR_W=1000). Le plateau va de x=124 a x=956, il n'est pas touche.
-// Poser un camp par cote libere la hauteur, qui etait le vrai plafond de la version en bas :
-// entre l'anneau (1234) et le fil de commentaires (1290) il n'y avait que 56 px.
-// La hauteur choisie, 258 a 400, est celle du haut des colonnes d'astres (CIEL_HAUT=260).
-// Les colonnes laterales sont enfin larges. L'anneau va de X0-14=150 a X0+COLS*CELL+14=930, il
-// reste donc 150 px de chaque cote. En hauteur, la bande libre est celle entre le bas du chrome
-// du haut (260) et le sommet de la colonne de widgets cadeaux de TikTok (392) : 132 px.
-// La plaque prend 266 a 390, ce qui laisse 6 px sous le chrome et 2 px au-dessus des widgets.
-// Les deux camps tiennent dans UNE barre horizontale, centree, juste sous le plateau. Choix
-// d'Abdel : le tableau d'affichage se lit sous le jeu, comme une borne d'arcade, pas sur le cote.
-// La bande sous l'anneau (1232) et le fil de commentaires est etroite, la barre est donc basse
-// et compacte : glyphe puis chiffre, cote a cote, un filet vertical entre les deux camps.
-const SC_ECART = 122; // ecart entre les centres des deux camps, de part et d'autre de W/2
-const SC_GX = 32; // ecart glyphe-chiffre a l'interieur d'un camp
-const SC_R = 13; // rayon du glyphe, compact
-const SC_BW = 250,
-  SC_BH = 48; // largeur et hauteur de la plaque de fond, reduites
-export const doux01 = (x) => (x <= 0 ? 0 : x >= 1 ? 1 : x * x * (3 - 2 * x));
-
-// Le gonflement d'un chiffre qui vient de marquer : une poussee franche puis un retour amorti.
-// 0,9 s, pas plus : au-dela le chiffre danse encore quand le spectateur a deja tourne la page.
-function bond(p) {
-  if (p >= 0.9) return 1;
-  const u = p / 0.9;
-  // plafonne a 1,25 : au-dela, un chiffre a deux chiffres deborde de la bande de 84 px
-  return 1 + 0.3 * Math.sin(Math.PI * doux01(u * 1.25)) * (1 - u);
-}
-
-// La tete de serpent du compteur : la meme silhouette qu'en jeu, en petit. Deux yeux, pas un
-// pictogramme abstrait : c'est ce qui rend le camp evident sans legende.
-function glypheSerpent(x, y, r, teinte) {
-  ctx.fillStyle = teinte || '#e8f1dc';
-  ctx.beginPath();
-  ctx.arc(x, y, r, 0, Math.PI * 2);
-  ctx.fill();
-  // le cou, un moignon vers l'arriere, pour qu'on lise une tete et non une bille
-  ctx.lineCap = 'round';
-  ctx.lineWidth = r * 1.15;
-  ctx.strokeStyle = teinte || '#d9e7cc';
-  ctx.beginPath();
-  ctx.moveTo(x - r * 0.2, y + r * 0.35);
-  ctx.lineTo(x - r * 1.25, y + r * 0.72);
-  ctx.stroke();
-  ctx.fillStyle = '#1b2a1f';
-  for (const o of [-1, 1]) {
-    ctx.beginPath();
-    ctx.arc(x + r * 0.36, y + o * r * 0.36, r * 0.17, 0, Math.PI * 2);
-    ctx.fill();
-  }
-}
-
-// Le camp des spectateurs, ce sont des gens. Deux essais rates avant celui-ci : trois disques qui
-// se chevauchaient, lus comme une icone de chat, puis une pierre, qui disait ce que le camp POSE
-// et non ce qu'il EST. Ici, deux silhouettes tete-et-epaules franchement separees par un vide,
-// la plus petite en retrait : c'est le signe universel de « des gens », et deux suffisent a dire
-// le pluriel. Le vide entre elles est creuse en `destination-out`, sinon les deux corps fusionnent
-// en une tache a cette taille.
-function personne(x, y, r) {
-  ctx.beginPath();
-  ctx.arc(x, y - r * 0.95, r * 0.62, 0, Math.PI * 2);
-  ctx.fill();
-  // les epaules : un arc large ferme a plat, la forme qui fait lire un buste et non un champignon
-  ctx.beginPath();
-  ctx.moveTo(x - r * 1.05, y + r * 1.15);
-  ctx.quadraticCurveTo(x - r * 1.02, y + r * 0.02, x, y + r * 0.02);
-  ctx.quadraticCurveTo(x + r * 1.02, y + r * 0.02, x + r * 1.05, y + r * 1.15);
-  ctx.closePath();
-  ctx.fill();
-}
-
 // Le vide entre les deux silhouettes se creuse en `destination-out`. Sur le canvas principal ce
 // mode trouerait l'image entiere, fond compris, puisque le compteur est dessine par-dessus tout.
 // Le glyphe est donc cuit une seule fois dans un sprite hors ecran, ou le decoupage ne concerne
 // que lui. Bonus : il est paye une fois pour toute la partie et non a chaque image.
 const GENS_RS = 48;
 let spriteGens = null;
-function glypheGens(x, y, r) {
+export function glypheGens(x, y, r) {
   if (!spriteGens) {
     const s = document.createElement('canvas');
     s.width = s.height = 2 * GENS_RS;
@@ -2734,43 +2651,6 @@ function glypheGens(x, y, r) {
   const k = r / (GENS_RS * 0.66),
     w = 2 * GENS_RS * k;
   ctx.drawImage(spriteGens, x - w / 2, y - w / 2, w, w);
-}
-
-// Un camp : son glyphe puis son nombre de manches gagnees, cote a cote sur la ligne SC_CY.
-// Seuls le glyphe et le chiffre respirent quand le camp marque, jamais la plaque : sinon la
-// barre entiere danse et les deux camps ne se comparent plus.
-// teinte (duel) : les deux camps sont des viperes, chacune dans sa couleur
-// miroir (camp de droite) : le chiffre passe cote centre et le glyphe a l'extremite, comme une
-// plaque de score de football : glyphe, chiffre | chiffre, glyphe
-function campBarre(cx, n, sun, pulse, teinte, miroir) {
-  const sg = miroir ? -1 : 1;
-  const k = bond(pulse),
-    vif = Math.max(0, 1 - pulse / 0.9);
-  const lueur = teinte ? teinte : sun ? 'rgba(242,197,124,0.85)' : 'rgba(143,168,216,0.85)';
-  ctx.save();
-  ctx.translate(cx - sg * SC_GX, SC_CY);
-  ctx.scale(sg * k, 1); // miroir : le glyphe de droite regarde dans l'autre sens
-  if (vif > 0.02) {
-    ctx.shadowColor = lueur;
-    ctx.shadowBlur = 26 * vif;
-  }
-  if (sun || teinte) glypheSerpent(0, 0, SC_R, teinte);
-  else glypheGens(0, 0, SC_R);
-  ctx.restore();
-
-  ctx.save();
-  ctx.translate(cx + sg * SC_GX, SC_CY);
-  ctx.scale(k, k);
-  if (vif > 0.02) {
-    ctx.shadowColor = lueur;
-    ctx.shadowBlur = 24 * vif;
-  }
-  ctx.textAlign = 'center';
-  ctx.textBaseline = 'middle';
-  ctx.font = '500 30px "IBM Plex Mono", ui-monospace, monospace';
-  ctx.fillStyle = teinte || (sun ? OR : BLEU);
-  ctx.fillText(String(n), 0, 1);
-  ctx.restore();
 }
 
 // ===== Bandeau d'activite, haut-centre (prototype, Abdel 2026-09-21 : « welcome people, thanks donations,
@@ -3117,629 +2997,12 @@ function peindreBandeau() {
     miniSerpent(pts, actif ? teinte : '#e8f1dc', 0.42);
   }
 }
-function peindreScore() {
-  // en mode versus les deux colonnes appartiennent aux astres (CIEL_X=62), le compteur s'efface
-  // en duel il reste : une vipere par camp, Or a gauche, Ombre a droite, meme plaque, meme logique
-  if (!duel()) return;
-  const cx = W / 2;
-  // Duel (Abdel, 2026-09-21, variante T1) : le temps restant de la manche, en chiffres, entre les deux
-  // scores, comme une carte de score de foot. La plaque s'elargit pour lui faire place ; glyphes inchanges.
-  const chrono = duel() && manche,
-    bw = chrono ? SC_BW + 84 : SC_BW,
-    ecart = chrono ? SC_ECART + 84 : SC_ECART;
-  ctx.save();
-  // la plaque : le compteur doit tenir aussi bien en plein jour que dans la nuit, il porte donc
-  // son propre fond, sombre et discret. Une seule plaque pour les deux camps.
-  ctx.fillStyle = 'rgba(6,11,8,0.46)';
-  ctx.beginPath();
-  ctx.roundRect(cx - bw / 2, SC_CY - SC_BH / 2, bw, SC_BH, SC_BH / 2);
-  ctx.fill();
-  ctx.lineWidth = 1.5;
-  ctx.strokeStyle = 'rgba(255,255,255,0.10)';
-  ctx.stroke();
-  ctx.strokeStyle = 'rgba(255,255,255,0.16)';
-  if (chrono) {
-    const dureeM = reglages.dureeDuel || reglages.duree,
-      r = Math.max(0, Math.ceil(dureeM - (manche.t || 0)));
-    const txt = Math.floor(r / 60) + ':' + String(r % 60).padStart(2, '0');
-    ctx.beginPath();
-    ctx.moveTo(cx - 42, SC_CY - 13);
-    ctx.lineTo(cx - 42, SC_CY + 13);
-    ctx.moveTo(cx + 42, SC_CY - 13);
-    ctx.lineTo(cx + 42, SC_CY + 13);
-    ctx.stroke();
-    ctx.textAlign = 'center';
-    ctx.textBaseline = 'middle';
-    ctx.font = '500 24px "IBM Plex Mono", ui-monospace, monospace';
-    ctx.fillStyle =
-      r <= 20 && manche.etat === 'en cours' ? 'rgba(240,78,62,0.95)' : 'rgba(255,255,255,0.72)';
-    ctx.fillText(txt, cx, SC_CY + 1);
-  } else {
-    // un filet vertical, entre les deux camps
-    ctx.beginPath();
-    ctx.moveTo(cx, SC_CY - 13);
-    ctx.lineTo(cx, SC_CY + 13);
-    ctx.stroke();
-  }
-  ctx.restore();
-  campBarre(cx - ecart / 2, scoreSerpent, true, pulseS, duel() ? OR : null);
-  campBarre(cx + ecart / 2, scoreViewers, false, pulseV, duel() ? OMBRE : null, true);
-}
 
-// Maquette de l'interface TikTok, pour juger le jeu en conditions reelles au lieu de juger un
-// canvas nu. Ce n'est PAS un repere abstrait comme `reglages.zones` : ce sont les elements
-// eux-memes, dessines aux positions mesurees sur la capture d'Abdel, pour qu'on voie ce qui
-// recouvre quoi, ce qui reste lisible, et ou l'oeil du spectateur va reellement.
-// Purement visuel, aucun effet sur le jeu, absent par defaut.
-export function pilule(x, y, w, h, te, r) {
-  ctx.fillStyle = te;
-  ctx.beginPath();
-  ctx.roundRect(x, y, w, h, r === undefined ? h / 2 : r);
-  ctx.fill();
-}
-
-let dtRendu = 0.016;
-function peindreDuel(dt) {
-  if (!manche) return;
-  const x = X0 - 14,
-    y = Y0 - 14,
-    w = COLS * CELL + 28,
-    h = ROWS * CELL + 28,
-    r = 18;
-  const per = 2 * (w + h) - 8 * r + 2 * Math.PI * r;
-  // lisser les anneaux
-  for (let i = 0; i < corps.length; i++) {
-    const vise = Math.min(1, (corps[i].serpent.length || 0) / LONG_CIBLE_DUEL);
-    corps[i].anneau += (vise - corps[i].anneau) * Math.min(1, (dt || 0.016) * 3.5); // montee plus soyeuse (Abdel : « more smooth »)
-  }
-  // Tenue : pendant les TENUE_DUEL secondes ou un camp tient son anneau plein, son demi-anneau
-  // bat de plus en plus vite et s'epaissit, et un compte a rebours 5-4-3-2-1 s'affiche au haut-centre
-  // dans sa couleur. C'est l'instant ou l'autre camp doit couper : il faut qu'on le voie.
-  const tenueDe = (i) =>
-    corps[i] && manche.etat === 'en cours' ? Math.min(TENUE_DUEL, corps[i].tenue || 0) : 0;
-  // Respiration lente (2 Hz max) et sans saut de largeur : la version battante a 8-26 rad/s
-  // scintillait (Abdel : « there a flicker of the jauge bar on the cooldown its not pleasing »).
-  const battement = (tn) => (tn > 0 ? 0.5 + 0.5 * Math.sin(t * 4) : 0);
-  ctx.save();
-  ctx.lineWidth = 6;
-  ctx.lineJoin = 'round';
-  ctx.lineCap = 'round';
-  // piste vide
-  ctx.strokeStyle = 'rgba(255,255,255,0.09)';
-  ctx.beginPath();
-  ctx.roundRect(x, y, w, h, r);
-  ctx.stroke();
-  // Or : tiret FINIT au haut-centre (anti-horaire sur le chemin horaire = offset inverse)
-  // Jauges de longueur sur la bordure : « deglutition », tempo vif 1 s, validee par Abdel apres
-  // maquettes (K2, puis mouvement soyeux, puis rendu net). La jauge est le corps du serpent : a
-  // chaque baie mangee, un renflement lisse part de l'origine (haut-centre), glisse jusqu'a la
-  // pointe et s'y fond pendant que la ligne s'allonge. Recette du mouvement, a ne pas simplifier :
-  //  - position du renflement en smootherstep (depart et arrivee sans a-coup) ;
-  //  - amplitude qui nait en fondu (22 % du trajet) et se resorbe (26 derniers %) ;
-  //  - la longueur ne grandit qu'a 72 % du trajet, donc le renflement se fond dans la pointe ;
-  //  - la longueur suit un ressort amorti critique (aucun depassement, aucune oscillation) ;
-  //  - temps reel (dtRendu). Rendu seul : rien ici ne touche au jeu.
-  // Le renflement est borne a 7,7 px de demi-epaisseur : le rail du timer est a 12 px (trait 7 px).
-  const DUREE_GORGEE = 1.0,
-    lisse = (v) => {
-      v = Math.max(0, Math.min(1, v));
-      return v * v * v * (v * (6 * v - 15) + 10);
-    };
-  for (let i = 0; i < corps.length && i < 2; i++) {
-    const c = corps[i],
-      horaire = i === 1,
-      rgb = i === 0 ? '242,197,124' : '180,212,222',
-      clair = i === 0 ? '255,238,206' : '228,243,249';
-    const L = c.serpent.length || 0,
-      pxParAnneau = per / 2 / LONG_CIBLE_DUEL;
-    if (c.jL === undefined) {
-      c.jL = 0;
-      c.jV = 0;
-      c.jEv = [];
-      c.jLong = L;
-    }
-    if (L > c.jLong && manche.etat === 'en cours')
-      c.jEv.push({ q: 0, fait: false, gain: (L - c.jLong) * pxParAnneau });
-    c.jLong = L;
-    let attente = 0;
-    for (let k = c.jEv.length - 1; k >= 0; k--) {
-      const e = c.jEv[k];
-      e.q += dtRendu / DUREE_GORGEE;
-      if (!e.fait && e.q >= 0.72) e.fait = true;
-      if (e.q >= 1) {
-        c.jEv.splice(k, 1);
-        continue;
-      }
-      if (!e.fait) attente += e.gain;
-    }
-    const cible = Math.max(0, Math.min(per / 2, L * pxParAnneau) - attente),
-      wr = 6.5;
-    c.jV += (wr * wr * (cible - c.jL) - 2 * wr * c.jV) * dtRendu;
-    c.jL += c.jV * dtRendu;
-    if (c.jL < 0) {
-      c.jL = 0;
-      c.jV = 0;
-    }
-    const Lb = Math.max(c.jL, c.jEv.length ? 16 : 0);
-    if (Lb < 1) continue;
-    const tn = tenueDe(i),
-      bt = battement(tn),
-      fond = (tn > 0 ? 6 : 3.1) + 0.15 * Math.sin(t * 1.3 + i * 1.7);
-    const gorgees = c.jEv.map((e) => ({
-      pos: lisse(e.q) * Lb,
-      a: lisse(e.q / 0.22) * (1 - lisse((e.q - 0.74) / 0.26)),
-    }));
-    const demi = (d) => {
-      let h2 = fond;
-      for (const g of gorgees) h2 += 4.6 * g.a * Math.exp(-Math.pow((d - g.pos) / 19, 2));
-      return h2;
-    };
-    const pR = (d) => pointRail(x, y, w, h, r, horaire ? d : (per - d) % per);
-    // le corps : un contour exterieur, un contour interieur, deux bouts arrondis a la bonne epaisseur
-    // Perf : un seul point de rail par echantillon (pas de 4 px), la tangente vient des voisins
-    const N = Math.max(6, Math.ceil(Lb / 4)),
-      ext = [],
-      inte = [],
-      dos = [],
-      bouts = [null, null],
-      axe = [];
-    for (let k = 0; k <= N; k++) axe.push(pR((Lb * k) / N));
-    for (let k = 0; k <= N; k++) {
-      const d = (Lb * k) / N,
-        a = axe[Math.max(0, k - 1)],
-        b2 = axe[Math.min(N, k + 1)],
-        m = axe[k];
-      let tx = b2.x - a.x,
-        ty = b2.y - a.y;
-      const nn = Math.hypot(tx, ty) || 1;
-      tx /= nn;
-      ty /= nn;
-      const sg = horaire ? 1 : -1,
-        nx = ty * sg,
-        ny = -tx * sg,
-        h2 = demi(d); // (nx,ny) pointe vers l'exterieur du plateau
-      ext.push({ x: m.x + nx * h2, y: m.y + ny * h2 });
-      inte.push({ x: m.x - nx * h2, y: m.y - ny * h2 });
-      dos.push({ x: m.x + nx * (h2 - 1.8), y: m.y + ny * (h2 - 1.8) });
-      if (k === 0) bouts[0] = { m, tx: -tx, ty: -ty, nx: -nx, ny: -ny, h: h2 };
-      if (k === N) bouts[1] = { m, tx, ty, nx, ny, h: h2 };
-    }
-    // demi-cercle de l'exterieur vers l'interieur, en passant par le sens de la tangente
-    const bout = (e) => {
-      for (let q = 1; q < 6; q++) {
-        const an = (Math.PI * q) / 6,
-          ct = Math.sin(an),
-          cn = Math.cos(an);
-        ctx.lineTo(e.m.x + (e.tx * ct + e.nx * cn) * e.h, e.m.y + (e.ty * ct + e.ny * cn) * e.h);
-      }
-    };
-    ctx.beginPath();
-    ctx.moveTo(ext[0].x, ext[0].y);
-    for (let k = 1; k <= N; k++) ctx.lineTo(ext[k].x, ext[k].y);
-    bout(bouts[1]);
-    for (let k = N; k >= 0; k--) ctx.lineTo(inte[k].x, inte[k].y);
-    bout(bouts[0]);
-    ctx.closePath();
-    // Perf : halo imite par un contour large et translucide ; le vrai flou ne sert que pendant la tenue
-    ctx.lineJoin = 'round';
-    ctx.lineWidth = 7;
-    ctx.strokeStyle = 'rgba(' + rgb + ',0.13)';
-    ctx.stroke();
-    ctx.lineWidth = 3.5;
-    ctx.strokeStyle = 'rgba(' + rgb + ',0.2)';
-    ctx.stroke();
-    ctx.fillStyle = 'rgba(' + rgb + ',0.96)';
-    if (tn > 0) {
-      ctx.shadowColor = 'rgba(' + rgb + ',' + (0.45 + 0.35 * bt) + ')';
-      ctx.shadowBlur = 10 + 16 * bt;
-    }
-    ctx.fill();
-    ctx.shadowBlur = 0;
-    ctx.save();
-    ctx.clip();
-    // filet de lumiere qui suit le dos
-    ctx.strokeStyle = 'rgba(' + clair + ',0.45)';
-    ctx.lineWidth = 1.5;
-    ctx.lineJoin = 'round';
-    ctx.beginPath();
-    for (let k = 2; k <= N - 2; k++) {
-      if (k === 2) ctx.moveTo(dos[k].x, dos[k].y);
-      else ctx.lineTo(dos[k].x, dos[k].y);
-    }
-    ctx.stroke();
-    // la baie qui voyage a l'interieur : une lueur douce, jamais une tache nette
-    for (const g of gorgees) {
-      if (g.a < 0.02) continue;
-      const m = pR(g.pos);
-      const gr = ctx.createRadialGradient(m.x, m.y, 0, m.x, m.y, 12);
-      gr.addColorStop(0, 'rgba(' + clair + ',' + 0.95 * g.a + ')');
-      gr.addColorStop(0.5, 'rgba(' + clair + ',' + 0.5 * g.a + ')');
-      gr.addColorStop(1, 'rgba(' + clair + ',0)');
-      ctx.fillStyle = gr;
-      ctx.beginPath();
-      ctx.arc(m.x, m.y, 12, 0, Math.PI * 2);
-      ctx.fill();
-    }
-    ctx.restore();
-  }
-  if (manche.etat === 'en cours') {
-    const dureeM = reglages.dureeDuel || reglages.duree,
-      reste = Math.max(0, 1 - manche.t / dureeM);
-    const ex = x - 12,
-      ey = y - 12,
-      ew = w + 24,
-      eh = h + 24,
-      er = r + 12,
-      eper = 2 * (ew + eh) - 8 * er + 2 * Math.PI * er;
-    // Visibilite (Abdel : « the red timer is still not visible enough », sans lisere noir) : trait de
-    // 7 px au lieu de 4, rouge plus vif, rail vide plus marque.
-    ctx.lineWidth = 7;
-    ctx.strokeStyle = 'rgba(228,64,58,0.26)';
-    ctx.beginPath();
-    ctx.roundRect(ex, ey, ew, eh, er);
-    ctx.stroke();
-    if (reste > 0.001) {
-      const len = eper * reste,
-        urgent = manche.t > dureeM - 15;
-      // Perf : un shadowBlur sur un trait qui fait le tour du plateau force le navigateur a flouter
-      // toute la surface du plateau a chaque image (mesure : 3,5 ms contre 0,25 ms sans flou). Le halo
-      // est donc imite par deux traits plus larges et translucides sous le trait franc.
-      const vif = urgent ? 0.65 + 0.35 * Math.sin(t * 6) : 0.95;
-      ctx.setLineDash([len, eper - len]);
-      ctx.lineDashOffset = -(ew / 2 - er);
-      [
-        [urgent ? 19 : 15, 0.09],
-        [urgent ? 13 : 11, 0.15],
-        [7, vif],
-      ].forEach(([lw2, al]) => {
-        ctx.lineWidth = lw2;
-        ctx.strokeStyle = 'rgba(240,78,62,' + al + ')';
-        ctx.beginPath();
-        ctx.roundRect(ex, ey, ew, eh, er);
-        ctx.stroke();
-      });
-      ctx.setLineDash([]);
-      ctx.lineWidth = 7;
-      // Meche du timer, proposition K validee par Abdel (« braise et poussieres », sans lisere noir,
-      // critere : subtil, satisfaisant, dans le ton du jeu). Les derniers centimetres du trait se
-      // rechauffent (rouge, ambre, blanc chaud), une braise respire lentement a la pointe, et de
-      // rares grains ambres montent puis s'eteignent. Rendu seul : rien ici ne touche au jeu.
-      const pr = (s) => pointRail(ex, ey, ew, eh, er, Math.max(0, s)),
-        tip = pr(len);
-      for (let i = 12; i >= 0; i--) {
-        const q = pr(len - i * 7),
-          f = 1 - i / 12;
-        ctx.fillStyle =
-          'rgba(255,' +
-          Math.round(120 + 110 * f) +
-          ',' +
-          Math.round(70 + 120 * f * f) +
-          ',' +
-          0.85 * f * f +
-          ')';
-        ctx.beginPath();
-        ctx.arc(q.x, q.y, 3.5, 0, Math.PI * 2);
-        ctx.fill();
-      }
-      const souffle = 0.5 + 0.5 * Math.sin(t * 2.6);
-      ctx.shadowColor = 'rgba(255,150,70,0.9)';
-      ctx.shadowBlur = 16 + 16 * souffle;
-      ctx.fillStyle =
-        'rgb(255,' + Math.round(200 + 40 * souffle) + ',' + Math.round(150 + 60 * souffle) + ')';
-      ctx.beginPath();
-      ctx.arc(tip.x, tip.y, 6.5 + 2 * souffle, 0, Math.PI * 2);
-      ctx.fill();
-      ctx.shadowBlur = 0;
-      if (Math.random() < Math.min(1, dtRendu * 2.7))
-        fumeeTimer.push({
-          x: tip.x + (Math.random() - 0.5) * 12,
-          y: tip.y,
-          vx: (Math.random() - 0.5) * 16,
-          vy: -25 - Math.random() * 18,
-          l: 0,
-          m: 2.2 + Math.random(),
-        });
-      for (let i = fumeeTimer.length - 1; i >= 0; i--) {
-        const g = fumeeTimer[i];
-        g.l += dtRendu;
-        if (g.l >= g.m) {
-          fumeeTimer.splice(i, 1);
-          continue;
-        }
-        g.x += (g.vx + Math.sin(g.l * 2.2) * 14) * dtRendu;
-        g.y += g.vy * dtRendu;
-        ctx.fillStyle = 'rgba(255,205,150,' + 0.7 * Math.sin((Math.PI * g.l) / g.m) + ')';
-        ctx.beginPath();
-        ctx.arc(g.x, g.y, 3, 0, Math.PI * 2);
-        ctx.fill();
-      }
-    } else fumeeTimer.length = 0;
-    ctx.lineWidth = 6;
-  }
-  // compte a rebours de la tenue, au haut-centre, dans la couleur du camp qui tient
-  for (let i = 0; i < corps.length; i++) {
-    const tn = tenueDe(i);
-    if (tn <= 0) continue;
-    const reste = Math.max(1, Math.ceil(TENUE_DUEL - tn));
-    const frac = TENUE_DUEL - tn - (reste - 1); // 1 -> 0 au fil de la seconde
-    const teinte = i === 0 ? OR : OMBRE,
-      rgb = i === 0 ? '242,197,124' : '180,212,222';
-    const cx = W / 2,
-      cy = Y0 - 14,
-      ech = 1 + 0.35 * (1 - frac); // le chiffre gonfle en fin de seconde
-    ctx.save();
-    ctx.translate(cx, cy);
-    ctx.scale(ech, ech);
-    ctx.textAlign = 'center';
-    ctx.textBaseline = 'middle';
-    ctx.font = '900 92px system-ui, sans-serif';
-    ctx.fillStyle = 'rgba(12,17,14,0.75)';
-    ctx.beginPath();
-    ctx.arc(0, 0, 64, 0, Math.PI * 2);
-    ctx.fill();
-    ctx.shadowColor = 'rgba(' + rgb + ',0.9)';
-    ctx.shadowBlur = 24;
-    ctx.fillStyle = teinte;
-    ctx.fillText(String(reste), 0, 4);
-    ctx.restore();
-  }
-  // flash rouge de recul par camp
-  for (let i = 0; i < corps.length; i++) {
-    const rt = corps[i].reculT || 0;
-    if (rt > 0) {
-      ctx.save();
-      ctx.globalAlpha = 0.14 * (rt / 0.9);
-      ctx.fillStyle = 'rgba(228,64,58,1)';
-      ctx.fillRect(0, 0, W, H);
-      ctx.restore();
-    }
-  }
-  ctx.restore();
-}
-
-// icones du rail duel (memes traces que coeur/ecusson de peindreGrade, qui y sont locales)
-function coeurDuel(icx, icy, s) {
-  // coeur classique et symetrique : deux lobes ronds, une pointe (le trace de peindreGrade se deformait a 24 px)
-  ctx.beginPath();
-  ctx.moveTo(icx, icy + s * 0.85);
-  ctx.bezierCurveTo(
-    icx - s * 1.15,
-    icy - s * 0.05,
-    icx - s * 0.6,
-    icy - s * 0.95,
-    icx,
-    icy - s * 0.35,
-  );
-  ctx.bezierCurveTo(
-    icx + s * 0.6,
-    icy - s * 0.95,
-    icx + s * 1.15,
-    icy - s * 0.05,
-    icx,
-    icy + s * 0.85,
-  );
-  ctx.closePath();
-}
-function ecussonDuel(icx, icy, s) {
-  ctx.beginPath();
-  ctx.moveTo(icx, icy - s);
-  ctx.lineTo(icx + s * 0.8, icy - s * 0.6);
-  ctx.lineTo(icx + s * 0.8, icy + s * 0.1);
-  ctx.bezierCurveTo(icx + s * 0.8, icy + s * 0.7, icx, icy + s, icx, icy + s);
-  ctx.bezierCurveTo(icx, icy + s, icx - s * 0.8, icy + s * 0.7, icx - s * 0.8, icy + s * 0.1);
-  ctx.lineTo(icx - s * 0.8, icy - s * 0.6);
-  ctx.closePath();
-}
-function peindreStatutsDuel() {
-  if (!manche || manche.etat !== 'en cours') return;
-  // memes coordonnees que peindreGrade
-  const RCX_G = X0 - 82,
-    RCX_D = X0 + COLS * CELL + 82;
-  const RY0 = Y0 + 7;
-  const JY_BOT = RY0 + 26 + 4 * 52 + 16 + 20 + 220;
-  const JY_TOP = JY_BOT - 220,
-    JW = 40,
-    JH = 220;
-  const camps = [
-    { c: corps[0], cx: RCX_G, rgb: '242,197,124', teinte: OR },
-    { c: corps[1], cx: RCX_D, rgb: '180,212,222', teinte: OMBRE },
-  ];
-  ctx.save();
-  camps.forEach(({ c, cx, rgb, teinte }) => {
-    if (!c) return;
-    const surge = Math.min(1, (c.surgeT || 0) / TEMPO_DUR); // la jauge se vide sur 10 s (le tempo paye)
-    const invinc = (c.invincT || 0) > 0;
-    const coup = (c.coupT || 0) > 0;
-    // fond
-    ctx.fillStyle = 'rgba(255,255,255,0.10)';
-    ctx.beginPath();
-    ctx.roundRect(cx - JW / 2, JY_TOP, JW, JH, JW / 2);
-    ctx.fill();
-    // barre de poussee de tempo
-    if (surge > 0.002) {
-      const fillH = Math.round(JH * surge);
-      ctx.fillStyle = coup ? 'rgba(228,64,58,0.92)' : 'rgba(' + rgb + ',0.88)';
-      ctx.shadowColor = 'rgba(' + rgb + ',0.55)';
-      ctx.shadowBlur = 12;
-      ctx.beginPath();
-      ctx.roundRect(cx - JW / 2, JY_BOT - fillH, JW, fillH, JW / 2);
-      ctx.fill();
-      ctx.shadowBlur = 0;
-    }
-    // lueur invincibilite
-    if (invinc) {
-      ctx.save();
-      ctx.globalAlpha = 0.4 + 0.3 * Math.sin(t * 8);
-      ctx.shadowColor = 'rgba(' + rgb + ',0.9)';
-      ctx.shadowBlur = 30;
-      ctx.strokeStyle = 'rgba(' + rgb + ',0.7)';
-      ctx.lineWidth = 4;
-      ctx.beginPath();
-      ctx.roundRect(cx - JW / 2, JY_TOP, JW, JH, JW / 2);
-      ctx.stroke();
-      ctx.restore();
-    }
-    // Danger : serpent adulte sous SURSIS_DUEL anneaux. Triangle rouge a point d'exclamation au-dessus de
-    // la jauge, qui bat (Abdel : « icon on the side to indicate to team that its dangerous instead of jauge in red »).
-    // Visible des que le serpent est sous 5 anneaux hors eclosion (naissance a 5 : sous 5 = il a ete coupe).
-    // Abdel : « i dont see the warning icon » : la condition 'adulte' le cachait presque toujours.
-    if (!c.couvee && c.serpent.length > 0 && c.serpent.length < SURSIS_DUEL) {
-      const dy = JY_TOP - 44,
-        ds = 22,
-        al = 0.6 + 0.4 * Math.sin(t * 6);
-      ctx.save();
-      ctx.globalAlpha = al;
-      ctx.fillStyle = 'rgba(228,64,58,1)';
-      ctx.shadowColor = 'rgba(228,64,58,0.9)';
-      ctx.shadowBlur = 18;
-      ctx.beginPath();
-      ctx.moveTo(cx, dy - ds);
-      ctx.lineTo(cx + ds * 0.95, dy + ds * 0.7);
-      ctx.lineTo(cx - ds * 0.95, dy + ds * 0.7);
-      ctx.closePath();
-      ctx.fill();
-      ctx.shadowBlur = 0;
-      ctx.lineWidth = 2.5;
-      ctx.strokeStyle = 'rgba(255,255,255,0.9)';
-      ctx.stroke();
-      ctx.fillStyle = '#ffffff';
-      ctx.font = '900 26px system-ui, sans-serif';
-      ctx.textAlign = 'center';
-      ctx.textBaseline = 'middle';
-      ctx.fillText('!', cx, dy + 4);
-      ctx.restore();
-    }
-    // boucliers et vies offerts : ecussons puis coeurs en colonne sous la jauge, dans la teinte du camp.
-    // Une pare (pareT) fait clignoter la colonne en blanc.
-    {
-      const pare = (c.pareT || 0) > 0;
-      let iy = JY_BOT + 48;
-      const s = 24; // icones grandes et nettes (Abdel : trop petites, pas explicites)
-      ctx.save();
-      if ((c.bouclierT || 0) > 0) {
-        // ecusson plein + anneau de compte a rebours qui se vide (fraction du temps restant sur 15 s)
-        const fr = Math.min(1, c.bouclierT / BOUCLIER_DUR);
-        ctx.fillStyle = pare ? 'rgba(255,255,255,0.95)' : 'rgba(' + rgb + ',0.9)';
-        ctx.shadowColor = 'rgba(' + rgb + ',0.6)';
-        ctx.shadowBlur = 10;
-        ecussonDuel(cx, iy, s);
-        ctx.fill();
-        ctx.shadowBlur = 0;
-        // contour blanc et croix interieure : un ecusson qu'on lit a la taille d'un pouce
-        ctx.lineWidth = 2.5;
-        ctx.strokeStyle = 'rgba(255,255,255,0.85)';
-        ecussonDuel(cx, iy, s);
-        ctx.stroke();
-        ctx.lineWidth = 3;
-        ctx.strokeStyle = 'rgba(12,17,14,0.7)';
-        ctx.beginPath();
-        ctx.moveTo(cx, iy - s * 0.55);
-        ctx.lineTo(cx, iy + s * 0.5);
-        ctx.moveTo(cx - s * 0.45, iy - s * 0.1);
-        ctx.lineTo(cx + s * 0.45, iy - s * 0.1);
-        ctx.stroke();
-        // anneau de compte a rebours : fond gris, arc qui se vide dans le sens horaire
-        ctx.lineWidth = 5;
-        ctx.lineCap = 'round';
-        ctx.strokeStyle = 'rgba(255,255,255,0.16)';
-        ctx.beginPath();
-        ctx.arc(cx, iy, s + 12, 0, Math.PI * 2);
-        ctx.stroke();
-        ctx.strokeStyle = pare ? 'rgba(255,255,255,0.95)' : 'rgba(' + rgb + ',0.95)';
-        ctx.shadowColor = 'rgba(' + rgb + ',0.7)';
-        ctx.shadowBlur = 8;
-        ctx.beginPath();
-        ctx.arc(cx, iy, s + 12, -Math.PI / 2, -Math.PI / 2 + Math.PI * 2 * fr);
-        ctx.stroke();
-        ctx.shadowBlur = 0;
-        // secondes restantes, en petit sous l'anneau
-        ctx.fillStyle = 'rgba(255,255,255,0.85)';
-        ctx.font = '700 20px system-ui, sans-serif';
-        ctx.textAlign = 'center';
-        ctx.textBaseline = 'middle';
-        ctx.fillText(Math.ceil(c.bouclierT) + 's', cx, iy + s + 30);
-        iy += s * 2 + 58;
-      }
-      // vies offertes : un coeur par vie, meme taille et meme traitement que l'ecusson (Abdel :
-      // « life icons when gifted are also shown on the side »), lisibles a la taille d'un pouce
-      // sans plafond : jusqu'a 4 coeurs en colonne, au-dela un seul coeur et le compte 'x N'
-      const nV = c.vies || 0,
-        nDess = nV > 4 ? 1 : nV;
-      for (let k = 0; k < nDess; k++) {
-        if (k === 0) iy += 6;
-        // rouge pour les deux camps (Abdel : « they are red and same ui style as shield »)
-        ctx.fillStyle = pare ? 'rgba(255,255,255,0.95)' : 'rgba(228,64,58,0.95)';
-        ctx.shadowColor = 'rgba(228,64,58,0.7)';
-        ctx.shadowBlur = 14;
-        coeurDuel(cx, iy, s);
-        ctx.fill();
-        ctx.shadowBlur = 0;
-        ctx.lineWidth = 2.5;
-        ctx.strokeStyle = 'rgba(255,255,255,0.85)';
-        coeurDuel(cx, iy, s);
-        ctx.stroke();
-        if (nV > 4) {
-          ctx.fillStyle = 'rgba(255,255,255,0.9)';
-          ctx.font = '700 22px system-ui, sans-serif';
-          ctx.textAlign = 'center';
-          ctx.textBaseline = 'middle';
-          ctx.fillText('x' + nV, cx, iy + s * 1.4);
-        }
-        iy += s * 2.2;
-      }
-      ctx.restore();
-    }
-    // Eclair de tempo (Abdel : gris inactif, couleur du camp actif, lisible) : pastille sombre dans la
-    // barre, eclair 20 px dessus. Inactif : gris. Actif : couleur du camp, lueur, battement.
-    {
-      const actifT = (c.surgeT || 0) > 0,
-        ex = cx,
-        ey = JY_TOP + 40,
-        es = 20;
-      ctx.save();
-      ctx.fillStyle = 'rgba(8,12,10,0.88)';
-      ctx.beginPath();
-      ctx.arc(ex, ey, 26, 0, Math.PI * 2);
-      ctx.fill();
-      ctx.lineWidth = 2;
-      ctx.strokeStyle = actifT ? 'rgba(' + rgb + ',0.9)' : 'rgba(255,255,255,0.22)';
-      ctx.stroke();
-      ctx.beginPath();
-      ctx.moveTo(ex + es * 0.35, ey - es);
-      ctx.lineTo(ex - es * 0.55, ey + es * 0.15);
-      ctx.lineTo(ex - es * 0.05, ey + es * 0.15);
-      ctx.lineTo(ex - es * 0.35, ey + es);
-      ctx.lineTo(ex + es * 0.55, ey - es * 0.15);
-      ctx.lineTo(ex + es * 0.05, ey - es * 0.15);
-      ctx.closePath();
-      if (actifT) {
-        ctx.shadowColor = 'rgba(' + rgb + ',1)';
-        ctx.shadowBlur = 18;
-        ctx.fillStyle = teinte;
-        ctx.globalAlpha = 0.8 + 0.2 * Math.sin(t * 10);
-      } else {
-        ctx.fillStyle = 'rgba(255,255,255,0.35)';
-      }
-      ctx.fill();
-      ctx.restore();
-    }
-    // eclair de coupe : barre blanche breve
-    if (coup) {
-      ctx.save();
-      ctx.globalAlpha = 0.7 * (c.coupT / 0.9);
-      ctx.fillStyle = 'rgba(255,255,255,0.9)';
-      ctx.beginPath();
-      ctx.roundRect(cx - JW / 2, JY_TOP, JW, JH, JW / 2);
-      ctx.fill();
-      ctx.restore();
-    }
-  });
-  ctx.restore();
-}
+export let dtRendu = 0.016;
 
 // Point du rail du timer a la distance s du haut-centre, dans le sens horaire (le sens ou le trait
 // rouge est dessine). Meme geometrie que ctx.roundRect(x,y,w,h,r).
-let fumeeTimer = [];
+export let fumeeTimer = [];
 export let retourCadeaux = [[], []],
   bandeauCadeau = [null, null]; // [camp][ligne] = {t, pseudo, n} ; bandeau = {t, texte}
 function noterCadeau(i, valeur, pseudo, n, avatar) {
@@ -3789,7 +3052,7 @@ let ipsLisse = 60,
   pireDt = 0,
   pireT = 0,
   pireAffiche = 0;
-function pointRail(x, y, w, h, r, s) {
+export function pointRail(x, y, w, h, r, s) {
   const droit = w / 2 - r,
     q = (Math.PI * r) / 2,
     cote = h - 2 * r,
@@ -3832,276 +3095,6 @@ function peindreManche() {
   ctx.fillRect(0, 0, W, H);
   ctx.restore();
   if (manche.etat !== 'en cours') peindreFin();
-}
-
-// Anime la naissance du serpent : un oeuf se pose, se fend et eclate.
-// Appeler a chaque image avec u de 0 a 1. Purement visuel, aucun effet de bord.
-// La naissance : l'oeuf respire, il se fend, il retient son souffle, puis il eclate
-// et le serpent en sort. Tout est en fonctions douces, rien ne demarre ni ne s'arrete net.
-const doux = (x) => (x <= 0 ? 0 : x >= 1 ? 1 : x * x * (3 - 2 * x));
-const sortant = (x) => 1 - Math.pow(1 - Math.min(1, Math.max(0, x)), 3);
-const bruit = (i, d) => {
-  const v = Math.sin(i * 12.9898 + d * 78.233) * 43758.5453;
-  return v - Math.floor(v);
-};
-
-function peindreCoquille(u) {
-  const p = px(couvee.x, couvee.y),
-    t = couvee.t;
-  const RX = CELL * 0.5,
-    RY = CELL * 0.66;
-  const S = SORTIE; // instant de la rupture, en fraction de l'animation
-  const av = Math.min(1, u / S); // avant la rupture
-  const ap = Math.max(0, (u - S) / (1 + TRAINE / ECLOSION - S)); // apres, jusqu'a l'effacement complet
-
-  ctx.save();
-  ctx.translate(p.x, p.y);
-
-  if (u < S) {
-    // 1. il respire et il tremble, de plus en plus, puis il se fige juste avant de ceder
-    const souffle = doux(av / 0.82); // montee de l'agitation
-    const retenue = doux(Math.max(0, (av - 0.82) / 0.18)); // le temps suspendu avant la rupture
-    const vif = 1 - retenue;
-    const frq = 16 + 26 * souffle;
-    const bal = Math.sin(t * frq) * 3.6 * souffle * vif;
-    const roul = Math.sin(t * frq * 0.5) * 0.09 * souffle * vif;
-    // ecrase et etire : il se tasse quand il tremble, il s'allonge quand il retient
-    const ec = 1 + 0.07 * Math.sin(t * frq * 2) * souffle * vif + 0.1 * retenue;
-    const el = 1 - 0.05 * Math.sin(t * frq * 2) * souffle * vif - 0.06 * retenue;
-    const rx = RX * el,
-      ry = RY * ec;
-
-    ctx.translate(bal, 0);
-    ctx.rotate(roul);
-    // l'ombre, qui se resserre quand il se dresse
-    ctx.globalAlpha = 0.38;
-    ctx.fillStyle = 'rgba(5,8,6,0.65)';
-    ctx.beginPath();
-    ctx.ellipse(0, RY * 0.94, rx * (0.95 - 0.2 * retenue), RY * 0.2, 0, 0, Math.PI * 2);
-    ctx.fill();
-    ctx.globalAlpha = 1;
-
-    // le halo, qui grandit puis se ramasse sur l'oeuf avant la rupture
-    const halo = souffle * (1 - 0.55 * retenue);
-    if (halo > 0.01) {
-      const R = ry * (1.35 + 0.7 * halo),
-        g = ctx.createRadialGradient(0, 0, ry * 0.5, 0, 0, R);
-      g.addColorStop(0, 'rgba(246,243,234,' + (0.16 * halo + 0.22 * retenue) + ')');
-      g.addColorStop(1, 'rgba(246,243,234,0)');
-      ctx.fillStyle = g;
-      ctx.beginPath();
-      ctx.arc(0, 0, R, 0, Math.PI * 2);
-      ctx.fill();
-    }
-
-    oeuf(rx, ry, 1);
-
-    // les fentes : elles s'allongent depuis le sommet, de plus en plus nombreuses
-    const f = doux(Math.max(0, (av - 0.28) / 0.62));
-    if (f > 0.01) {
-      ctx.save();
-      ctx.strokeStyle = 'rgba(66,72,64,' + (0.55 + 0.4 * f) + ')';
-      ctx.lineWidth = 2.4;
-      ctx.lineJoin = 'round';
-      ctx.lineCap = 'round';
-      for (let k = 0; k < 3; k++) {
-        const dep = (k - 1) * rx * 0.42,
-          part = Math.min(1, Math.max(0, (f - k * 0.16) / 0.5));
-        if (part <= 0) continue;
-        ctx.beginPath();
-        ctx.moveTo(dep, -ry * 0.55);
-        const n = 5;
-        for (let i = 1; i <= n; i++) {
-          const q = (i / n) * part;
-          ctx.lineTo(dep + (bruit(k * 7 + i, 1) - 0.5) * rx * 0.55 * q, -ry * 0.55 + ry * 1.25 * q);
-        }
-        ctx.stroke();
-      }
-      ctx.restore();
-    }
-  } else {
-    // 2. la rupture : la lumiere jaillit, les morceaux partent en arc et retombent
-    const e = sortant(ap * 1.35),
-      f = 1 - doux(Math.max(0, (ap - 0.45) / 0.55));
-
-    // l'eclair, bref, puis l'anneau qui s'ouvre et s'efface
-    const fl = Math.max(0, 1 - ap * 5.5);
-    if (fl > 0.01) {
-      const R = RY * (1 + 2.6 * (1 - fl)),
-        g = ctx.createRadialGradient(0, 0, 2, 0, 0, R);
-      g.addColorStop(0, 'rgba(255,250,236,' + 0.9 * fl + ')');
-      g.addColorStop(0.4, 'rgba(242,197,124,' + 0.55 * fl + ')');
-      g.addColorStop(1, 'rgba(242,197,124,0)');
-      ctx.fillStyle = g;
-      ctx.beginPath();
-      ctx.arc(0, 0, R, 0, Math.PI * 2);
-      ctx.fill();
-    }
-    const ao = sortant(ap * 2.2),
-      av2 = Math.max(0, 1 - ap * 2.6);
-    if (av2 > 0.01) {
-      ctx.strokeStyle = 'rgba(255,247,228,' + 0.6 * av2 + ')';
-      ctx.lineWidth = 3 * av2 + 0.5;
-      ctx.beginPath();
-      ctx.arc(0, 0, RY * (0.6 + 2.4 * ao), 0, Math.PI * 2);
-      ctx.stroke();
-    }
-
-    // huit morceaux de coquille, chacun sur son arc, qui tournent et retombent
-    const T = ap * 1.5;
-    for (let i = 0; i < 8; i++) {
-      const a = -Math.PI / 2 + (bruit(i, 3) - 0.5) * 2.6 + (i - 3.5) * 0.34;
-      const vit = CELL * (1.5 + bruit(i, 5) * 1.7),
-        tour = (bruit(i, 7) - 0.5) * 9;
-      const x = Math.cos(a) * vit * T,
-        y = Math.sin(a) * vit * T + CELL * 3.4 * T * T;
-      const al = f * (0.85 + 0.15 * bruit(i, 9));
-      if (al <= 0.01) continue;
-      ctx.save();
-      ctx.translate(x, y);
-      ctx.rotate(tour * T);
-      ctx.globalAlpha = al;
-      ctx.fillStyle = COQUILLE;
-      ctx.shadowColor = 'rgba(246,243,234,0.5)';
-      ctx.shadowBlur = 10;
-      const w = RX * (0.3 + 0.22 * bruit(i, 11)),
-        h = RY * (0.26 + 0.2 * bruit(i, 13));
-      ctx.beginPath();
-      ctx.moveTo(-w, h * 0.5);
-      ctx.quadraticCurveTo(-w * 0.5, -h, w * 0.6, -h * 0.4);
-      ctx.quadraticCurveTo(w, h * 0.2, 0, h);
-      ctx.closePath();
-      ctx.fill();
-      ctx.restore();
-    }
-
-    // les deux moities, qui s'ouvrent comme un couvercle avant de partir
-    [1, -1].forEach((sg) => {
-      if (f <= 0.01) return;
-      ctx.save();
-      ctx.translate(sg * RX * 1.5 * e, (sg < 0 ? 1 : -1) * RY * 1.3 * e + CELL * 2.2 * T * T);
-      ctx.rotate(sg * e * 1.5);
-      ctx.globalAlpha = f;
-      oeuf(RX, RY, sg > 0 ? 0.5 : -0.5);
-      ctx.restore();
-    });
-  }
-  ctx.restore();
-
-  // une moitie d'oeuf, ou l'oeuf entier : part vaut 1 pour tout, 0.5 le haut, -0.5 le bas
-  function oeuf(rx, ry, part) {
-    const pts = [];
-    for (let i = 0; i <= 52; i++) {
-      const a = (i / 52) * Math.PI * 2,
-        c = Math.cos(a),
-        si = Math.sin(a);
-      const k = 1 - 0.17 * Math.max(0, -si); // sommet plus etroit que la base
-      const x = c * rx * k,
-        y = si * ry;
-      if (part === 1 || (part > 0 ? y <= 0.5 : y >= -0.5)) pts.push([x, y]);
-    }
-    if (!pts.length) return;
-    ctx.beginPath();
-    pts.forEach((q, i) => {
-      if (i) ctx.lineTo(q[0], q[1]);
-      else ctx.moveTo(q[0], q[1]);
-    });
-    ctx.closePath();
-    const g = ctx.createLinearGradient(-rx, -ry, rx * 0.7, ry);
-    g.addColorStop(0, '#FFFFFC');
-    g.addColorStop(0.55, COQUILLE);
-    g.addColorStop(1, '#D9D5C8');
-    ctx.fillStyle = g;
-    ctx.shadowColor = 'rgba(246,243,234,0.45)';
-    ctx.shadowBlur = 20;
-    ctx.fill();
-    ctx.shadowBlur = 0;
-    ctx.strokeStyle = 'rgba(120,128,118,0.45)';
-    ctx.lineWidth = 2;
-    ctx.stroke();
-    // un reflet doux en haut a gauche, c'est ce qui fait qu'on y croit
-    ctx.save();
-    ctx.clip();
-    ctx.globalAlpha = 0.5;
-    ctx.fillStyle = 'rgba(255,255,255,0.7)';
-    ctx.beginPath();
-    ctx.ellipse(-rx * 0.34, -ry * 0.34, rx * 0.28, ry * 0.2, -0.5, 0, Math.PI * 2);
-    ctx.fill();
-    ctx.restore();
-  }
-}
-
-// Une baie mangee ne projette rien : elle s'allume sur place et se retire lentement.
-const LUEUR = { offerte: '242,197,124', nature: '207,227,198' };
-function peindreHalos() {
-  if (!halos.length) return;
-  ctx.save();
-  ctx.globalCompositeOperation = 'lighter';
-  halos.forEach((h) => {
-    const u = h.t / h.duree;
-    // montee vive sur le premier cinquieme, puis une longue decrue douce
-    const i = u < 0.2 ? u / 0.2 : Math.pow(1 - (u - 0.2) / 0.8, 1.9);
-    const R = CELL * (0.55 + 1.25 * u),
-      c =
-        h.teinte === 'offerte-or'
-          ? '242,197,124'
-          : h.teinte === 'offerte-ombre'
-            ? '180,212,222'
-            : h.teinte === 'offerte' && duel()
-              ? '155,226,138'
-              : LUEUR[h.teinte] || LUEUR.nature;
-    const g = ctx.createRadialGradient(h.x, h.y, 0, h.x, h.y, R);
-    g.addColorStop(0, 'rgba(' + c + ',' + 0.4 * i + ')');
-    g.addColorStop(0.35, 'rgba(' + c + ',' + 0.18 * i + ')');
-    g.addColorStop(1, 'rgba(' + c + ',0)');
-    ctx.fillStyle = g;
-    ctx.beginPath();
-    ctx.arc(h.x, h.y, R, 0, Math.PI * 2);
-    ctx.fill();
-    // un coeur net au tout debut, le temps que l'oeil accroche
-    if (u < 0.35) {
-      const j = 1 - u / 0.35;
-      ctx.fillStyle = 'rgba(' + c + ',' + 0.35 * j * j + ')';
-      ctx.beginPath();
-      ctx.arc(h.x, h.y, 7 * j + 2, 0, Math.PI * 2);
-      ctx.fill();
-    }
-  });
-  ctx.restore();
-}
-
-function peindreEtincelles() {
-  ctx.save();
-  etincelles.forEach((e) => {
-    const u = 1 - e.t / e.duree,
-      r = e.r === undefined ? 1 : e.r,
-      a = e.a === undefined ? 1 : e.a;
-    ctx.globalAlpha = u * u * u * 0.9 * a;
-    ctx.fillStyle =
-      e.teinte === 'offerte'
-        ? teinteBaie()
-        : e.teinte === 'offerte-or'
-          ? OR
-          : e.teinte === 'offerte-ombre'
-            ? OMBRE
-            : e.teinte === 'rodeur'
-              ? ROUGE
-              : e.teinte === 'coquille'
-                ? COQUILLE
-                : e.teinte === 'poussiere'
-                  ? '#6b7383'
-                  : '#cfe3c6';
-    ctx.beginPath();
-    ctx.arc(
-      e.x,
-      e.y,
-      (e.teinte.indexOf('offerte') === 0 ? 3.5 * u + 1 : 2.5 * u + 0.8) * r,
-      0,
-      Math.PI * 2,
-    );
-    ctx.fill();
-  });
-  ctx.restore();
 }
 
 // La tension, ce qui resserre l'image. L'avancement de la manche ne dit rien du risque :

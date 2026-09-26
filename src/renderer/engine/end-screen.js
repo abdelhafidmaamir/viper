@@ -2,12 +2,12 @@
 // MVP card). Painted last so it covers everything, including the HUD.
 
 import { CELL, H, L, OX, ROWS, W, WF, Y0 } from './layout.js';
+import { doux01 } from './scoreboard.js';
 import {
   OMBRE,
   OR,
   ctx,
   donsManche,
-  doux01,
   duel,
   manche,
   miniSerpent,

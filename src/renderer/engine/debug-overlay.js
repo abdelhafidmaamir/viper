@@ -14,6 +14,7 @@ import {
   Z_FIL,
   Z_SAISIE,
 } from './layout.js';
+import { pilule } from './scoreboard.js';
 import {
   actif,
   charger,
@@ -23,7 +24,6 @@ import {
   dirProchaine,
   duel,
   memoireIA,
-  pilule,
   px,
   ranger,
   serpent,
