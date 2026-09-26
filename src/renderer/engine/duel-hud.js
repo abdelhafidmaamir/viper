@@ -12,12 +12,14 @@ import {
   TENUE_DUEL,
   corps,
   dtRendu,
-  fumeeTimer,
   manche,
   pointRail,
   reglages,
   t,
 } from '../scripts/game.js';
+
+// Smoke puffs shed by the burning timer rail.
+const fumeeTimer = [];
 
 export function peindreDuel(dt) {
   if (!manche) return;

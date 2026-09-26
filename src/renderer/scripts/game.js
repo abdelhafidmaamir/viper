@@ -109,11 +109,6 @@ export let rochers = [],
 let retouches = 0,
   gardes = 0; // anti-tremblement : redecisions au franchissement, et decisions gardees
 let ordreTick = 0; // duel : alterne quel serpent est resolu en premier a chaque tick (equite)
-// Mode de base : un rodeur. Le chat le nourrit en commentant, il grossit et accelere ;
-// les likes lui arrachent un morceau, les cadeaux l'assomment. Un seul objet, lisible en une seconde.
-let rodeur = null;
-const ROD = { v: 2.6, k: 0.1, fonte: 0.08 },
-  ROD_VMAX = 5.8;
 // 1,3 s : sous une seconde la pierre "pop" au lieu de pousser, au-dela de 1,5 s le serpent, a
 // 7 cases par seconde sur un plateau de 16, a deja traverse toute case qu'on pourrait viser.
 export const ALERTE = 1.3,
@@ -307,10 +302,8 @@ export const amb = () => (window.AMBIANCES || []).find((a) => a.id === 'foret') 
 
 function libres() {
   const occ = new Set(serpent.map((s) => s.x + ',' + s.y));
-  {
-    const a = autre();
-    if (a) a.serpent.forEach((s) => occ.add(s.x + ',' + s.y));
-  }
+  const a = autre();
+  if (a) a.serpent.forEach((s) => occ.add(s.x + ',' + s.y));
   graines.concat(baies, rochers).forEach((o) => occ.add(o.x + ',' + o.y));
   ronces.forEach((R) => R.seg.forEach((g) => occ.add(g.x + ',' + g.y)));
   const l = [];
@@ -504,16 +497,14 @@ function zoneMorte(c, delai) {
   const devant = dx * dir.x + dy * dir.y,
     cote = Math.abs(dx * dir.y - dy * dir.x);
   if (devant > 0 && cote <= 1 && devant <= VITESSE * (delai + 0.25)) return true;
-  {
-    const a = autre();
-    if (a && a.serpent.length) {
-      const h2 = a.serpent[0],
-        dx2 = c.x - h2.x,
-        dy2 = c.y - h2.y;
-      const dev2 = dx2 * a.dir.x + dy2 * a.dir.y,
-        cot2 = Math.abs(dx2 * a.dir.y - dy2 * a.dir.x);
-      if (dev2 > 0 && cot2 <= 1 && dev2 <= VITESSE * (delai + 0.25)) return true;
-    }
+  const a = autre();
+  if (a && a.serpent.length) {
+    const h2 = a.serpent[0],
+      dx2 = c.x - h2.x,
+      dy2 = c.y - h2.y;
+    const dev2 = dx2 * a.dir.x + dy2 * a.dir.y,
+      cot2 = Math.abs(dx2 * a.dir.y - dy2 * a.dir.x);
+    if (dev2 > 0 && cot2 <= 1 && dev2 <= VITESSE * (delai + 0.25)) return true;
   }
   return false;
 }
@@ -587,10 +578,6 @@ function allongerRonce(R) {
   return false;
 }
 
-function rodeurVitesse() {
-  return Math.min(ROD_VMAX, ROD.v + ROD.k * (rodeur ? rodeur.faim : 0));
-}
-
 // opt regle la force d'un eclat : vitesse, poussee vers le haut, pesanteur, taille, opacite.
 function eclat(x, y, n, teinte, opt) {
   const o = opt || {},
@@ -629,131 +616,129 @@ window.recevoirEvenement = function (ev) {
   // pierre, le partage plante une ronce, le cadeau seme large. Aucun geste ne melange bonus et malus.
   // Mode de base : un seul objet recoit tous les gestes, le rodeur. Aucun geste n'est avale
   // par un seuil ni par un plafond : le like l'entame, le commentaire le nourrit, le cadeau l'assomme.
-  {
-    if (e.type === 'spectateurs') {
-      const tot = parseInt(e.total) || 0;
-      let haut = 0;
-      for (const pl of PALIERS_VUE) {
-        if (tot >= pl && !paliersVus[pl]) {
-          paliersVus[pl] = 1;
-          haut = pl;
-        }
-      }
-      if (haut) annoncer({ genre: 'palier', pseudo: '', texte: dire('palier', { n: haut }) });
-      return 0;
-    }
-    if (e.type === 'arrivee' || e.type === 'partage' || e.type === 'abonne') {
-      annoncer({
-        genre: e.type,
-        pseudo: String(e.pseudo || ''),
-        avatar: e.avatar,
-        texte: dire(e.type),
-      });
-      return 0;
-    }
-    if (e.type === 'like' && e.pseudo) {
-      const lp = String(e.pseudo);
-      likesPar[lp] = (likesPar[lp] || 0) + n;
-      if (likesPar[lp] >= 10) {
-        annoncer({
-          genre: 'like',
-          pseudo: lp,
-          avatar: e.avatar,
-          texte: dire('like', { n: likesPar[lp] }),
-        });
-        likesPar[lp] = 0;
+  if (e.type === 'spectateurs') {
+    const tot = parseInt(e.total) || 0;
+    let haut = 0;
+    for (const pl of PALIERS_VUE) {
+      if (tot >= pl && !paliersVus[pl]) {
+        paliersVus[pl] = 1;
+        haut = pl;
       }
     }
-    // Camp : explicite (regie), sinon par le NOM du cadeau TikTok (Abdel : « red 1 coin rose gives one
-    // point to Or, white 1 coin gives 1 point to the other ») : 'rose' -> Or, tout autre cadeau -> Ombre.
-    // Sans camp ni nom : tirage au sort (public simule).
-    const nom = String(e.nom || e.cadeau || e.gift || '').toLowerCase();
-    // Rose rouge ('rose') -> Or ; rose blanche (TikTok la nomme 'Rosa', ou 'rose blanche'/'white rose') -> Ombre.
-    // A 10 coins (Abdel) : une rose a 10 -> tempo Or, le 'Dyno' a 10 -> tempo Ombre : tout nom contenant 'rose' -> Or.
-    const v = e.valeur || 0;
-    // Cadeaux du camp Or par nom : rose (10), donut (30) ; tout le reste (Dyno, Capybara...) est Ombre.
-    const roseRouge =
-      v >= TEMPO_COUT
-        ? /rose|bouquet|bagel|donut|doughnut|teddy|bear/.test(nom)
-        : /^rose( rouge| red)?$/.test(nom.trim());
-    const i =
-      e.camp === 'ombre'
-        ? 1
-        : e.camp === 'or'
-          ? 0
-          : nom
-            ? roseRouge
-              ? 0
-              : 1
-            : Math.random() < 0.5
-              ? 0
-              : 1;
-    compter(e.type === 'cadeau' ? n * 3 : n);
-    // Le like ne donne plus de poussee de vitesse en duel (Abdel, 2026-09-19 : « this is not a feature
-    // anymore, remove it »). Il compte toujours pour l'affluence (compter, plus haut), rien d'autre.
-    if (e.type === 'like') return 0;
-    if (e.type === 'cadeau') {
-      noterCadeau(i, e.valeur || 0, e.pseudo, n, e.avatar);
-      if ((e.valeur || 0) >= VIE_COUT) {
-        // vie : quand une coupe devrait tuer le serpent, elle le laisse a 3 anneaux
-        const av = corps[i].vies;
-        corps[i].vies += n;
-        corps[i].viePar = String(e.pseudo || '');
-        corps[i].vieAvatar = e.avatar;
-        charger(i);
-        if (serpent.length) {
-          const tp = px(serpent[0].x, serpent[0].y);
-          eclat(tp.x, tp.y, 18, 'rodeur');
-        }
-        ranger();
-        charger(0); // vie : eclat rouge, comme le coeur
-        return corps[i].vies - av;
-      }
-      if ((e.valeur || 0) >= BOUCLIER_COUT) {
-        // bouclier : BOUCLIER_DUR secondes d'immunite aux coupes et aux collisions (Abdel : actif 15 s)
-        corps[i].bouclierT += BOUCLIER_DUR * n;
-        corps[i].bouclierPar = String(e.pseudo || '');
-        corps[i].bouclierAvatar = e.avatar;
-        charger(i);
-        if (serpent.length) {
-          const tp = px(serpent[0].x, serpent[0].y);
-          eclat(tp.x, tp.y, 18, 'coquille');
-        }
-        ranger();
-        charger(0);
-        return n;
-      }
-      if ((e.valeur || 0) >= TEMPO_COUT && (e.valeur || 0) < COUPE_COUT) {
-        // tempo paye : TEMPO_DUR secondes de poussee sur SON serpent, cumulable (Abdel : le cadeau a 10 coins)
-        corps[i].surgeT += TEMPO_DUR * n;
-        charger(i);
-        if (serpent.length) {
-          const tp = px(serpent[0].x, serpent[0].y);
-          eclat(tp.x, tp.y, 16, 'coquille');
-        }
-        ranger();
-        charger(0);
-        return n;
-      }
-      if ((e.valeur || 0) >= COUPE_COUT) {
-        // coupe : 15 % de la longueur adverse, n fois
-        let total = 0;
-        for (let q = 0; q < n; q++) {
-          if (!(manche && manche.etat === 'en cours')) break;
-          total += couperDuel(1 - i, coupeDe(corps[1 - i].serpent.length), i);
-        }
-        charger(0);
-        return total;
-      }
-      // bon marche : semer n baies pour le camp i
-      let pose = 0;
-      for (let q = 0; q < n; q++) pose += semerPour(i, e.pseudo);
-      charger(0);
-      return pose;
-    }
-    // commentaire/partage : cadence seulement
+    if (haut) annoncer({ genre: 'palier', pseudo: '', texte: dire('palier', { n: haut }) });
     return 0;
   }
+  if (e.type === 'arrivee' || e.type === 'partage' || e.type === 'abonne') {
+    annoncer({
+      genre: e.type,
+      pseudo: String(e.pseudo || ''),
+      avatar: e.avatar,
+      texte: dire(e.type),
+    });
+    return 0;
+  }
+  if (e.type === 'like' && e.pseudo) {
+    const lp = String(e.pseudo);
+    likesPar[lp] = (likesPar[lp] || 0) + n;
+    if (likesPar[lp] >= 10) {
+      annoncer({
+        genre: 'like',
+        pseudo: lp,
+        avatar: e.avatar,
+        texte: dire('like', { n: likesPar[lp] }),
+      });
+      likesPar[lp] = 0;
+    }
+  }
+  // Camp : explicite (regie), sinon par le NOM du cadeau TikTok (Abdel : « red 1 coin rose gives one
+  // point to Or, white 1 coin gives 1 point to the other ») : 'rose' -> Or, tout autre cadeau -> Ombre.
+  // Sans camp ni nom : tirage au sort (public simule).
+  const nom = String(e.nom || e.cadeau || e.gift || '').toLowerCase();
+  // Rose rouge ('rose') -> Or ; rose blanche (TikTok la nomme 'Rosa', ou 'rose blanche'/'white rose') -> Ombre.
+  // A 10 coins (Abdel) : une rose a 10 -> tempo Or, le 'Dyno' a 10 -> tempo Ombre : tout nom contenant 'rose' -> Or.
+  const v = e.valeur || 0;
+  // Cadeaux du camp Or par nom : rose (10), donut (30) ; tout le reste (Dyno, Capybara...) est Ombre.
+  const roseRouge =
+    v >= TEMPO_COUT
+      ? /rose|bouquet|bagel|donut|doughnut|teddy|bear/.test(nom)
+      : /^rose( rouge| red)?$/.test(nom.trim());
+  const i =
+    e.camp === 'ombre'
+      ? 1
+      : e.camp === 'or'
+        ? 0
+        : nom
+          ? roseRouge
+            ? 0
+            : 1
+          : Math.random() < 0.5
+            ? 0
+            : 1;
+  compter(e.type === 'cadeau' ? n * 3 : n);
+  // Le like ne donne plus de poussee de vitesse en duel (Abdel, 2026-09-19 : « this is not a feature
+  // anymore, remove it »). Il compte toujours pour l'affluence (compter, plus haut), rien d'autre.
+  if (e.type === 'like') return 0;
+  if (e.type === 'cadeau') {
+    noterCadeau(i, e.valeur || 0, e.pseudo, n, e.avatar);
+    if ((e.valeur || 0) >= VIE_COUT) {
+      // vie : quand une coupe devrait tuer le serpent, elle le laisse a 3 anneaux
+      const av = corps[i].vies;
+      corps[i].vies += n;
+      corps[i].viePar = String(e.pseudo || '');
+      corps[i].vieAvatar = e.avatar;
+      charger(i);
+      if (serpent.length) {
+        const tp = px(serpent[0].x, serpent[0].y);
+        eclat(tp.x, tp.y, 18, 'rodeur');
+      }
+      ranger();
+      charger(0); // vie : eclat rouge, comme le coeur
+      return corps[i].vies - av;
+    }
+    if ((e.valeur || 0) >= BOUCLIER_COUT) {
+      // bouclier : BOUCLIER_DUR secondes d'immunite aux coupes et aux collisions (Abdel : actif 15 s)
+      corps[i].bouclierT += BOUCLIER_DUR * n;
+      corps[i].bouclierPar = String(e.pseudo || '');
+      corps[i].bouclierAvatar = e.avatar;
+      charger(i);
+      if (serpent.length) {
+        const tp = px(serpent[0].x, serpent[0].y);
+        eclat(tp.x, tp.y, 18, 'coquille');
+      }
+      ranger();
+      charger(0);
+      return n;
+    }
+    if ((e.valeur || 0) >= TEMPO_COUT && (e.valeur || 0) < COUPE_COUT) {
+      // tempo paye : TEMPO_DUR secondes de poussee sur SON serpent, cumulable (Abdel : le cadeau a 10 coins)
+      corps[i].surgeT += TEMPO_DUR * n;
+      charger(i);
+      if (serpent.length) {
+        const tp = px(serpent[0].x, serpent[0].y);
+        eclat(tp.x, tp.y, 16, 'coquille');
+      }
+      ranger();
+      charger(0);
+      return n;
+    }
+    if ((e.valeur || 0) >= COUPE_COUT) {
+      // coupe : 15 % de la longueur adverse, n fois
+      let total = 0;
+      for (let q = 0; q < n; q++) {
+        if (!(manche && manche.etat === 'en cours')) break;
+        total += couperDuel(1 - i, coupeDe(corps[1 - i].serpent.length), i);
+      }
+      charger(0);
+      return total;
+    }
+    // bon marche : semer n baies pour le camp i
+    let pose = 0;
+    for (let q = 0; q < n; q++) pose += semerPour(i, e.pseudo);
+    charger(0);
+    return pose;
+  }
+  // commentaire/partage : cadence seulement
+  return 0;
 };
 
 // La course dans le ciel : un soleil a gauche, une lune a droite, tous deux bas au depart.
@@ -872,7 +857,6 @@ function finir(camp, cause) {
     cause: cause || 'inconnue',
     duree: manche.t,
     longueur: serpent.length,
-    faim: rodeur ? Math.round(rodeur.faim) : 0,
     sun: manche.sun,
     moon: manche.moonEv,
     cielSun: manche.cielSun,
@@ -1239,64 +1223,62 @@ function mourir(cause) {
   // Mode de base : la mort du serpent donne la manche aux spectateurs, c'est tout l'enjeu.
   // Versus : elle ne tranche rien, elle pousse la lune de quelques crans et le serpent revient.
   // Base : mourir contre un mur ou contre soi ne donne pas la manche, mais le rodeur en profite.
-  {
-    // duel : pas de renaissance, pas de pause. Ramener a max(3, floor(L/2)).
-    // La moitie perdue eclate en baies. Sous 3 anneaux : mort seche, l'autre camp gagne.
-    if (corps[actif].bouclierT > 0) {
-      // le bouclier pare la collision : aucun anneau perdu, il repart invincible
-      corps[actif].pareT = 0.9;
-      corps[actif].invincT = 1.5;
-      sauve(actif, 'bouclier');
-      if (serpent.length) {
-        const tp = px(serpent[0].x, serpent[0].y);
-        eclat(tp.x, tp.y, 20, 'coquille');
-      }
-      demanderIA();
-      return;
-    }
-    // Faute propre (mur, son propre corps) : AUCUN anneau perdu (Abdel : « the team should never lose
-    // because of a self mistake of the snake »). Il repart invincible 1,5 s et re-decide. Seuls le corps
-    // adverse et la frontale, c'est-a-dire le piege de l'autre, coutent la moitie.
-    // ... sauf si l'adversaire l'a acculee : son corps a 2 cases ou moins de ma tete, c'est SON piege
-    // (Abdel : « orange blocked blue on the side and led him to the wall, blue didn't lose anything »).
-    const advC = autre();
-    const h0 = serpent[0];
-    const accule = !!(
-      advC &&
-      h0 &&
-      advC.serpent.some((q) => Math.abs(q.x - h0.x) + Math.abs(q.y - h0.y) <= 2)
-    );
-    if (accule && (cause === 'mur' || cause === 'soi')) {
-      cause = 'adverse';
-      corps[actif].mortCause = 'adverse';
-    }
-    if (cause === 'mur' || cause === 'soi') {
-      corps[actif].invincT = 1.5;
-      corps[actif].pareT = 0.4;
-      if (serpent.length) {
-        const tp = px(serpent[0].x, serpent[0].y);
-        eclat(tp.x, tp.y, 10, 'poussiere');
-      }
-      demanderIA();
-      return;
-    }
-    const L = serpent.length;
-    const seuil = Math.max(corps[actif].adulte ? 3 : MIN_JEUNE, Math.floor(L / 2));
-    const perdu = serpent.slice(seuil);
-    serpent = serpent.slice(0, seuil);
-    hist = hist.slice(0, Math.max(1, seuil + 3));
+  // duel : pas de renaissance, pas de pause. Ramener a max(3, floor(L/2)).
+  // La moitie perdue eclate en baies. Sous 3 anneaux : mort seche, l'autre camp gagne.
+  if (corps[actif].bouclierT > 0) {
+    // le bouclier pare la collision : aucun anneau perdu, il repart invincible
+    corps[actif].pareT = 0.9;
     corps[actif].invincT = 1.5;
-    corps[actif].anneauHaut = L / LONG_CIBLE_DUEL;
-    corps[actif].reculT = 0.9;
-    corps[actif].coupT = 0.9;
-    eclaterAnneaux(perdu, corps[actif].camp);
-    if (serpent.length < 3 && corps[actif].adulte) {
-      serpent = [];
-      const adv = autre();
-      finir(adv ? adv.camp : 'or', 'place');
-    } else demanderIA(); // sinon il garde son cap dans le mur et remeurt a la fin de l'invincibilite
+    sauve(actif, 'bouclier');
+    if (serpent.length) {
+      const tp = px(serpent[0].x, serpent[0].y);
+      eclat(tp.x, tp.y, 20, 'coquille');
+    }
+    demanderIA();
     return;
   }
+  // Faute propre (mur, son propre corps) : AUCUN anneau perdu (Abdel : « the team should never lose
+  // because of a self mistake of the snake »). Il repart invincible 1,5 s et re-decide. Seuls le corps
+  // adverse et la frontale, c'est-a-dire le piege de l'autre, coutent la moitie.
+  // ... sauf si l'adversaire l'a acculee : son corps a 2 cases ou moins de ma tete, c'est SON piege
+  // (Abdel : « orange blocked blue on the side and led him to the wall, blue didn't lose anything »).
+  const advC = autre();
+  const h0 = serpent[0];
+  const accule = !!(
+    advC &&
+    h0 &&
+    advC.serpent.some((q) => Math.abs(q.x - h0.x) + Math.abs(q.y - h0.y) <= 2)
+  );
+  if (accule && (cause === 'mur' || cause === 'soi')) {
+    cause = 'adverse';
+    corps[actif].mortCause = 'adverse';
+  }
+  if (cause === 'mur' || cause === 'soi') {
+    corps[actif].invincT = 1.5;
+    corps[actif].pareT = 0.4;
+    if (serpent.length) {
+      const tp = px(serpent[0].x, serpent[0].y);
+      eclat(tp.x, tp.y, 10, 'poussiere');
+    }
+    demanderIA();
+    return;
+  }
+  const L = serpent.length;
+  const seuil = Math.max(corps[actif].adulte ? 3 : MIN_JEUNE, Math.floor(L / 2));
+  const perdu = serpent.slice(seuil);
+  serpent = serpent.slice(0, seuil);
+  hist = hist.slice(0, Math.max(1, seuil + 3));
+  corps[actif].invincT = 1.5;
+  corps[actif].anneauHaut = L / LONG_CIBLE_DUEL;
+  corps[actif].reculT = 0.9;
+  corps[actif].coupT = 0.9;
+  eclaterAnneaux(perdu, corps[actif].camp);
+  if (serpent.length < 3 && corps[actif].adulte) {
+    serpent = [];
+    const adv = autre();
+    finir(adv ? adv.camp : 'or', 'place');
+  } else demanderIA(); // sinon il garde son cap dans le mur et remeurt a la fin de l'invincibilite
+  return;
 }
 
 function pas() {
@@ -1310,19 +1292,17 @@ function pas() {
   // de duel) : la tete s'inclinait d'un cote puis partait de l'autre, sa pointe sautait d'une
   // demi-case. On redecide toujours, mais on GARDE la direction annoncee tant que l'IA la juge
   // encore sure (pasSur) : la reactivite face au danger reste entiere, seuls les caprices partent.
-  {
-    const av = { ...dirProchaine };
-    demanderIA(!window.VIPERE_REDECIDE_TOUJOURS);
-    if (av.x !== dirProchaine.x || av.y !== dirProchaine.y) retouches++;
-    else gardes++;
-    if (reglages.debugIA)
-      memoireIA.dbgFlash = {
-        t,
-        change: av.x !== dirProchaine.x || av.y !== dirProchaine.y,
-        x: serpent[0].x,
-        y: serpent[0].y,
-      };
-  }
+  const av = { ...dirProchaine };
+  demanderIA(!window.VIPERE_REDECIDE_TOUJOURS);
+  if (av.x !== dirProchaine.x || av.y !== dirProchaine.y) retouches++;
+  else gardes++;
+  if (reglages.debugIA)
+    memoireIA.dbgFlash = {
+      t,
+      change: av.x !== dirProchaine.x || av.y !== dirProchaine.y,
+      x: serpent[0].x,
+      y: serpent[0].y,
+    };
   if (dirProchaine.x !== dir.x || dirProchaine.y !== dir.y) {
     virages++;
     // escalier : a, b, a, b sur quatre pas de suite
@@ -1607,44 +1587,40 @@ function avancer(dt) {
       // Duel, victoire a l'anneau (Abdel, 2026-09-18) : un camp gagne quand son demi-anneau est
       // plein (LONG_CIBLE_DUEL anneaux, le bas-centre atteint) et qu'il le TIENT TENUE_DUEL
       // secondes sans etre coupe en dessous. Le chrono reste la fin de secours.
-      {
-        const pleins = [];
-        for (let i = 0; i < corps.length; i++) {
-          const c = corps[i];
-          const avT = c.tenue || 0;
-          c.tenue = c.serpent.length >= LONG_CIBLE_DUEL ? (c.tenue || 0) + dt : 0;
-          if (avT === 0 && c.tenue > 0) moments.tenues++;
-          if (c.serpent.length >= ADULTE_DUEL) c.adulte = true;
-          const enSursis = !c.couvee && c.serpent.length > 0 && c.serpent.length < SURSIS_DUEL;
-          if (enSursis && !c.sursis) moments.sursis++;
-          c.sursis = enSursis;
-          if (c.tenue >= TENUE_DUEL) pleins.push(c);
-        }
-        // EGALITE STRICTE : avant, la boucle finissait sur `break` des que corps[0] tenait son
-        // anneau, donc Or passait devant Ombre du seul fait de son rang dans le tableau. On
-        // depouille maintenant les deux, et la plus longue tenue gagne ; tenue identique = nul.
-        if (pleins.length === 1) finir(pleins[0].camp, 'anneau');
-        else if (pleins.length > 1) {
-          const a = pleins[0],
-            b = pleins[1];
-          finir(a.tenue === b.tenue ? 'nul' : a.tenue > b.tenue ? a.camp : b.camp, 'anneau');
-        }
-        if (manche.etat !== 'en cours') return;
+      const pleins = [];
+      for (let i = 0; i < corps.length; i++) {
+        const c = corps[i];
+        const avT = c.tenue || 0;
+        c.tenue = c.serpent.length >= LONG_CIBLE_DUEL ? (c.tenue || 0) + dt : 0;
+        if (avT === 0 && c.tenue > 0) moments.tenues++;
+        if (c.serpent.length >= ADULTE_DUEL) c.adulte = true;
+        const enSursis = !c.couvee && c.serpent.length > 0 && c.serpent.length < SURSIS_DUEL;
+        if (enSursis && !c.sursis) moments.sursis++;
+        c.sursis = enSursis;
+        if (c.tenue >= TENUE_DUEL) pleins.push(c);
       }
+      // EGALITE STRICTE : avant, la boucle finissait sur `break` des que corps[0] tenait son
+      // anneau, donc Or passait devant Ombre du seul fait de son rang dans le tableau. On
+      // depouille maintenant les deux, et la plus longue tenue gagne ; tenue identique = nul.
+      if (pleins.length === 1) finir(pleins[0].camp, 'anneau');
+      else if (pleins.length > 1) {
+        const a = pleins[0],
+          b = pleins[1];
+        finir(a.tenue === b.tenue ? 'nul' : a.tenue > b.tenue ? a.camp : b.camp, 'anneau');
+      }
+      if (manche.etat !== 'en cours') return;
       // duel : chrono propre (TEST equilibre : 120 s, les publics calmes ne remplissent jamais l'anneau)
       if (manche.t >= (reglages.dureeDuel || reglages.duree)) {
-        {
-          // plus long gagne ; egalite = ombre (comme Moon en versus). Aucun progres des deux cotes (personne
-          // n'a depasse la longueur de naissance) : match nul, aucun point (Abdel).
-          const l0 = corps[0].serpent.length,
-            l1 = corps[1].serpent.length;
-          // EGALITE STRICTE : l'egalite de longueur allait silencieusement a Ombre (« comme Moon en
-          // versus »), ce qui est un biais de camp. Sans spectateur les deux serpents finissent
-          // souvent a la meme longueur (5 % des manches mesurees) : c'est un match nul, aucun point.
-          if (l0 === l1) finir('nul', 'temps');
-          else if (l0 <= DEPART_DUEL && l1 <= DEPART_DUEL) finir('nul', 'temps');
-          else finir(l0 > l1 ? 'or' : 'ombre', 'temps');
-        }
+        // plus long gagne ; egalite = ombre (comme Moon en versus). Aucun progres des deux cotes (personne
+        // n'a depasse la longueur de naissance) : match nul, aucun point (Abdel).
+        const l0 = corps[0].serpent.length,
+          l1 = corps[1].serpent.length;
+        // EGALITE STRICTE : l'egalite de longueur allait silencieusement a Ombre (« comme Moon en
+        // versus »), ce qui est un biais de camp. Sans spectateur les deux serpents finissent
+        // souvent a la meme longueur (5 % des manches mesurees) : c'est un match nul, aucun point.
+        if (l0 === l1) finir('nul', 'temps');
+        else if (l0 <= DEPART_DUEL && l1 <= DEPART_DUEL) finir('nul', 'temps');
+        else finir(l0 > l1 ? 'or' : 'ombre', 'temps');
       }
       // garde-fou : sans spectateur le plateau reste vide et rien ne peut arriver
       // ARBITRAGE, 2026-09-18. Abdel a demande deux choses contradictoires le meme jour :
@@ -1812,9 +1788,6 @@ export function glypheGens(x, y, r) {
 
 export let dtRendu = 0.016;
 
-// Point du rail du timer a la distance s du haut-centre, dans le sens horaire (le sens ou le trait
-// rouge est dessine). Meme geometrie que ctx.roundRect(x,y,w,h,r).
-export let fumeeTimer = [];
 export let retourCadeaux = [[], []],
   bandeauCadeau = [null, null]; // [camp][ligne] = {t, pseudo, n} ; bandeau = {t, texte}
 function noterCadeau(i, valeur, pseudo, n, avatar) {
@@ -1864,6 +1837,8 @@ let ipsLisse = 60,
   pireDt = 0,
   pireT = 0,
   pireAffiche = 0;
+// Point du rail du timer a la distance s du haut-centre, dans le sens horaire (le sens ou le trait
+// rouge est dessine). Meme geometrie que ctx.roundRect(x,y,w,h,r).
 export function pointRail(x, y, w, h, r, s) {
   const droit = w / 2 - r,
     q = (Math.PI * r) / 2,
@@ -1909,10 +1884,8 @@ function mesurerTension() {
   const tete = serpent[0],
     mur = new Set();
   for (let i = 0; i < serpent.length - 1; i++) mur.add(serpent[i].x + ',' + serpent[i].y);
-  {
-    const a = autre();
-    if (a) a.serpent.forEach((s) => mur.add(s.x + ',' + s.y));
-  }
+  const a = autre();
+  if (a) a.serpent.forEach((s) => mur.add(s.x + ',' + s.y));
   rochers.forEach((r) => {
     if (r.t >= ALERTE) mur.add(r.x + ',' + r.y);
   });
@@ -2321,7 +2294,6 @@ window.VipereBase = {
   reglerHeure: (h) => {
     reglages.heure = ((h % 1) + 1) % 1;
   },
-  rodeur: () => rodeur && { x: rodeur.x, y: rodeur.y, faim: rodeur.faim, vitesse: rodeurVitesse() },
   couvee: () => couvee && { t: couvee.t, duree: ECLOSION },
   planterRonce: () => planterRonce('sonde'),
   interne: () => ({
