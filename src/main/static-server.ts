@@ -1,0 +1,133 @@
+import { readFile } from 'node:fs/promises';
+import { createServer, type IncomingMessage, type ServerResponse } from 'node:http';
+import type { AddressInfo } from 'node:net';
+import path from 'node:path';
+
+const CONTENT_TYPES: Readonly<Record<string, string>> = {
+  '.html': 'text/html; charset=utf-8',
+  '.js': 'text/javascript; charset=utf-8',
+  '.css': 'text/css; charset=utf-8',
+  '.json': 'application/json; charset=utf-8',
+  '.png': 'image/png',
+  '.svg': 'image/svg+xml',
+  '.woff2': 'font/woff2',
+  '.mp3': 'audio/mpeg',
+  '.ogg': 'audio/ogg',
+};
+
+const BASE_HEADERS = {
+  'Cache-Control': 'no-store',
+  'X-Content-Type-Options': 'nosniff',
+} as const;
+
+export interface StaticServer {
+  /** `http://127.0.0.1:<port>`, no trailing slash. */
+  readonly origin: string;
+  close(): Promise<void>;
+}
+
+export interface StaticServerOptions {
+  /** Served for `/`. */
+  readonly defaultDocument?: string;
+}
+
+/**
+ * Maps a request path to a file under `root`, or `null` when it would escape it.
+ * Exported for tests.
+ */
+export function resolveRequestPath(root: string, requestPath: string): string | null {
+  const target = path.resolve(root, `.${path.posix.normalize(`/${requestPath}`)}`);
+  const relative = path.relative(root, target);
+  if (relative === '' || relative.startsWith('..') || path.isAbsolute(relative)) return null;
+  return target;
+}
+
+function send(
+  res: ServerResponse,
+  status: number,
+  extraHeaders: Record<string, string> = {},
+): void {
+  res.writeHead(status, { ...BASE_HEADERS, ...extraHeaders }).end();
+}
+
+async function handle(
+  root: string,
+  defaultDocument: string,
+  req: IncomingMessage,
+  res: ServerResponse,
+): Promise<void> {
+  if (req.method !== 'GET' && req.method !== 'HEAD') {
+    send(res, 405, { Allow: 'GET, HEAD' });
+    return;
+  }
+
+  let pathname: string;
+  try {
+    pathname = decodeURIComponent(new URL(req.url ?? '/', 'http://localhost').pathname);
+  } catch {
+    send(res, 400);
+    return;
+  }
+
+  const file = resolveRequestPath(root, pathname === '/' ? defaultDocument : pathname);
+  if (!file) {
+    send(res, 403);
+    return;
+  }
+
+  let body: Buffer;
+  try {
+    body = await readFile(file);
+  } catch (error) {
+    const code = (error as NodeJS.ErrnoException).code;
+    send(res, code === 'ENOENT' || code === 'EISDIR' ? 404 : 500);
+    return;
+  }
+
+  res.writeHead(200, {
+    ...BASE_HEADERS,
+    'Content-Type': CONTENT_TYPES[path.extname(file).toLowerCase()] ?? 'application/octet-stream',
+    'Content-Length': String(body.length),
+  });
+  res.end(req.method === 'HEAD' ? undefined : body);
+}
+
+/**
+ * Serves `root` on the loopback interface, on a free port.
+ *
+ * Both windows load from this one origin so they can talk over `BroadcastChannel`, and the game
+ * page, being `http:`, may open the TikFinity WebSocket that `file:` pages cannot.
+ */
+export async function startStaticServer(
+  root: string,
+  { defaultDocument = 'game.html' }: StaticServerOptions = {},
+): Promise<StaticServer> {
+  const resolvedRoot = path.resolve(root);
+  const server = createServer((req, res) => {
+    handle(resolvedRoot, defaultDocument, req, res).catch(() => {
+      if (!res.headersSent) send(res, 500);
+      else res.destroy();
+    });
+  });
+
+  await new Promise<void>((resolve, reject) => {
+    server.once('error', reject);
+    server.listen(0, '127.0.0.1', () => {
+      server.off('error', reject);
+      resolve();
+    });
+  });
+
+  const { port } = server.address() as AddressInfo;
+  return {
+    origin: `http://127.0.0.1:${String(port)}`,
+    close: () =>
+      new Promise((resolve, reject) => {
+        server.closeAllConnections();
+        server.close((error) => {
+          if (error) reject(error);
+          else resolve();
+        });
+      }),
+  };
+}
