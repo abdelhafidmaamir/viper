@@ -23,6 +23,10 @@ export default defineConfig(
     },
   },
   {
+    files: ['src/renderer/**/*.ts'],
+    languageOptions: { globals: globals.browser },
+  },
+  {
     files: ['eslint.config.js'],
     languageOptions: { globals: globals.node },
   },

@@ -1,5 +1,5 @@
 import { readFile } from 'node:fs/promises';
-import { createServer, type IncomingMessage, type ServerResponse } from 'node:http';
+import { createServer, type IncomingMessage, type Server, type ServerResponse } from 'node:http';
 import type { AddressInfo } from 'node:net';
 import path from 'node:path';
 
@@ -23,13 +23,24 @@ const BASE_HEADERS = {
 export interface StaticServer {
   /** `http://127.0.0.1:<port>`, no trailing slash. */
   readonly origin: string;
+  /** False when the preferred port was taken and a random one was used instead. */
+  readonly onPreferredPort: boolean;
   close(): Promise<void>;
 }
 
 export interface StaticServerOptions {
   /** Served for `/`. */
   readonly defaultDocument?: string;
+  /**
+   * Port to bind first. Web storage is scoped to the origin, port included, so a stable port is
+   * what lets saved settings survive a restart. Falls back to a free port when taken.
+   */
+  readonly preferredPort?: number;
+  /** Extra headers on HTML documents, e.g. a Content-Security-Policy. */
+  readonly documentHeaders?: Readonly<Record<string, string>>;
 }
+
+type ResolvedOptions = Required<Omit<StaticServerOptions, 'preferredPort'>>;
 
 /**
  * Maps a request path to a file under `root`, or `null` when it would escape it.
@@ -52,7 +63,7 @@ function send(
 
 async function handle(
   root: string,
-  defaultDocument: string,
+  { defaultDocument, documentHeaders }: ResolvedOptions,
   req: IncomingMessage,
   res: ServerResponse,
 ): Promise<void> {
@@ -84,43 +95,58 @@ async function handle(
     return;
   }
 
+  const extension = path.extname(file).toLowerCase();
   res.writeHead(200, {
     ...BASE_HEADERS,
-    'Content-Type': CONTENT_TYPES[path.extname(file).toLowerCase()] ?? 'application/octet-stream',
+    ...(extension === '.html' ? documentHeaders : {}),
+    'Content-Type': CONTENT_TYPES[extension] ?? 'application/octet-stream',
     'Content-Length': String(body.length),
   });
   res.end(req.method === 'HEAD' ? undefined : body);
 }
 
+function listen(server: Server, port: number): Promise<void> {
+  return new Promise((resolve, reject) => {
+    server.once('error', reject);
+    server.listen(port, '127.0.0.1', () => {
+      server.off('error', reject);
+      resolve();
+    });
+  });
+}
+
 /**
- * Serves `root` on the loopback interface, on a free port.
+ * Serves `root` on the loopback interface.
  *
  * Both windows load from this one origin so they can talk over `BroadcastChannel`, and the game
  * page, being `http:`, may open the TikFinity WebSocket that `file:` pages cannot.
  */
 export async function startStaticServer(
   root: string,
-  { defaultDocument = 'game.html' }: StaticServerOptions = {},
+  { defaultDocument = 'game.html', preferredPort, documentHeaders = {} }: StaticServerOptions = {},
 ): Promise<StaticServer> {
   const resolvedRoot = path.resolve(root);
+  const options: ResolvedOptions = { defaultDocument, documentHeaders };
   const server = createServer((req, res) => {
-    handle(resolvedRoot, defaultDocument, req, res).catch(() => {
+    handle(resolvedRoot, options, req, res).catch(() => {
       if (!res.headersSent) send(res, 500);
       else res.destroy();
     });
   });
 
-  await new Promise<void>((resolve, reject) => {
-    server.once('error', reject);
-    server.listen(0, '127.0.0.1', () => {
-      server.off('error', reject);
-      resolve();
-    });
-  });
+  let onPreferredPort = preferredPort !== undefined;
+  try {
+    await listen(server, preferredPort ?? 0);
+  } catch (error) {
+    if (!onPreferredPort || (error as NodeJS.ErrnoException).code !== 'EADDRINUSE') throw error;
+    onPreferredPort = false;
+    await listen(server, 0);
+  }
 
   const { port } = server.address() as AddressInfo;
   return {
     origin: `http://127.0.0.1:${String(port)}`,
+    onPreferredPort,
     close: () =>
       new Promise((resolve, reject) => {
         server.closeAllConnections();

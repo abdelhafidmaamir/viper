@@ -10,8 +10,8 @@ import { packager } from '@electron/packager';
 
 const root = path.resolve(import.meta.dirname, '..');
 
-/** Only the runtime ships: compiled main process, renderer and package.json. */
-const RUNTIME = /^\/(dist\/main|src\/renderer|package\.json$)/;
+/** Only the runtime ships: the compiled main process, the built renderer and package.json. */
+const RUNTIME = /^\/(dist(\/(main|renderer)(\/|$)|$)|package\.json$)/;
 
 const paths = await packager({
   dir: root,
@@ -22,11 +22,9 @@ const paths = await packager({
   asar: true,
   overwrite: true,
   prune: true,
-  ignore: (file: string) => file !== '' && !RUNTIME.test(file) && !isParentOfRuntime(file),
+  // Paths arrive relative to `dir`, with a leading slash; '' is the root itself. Source maps
+  // stay out of the shipped app.
+  ignore: (file: string) => file !== '' && (!RUNTIME.test(file) || file.endsWith('.map')),
 });
-
-function isParentOfRuntime(file: string): boolean {
-  return ['/dist', '/src'].includes(file);
-}
 
 console.info('Packaged:', paths.join(', '));

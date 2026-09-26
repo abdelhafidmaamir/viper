@@ -4,8 +4,8 @@
 
 ```text
 +----------------------- Electron main process -----------------------+
-|  Static server on 127.0.0.1:<free port>, serves src/renderer only    |
-|  (GET/HEAD only, traversal refused, no-store, nosniff)               |
+|  Static server on 127.0.0.1:47813, serves dist/renderer (Vite build) |
+|  GET/HEAD only, traversal refused, CSP on pages, no-store, nosniff   |
 +---------------+--------------------------------------+---------------+
                 | loadURL                              | loadURL
       +---------v---------+   BroadcastChannel   +-----v-------------+
@@ -22,6 +22,11 @@
 **Why a local HTTP server instead of `file://`?** Both windows need the same origin for
 `BroadcastChannel`, and an `http:` page can open the TikFinity WebSocket without file-origin
 restrictions.
+
+**Why a fixed port?** Web storage is keyed by origin, port included. The control room saves the
+platform, donor names and fluid mode in `localStorage`; on a random port each launch got a new,
+empty storage. The server binds 47813 and falls back to a free port, with a warning, only when it
+is taken. In development the Vite dev server is the origin instead.
 
 **Why no frameless window?** OBS and TikTok LIVE Studio capture a frameless Electron window as
 black. The frame is cropped in the capture tool instead.
@@ -44,6 +49,7 @@ server.
 | `config.ts`        | Command-line parsing with `node:util` `parseArgs`, validated into types |
 | `static-server.ts` | Loopback static server; path resolution is a pure, tested function      |
 | `windows.ts`       | Game and control windows, security defaults, navigation lock            |
+| `renderer-host.ts` | Built renderer or Vite dev server; stable port; Content-Security-Policy |
 | `layout.ts`        | Deterministic window size for measurements, from the screen work area   |
 | `diagnostics/`     | One module per diagnostic behind a typed registry, exit code as result  |
 | `page/`            | Code that runs inside the game page, written as typed functions         |
@@ -53,6 +59,13 @@ server.
 function is typed against `page/game-api.d.ts`, linted like the rest, and a test runs every
 shipped function in a fresh V8 context, so a closure over main-process state fails in CI rather
 than on stream night.
+
+## Renderer
+
+Vite builds two pages. `game/main.ts` imports the engine scripts in dependency order, then links
+the window to the control room through `game/control-link.ts`, which is typed against
+`shared/control-protocol.ts` and unit-tested with a fake channel and storage. The wire format is
+unchanged, so the control-room script keeps working as-is until its own migration.
 
 ## Event flow
 

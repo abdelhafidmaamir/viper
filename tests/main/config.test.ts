@@ -4,7 +4,11 @@ import { ConfigError, parseConfig } from '../../src/main/config.ts';
 
 describe('parseConfig', () => {
   it('defaults to a portrait live session', () => {
-    expect(parseConfig([])).toEqual({ orientation: 'portrait', diagnostic: null });
+    expect(parseConfig([])).toEqual({
+      orientation: 'portrait',
+      rendererOrigin: null,
+      diagnostic: null,
+    });
   });
 
   it('accepts landscape', () => {
@@ -14,8 +18,18 @@ describe('parseConfig', () => {
   it('ignores switches it does not own, such as the ones Chromium forwards', () => {
     expect(parseConfig(['--enable-logging', '--no-sandbox', 'some-positional'])).toEqual({
       orientation: 'portrait',
+      rendererOrigin: null,
       diagnostic: null,
     });
+  });
+
+  it('accepts a loopback dev server and keeps only its origin', () => {
+    expect(parseConfig(['--renderer-url=http://127.0.0.1:5173/']).rendererOrigin).toBe(
+      'http://127.0.0.1:5173',
+    );
+    expect(parseConfig(['--renderer-url=http://localhost:5174/game.html']).rendererOrigin).toBe(
+      'http://localhost:5174',
+    );
   });
 
   it('builds a diagnostic with defaults', () => {
@@ -57,6 +71,9 @@ describe('parseConfig', () => {
   it.each([
     [['--orientation=sideways'], /--orientation must be one of portrait, landscape/],
     [['--diagnostic=benchmark'], /--diagnostic must be one of/],
+    [['--renderer-url=https://example.com'], /must be an http loopback URL/],
+    [['--renderer-url=http://192.168.1.10:5173'], /must be an http loopback URL/],
+    [['--renderer-url=not a url'], /--renderer-url must be a URL/],
     [['--diagnostic=screenshots', '--hour=1.5'], /--hour must be a number in \[0, 1\]/],
     [['--diagnostic=screenshots', '--settle=soon'], /--settle must be a number/],
   ])('rejects %j', (argv, message) => {

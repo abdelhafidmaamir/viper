@@ -16,23 +16,27 @@ renders, pass a side-by-side `--diagnostic=screenshots` run against the previous
       split into config, static server, windows, layout and diagnostics. Seven ad hoc environment
       variables and their string-built page scripts became four typed diagnostics behind one
       command-line interface. Windows are hardened (sandbox, navigation lock, single instance).
+- [x] **Renderer build pipeline.** Vite builds both pages; engine scripts load as ES modules;
+      inline scripts and styles left the HTML; a typed control-room protocol with a unit-tested
+      link; `npm run dev` with hot reload; a Content-Security-Policy on served pages. Two bugs
+      found on the way: saved settings were lost on every launch (random port, so a new origin
+      and empty storage), and a `__proto__` setting name could replace the settings prototype.
 
 ## Next
 
-1. **Renderer build pipeline.** Vite for the renderer, scripts as ES modules instead of
-   shared-window globals, and a typed message contract for the control-room channel.
-   `electron-vite` is not used: its current release supports Vite 7 at most.
-2. **Split the engine.** `game.js` (about 7,000 lines) becomes modules: config, state, rules,
+1. **Split the engine.** `game.js` (about 7,000 lines) becomes modules: config, state, rules,
    gifts, announcements, AI bridge, render layers, layout and format.
-3. **English identifiers.** Rename per module (`VipereBase` becomes `Viper`, `reglages` becomes
+2. **English identifiers.** Rename per module (`VipereBase` becomes `Viper`, `reglages` becomes
    `settings`), with a compatibility shim for the control-room protocol until both sides move.
-4. **Strict TypeScript everywhere**, and zero lint warnings (27 legacy warnings are tracked today).
-5. **Deterministic visual regression.** Inject a seeded RNG and clock so screenshots can be
+3. **Strict TypeScript everywhere**, and zero lint warnings (27 legacy warnings are tracked today).
+4. **Deterministic visual regression.** Inject a seeded RNG and clock so screenshots can be
    pixel-diffed on CI.
-6. **Releases.** Signed, versioned GitHub releases.
+5. **Releases.** Signed, versioned GitHub releases.
 
 ## Toolchain notes
 
+- `electron-vite` is not used: its current release supports Vite 7 at most. `scripts/dev.ts`
+  drives the Vite dev server and Electron directly instead.
 - TypeScript is pinned to 6.0: TypeScript 7 does not expose the compiler API yet, and
   `typescript-eslint` requires `<6.1`. Dependabot will surface the upgrade.
 

@@ -29,7 +29,8 @@ Requirements: Node.js 24 (see `.nvmrc`), and Windows for packaging.
 
 ```bash
 npm install
-npm start                 # game window + control room, 9:16
+npm run dev               # Vite dev server with hot reload + the app
+npm start                 # production build, game window + control room, 9:16
 npm run start:landscape   # same, 16:9 for YouTube
 ```
 
@@ -37,7 +38,9 @@ npm run start:landscape   # same, 16:9 for YouTube
 
 | Script                            | What it does                                            |
 | --------------------------------- | ------------------------------------------------------- |
-| `npm start`                       | Build the main process and launch the app               |
+| `npm run dev`                     | Renderer on the Vite dev server with hot reload         |
+| `npm start`                       | Production build of main and renderer, then launch      |
+| `npm run build`                   | `tsc` for the main process, Vite for the renderer       |
 | `npm test`                        | Unit, render and simulation suites (Vitest)             |
 | `npm run check`                   | Everything CI runs: format, lint, typecheck, test       |
 | `npm run lint` / `lint:fix`       | ESLint with type-aware `typescript-eslint` strict rules |
@@ -71,13 +74,17 @@ src/
     windows.ts           Game and control windows, locked down
     diagnostics/         Screenshots, frame timing, draw calls, CPU profile
     page/                Typed page-side toolkit shipped into the renderer
-  renderer/
+    renderer-host.ts     Serves the built renderer on a stable origin with a CSP
+  renderer/              Built by Vite
     game.html            On-stream game window
+    game/                Typed entry and control-room link
     control.html         Private control room
+    control/             Entry, styles and the legacy control-room script
     scripts/             Game engine, AI, ambience, TikFinity bridge, simulated audience
-    assets/gifts/        Gift artwork
-tests/                   Unit suites (main) and headless game suites
-scripts/package.ts       Packaging entry point
+    public/assets/gifts/ Gift artwork, copied as-is
+  shared/                Control-room protocol and the legacy globals contract
+tests/                   Unit suites (main, renderer) and headless game suites
+scripts/                 dev.ts (Vite + Electron) and package.ts
 docs/                    Architecture and roadmap
 ```
 
