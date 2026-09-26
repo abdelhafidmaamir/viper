@@ -4,8 +4,8 @@
 
 ```text
 +----------------------- Electron main process -----------------------+
-|  HTTP server on 127.0.0.1:<random port>, serves src/renderer only    |
-|  (path traversal refused, no-store caching)                          |
+|  Static server on 127.0.0.1:<free port>, serves src/renderer only    |
+|  (GET/HEAD only, traversal refused, no-store, nosniff)               |
 +---------------+--------------------------------------+---------------+
                 | loadURL                              | loadURL
       +---------v---------+   BroadcastChannel   +-----v-------------+
@@ -30,6 +30,30 @@ black. The frame is cropped in the capture tool instead.
 throttles occluded windows (measured down to 1 fps), which drops frames on stream. The app turns
 off renderer backgrounding, background timer throttling and native window occlusion.
 
+**Window hardening.** Both windows run with `contextIsolation`, `sandbox` and no Node
+integration, stated explicitly in `windows.ts`. Navigation away from the local origin and
+`window.open` are refused, and page titles cannot rename the windows, because capture tools select
+a window by its title. A second launch focuses the running instance instead of starting a competing
+server.
+
+## Main process
+
+| Module             | Responsibility                                                          |
+| ------------------ | ----------------------------------------------------------------------- |
+| `index.ts`         | Chromium flags, config, single-instance lock, startup sequence          |
+| `config.ts`        | Command-line parsing with `node:util` `parseArgs`, validated into types |
+| `static-server.ts` | Loopback static server; path resolution is a pure, tested function      |
+| `windows.ts`       | Game and control windows, security defaults, navigation lock            |
+| `layout.ts`        | Deterministic window size for measurements, from the screen work area   |
+| `diagnostics/`     | One module per diagnostic behind a typed registry, exit code as result  |
+| `page/`            | Code that runs inside the game page, written as typed functions         |
+
+**Page-side code is real code.** Diagnostics drive the renderer through `evaluate(contents, fn,
+...args)`, which ships a self-contained function as source and its arguments as JSON. The
+function is typed against `page/game-api.d.ts`, linted like the rest, and a test runs every
+shipped function in a fresh V8 context, so a closure over main-process state fails in CI rather
+than on stream night.
+
 ## Event flow
 
 1. TikFinity pushes a JSON event over the WebSocket (`tikfinity-bridge.js`).
@@ -53,10 +77,14 @@ live share one code path.
 
 ## Testing strategy
 
-`tests/support/boot-game.js` loads the real renderer scripts in Node with a fake canvas that
+`tests/support/boot-game.ts` loads the real renderer scripts in Node with a fake canvas that
 records every draw call. The suites then:
 
 - play duels at 60 fps in both formats, in every weather and every gift-panel mode, under a
   steady stream of audience events, and assert that the engine reports zero errors;
 - run 30 simulated minutes of AI versus AI and check that rounds chain on their own, every
   outcome is valid and the on-screen score matches the round log.
+
+Main-process modules have unit suites of their own: config parsing, the static server over real
+HTTP (including traversal attempts that `fetch` would normalise away), window sizing, and page
+function serialisation.

@@ -1,39 +1,41 @@
-// @ts-check
-const js = require('@eslint/js');
-const globals = require('globals');
+import js from '@eslint/js';
+import { defineConfig, globalIgnores } from 'eslint/config';
+import globals from 'globals';
+import tseslint from 'typescript-eslint';
 
-/** @type {import('eslint').Linter.Config[]} */
-module.exports = [
-  { ignores: ['node_modules/', 'out/', 'coverage/'] },
+export default defineConfig(
+  globalIgnores(['node_modules/', 'dist/', 'out/', 'coverage/', 'diagnostics/']),
   js.configs.recommended,
   {
-    files: ['**/*.js'],
-    languageOptions: { ecmaVersion: 2024, sourceType: 'commonjs' },
+    files: ['**/*.ts'],
+    extends: [tseslint.configs.strictTypeChecked, tseslint.configs.stylisticTypeChecked],
+    languageOptions: {
+      parserOptions: { projectService: true, tsconfigRootDir: import.meta.dirname },
+      globals: globals.node,
+    },
     rules: {
-      eqeqeq: ['error', 'smart'],
-      'no-var': 'error',
-      'prefer-const': 'error',
-      'no-unused-vars': ['error', { argsIgnorePattern: '^_', caughtErrors: 'none' }],
+      eqeqeq: ['error', 'always'],
+      'no-console': ['error', { allow: ['info', 'warn', 'error'] }],
+      '@typescript-eslint/consistent-type-imports': ['error', { fixStyle: 'inline-type-imports' }],
+      '@typescript-eslint/no-import-type-side-effects': 'error',
+      '@typescript-eslint/switch-exhaustiveness-check': 'error',
+      '@typescript-eslint/explicit-module-boundary-types': 'error',
     },
   },
   {
-    files: ['src/main/**/*.js', 'scripts/**/*.js', 'eslint.config.js', 'vitest.config.js'],
-    languageOptions: { globals: { ...globals.node } },
+    files: ['eslint.config.js'],
+    languageOptions: { globals: globals.node },
   },
   {
-    files: ['tests/**/*.js'],
-    languageOptions: { sourceType: 'module', globals: { ...globals.node } },
-  },
-  {
-    // Renderer scripts are classic <script> files sharing the window scope.
-    // Legacy rules are relaxed here until each file is migrated to a typed module (docs/roadmap.md).
+    // Classic <script> files sharing the window scope, migrated module by module (docs/roadmap.md).
+    // Legacy findings stay visible as warnings until their file is migrated.
     files: ['src/renderer/**/*.js'],
-    languageOptions: { sourceType: 'script', globals: { ...globals.browser } },
+    languageOptions: {
+      ecmaVersion: 2024,
+      sourceType: 'script',
+      globals: { ...globals.browser, ...globals.commonjs },
+    },
     rules: {
-      'no-var': 'off',
-      'prefer-const': 'off',
-      eqeqeq: 'off',
-      // Tracked legacy debt: visible as warnings, fixed file by file with a regression proof.
       'no-empty': ['warn', { allowEmptyCatch: true }],
       'no-unused-vars': ['warn', { args: 'none', caughtErrors: 'none' }],
       'no-redeclare': 'warn',
@@ -41,4 +43,4 @@ module.exports = [
       'no-prototype-builtins': 'warn',
     },
   },
-];
+);

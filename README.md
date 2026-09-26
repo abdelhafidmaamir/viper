@@ -35,29 +35,50 @@ npm run start:landscape   # same, 16:9 for YouTube
 
 ## Scripts
 
-| Script                            | What it does                                        |
-| --------------------------------- | --------------------------------------------------- |
-| `npm start`                       | Launch the app in development                       |
-| `npm test`                        | Headless render and simulation suites (Vitest)      |
-| `npm run check`                   | Everything CI runs: format, lint, typecheck, test   |
-| `npm run lint` / `lint:fix`       | ESLint (flat config)                                |
-| `npm run format` / `format:check` | Prettier                                            |
-| `npm run typecheck`               | TypeScript over JSDoc-typed tooling and tests       |
-| `npm run package`                 | Portable Windows build in `out/ViperDuel-win32-x64` |
+| Script                            | What it does                                            |
+| --------------------------------- | ------------------------------------------------------- |
+| `npm start`                       | Build the main process and launch the app               |
+| `npm test`                        | Unit, render and simulation suites (Vitest)             |
+| `npm run check`                   | Everything CI runs: format, lint, typecheck, test       |
+| `npm run lint` / `lint:fix`       | ESLint with type-aware `typescript-eslint` strict rules |
+| `npm run format` / `format:check` | Prettier                                                |
+| `npm run typecheck`               | TypeScript, strict                                      |
+| `npm run package`                 | Portable Windows build in `out/ViperDuel-win32-x64`     |
+
+## Diagnostics
+
+The app doubles as its own measurement harness, in development and in the packaged build. Each
+run writes its artefacts, exits with a status code, and can be scripted.
+
+```bash
+ViperDuel.exe --diagnostic=screenshots  --out=shots           # board, announcement, end screen, both formats
+ViperDuel.exe --diagnostic=frame-timing --out=perf --all-weathers
+ViperDuel.exe --diagnostic=draw-calls   --out=perf            # canvas calls per frame and per call site
+ViperDuel.exe --diagnostic=cpu-profile  --out=perf            # open cpu.cpuprofile in DevTools
+```
+
+Options: `--orientation=portrait|landscape`, `--weather=<name>`, `--hour=<0..1>`,
+`--settle=<seconds>`. In development: `npm run diagnose -- screenshots --out=shots`.
 
 ## Project layout
 
 ```text
 src/
-  main/main.js           Electron main process: local HTTP server, windows, capture tools
+  main/                  Electron main process (TypeScript, strict)
+    index.ts             Bootstrap: flags, config, server, windows
+    config.ts            Typed command-line parsing
+    static-server.ts     Loopback-only static server for the renderer
+    windows.ts           Game and control windows, locked down
+    diagnostics/         Screenshots, frame timing, draw calls, CPU profile
+    page/                Typed page-side toolkit shipped into the renderer
   renderer/
     game.html            On-stream game window
     control.html         Private control room
     scripts/             Game engine, AI, ambience, TikFinity bridge, simulated audience
     assets/gifts/        Gift artwork
-tests/                   Headless render and duel simulation suites
-scripts/package.js       Packaging entry point
-docs/                    Architecture and migration roadmap
+tests/                   Unit suites (main) and headless game suites
+scripts/package.ts       Packaging entry point
+docs/                    Architecture and roadmap
 ```
 
 ## Documentation
