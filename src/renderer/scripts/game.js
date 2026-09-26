@@ -44,16 +44,13 @@ import { peindreScore, personne } from '../engine/scoreboard.js';
 import { peindreDuel, peindreStatutsDuel } from '../engine/duel-hud.js';
 import {
   DONS,
-  PALIERS_VUE,
   annoncer,
   annoncerSerie,
   dejaDonne,
   dire,
   donsManche,
-  likesPar,
   nomCamp,
   oublierDonsManche,
-  paliersVus,
   peindreBandeau,
   sauve,
 } from '../engine/announcements.js';
@@ -63,7 +60,6 @@ import {
   ADULTE_DUEL,
   ALERTE,
   BOUCLIER_COUT,
-  BOUCLIER_DUR,
   CHASSE_DUEL,
   COUPE_COUT,
   COUPE_FRAC,
@@ -82,23 +78,13 @@ import {
   SURGE_FACT,
   SURSIS_DUEL,
   TEMPO_COUT,
-  TEMPO_DUR,
   TRAINE,
   VIEROCHER,
   VIERONCE,
   VIE_COUT,
   VITESSE,
-  coupeDe,
 } from '../engine/rules.js';
-import {
-  cadence,
-  compter,
-  forcerLong,
-  longMax,
-  majPalier,
-  palier,
-  souffle,
-} from '../engine/crowd.js';
+import { cadence, forcerLong, longMax, majPalier, palier, souffle } from '../engine/crowd.js';
 import {
   allongerRonce,
   libres,
@@ -109,6 +95,7 @@ import {
 } from '../engine/hazards.js';
 import { etatScene, finirScene, lancerScene, scene } from '../engine/scenes.js';
 import { majTension, tension } from '../engine/tension.js';
+import { recevoirEvenement } from '../engine/audience-events.js';
 
 let ajusterCanvas = null;
 
@@ -247,7 +234,6 @@ export const amb = () => (window.AMBIANCES || []).find((a) => a.id === 'foret') 
 export let TENUE_DUEL = 5; // un serpent qui n'a jamais atteint 10 anneaux est 'jeune' : une coupe ne le descend jamais sous 3 et il n'est pas en sursis (pas de piege au depart)
 // compteurs de moments de depense (proxy de profit) : tenues entamees, sursis entames, parades
 let moments = { tenues: 0, sursis: 0, parades: 0, manches: 0 };
-let baieCount = 0; // compteur de baies mangees pour la croissance decouplee (mode base)
 
 // eclaterAnneaux : convertit des segments en baies actives (coupe duel ou mort duel).
 // Appeler sous charger(i) : zoneMorte utilise le bon contexte de tete (duel verifie les deux).
@@ -269,7 +255,7 @@ function eclaterAnneaux(segs, camp) {
 
 // semerPour(i, pseudo) : seme une baie dans la moitie du plateau proche de la tete de corps i.
 // Doit etre appele pendant le traitement d'un evenement duel ; charger(0) apres la boucle.
-function semerPour(i, pseudo) {
+export function semerPour(i, pseudo) {
   const tiI = corps[i] && corps[i].serpent[0];
   const tiAdv = corps[1 - i] && corps[1 - i].serpent[0];
   if (!tiI) return 0;
@@ -319,7 +305,7 @@ function semerPour(i, pseudo) {
 
 // couperDuel(adverseIdx, k) : coupe k anneaux de la queue du corps adverse, les eclate en baies.
 // Retourne le nombre d'anneaux effectivement coupes. Finit avec ranger() mais PAS charger(0).
-function couperDuel(adverseIdx, k, voleurIdx) {
+export function couperDuel(adverseIdx, k, voleurIdx) {
   charger(adverseIdx);
   if (!serpent.length) {
     ranger();
@@ -394,7 +380,7 @@ function couperDuel(adverseIdx, k, voleurIdx) {
 }
 
 // opt regle la force d'un eclat : vitesse, poussee vers le haut, pesanteur, taille, opacite.
-function eclat(x, y, n, teinte, opt) {
+export function eclat(x, y, n, teinte, opt) {
   const o = opt || {},
     v0 = o.v0 !== undefined ? o.v0 : 60,
     v1 = o.v1 !== undefined ? o.v1 : 240;
@@ -422,139 +408,7 @@ function eclat(x, y, n, teinte, opt) {
   }
 }
 
-// Entree unique des evenements du live (un connecteur TikTok appellera la meme fonction)
-window.recevoirEvenement = function (ev) {
-  const e = ev || {},
-    n = Math.max(1, Math.min(parseInt(e.n) || 1, 20));
-  // Mode de base : aider et gener sont tous deux gratuits et ouverts a tous.
-  // Un geste, un effet, jamais deux : le like seme une baie, le commentaire fait pousser une
-  // pierre, le partage plante une ronce, le cadeau seme large. Aucun geste ne melange bonus et malus.
-  // Mode de base : un seul objet recoit tous les gestes, le rodeur. Aucun geste n'est avale
-  // par un seuil ni par un plafond : le like l'entame, le commentaire le nourrit, le cadeau l'assomme.
-  if (e.type === 'spectateurs') {
-    const tot = parseInt(e.total) || 0;
-    let haut = 0;
-    for (const pl of PALIERS_VUE) {
-      if (tot >= pl && !paliersVus[pl]) {
-        paliersVus[pl] = 1;
-        haut = pl;
-      }
-    }
-    if (haut) annoncer({ genre: 'palier', pseudo: '', texte: dire('palier', { n: haut }) });
-    return 0;
-  }
-  if (e.type === 'arrivee' || e.type === 'partage' || e.type === 'abonne') {
-    annoncer({
-      genre: e.type,
-      pseudo: String(e.pseudo || ''),
-      avatar: e.avatar,
-      texte: dire(e.type),
-    });
-    return 0;
-  }
-  if (e.type === 'like' && e.pseudo) {
-    const lp = String(e.pseudo);
-    likesPar[lp] = (likesPar[lp] || 0) + n;
-    if (likesPar[lp] >= 10) {
-      annoncer({
-        genre: 'like',
-        pseudo: lp,
-        avatar: e.avatar,
-        texte: dire('like', { n: likesPar[lp] }),
-      });
-      likesPar[lp] = 0;
-    }
-  }
-  // Camp : explicite (regie), sinon par le NOM du cadeau TikTok (Abdel : « red 1 coin rose gives one
-  // point to Or, white 1 coin gives 1 point to the other ») : 'rose' -> Or, tout autre cadeau -> Ombre.
-  // Sans camp ni nom : tirage au sort (public simule).
-  const nom = String(e.nom || e.cadeau || e.gift || '').toLowerCase();
-  // Rose rouge ('rose') -> Or ; rose blanche (TikTok la nomme 'Rosa', ou 'rose blanche'/'white rose') -> Ombre.
-  // A 10 coins (Abdel) : une rose a 10 -> tempo Or, le 'Dyno' a 10 -> tempo Ombre : tout nom contenant 'rose' -> Or.
-  const v = e.valeur || 0;
-  // Cadeaux du camp Or par nom : rose (10), donut (30) ; tout le reste (Dyno, Capybara...) est Ombre.
-  const roseRouge =
-    v >= TEMPO_COUT
-      ? /rose|bouquet|bagel|donut|doughnut|teddy|bear/.test(nom)
-      : /^rose( rouge| red)?$/.test(nom.trim());
-  const i =
-    e.camp === 'ombre'
-      ? 1
-      : e.camp === 'or'
-        ? 0
-        : nom
-          ? roseRouge
-            ? 0
-            : 1
-          : Math.random() < 0.5
-            ? 0
-            : 1;
-  compter(e.type === 'cadeau' ? n * 3 : n);
-  // Le like ne donne plus de poussee de vitesse en duel (Abdel, 2026-09-19 : « this is not a feature
-  // anymore, remove it »). Il compte toujours pour l'affluence (compter, plus haut), rien d'autre.
-  if (e.type === 'like') return 0;
-  if (e.type === 'cadeau') {
-    noterCadeau(i, e.valeur || 0, e.pseudo, n, e.avatar);
-    if ((e.valeur || 0) >= VIE_COUT) {
-      // vie : quand une coupe devrait tuer le serpent, elle le laisse a 3 anneaux
-      const av = corps[i].vies;
-      corps[i].vies += n;
-      corps[i].viePar = String(e.pseudo || '');
-      corps[i].vieAvatar = e.avatar;
-      charger(i);
-      if (serpent.length) {
-        const tp = px(serpent[0].x, serpent[0].y);
-        eclat(tp.x, tp.y, 18, 'rodeur');
-      }
-      ranger();
-      charger(0); // vie : eclat rouge, comme le coeur
-      return corps[i].vies - av;
-    }
-    if ((e.valeur || 0) >= BOUCLIER_COUT) {
-      // bouclier : BOUCLIER_DUR secondes d'immunite aux coupes et aux collisions (Abdel : actif 15 s)
-      corps[i].bouclierT += BOUCLIER_DUR * n;
-      corps[i].bouclierPar = String(e.pseudo || '');
-      corps[i].bouclierAvatar = e.avatar;
-      charger(i);
-      if (serpent.length) {
-        const tp = px(serpent[0].x, serpent[0].y);
-        eclat(tp.x, tp.y, 18, 'coquille');
-      }
-      ranger();
-      charger(0);
-      return n;
-    }
-    if ((e.valeur || 0) >= TEMPO_COUT && (e.valeur || 0) < COUPE_COUT) {
-      // tempo paye : TEMPO_DUR secondes de poussee sur SON serpent, cumulable (Abdel : le cadeau a 10 coins)
-      corps[i].surgeT += TEMPO_DUR * n;
-      charger(i);
-      if (serpent.length) {
-        const tp = px(serpent[0].x, serpent[0].y);
-        eclat(tp.x, tp.y, 16, 'coquille');
-      }
-      ranger();
-      charger(0);
-      return n;
-    }
-    if ((e.valeur || 0) >= COUPE_COUT) {
-      // coupe : 15 % de la longueur adverse, n fois
-      let total = 0;
-      for (let q = 0; q < n; q++) {
-        if (!(manche && manche.etat === 'en cours')) break;
-        total += couperDuel(1 - i, coupeDe(corps[1 - i].serpent.length), i);
-      }
-      charger(0);
-      return total;
-    }
-    // bon marche : semer n baies pour le camp i
-    let pose = 0;
-    for (let q = 0; q < n; q++) pose += semerPour(i, e.pseudo);
-    charger(0);
-    return pose;
-  }
-  // commentaire/partage : cadence seulement
-  return 0;
-};
+window.recevoirEvenement = recevoirEvenement;
 
 // La course dans le ciel : un soleil a gauche, une lune a droite, tous deux bas au depart.
 // Chaque baie mangee monte le soleil d'un cran, chaque rocher pose monte la lune d'un cran.
@@ -606,7 +460,6 @@ function nouvelleManche() {
     cible: palier.cible,
     recolte: 0,
   };
-  baieCount = 0;
   rochers = [];
   ronces = [];
   sansBaie = 0;
@@ -704,7 +557,6 @@ function nouveauCorps(camp, teinte, x0, y0, dir0) {
     trace: [],
     aPousser: 0,
     couvee: null,
-    baieCount: 0,
     surgeT: 0,
     invincT: 0,
     coupT: 0,
@@ -733,7 +585,6 @@ export function charger(i) {
   trace = c.trace;
   aPousser = c.aPousser;
   couvee = c.couvee;
-  baieCount = c.baieCount;
 }
 export function ranger() {
   const c = corps[actif];
@@ -747,7 +598,6 @@ export function ranger() {
   c.trace = trace;
   c.aPousser = aPousser;
   c.couvee = couvee;
-  c.baieCount = baieCount;
 }
 export const autre = () => (corps.length > 1 ? corps[1 - actif] : null);
 
@@ -923,9 +773,6 @@ function mourir(cause) {
   morts++;
   trace = [];
   // La mort ne tranche plus la manche : elle pousse la lune de quelques crans, puis le serpent revient.
-  // Mode de base : la mort du serpent donne la manche aux spectateurs, c'est tout l'enjeu.
-  // Versus : elle ne tranche rien, elle pousse la lune de quelques crans et le serpent revient.
-  // Base : mourir contre un mur ou contre soi ne donne pas la manche, mais le rodeur en profite.
   // duel : pas de renaissance, pas de pause. Ramener a max(3, floor(L/2)).
   // La moitie perdue eclate en baies. Sous 3 anneaux : mort seche, l'autre camp gagne.
   if (corps[actif].bouclierT > 0) {
@@ -1328,8 +1175,6 @@ function avancer(dt) {
       // et sa cadence RALENTIT a mesure que le public devient genereux, jusqu'a se taire.
       if (!graines.length && !baies.length) {
         sansBaie += dt;
-        // Base : le like ne seme plus, il frappe le rodeur. C'est donc la foret seule qui nourrit
-        // le serpent, a tous les paliers, sinon a forte affluence il n'a plus rien a manger.
         // Plus le public est actif, plus la foret se tait : c'est la generosite reelle du public
         // qui regle l'abondance, pas une horloge fixe. A cadence 20, la foret est deja 2 fois
         // plus lente ; a cadence 200, 11 fois.
@@ -1487,7 +1332,7 @@ export let dtRendu = 0.016;
 
 export let retourCadeaux = [[], []],
   bandeauCadeau = [null, null]; // [camp][ligne] = {t, pseudo, n} ; bandeau = {t, texte}
-function noterCadeau(i, valeur, pseudo, n, avatar) {
+export function noterCadeau(i, valeur, pseudo, n, avatar) {
   const k =
     valeur >= VIE_COUT
       ? 4
