@@ -1,0 +1,6 @@
+node_modules/
+out/
+coverage/
+package-lock.json
+# Legacy pages: inline whitespace is visible in the control room, reformat during their migration.
+src/renderer/*.html

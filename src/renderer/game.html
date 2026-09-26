@@ -1,0 +1,58 @@
+<meta charset="utf-8">
+<title>Vipere Duel</title>
+<style>
+*{box-sizing:border-box;margin:0;padding:0}
+html,body{height:100%;background:#0c110e}
+body{display:flex;justify-content:center;align-items:center;overflow:hidden}
+#scene{display:block;height:100vh;max-width:100vw;aspect-ratio:9/16;background:#141e17}
+</style>
+<canvas id="scene" width="1080" height="1920" aria-label="Vipere Duel, Or contre Ombre"></canvas>
+<script src="scripts/forest-ambience.js" charset="utf-8"></script>
+<script src="scripts/ai-human.js" charset="utf-8"></script>
+<script src="scripts/ai-super.js" charset="utf-8"></script>
+<script src="scripts/simulated-audience.js" charset="utf-8"></script>
+<script src="scripts/snake-ending.js" charset="utf-8"></script>
+<script src="scripts/game.js" charset="utf-8"></script>
+<script src="scripts/tikfinity-bridge.js" charset="utf-8"></script>
+<script>
+/* Fenetre JEU seule : c'est elle que LIVE Studio capture. Aucun panneau, aucun bouton.
+   La regie vit dans vipere-regie-duel.html et pilote cette fenetre par BroadcastChannel
+   ('vipere-duel', local a la machine). Le pont TikFinity tourne ICI, au plus pres du jeu. */
+(function(){'use strict';
+  var B=window.VipereBase;if(!B)return;
+  B.reglages.mode='duel';B.nouvelleManche();
+  var P=window.PontTikFinity;
+  var canal=('BroadcastChannel' in window)?new BroadcastChannel('vipere-duel'):null;
+  if(canal){
+    try{if(localStorage.getItem('vipere-noms')==='0')B.reglages.nomsDonateurs=false;}catch(e){}
+    try{if(localStorage.getItem('vipere-fluide')==='1')B.reglages.fluide=true;}catch(e){}
+    try{var pf=localStorage.getItem('vipere-plateforme');if(pf==='neutre'||pf==='tiktok')B.reglages.plateforme=pf;}catch(e){}
+    canal.onmessage=function(ev){
+      var m=ev.data||{};
+      try{
+        if(m.cmd==='evenement')window.recevoirEvenement(m.ev||{});
+        else if(m.cmd==='brut')P.traiter(m.message||null);           /* faux message Event API, meme chemin que le WebSocket */
+        else if(m.cmd==='pont-demarrer')P.demarrer(m.url);
+        else if(m.cmd==='pont-arreter')P.arreter();
+        else if(m.cmd==='manche'){B.reglages.mode='duel';B.nouvelleManche();}
+        else if(m.cmd==='reglage'&&m.nom in B.reglages){B.reglages[m.nom]=m.valeur;
+          /* la plateforme survit a la fermeture de l'exe : on la retrouve au prochain lancement */
+          if(m.nom==='plateforme')try{localStorage.setItem('vipere-plateforme',m.valeur);}catch(e){}
+          if(m.nom==='nomsDonateurs')try{localStorage.setItem('vipere-noms',m.valeur?'1':'0');}catch(e){}
+          if(m.nom==='fluide')try{localStorage.setItem('vipere-fluide',m.valeur?'1':'0');}catch(e){}}
+        else if(m.cmd==='scene')B.lancerScene(m.nom,m.duree);
+        else if(m.cmd==='sceneStop')B.stopScene();
+        else if(m.cmd==='finTest'&&B.finirTest)B.finirTest(m.camp);
+      }catch(e){}
+    };
+    /* etat vers la regie : pont + duel, deux fois par seconde */
+    setInterval(function(){
+      var d=B.duel();
+      canal.postMessage({etat:{pont:P.etat(),avantage:B.reglages.avantage||0,underdog:!!B.reglages.underdog,foule:window.VipereFoule?window.VipereFoule.lireEtat(B):null,plateforme:B.reglages.plateforme,fluide:!!B.reglages.fluide,retourCadeau:B.reglages.retourCadeau,bandeau:B.reglages.bandeau,classement:B.reglages.classement,meteo:B.reglages.meteo,ambianceAuto:!!B.reglages.ambianceAuto,heure:B.reglages.heure,nomsDonateurs:B.reglages.nomsDonateurs!==false,superIA:!!B.reglages.superIA,debugIA:!!B.reglages.debugIA,scene:B.scene(),duel:d?{t:d.t,vainqueur:d.vainqueur,
+        or:{longueur:d.or&&d.or.longueur},ombre:{longueur:d.ombre&&d.ombre.longueur}}:null,
+        mesures:B.mesures&&{erreurs:B.mesures().erreurs}}});
+    },500);
+  }
+  P.demarrer();
+}());
+</script>
