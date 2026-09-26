@@ -143,7 +143,7 @@ export let rochers = [],
   sansBaie = 0;
 let retouches = 0,
   gardes = 0; // anti-tremblement : redecisions au franchissement, et decisions gardees
-let ordreTick = 0;
+let ordreTick = 0; // duel : alterne quel serpent est resolu en premier a chaque tick (equite)
 
 let delaiSauvage = 0;
 
@@ -230,8 +230,7 @@ export const reglages = {
 export const px = (gx, gy) => ({ x: X0 + gx * CELL + CELL / 2, y: Y0 + gy * CELL + CELL / 2 });
 export const amb = () => (window.AMBIANCES || []).find((a) => a.id === 'foret') || null;
 
-// dons duel : bouclier a 50 = 15 s d'immunite, cumulables sans plafond, vie a 100, sans plafond (Abdel : « no cap »)
-export let TENUE_DUEL = 5; // un serpent qui n'a jamais atteint 10 anneaux est 'jeune' : une coupe ne le descend jamais sous 3 et il n'est pas en sursis (pas de piege au depart)
+export let TENUE_DUEL = 5; // secondes a tenir l'anneau plein pour gagner (reglerTenue pour le bench)
 // compteurs de moments de depense (proxy de profit) : tenues entamees, sursis entames, parades
 let moments = { tenues: 0, sursis: 0, parades: 0, manches: 0 };
 
@@ -538,6 +537,8 @@ function finir(camp, cause) {
 
 export let couvee = null;
 
+// Architecture multi-corps : motif charger/ranger.
+// On charge le corps i dans les variables de module, on travaille dessus, on range.
 function nouveauCorps(camp, teinte, x0, y0, dir0) {
   return {
     camp,

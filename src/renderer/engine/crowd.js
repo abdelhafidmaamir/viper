@@ -23,7 +23,6 @@ export function forcerLong(v) {
 // s'enfermaient eux-memes (sonde : 62 morts/6 manches, toutes piegees ; a 60 : 30)
 export const longMax = () => longForce || LONG_CIBLE_DUEL;
 
-// duel : plafond LONG_CIBLE_DUEL
 export let cadence = 0,
   palier = PALIERS[0];
 

@@ -88,45 +88,44 @@ export const PALIERS = [
 // Economie calquee sur un vrai live : la rose est le cadeau dominant et joue CONTRE le serpent,
 // Le like, le commentaire et le partage sont sans effet (Abdel, 2026-09-19 : la poussee par likes est retiree).
 // La seule poussee de vitesse est le cadeau tempo (SURGE_FACT pendant TEMPO_DUR).
+// Abdel, 2026-09-19 : « the actual speed boost value, tone it down a little » (etait 1,5)
 export const SURGE_FACT = 1.2;
 
-// Abdel, 2026-09-19 : « the actual speed boost value, tone it down a little » (etait 1,5)
-// ancien commentaire :  // le serpent va 50 % plus vite pendant la poussee
+// duel : secondes (x0.6 a 1.4) entre deux baies vertes neutres quand le plateau est vide, ralenti par l'affluence
 export const FORET_DUEL = 8;
 
-// duel : secondes (x0.6 a 1.4) entre deux baies vertes neutres quand le plateau est vide, ralenti par l'affluence
+// don 10-29 coins : 10 s de poussee de tempo payee, au-dela du plafond des likes
 export const TEMPO_COUT = 10,
   TEMPO_DUR = 10;
 
-// don 10-29 coins : 10 s de poussee de tempo payee (x1.5), au-dela du plafond des likes
+// coupe duel (Abdel : « cut at 15% for 30 ») : le don enleve 15 % de la longueur adverse, 1 anneau minimum
 export const COUPE_COUT = 20,
   COUPE_FRAC = 0.15;
-
-// coupe duel (Abdel : « cut at 15% for 30 ») : don >= 30 enleve 15 % de la longueur adverse, 1 anneau minimum
 export const coupeDe = (L) => Math.max(1, Math.round(L * COUPE_FRAC));
 
+// dons duel : bouclier a 50 = 15 s d'immunite, cumulables sans plafond, vie a 100, sans plafond (Abdel : « no cap »)
 export const BOUCLIER_COUT = 30,
   VIE_COUT = 100,
   BOUCLIER_DUR = 15;
 
-// secondes a tenir l'anneau plein pour gagner (reglerTenue pour le bench)
+// longueur cible pour l'anneau duel (TEST equilibre 2026-09-18 : 60 -> 40, revert si ca ne marche pas)
 export const LONG_CIBLE_DUEL = 40;
 
-// longueur cible pour l'anneau duel (TEST equilibre 2026-09-18 : 60 -> 40, revert si ca ne marche pas)
+// sous cette longueur, le demi-anneau vire au rouge : moment 'vie'
 export const SURSIS_DUEL = 5;
 
-// sous cette longueur, le demi-anneau vire au rouge : moment 'vie'
+// duel : naissance a 5 anneaux ; un serpent jeune peut etre coupe jusqu'a 1 anneau, jamais tue (Abdel)
 export const DEPART_DUEL = 5,
   MIN_JEUNE = 2;
 
-// duel : naissance a 5 anneaux ; un serpent jeune peut etre coupe jusqu'a 1 anneau, jamais tue (Abdel)
+// un serpent qui n'a jamais atteint 10 anneaux est 'jeune' : une coupe ne le descend jamais sous 3 et il n'est pas en sursis (pas de piege au depart)
 export const ADULTE_DUEL = 10;
 
 // Moon : la pierre pousse devant le serpent, mais jamais sous ses pattes. A VITESSE cases par
 // seconde, il franchit ALERTE*VITESSE cases pendant la sortie : toute case plus proche que ca,
 // dans son couloir, serait traversee avant que la pierre existe, et l'animation ne servirait a
 // rien. On la place donc largement devant, ou sur le flanc, et jamais dans cette zone morte.
-export const PORTEE = () => VITESSE * (ALERTE + 0.25);
+export const PORTEE = () => VITESSE * (ALERTE + 0.25); // ce que le serpent avale pendant la pousse, avec marge
 
 // Une manche commence par une naissance : une coquille blanche se pose au centre du plateau,
 // elle se fend, elle eclate, et le serpent en sort. Tant qu'elle est la, rien ne bouge.
@@ -134,9 +133,6 @@ export const ECLOSION = 1.4,
   SORTIE = 0.6,
   TRAINE = 0.55;
 
-// Architecture multi-corps : motif charger/ranger.
-// base.js a ~106 references a `serpent`, `hist`, `dir`, etc. : on ne renomme pas ces variables.
-// On charge le corps i dans les variables de module, on travaille dessus, on range.
 // flair : part de joueur presse dans l'IA (0 = IA prudente du mode base). Deux valeurs differentes
 // en duel, sinon les deux serpents jouent en miroir (Abdel, 2026-09-18).
 // EGALITE STRICTE (Abdel, 2026-09-18 : « without viewer interaction they are on the same playing

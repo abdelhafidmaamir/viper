@@ -32,7 +32,6 @@ export function libres() {
   return l;
 }
 
-// ce que le serpent avale pendant la pousse, avec marge
 // REGLE, valable pour TOUT ce qui bloque, pierre comme ronce, ancrage comme croissance :
 // on ne pose jamais rien devant le serpent s'il aura traverse la case avant que ca devienne
 // actif. Sinon l'objet apparait sous lui pour rien, l'animation ne sert a rien, et le joueur
