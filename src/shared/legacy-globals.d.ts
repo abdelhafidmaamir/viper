@@ -66,6 +66,8 @@ interface AudienceEvent {
 interface SimulatedCrowd {
   configure(level: number): void;
   tick(state: unknown, dt: number): AudienceEvent[];
+  /** Decision log, fervor and spend per team, read by the control room. */
+  view(): unknown;
 }
 
 interface TikFinityBridge {

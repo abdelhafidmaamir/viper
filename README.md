@@ -92,7 +92,7 @@ src/
     game.html            On-stream game window
     game/                Typed entry and control-room link
     control.html         Private control room
-    control/             Entry, styles and the legacy control-room script
+    control/             Control room: store, controller, view models and UI
     engine/              Engine modules: rules, crowd, events, hazards, painters, layout
     scripts/             Simulation core, AI, ambience, TikFinity bridge, simulated audience
     public/assets/gifts/ Gift artwork, copied as-is

@@ -83,8 +83,10 @@ export async function openControlWindow(origin: string): Promise<BrowserWindow> 
   const title = 'Viper Duel | Control Room';
   const win = new BrowserWindow({
     title,
-    width: 600,
-    height: 900,
+    width: 1280,
+    height: 800,
+    minWidth: 720,
+    minHeight: 560,
     autoHideMenuBar: true,
     backgroundColor: BACKGROUND,
     webPreferences: SECURE_PREFERENCES,
