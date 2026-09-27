@@ -15,6 +15,9 @@ renders, pass a side-by-side `--diagnostic=screenshots` run against the previous
 - [x] **Control room rebuilt.** A typed store, controller and view models drive four tabs (Live,
       Setup, Rehearsal, Admin), a persistent status bar, an event log, keyboard shortcuts,
       confirmation of disruptive actions and stale-link detection. The legacy script is gone.
+- [x] **Visual regression.** `game.html?seed=<n>` runs on a seeded random source and a virtual
+      clock; `npm run visual` captures six scenes in software rendering and compares them pixel
+      for pixel with Windows baselines, on CI too.
 - [x] **Renderer in strict TypeScript.** Engine and game scripts are typed under the same strict
       settings, with zero lint warnings; the golden master replays every scenario unchanged.
 - [x] **Main process in TypeScript.** Strict TypeScript with type-aware `typescript-eslint`,
@@ -55,8 +58,8 @@ experiments that are not shipping yet live on `wip/*` branches and never block `
 
 ## Next
 
-1. **Deterministic visual regression.** Inject a seeded RNG and clock so screenshots can be
-   pixel-diffed on CI.
+Nothing scheduled. Candidates: tier and format in the control protocol, and the dead code found
+during the TypeScript migration (unused fruit and stone paths).
 
 ## Toolchain notes
 

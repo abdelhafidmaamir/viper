@@ -36,17 +36,18 @@ npm run start:landscape   # same, 16:9 for YouTube
 
 ## Scripts
 
-| Script                            | What it does                                            |
-| --------------------------------- | ------------------------------------------------------- |
-| `npm run dev`                     | Renderer on the Vite dev server with hot reload         |
-| `npm start`                       | Production build of main and renderer, then launch      |
-| `npm run build`                   | `tsc` for the main process, Vite for the renderer       |
-| `npm test`                        | Unit, render and simulation suites (Vitest)             |
-| `npm run check`                   | Everything CI runs: format, lint, typecheck, test       |
-| `npm run lint` / `lint:fix`       | ESLint with type-aware `typescript-eslint` strict rules |
-| `npm run format` / `format:check` | Prettier                                                |
-| `npm run typecheck`               | TypeScript, strict                                      |
-| `npm run package`                 | Portable Windows build in `out/ViperDuel-win32-x64`     |
+| Script                            | What it does                                                                |
+| --------------------------------- | --------------------------------------------------------------------------- |
+| `npm run dev`                     | Renderer on the Vite dev server with hot reload                             |
+| `npm start`                       | Production build of main and renderer, then launch                          |
+| `npm run build`                   | `tsc` for the main process, Vite for the renderer                           |
+| `npm test`                        | Unit, render and simulation suites (Vitest)                                 |
+| `npm run check`                   | Everything CI runs: format, lint, typecheck, test                           |
+| `npm run lint` / `lint:fix`       | ESLint with type-aware `typescript-eslint` strict rules                     |
+| `npm run format` / `format:check` | Prettier                                                                    |
+| `npm run typecheck`               | TypeScript, strict                                                          |
+| `npm run package`                 | Portable Windows build in `out/ViperDuel-win32-x64`                         |
+| `npm run visual`                  | Pixel regression against `tests/visual/baselines` (`-- --update` to accept) |
 
 ## Diagnostics
 

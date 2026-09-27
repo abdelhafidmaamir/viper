@@ -3,7 +3,13 @@ import { parseArgs } from 'node:util';
 export const ORIENTATIONS = ['portrait', 'landscape'] as const;
 export type Orientation = (typeof ORIENTATIONS)[number];
 
-export const DIAGNOSTICS = ['screenshots', 'frame-timing', 'cpu-profile', 'draw-calls'] as const;
+export const DIAGNOSTICS = [
+  'screenshots',
+  'frame-timing',
+  'cpu-profile',
+  'draw-calls',
+  'visual',
+] as const;
 export type DiagnosticName = (typeof DIAGNOSTICS)[number];
 
 export interface DiagnosticOptions {

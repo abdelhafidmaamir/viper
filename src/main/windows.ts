@@ -36,6 +36,11 @@ export interface GameWindowOptions {
    * throttles an occluded window, which would corrupt any timing.
    */
   readonly diagnostic: boolean;
+  /**
+   * Loads the page in deterministic mode (`game.html?seed=<n>`): seeded randomness and a virtual
+   * clock driven through `window.__viperClock`. Null for every normal run.
+   */
+  readonly seed: number | null;
 }
 
 /**
@@ -44,7 +49,7 @@ export interface GameWindowOptions {
  */
 export async function openGameWindow(
   origin: string,
-  { orientation, diagnostic }: GameWindowOptions,
+  { orientation, diagnostic, seed }: GameWindowOptions,
 ): Promise<BrowserWindow> {
   const landscape = orientation === 'landscape';
   const title = 'Viper Duel';
@@ -68,7 +73,8 @@ export async function openGameWindow(
     win.center();
   }
 
-  await win.loadURL(`${origin}/game.html`);
+  const query = seed === null ? '' : `?seed=${String(seed)}`;
+  await win.loadURL(`${origin}/game.html${query}`);
 
   if (diagnostic) {
     win.show();

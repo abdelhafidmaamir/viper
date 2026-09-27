@@ -10,12 +10,14 @@ import { cpuProfile } from './cpu-profile.js';
 import { drawCalls } from './draw-calls.js';
 import { frameTiming } from './frame-timing.js';
 import { screenshots } from './screenshots.js';
+import { visual } from './visual.js';
 
 const REGISTRY: Readonly<Record<DiagnosticName, Diagnostic>> = {
   screenshots,
   'frame-timing': frameTiming,
   'cpu-profile': cpuProfile,
   'draw-calls': drawCalls,
+  visual,
 };
 
 /**
