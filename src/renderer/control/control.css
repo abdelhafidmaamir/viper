@@ -230,11 +230,11 @@ select {
 
 /* Status bar */
 
+/* Three fixed columns: the round block stays centred whatever the width of the live pills. */
 .statusbar {
-  display: flex;
-  flex-wrap: wrap;
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto minmax(0, 1fr);
   align-items: center;
-  justify-content: space-between;
   gap: var(--space-3) var(--space-5);
   min-height: 56px;
   padding: var(--space-3) var(--gap);
@@ -246,6 +246,10 @@ select {
   display: flex;
   align-items: center;
   gap: var(--space-3);
+}
+
+.statusbar__end {
+  justify-self: end;
 }
 
 .statusbar.is-stale .clock__time,
@@ -298,7 +302,10 @@ select {
   animation: pulse 1.6s ease-in-out infinite;
 }
 
+/* Sized for the widest value ("waiting") so the age ticking every 100 ms moves nothing. */
 .pill__metric {
+  display: inline-block;
+  min-width: 7ch;
   color: var(--text-2);
   font-weight: 400;
 }
@@ -325,18 +332,32 @@ select {
 }
 
 .clock {
+  position: relative;
   display: inline-flex;
   align-items: baseline;
   gap: var(--space-3);
 }
 
+/* As wide as "No duel", so the score does not jump when a round starts or ends. */
 .clock__time {
+  display: inline-block;
+  min-width: 7ch;
+  text-align: center;
   font-size: var(--text-clock);
   font-weight: 650;
   line-height: 1;
 }
 
+/* Sits under the clock, out of the flow: showing it never slides the score. */
+.clock__note.is-off {
+  visibility: hidden;
+}
+
 .clock__note {
+  position: absolute;
+  top: 100%;
+  right: 0;
+  line-height: 1.2;
   font-size: var(--text-caps);
   color: var(--text-2);
 }
@@ -366,8 +387,8 @@ select {
   color: var(--tone);
 }
 
+/* Emphasis without a weight change: a bolder digit is wider and would nudge the bar. */
 .score__side.is-leading .score__value {
-  font-weight: 650;
   text-decoration: underline 2px;
   text-underline-offset: 4px;
 }
@@ -1310,6 +1331,14 @@ select {
 }
 
 @media (max-width: 760px) {
+  .statusbar {
+    grid-template-columns: minmax(0, 1fr);
+  }
+
+  .statusbar__end {
+    justify-self: start;
+  }
+
   .screen--live {
     grid-template-columns: minmax(0, 1fr);
   }
