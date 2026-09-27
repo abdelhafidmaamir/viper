@@ -46,7 +46,7 @@ const FORMATS = {
     scCy: 1276,
     bdCx: 540,
     bdW: 600,
-    bdCy: 154,
+    bdCy: 156,
     legY: 1400,
     legCxG: 320,
     legCxD: 760,
@@ -69,7 +69,7 @@ const FORMATS = {
     scCy: 1276,
     bdCx: 540,
     bdW: 600,
-    bdCy: 154,
+    bdCy: 156,
     legY: 1400,
     legCxG: 320,
     legCxD: 760,
@@ -87,7 +87,7 @@ export let L = FORMATS.portrait,
 
 export let SC_CY = 1276; // center line of the score bar, with some space below the ring
 export let BD_W = 600,
-  BD_CY = 154,
+  BD_CY = 156,
   BD_CX = 540; // Positioned higher, away from the timer.
 
 /** Applies a format. Returns false when it is already active, so callers can skip re-layout. */
