@@ -86,7 +86,7 @@ const SCENES: readonly Scene[] = [
 /**
  * Chromium switches that make rasterisation a pure function of the draw calls: software
  * rendering (no GPU driver in the loop), one device pixel per CSS pixel whatever the display
- * scaling, sRGB output, and greyscale text anti-aliasing. Applied to this diagnostic only, before
+ * scaling, sRGB output, greyscale text anti-aliasing, and full motion whatever the host setting. Applied to this diagnostic only, before
  * the app is ready; the shipped app keeps hardware acceleration.
  */
 export function useReproducibleRendering(app: App): void {
@@ -98,6 +98,9 @@ export function useReproducibleRendering(app: App): void {
     ['force-color-profile', 'srgb'],
     ['disable-lcd-text'],
     ['font-render-hinting', 'none'],
+    // Windows Server turns animations off, which Chromium reports as reduced motion: the ambience
+    // then draws fewer particles, draws fewer random numbers, and the whole round diverges.
+    ['force-prefers-no-reduced-motion'],
   ];
   for (const [name, value] of switches) app.commandLine.appendSwitch(name, value);
 }
