@@ -65,7 +65,7 @@ describe('tr - French', () => {
 
   it('substitutes {name} in French', () => {
     setLanguage('fr');
-    expect(tr('join.0', { name: 'Alice' })).toBe('Bienvenue Alice, contente de te voir !');
+    expect(tr('join.0', { name: 'Alice' })).toBe('Bienvenue Alice, ravi de te voir !');
   });
 
   it('substitutes {n} in French', () => {

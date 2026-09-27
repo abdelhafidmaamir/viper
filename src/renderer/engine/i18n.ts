@@ -72,7 +72,7 @@ type Translations = { readonly [K in keyof typeof en]: string };
 
 const fr: Translations = {
   // Banner phrases
-  'join.0': 'Bienvenue {name}, contente de te voir !',
+  'join.0': 'Bienvenue {name}, ravi de te voir !',
   'join.1': 'Hey {name}, on est ravis !',
   'join.2': '{name} vient de rejoindre, dites bonjour !',
   'share.0': 'Merci pour le partage, {name} !',
@@ -80,7 +80,7 @@ const fr: Translations = {
   'follow.0': 'Merci pour le suivi, {name} !',
   'follow.1': '{name} vient de suivre, bienvenue !',
   'like.0': '{name} a mis {n} likes, merci !',
-  'like.1': '{n} likes de {name}, trop bien !',
+  'like.1': '{n} likes de {name}, trop fort !',
   'gift.0': '{name} {q} ! Quel coup !',
   'gift.1': 'Grand coup : {name} {q} !',
   'gift.2': '{name} {q} pour son équipe !',
@@ -91,9 +91,9 @@ const fr: Translations = {
   'streak.0': '{n} victoires de suite ! Qui peut les arrêter ?',
   'streak.1': '{n} de suite, inarrêtables !',
   'rescue.0': 'Le {q} de {name} a tout sauvé !',
-  'rescue.1': 'Quelle save ! Le {q} de {name} les a gardés en vie.',
+  'rescue.1': 'Quel sauvetage ! Le {q} de {name} les a gardés en vie.',
   'rescueWithout.0': 'Un {q} vient de tout sauver !',
-  'rescueWithout.1': 'Quelle save, ce {q} les a gardés en vie !',
+  'rescueWithout.1': 'Quel sauvetage, ce {q} les a gardés en vie !',
   // Effect actions (banner copy)
   'effect.berry': 'pose une baie',
   'effect.speed': 'déclenche un boost de vitesse',
@@ -111,7 +111,7 @@ const fr: Translations = {
   'label.LIFE': 'VIE',
   // Crowd energy
   'energy.badge.tap': 'TAP TAP',
-  'energy.badge.frenzy': 'FRENZY !',
+  'energy.badge.frenzy': 'FOLIE !',
   // Like milestones
   'milestones.likes': 'LIKES',
   'milestones.thanks': 'MERCI !',
