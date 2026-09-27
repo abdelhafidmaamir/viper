@@ -261,6 +261,7 @@ export type Platform = 'tiktok' | 'neutral';
 export type GiftDisplay = 'scroll' | 'full' | 'none';
 export type GiftFeedbackMode = 'none' | 'G1' | 'G2' | 'G3' | 'G4';
 export type BannerMode = 'none' | 'P1' | 'P2' | 'P3';
+export type Language = 'en' | 'fr';
 export type RankingMode = 'none' | 'C1' | 'C2' | 'C3' | 'M1' | 'M2' | 'M3';
 export type Weather =
   | 'rain'
@@ -311,6 +312,8 @@ export interface Settings {
   aiDebug: boolean;
   /** Harness override of the ambience progression. */
   forcedStep?: number;
+  /** On-stream text language: 'en' (default) or 'fr'. */
+  language: Language;
 }
 
 // ===== Board items =====

@@ -10,6 +10,7 @@ import { SHADOW, GOLD } from './palette.ts';
 import { pointRail } from './frame.ts';
 import { getAmbience, bodies, round, settings, t } from '../scripts/game.ts';
 import { launchFromBanner } from './fan-rings.ts';
+import { tr, type I18nKey } from './i18n.ts';
 
 // ===== Activity banner, top center. One announcement at a time; gifts jump the queue. Same panel
 // geometry as the scoreboard legend rows, with the actual miniature snake rendered. Suppressed during
@@ -34,7 +35,7 @@ export const roundDonations: Record<string, RoundDonation> = {};
 export const rescueTime: [number, number] = [-9, -9];
 
 export function teamName(c: Team): string {
-  return c === 'gold' ? 'Or' : 'Ombre';
+  return tr(c === 'gold' ? 'team.gold' : 'team.shadow');
 }
 
 // Banner copy: multiple variants per event, drawn at random without repeating the same phrasing twice
@@ -42,6 +43,20 @@ export function teamName(c: Team): string {
 // {c} is the viewer's team, {a} the opposing team. No gift framing: the viewer is celebrated for their
 // in-game action. EFFECT_ACTIONS = the action performed, conjugated, one entry per effect type (same
 // index order as the gift panel).
+export const EFFECT_ACTIONS_KEYS: readonly I18nKey[] = [
+  'effect.berry',
+  'effect.speed',
+  'effect.steal',
+  'effect.shield',
+  'effect.life',
+];
+
+/** Returns translated effect action strings (same index order as the gift panel). */
+export function effectActions(): readonly string[] {
+  return EFFECT_ACTIONS_KEYS.map((k) => tr(k));
+}
+
+/** For backward compatibility: returns the English effect action at the given index. */
 export const EFFECT_ACTIONS = [
   'drops a berry',
   'fires a speed boost',
@@ -50,25 +65,31 @@ export const EFFECT_ACTIONS = [
   'grants an extra life',
 ];
 
-const PHRASES = {
-  join: [
-    "Welcome {name}, glad you're here!",
-    'Hey {name}, good to see you!',
-    '{name} just joined us, say hi!',
-  ],
-  share: ['Thanks for sharing the live, {name}!', '{name} shared the live, thank you so much!'],
-  follow: ['Thanks for the follow, {name}!', '{name} just followed, welcome aboard!'],
-  like: ['{name} dropped {n} likes, thank you!', '{n} likes from {name}, love it!'],
-  // Never write the team name as text here; the panel and name color already convey the team.
-  gift: ['{name} {q}! What a play!', 'Big play: {name} {q}!', '{name} {q} for the team!'],
-  first: ['{name} enters the game and {q}! Welcome!', 'First play by {name}: {q}!'],
-  tier: ["We're {n} here now, welcome everyone!", "{n} of us watching, you're amazing!"],
-  streak: ['{n} wins in a row! Who can stop them?', "That's {n} in a row, unstoppable!"],
-  rescue: ["{name}'s {q} just saved the day!", "What a save! {name}'s {q} kept them alive."],
-  rescueWithout: ['A {q} just saved the day!', 'What a save, that {q} kept them alive!'],
-} as const;
+// Phrase variant counts per key (must stay in sync with i18n dictionaries).
+const PHRASE_COUNT: Record<string, number> = {
+  join: 3,
+  share: 2,
+  follow: 2,
+  like: 2,
+  gift: 3,
+  first: 2,
+  tier: 2,
+  streak: 2,
+  rescue: 2,
+  rescueWithout: 2,
+};
 
-type PhraseKey = keyof typeof PHRASES;
+export type PhraseKey =
+  | 'join'
+  | 'share'
+  | 'follow'
+  | 'like'
+  | 'gift'
+  | 'first'
+  | 'tier'
+  | 'streak'
+  | 'rescue'
+  | 'rescueWithout';
 
 const lastPhraseIdx: Partial<Record<PhraseKey, number>> = {};
 
@@ -80,16 +101,17 @@ interface PhraseVars {
 }
 
 export function phrase(key: PhraseKey, v?: PhraseVars): string {
-  const l = PHRASES[key];
-  const arr: readonly string[] = l;
-  let k = Math.floor(Math.random() * arr.length);
-  if (arr.length > 1 && k === lastPhraseIdx[key]) k = (k + 1) % arr.length;
+  const count = PHRASE_COUNT[key] ?? 1;
+  let k = Math.floor(Math.random() * count);
+  if (count > 1 && k === lastPhraseIdx[key]) k = (k + 1) % count;
   lastPhraseIdx[key] = k;
-  return (arr[k] ?? '')
-    .replace('{n}', v?.n !== undefined ? String(v.n) : '')
+  const i18nKey = `${key}.${String(k)}` as I18nKey;
+  const vars: { name?: string; n?: string | number; q?: string } = {};
+  if (v?.n !== undefined) vars.n = v.n;
+  if (v?.q !== undefined) vars.q = v.q;
+  return tr(i18nKey, vars)
     .replace('{c}', v?.c ?? '')
-    .replace('{a}', v?.a ?? '')
-    .replace('{q}', v?.q ?? '');
+    .replace('{a}', v?.a ?? '');
 }
 
 export function announceRescue(i: number, effectType: string): void {
@@ -106,7 +128,7 @@ export function announceRescue(i: number, effectType: string): void {
     nickname: donor ?? '',
     text: phrase(donor ? 'rescue' : 'rescueWithout', {
       c: teamName(team),
-      q: effectType === 'life' ? 'extra life' : 'shield',
+      q: tr(effectType === 'life' ? 'rescue.extra life' : 'rescue.shield'),
     }),
     avatar: body?.[effectType === 'life' ? 'lifeAvatar' : 'shieldAvatar'],
     team: team,

@@ -3,6 +3,7 @@ import type { Controller } from '../../controller.ts';
 import {
   FORMATS,
   GIFT_DISPLAYS,
+  LANGUAGES,
   PLATFORMS,
   SCROLL_HIDDEN,
   SCROLL_VISIBLE,
@@ -74,6 +75,17 @@ function outputCard(controller: Controller): View {
       controller.select('format', value);
     },
   });
+  const language = createSegmented({
+    label: 'Game language',
+    options: LANGUAGES,
+    caption: 'Language of text shown on stream (banners, labels). Takes effect immediately.',
+    onSelect: (value) => {
+      controller.select('language', value);
+    },
+    onRetry: () => {
+      controller.retry('language');
+    },
+  });
   const giftDisplay = createSegmented({
     label: 'Gift display',
     options: GIFT_DISPLAYS,
@@ -111,6 +123,7 @@ function outputCard(controller: Controller): View {
     },
   });
   const card = createCard({ title: 'Output', collapsible: true }, [
+    language.el,
     platform.el,
     format.el,
     giftDisplay.el,
@@ -122,6 +135,8 @@ function outputCard(controller: Controller): View {
     el: card.el,
     update(state) {
       const reason = locksVm(state).linkLock;
+      const l = settingVm(state, 'language');
+      language.update({ value: l.value, status: l.status, reason });
       const armedPlatform = (['tiktok', 'neutral'] as const).find(
         (value) => armVm(state, `platform:${value}`).armed,
       );

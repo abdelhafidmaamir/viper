@@ -18,6 +18,7 @@ import {
   announceRescue,
   addAnnouncement,
 } from '../engine/announcements.ts';
+import { tr } from '../engine/i18n.ts';
 import { updateEnergy, tempo, FRENZY_BERRIES } from '../engine/crowd-energy.ts';
 import { SHADOW, GOLD } from '../engine/palette.ts';
 import {
@@ -231,6 +232,8 @@ export const settings: Settings = {
   // aiDebug (super admin, control room): AI decision overlay on the board. Off by default;
   // when off, the AI fills nothing and the overlay is not drawn (zero effect on gameplay).
   aiDebug: false,
+  // language (control room): on-stream text language. 'en' default, 'fr' for French streams.
+  language: 'en' as const,
 };
 
 export const px = (gx: number, gy: number): Point => ({
@@ -1114,7 +1117,7 @@ function advance(dt: number): void {
     addAnnouncement({
       kind: 'tier',
       nickname: '',
-      text: 'Your likes wake the forest: berries for both!',
+      text: tr('frenzy.text'),
     });
   else if (
     surge === 'drop' &&

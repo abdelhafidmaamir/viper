@@ -53,6 +53,7 @@ export const VERIFIED_SETTINGS = [
   'weather',
   'hour',
   'autoAmbience',
+  'language',
 ] as const satisfies readonly (keyof GameState)[];
 
 /** Settings the game accepts but never reports: they can be sent, not confirmed. */
@@ -86,6 +87,7 @@ export const SETTING_LABELS: Readonly<Record<SettingName, string>> = {
   giftDisplay: 'gift display',
   scrollVisible: 'scroll visible time',
   scrollHidden: 'scroll hidden time',
+  language: 'game language',
 };
 
 export function isVerified(name: SettingName): name is VerifiedSetting {
@@ -101,6 +103,11 @@ export function sameValue(a: SettingValue | undefined, b: SettingValue | undefin
   if (typeof a === 'number' && typeof b === 'number') return Math.abs(a - b) < 0.01;
   return a === b;
 }
+
+export const LANGUAGES: readonly Option<'en' | 'fr'>[] = [
+  { value: 'en', label: 'English' },
+  { value: 'fr', label: 'Français' },
+];
 
 export const PLATFORMS: readonly Option<GameSettings['platform']>[] = [
   { value: 'tiktok', label: 'TikTok' },

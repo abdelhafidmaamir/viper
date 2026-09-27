@@ -20,6 +20,7 @@ export function gameState(overrides: Partial<Mutable<GameState>> = {}): GameStat
     donorNames: true,
     superAi: false,
     aiDebug: false,
+    language: 'en',
     scene: null,
     duel: { t: 10, winner: null, gold: { length: 4 }, shadow: { length: 4 } },
     metrics: { errors: 0 },

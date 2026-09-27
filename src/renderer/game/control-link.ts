@@ -6,6 +6,7 @@ import {
   type GameState,
   type GameStateMessage,
 } from '../../shared/control-protocol.ts';
+import { setLanguage } from '../engine/i18n.ts';
 
 export interface GameLinkDeps {
   readonly game: GameApi;
@@ -102,6 +103,7 @@ export function applyCommand(command: ControlCommand, deps: GameLinkDeps): void 
       // Own keys only: `in` would accept inherited names such as __proto__.
       if (!Object.hasOwn(game.settings, name)) return;
       Object.assign(game.settings, { [name]: value });
+      if (name === 'language' && (value === 'en' || value === 'fr')) setLanguage(value);
       if (isPersisted(name)) {
         const { key, encode } = PERSISTED[name];
         safely(() => {
@@ -141,6 +143,7 @@ export function snapshot({ game, bridge, readCrowd }: GameLinkDeps): GameState {
     donorNames: settings.donorNames,
     superAi: settings.superAi,
     aiDebug: settings.aiDebug,
+    language: settings.language,
     scene: game.scene(),
     duel: duel
       ? {
