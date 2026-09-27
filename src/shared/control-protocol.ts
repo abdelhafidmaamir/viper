@@ -38,6 +38,7 @@ export interface GameState {
   readonly donorNames: boolean;
   readonly superAi: boolean;
   readonly aiDebug: boolean;
+  readonly language: 'en' | 'fr';
   readonly scene: unknown;
   readonly duel: {
     readonly t: number;

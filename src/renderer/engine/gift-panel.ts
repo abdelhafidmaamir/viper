@@ -17,6 +17,7 @@ import { SHADOW, GOLD } from './palette.ts';
 import { SHIELD_DURATION, BOOST_DURATION } from './rules.ts';
 import { giftBanner, giftFeedback } from './gift-feedback.ts';
 import { bodies, settings, t } from '../scripts/game.ts';
+import { tr, type I18nKey } from './i18n.ts';
 
 // Duel gift legend: one column per team below the counter. Each row shows the TikTok gift image
 // (assets/gifts/*.png, transparent background), price in coins, and the in-game effect.
@@ -212,9 +213,23 @@ export const EFFECT_LABEL: Record<GiftEffect, EffectLabel> = {
   '+1 life': 'LIFE',
 };
 
+// Translated effect label keys: same index order as EFFECT_LABEL values.
+const EFFECT_LABEL_I18N: Readonly<Record<EffectLabel, I18nKey>> = {
+  BERRY: 'label.BERRY',
+  SPEED: 'label.SPEED',
+  STEAL: 'label.STEAL',
+  SHIELD: 'label.SHIELD',
+  LIFE: 'label.LIFE',
+};
+
+/** Returns the translated label for an effect. */
+export function effectLabel(label: EffectLabel): string {
+  return tr(EFFECT_LABEL_I18N[label]);
+}
+
 interface GiftTile {
   readonly img: string;
-  readonly label: string;
+  readonly label: EffectLabel;
 }
 
 const teamTilesCache = new Map<Team, GiftTile[]>();
@@ -456,13 +471,13 @@ function paintGiftRibbon(
       o.scale(sc, sc);
       paintEffectGlyph(o, it.label, 0, 0, 22, rgb);
       o.restore();
-      // Effect label.
+      // Effect label (translated to active language).
       o.shadowColor = 'rgba(0,0,0,0.6)';
       o.shadowBlur = 4;
       o.shadowOffsetY = 2;
       o.fillStyle = `rgba(${rgb},${String(0.9 + 0.1 * envelope)})`;
       o.font = '800 24px system-ui, sans-serif';
-      o.fillText(it.label, icx + 36, cy + 1);
+      o.fillText(effectLabel(it.label), icx + 36, cy + 1);
       o.shadowColor = 'transparent';
       o.shadowBlur = 0;
       o.shadowOffsetY = 0;

@@ -6,6 +6,7 @@
 import { ctx } from './canvas.ts';
 import { BD_CY, W, Y0 } from './layout.ts';
 import { getAvatar } from './announcements.ts';
+import { tr } from './i18n.ts';
 
 // Likes in the pool lose half their weight every 15 s, so the bar tracks the recent rhythm.
 const POOL_HALF_LIFE = 15;
@@ -178,7 +179,7 @@ function heartPath(c: CanvasRenderingContext2D, x: number, y: number, s: number)
 
 // A slanted sticker on the heart that pulses with a double tap: what to do, in two words.
 function paintBadge(c: CanvasRenderingContext2D, x: number, y: number, now: number): void {
-  const label = frenzy > 0 ? 'FRENZY!' : 'TAP TAP',
+  const label = frenzy > 0 ? tr('energy.badge.frenzy') : tr('energy.badge.tap'),
     color = frenzy > 0 ? GREEN : PINK,
     s = 1 + 0.12 * doubleTap(now);
   c.save();
@@ -200,7 +201,7 @@ function paintBadge(c: CanvasRenderingContext2D, x: number, y: number, now: numb
 // What the likes do right now, under the heart.
 function paintEffect(c: CanvasRenderingContext2D, x: number, y: number, cooling: boolean): void {
   const pct = Math.round(TEMPO_MAX * energy * 100 + FRENZY_TEMPO * frenzyLevel() * 100),
-    text = `+${String(pct)}% SPEED`;
+    text = `+${String(pct)}% ${tr('label.SPEED')}`;
   c.font = '800 19px system-ui, sans-serif';
   const w = c.measureText(text).width + 24;
   c.fillStyle = 'rgba(6,11,8,0.75)';

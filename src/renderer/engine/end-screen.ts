@@ -9,6 +9,7 @@ import { SHADOW, GOLD } from './palette.ts';
 import { round, settings } from '../scripts/game.ts';
 import type { Team, RankingMode } from './types.ts';
 import type { EndingOptions } from './types-api.ts';
+import { tr } from './i18n.ts';
 
 /** A donor entry for the end-of-round ranking. */
 interface DonorEntry {
@@ -187,7 +188,7 @@ function paintRankingRow(
   const nameOffset = showNames ? AV + 12 : 0;
   const displayName = settings.donorNames
     ? d.nickname.slice(0, large ? 20 : 14)
-    : 'supporter ' + String(rank);
+    : tr('ranking.supporter.n', { n: rank });
   ctx.fillStyle = tint;
   ctx.font = (large ? '700 34px' : '700 27px') + ' system-ui, sans-serif';
   ctx.textAlign = mirrored ? 'right' : 'left';
@@ -326,7 +327,7 @@ function paintNameAndTotal(
   if (!ctx) return;
   if (appearance <= 0.01) return;
   const tint = d.team === 'gold' ? GOLD : SHADOW,
-    displayName = settings.donorNames ? d.nickname.slice(0, 18) : 'top supporter';
+    displayName = settings.donorNames ? d.nickname.slice(0, 18) : tr('ranking.supporter');
   ctx.save();
   ctx.globalAlpha = appearance;
   ctx.translate(0, (1 - appearance) * 16);
@@ -345,7 +346,7 @@ function paintNameAndTotal(
     String(Math.round(bodyFontSize * 0.62)) +
     'px "IBM Plex Mono", ui-monospace, monospace';
   ctx.fillStyle = 'rgba(255,255,255,0.88)';
-  ctx.fillText(String(d.total) + ' coins', cx, y + bodyFontSize * 0.95);
+  ctx.fillText(String(d.total) + ' ' + tr('ranking.coins'), cx, y + bodyFontSize * 0.95);
   ctx.restore();
 }
 
@@ -388,7 +389,7 @@ function paintMvp(
     tint = m.team === 'gold' ? GOLD : SHADOW;
   if (mode === 'M3') {
     // Three-step podium: first place at center and highest, with a crown.
-    titleFn('TOP SUPPORTERS', 760);
+    titleFn(tr('ranking.top'), 760);
     const base = L.baseEnd,
       steps = [
         { d: l[0], x: cx, hh: 190, r: 60, rank: 1 },
@@ -443,7 +444,7 @@ function paintMvp(
     });
     return;
   }
-  titleFn('MVP OF THE ROUND', 748);
+  titleFn(tr('ranking.mvp'), 748);
   const ay = 900,
     AR = 84,
     a0 = (age - 0.5) / 0.7;
@@ -575,7 +576,7 @@ function paintRanking(): void {
     return;
   }
   if (mode === 'C1') {
-    titleFn('TOP SUPPORTERS', 872);
+    titleFn(tr('ranking.top'), 872);
     topDonors()
       .slice(0, 3)
       .forEach((d, i) => {
@@ -593,7 +594,7 @@ function paintRanking(): void {
       });
   }
   if (mode === 'C2') {
-    titleFn('TOP SUPPORTERS', 872);
+    titleFn(tr('ranking.top'), 872);
     (['gold', 'shadow'] as Team[]).forEach((team, c) => {
       topDonors(team)
         .slice(0, 3)
@@ -614,7 +615,7 @@ function paintRanking(): void {
   }
   if (mode === 'C3') {
     const l = topDonors();
-    titleFn('MVP OF THE ROUND', 884);
+    titleFn(tr('ranking.mvp'), 884);
     const top = l[0];
     if (top) paintRankingRow(cx - 310, 968, 620, 104, top, 1, appearanceFn(0), false, true);
     l.slice(1, 3).forEach((d, i) => {

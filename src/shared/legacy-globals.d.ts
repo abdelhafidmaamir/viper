@@ -27,6 +27,7 @@ interface GameSettings {
   giftFeedback: string;
   banner: string;
   ranking: string;
+  language: 'en' | 'fr';
 }
 
 interface GameMetrics {

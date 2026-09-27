@@ -3,6 +3,7 @@
 
 import { ctx } from './canvas.ts';
 import { CELL, COLS, ROWS, X0, Y0 } from './layout.ts';
+import { tr, trNum } from './i18n.ts';
 
 const STEP = 1000;
 const SHOW = 3.2; // seconds the thank-you stays
@@ -109,13 +110,15 @@ export function paintMilestones(): void {
   c.font = '900 76px system-ui, sans-serif';
   c.lineWidth = 14;
   c.strokeStyle = 'rgb(254,44,85)';
-  const count = reached.toLocaleString('en-US');
-  c.strokeText(`${count} LIKES`, 0, 0);
+  const count = trNum(reached);
+  const likesText = `${count} ${tr('milestones.likes')}`;
+  c.strokeText(likesText, 0, 0);
   c.fillStyle = '#fff';
-  c.fillText(`${count} LIKES`, 0, 0);
+  c.fillText(likesText, 0, 0);
   c.font = '800 40px system-ui, sans-serif';
   c.lineWidth = 9;
-  c.strokeText('THANK YOU!', 0, 70);
-  c.fillText('THANK YOU!', 0, 70);
+  const thanksText = tr('milestones.thanks');
+  c.strokeText(thanksText, 0, 70);
+  c.fillText(thanksText, 0, 70);
   c.restore();
 }
