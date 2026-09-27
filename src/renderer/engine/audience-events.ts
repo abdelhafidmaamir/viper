@@ -11,6 +11,7 @@ import {
 } from './announcements.ts';
 import { countEvents } from './crowd.ts';
 import { addLikes } from './crowd-energy.ts';
+import { addRoomLikes } from './like-milestones.ts';
 import {
   SHIELD_COST,
   SHIELD_DURATION,
@@ -21,7 +22,7 @@ import {
   cutLength,
 } from './rules.ts';
 import { recordGift } from './gift-feedback.ts';
-import { launchFan, welcomeFan } from './fan-rings.ts';
+import { launchFan } from './fan-rings.ts';
 import {
   loadBody,
   bodies,
@@ -31,7 +32,7 @@ import {
   px,
   storeBody,
   plantSeedFor,
-  plantWelcomeBerry,
+  queueWelcome,
   snake,
 } from '../scripts/game.ts';
 
@@ -57,8 +58,7 @@ export function receiveEvent(ev: AudienceEvent | null | undefined): number {
   const type = (e as AudienceEvent).type;
   if (type === 'join' || type === 'share' || type === 'follow') {
     if (type === 'join') {
-      const welcome = plantWelcomeBerry((e as AudienceEvent).nickname ?? '');
-      if (welcome) welcomeFan(welcome, (e as AudienceEvent).avatar);
+      queueWelcome((e as AudienceEvent).nickname ?? '', (e as AudienceEvent).avatar);
     }
     addAnnouncement({
       kind: type,
@@ -68,7 +68,10 @@ export function receiveEvent(ev: AudienceEvent | null | undefined): number {
     });
     return 0;
   }
-  if (type === 'like') addLikes(n, (e as AudienceEvent).nickname, (e as AudienceEvent).avatar);
+  if (type === 'like') {
+    addRoomLikes(n);
+    addLikes(n, (e as AudienceEvent).nickname, (e as AudienceEvent).avatar);
+  }
   if (type === 'like' && (e as AudienceEvent).nickname)
     announceLikes((e as AudienceEvent).nickname ?? '', (e as AudienceEvent).avatar, n);
   // Team: explicit from the control room, or inferred from the TikTok gift name: 'rose' -> gold,

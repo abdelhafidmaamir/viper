@@ -337,28 +337,31 @@ export function paintEffectGlyph(
     o.arc(x - s * 0.25, y - s * 0.25, s * 0.18, 0, Math.PI * 2);
     o.fill();
   } else if (label === 'STEAL') {
-    // Curved arrow turning inward: stealing a share from the opponent.
-    o.lineWidth = 4.5;
-    o.strokeStyle = `rgba(${rgb},0.95)`;
+    // A thief's mask: the eye holes are cut out, so the panel shows through them.
+    o.fillStyle = `rgba(${rgb},0.95)`;
     o.shadowColor = `rgba(${rgb},0.6)`;
     o.shadowBlur = 10;
     o.beginPath();
-    o.arc(x, y, s * 0.72, -Math.PI * 0.15, Math.PI * 1.25);
-    o.stroke();
-    o.shadowBlur = 0;
-    const ax = x + Math.cos(-Math.PI * 0.15) * s * 0.72,
-      ay = y + Math.sin(-Math.PI * 0.15) * s * 0.72;
-    o.fillStyle = `rgba(${rgb},0.95)`;
-    o.beginPath();
-    o.moveTo(ax + s * 0.05, ay - s * 0.5);
-    o.lineTo(ax + s * 0.45, ay + s * 0.05);
-    o.lineTo(ax - s * 0.35, ay + s * 0.12);
+    o.moveTo(x - s * 1.05, y - s * 0.2);
+    o.quadraticCurveTo(x, y - s * 0.75, x + s * 1.05, y - s * 0.2);
+    o.quadraticCurveTo(x + s * 1.1, y + s * 0.55, x + s * 0.45, y + s * 0.45);
+    o.quadraticCurveTo(x + s * 0.15, y + s * 0.2, x, y + s * 0.3);
+    o.quadraticCurveTo(x - s * 0.15, y + s * 0.2, x - s * 0.45, y + s * 0.45);
+    o.quadraticCurveTo(x - s * 1.1, y + s * 0.55, x - s * 1.05, y - s * 0.2);
     o.closePath();
-    o.fill();
-    o.lineWidth = 1.8;
-    o.strokeStyle = 'rgba(255,255,255,0.7)';
+    o.ellipse(x - s * 0.45, y + s * 0.02, s * 0.26, s * 0.17, 0, 0, Math.PI * 2);
+    o.ellipse(x + s * 0.45, y + s * 0.02, s * 0.26, s * 0.17, 0, 0, Math.PI * 2);
+    o.fill('evenodd');
+    o.shadowBlur = 0;
+    // The knot's two loose ends, out the side.
+    o.strokeStyle = `rgba(${rgb},0.95)`;
+    o.lineWidth = 3.5;
+    o.lineCap = 'round';
     o.beginPath();
-    o.arc(x, y, s * 0.72, -Math.PI * 0.15, Math.PI * 1.25);
+    o.moveTo(x + s * 1.02, y - s * 0.12);
+    o.lineTo(x + s * 1.35, y - s * 0.45);
+    o.moveTo(x + s * 1.02, y - s * 0.05);
+    o.lineTo(x + s * 1.38, y + s * 0.1);
     o.stroke();
   }
   o.restore();

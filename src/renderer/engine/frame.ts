@@ -35,6 +35,7 @@ import { BLUE } from './palette.ts';
 import { HATCH_TIME } from './rules.ts';
 import { paintScore, paintPersonGlyph } from './scoreboard.ts';
 import { paintEnergy } from './crowd-energy.ts';
+import { paintMilestones, updateMilestones } from './like-milestones.ts';
 import { tension } from './tension.ts';
 import {
   activeIndex,
@@ -312,6 +313,8 @@ export function drawFrame(dt: number): void {
   });
   paintScore();
   paintEnergy();
+  updateMilestones(dt);
+  paintMilestones();
   const hasGifts = s.platform !== 'neutral';
   if (hasGifts) paintDuelStatus();
   // settings.giftDisplay: 'scroll' (scrolling banners), 'full' (full legend panel), unset for no display.

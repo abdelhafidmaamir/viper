@@ -58,6 +58,7 @@ import { updateTension, tension } from '../engine/tension.ts';
 import { receiveEvent } from '../engine/audience-events.ts';
 import { clearGiftFeedback } from '../engine/gift-feedback.ts';
 import { drawFrame } from '../engine/frame.ts';
+import { welcomeFan } from '../engine/fan-rings.ts';
 import type {
   AiMemory,
   Berry,
@@ -318,7 +319,9 @@ export function plantSeedFor(i: number, nickname: string): number {
 
 // A free cell about as far from both heads (within 1 cell), outside the dead zone, so neither
 // snake gets it for free. Used by the forest's own berries and by the welcome berry.
-function fairCell(): Cell | undefined {
+// `far`: among the fair cells, keep the ones farthest from both heads, so neither snake gets it
+// for free the moment it appears.
+function fairCell(far = false): Cell | undefined {
   let l = freeCells().filter((c) => !isDeadZone(c, SEED_GROW_TIME));
   const b0w = bodies[0],
     b1w = bodies[1];
@@ -336,20 +339,47 @@ function fairCell(): Cell | undefined {
         l.sort((p, q) => distDiff(p) - distDiff(q));
         l = l.slice(0, 4);
       }
+      if (far && l.length) {
+        const reach = (c: Cell): number => Math.abs(c.x - a.x) + Math.abs(c.y - a.y);
+        const best = Math.max(...l.map(reach));
+        l = l.filter((c) => reach(c) >= best - 1);
+      }
     }
   }
   if (!l.length) l = freeCells();
   return l[Math.floor(Math.random() * l.length)];
 }
 
-// Welcome berries on the board at once; past this, a join only gets its banner.
-const MAX_WELCOME_BERRIES = 3;
+// Joins between rounds (leaderboard, countdown) wait here and land as the next round starts.
+const WELCOME_QUEUE_MAX = 30;
+const WELCOME_EVERY = 0.25;
+const welcomeQueue: { nickname: string; avatar: string | undefined }[] = [];
+let welcomeWait = 0;
+
+export function queueWelcome(nickname: string, avatar: string | undefined): void {
+  if (!nickname || welcomeQueue.length >= WELCOME_QUEUE_MAX) return;
+  if (welcomeQueue.some((w) => w.nickname === nickname)) return;
+  const b = welcomeQueue.length ? null : plantWelcomeBerry(nickname);
+  if (b) welcomeFan(b, avatar);
+  else welcomeQueue.push({ nickname, avatar });
+}
+
+// Once a round is on, the waiting joins land one by one, a quarter second apart.
+function plantQueuedWelcome(dt: number): void {
+  welcomeWait -= dt;
+  const next = welcomeQueue[0];
+  if (!next || welcomeWait > 0) return;
+  const b = plantWelcomeBerry(next.nickname);
+  if (!b) return;
+  welcomeQueue.shift();
+  welcomeFan(b, next.avatar);
+  welcomeWait = WELCOME_EVERY;
+}
 
 /** A viewer joined: a neutral green berry carrying their name, fair to both snakes. */
 export function plantWelcomeBerry(nickname: string): Berry | null {
   if (round?.state !== 'playing' || !nickname) return null;
-  if (berries.filter((b) => b.wild && b.nickname).length >= MAX_WELCOME_BERRIES) return null;
-  const c = fairCell();
+  const c = fairCell(true);
   if (!c) return null;
   const b: Berry = { x: c.x, y: c.y, nickname, t: 0, wild: true };
   berries.push(b);
@@ -1078,6 +1108,7 @@ function computeTrace(): Point[] {
 function advance(dt: number): void {
   t += dt;
   updateTier(dt);
+  plantQueuedWelcome(dt);
   const surge = updateEnergy(dt, round?.state === 'playing');
   if (surge === 'start')
     addAnnouncement({

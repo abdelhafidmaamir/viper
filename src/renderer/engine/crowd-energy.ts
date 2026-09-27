@@ -4,7 +4,7 @@
 // not a running total, it saturates, it moves slowly, and every frenzy is followed by a cooldown.
 
 import { ctx } from './canvas.ts';
-import { H, SC_CY, W } from './layout.ts';
+import { BD_CY, W, Y0 } from './layout.ts';
 import { getAvatar } from './announcements.ts';
 
 // Likes in the pool lose half their weight every 15 s, so the bar tracks the recent rhythm.
@@ -39,8 +39,10 @@ let pool = 0,
   playingNow = false;
 // Likers' faces fly from the bottom of the screen into the orb, so every viewer sees their own
 // taps go in. The rate is capped: a flood of likes looks like a steady stream, never a cloud.
-const FLY_EVERY = 0.16;
-const MAX_FLYERS = 12;
+// One face per like. A spammer sends a stream of them; the caps only keep a flood readable.
+const FLY_EVERY = 0.04;
+const MAX_FLYERS = 40;
+const MAX_WAITING = 80;
 interface Liker {
   readonly nickname: string;
   readonly avatar: string | undefined;
@@ -51,8 +53,7 @@ let flyers: { age: number; sx: number; bend: number; who: Liker }[] = [];
 export function addLikes(n: number, nickname = '', avatar?: string): void {
   pool += n;
   quiet = 0;
-  // One face per batch is enough; the queue stays short so faces never lag far behind the taps.
-  if (waiting.length < 8) waiting.push({ nickname, avatar });
+  for (let k = 0; k < n && waiting.length < MAX_WAITING; k++) waiting.push({ nickname, avatar });
 }
 
 // 0 -> 1 -> 0 over the frenzy, with one-second ramps, so the speed change is never a jolt.
@@ -139,9 +140,9 @@ export function resetEnergy(): void {
 // TikTok's like color, and the welcome green of the frenzy berries.
 const PINK = '254,44,85';
 const GREEN = '134,204,112';
-const PILL_W = 330,
-  PILL_H = 48,
-  ORB_R = 32;
+// The heart sits right of the banner, clear of it, so it never has to step aside.
+const ORB_X = 948,
+  ORB_R = 40;
 // After this long without a like, a big hand invites the room to double tap, a few seconds at a
 // time so it never sits on the board.
 const QUIET_AFTER = 6,
@@ -167,47 +168,49 @@ function doubleTap(now: number): number {
   return Math.max(0, 1 - Math.abs(ph - 0.1) / 0.1, 1 - Math.abs(ph - 0.35) / 0.1);
 }
 
-// Speed chevrons in the pill: as many light up as the likes are worth, and a shimmer runs through
-// them faster as the snakes speed up. Green during a frenzy, dim while recharging.
-const CHEVRONS = 6;
+function heartPath(c: CanvasRenderingContext2D, x: number, y: number, s: number): void {
+  c.beginPath();
+  c.moveTo(x, y + s * 0.35);
+  c.bezierCurveTo(x - s * 1.1, y - s * 0.35, x - s * 0.5, y - s * 1.05, x, y - s * 0.5);
+  c.bezierCurveTo(x + s * 0.5, y - s * 1.05, x + s * 1.1, y - s * 0.35, x, y + s * 0.35);
+  c.closePath();
+}
 
-function paintChevrons(
-  c: CanvasRenderingContext2D,
-  x: number,
-  cy: number,
-  fill: number,
-  cooling: boolean,
-  now: number,
-): void {
-  const lit = fill * CHEVRONS,
+// A slanted sticker on the heart that pulses with a double tap: what to do, in two words.
+function paintBadge(c: CanvasRenderingContext2D, x: number, y: number, now: number): void {
+  const label = frenzy > 0 ? 'FRENZY!' : 'TAP TAP',
     color = frenzy > 0 ? GREEN : PINK,
-    wave = (now * (1.5 + 4 * fill)) % (CHEVRONS + 2);
-  c.lineWidth = 6;
-  c.lineCap = 'round';
-  c.lineJoin = 'round';
-  for (let k = 0; k < CHEVRONS; k++) {
-    const on = Math.max(0, Math.min(1, lit - k)),
-      shine = on > 0 && !cooling ? Math.max(0, 1 - Math.abs(wave - 1 - k)) : 0,
-      cx = x + k * 30;
-    // Lit chevrons in the team-free like color, flashing white as the shimmer passes.
-    c.strokeStyle =
-      on <= 0
-        ? 'rgba(255,255,255,0.13)'
-        : shine > 0.3
-          ? `rgba(255,255,255,${String(shine)})`
-          : `rgba(${color},${String(cooling ? 0.4 : 0.55 + 0.45 * on)})`;
-    c.beginPath();
-    c.moveTo(cx - 6, cy - 11);
-    c.lineTo(cx + 6, cy);
-    c.lineTo(cx - 6, cy + 11);
-    c.stroke();
-  }
-  const pct = Math.round(TEMPO_MAX * energy * 100 + FRENZY_TEMPO * frenzyLevel() * 100);
-  c.font = '900 22px system-ui, sans-serif';
-  c.textAlign = 'left';
+    s = 1 + 0.12 * doubleTap(now);
+  c.save();
+  c.translate(x, y);
+  c.rotate(0.2);
+  c.scale(s, s);
+  c.fillStyle = `rgb(${color})`;
+  c.beginPath();
+  c.roundRect(-52, -17, 104, 34, 17);
+  c.fill();
+  c.font = '900 21px system-ui, sans-serif';
+  c.textAlign = 'center';
   c.textBaseline = 'middle';
-  c.fillStyle = pct > 0 ? `rgb(${color})` : 'rgba(255,255,255,0.35)';
-  c.fillText(`+${String(pct)}%`, x + CHEVRONS * 30 + 2, cy + 1);
+  c.fillStyle = '#fff';
+  c.fillText(label, 0, 1);
+  c.restore();
+}
+
+// What the likes do right now, under the heart.
+function paintEffect(c: CanvasRenderingContext2D, x: number, y: number, cooling: boolean): void {
+  const pct = Math.round(TEMPO_MAX * energy * 100 + FRENZY_TEMPO * frenzyLevel() * 100),
+    text = `+${String(pct)}% SPEED`;
+  c.font = '800 19px system-ui, sans-serif';
+  const w = c.measureText(text).width + 24;
+  c.fillStyle = 'rgba(6,11,8,0.75)';
+  c.beginPath();
+  c.roundRect(x - w / 2, y - 15, w, 30, 15);
+  c.fill();
+  c.textAlign = 'center';
+  c.textBaseline = 'middle';
+  c.fillStyle = cooling || pct === 0 ? 'rgba(255,255,255,0.55)' : '#fff';
+  c.fillText(text, x, y + 1);
 }
 
 function paintFace(c: CanvasRenderingContext2D, who: Liker, x: number, y: number, r: number): void {
@@ -262,7 +265,7 @@ function paintHint(c: CanvasRenderingContext2D, ox: number, oy: number, now: num
 }
 
 /**
- * The like orb under the score plate: likers' faces fly into it, a ring around it shows how full
+ * The like heart right of the banner: likers' faces fly into it, a ring around it shows how full
  * it is, and the pill next to it says what the taps do. When likes go quiet, a big hand on the
  * board invites the room to double tap.
  */
@@ -273,26 +276,18 @@ export function paintEnergy(): void {
     f = frenzyLevel(),
     cooling = cooldown > 0 && frenzy <= 0,
     fill = frenzy > 0 ? 1 : shown,
-    px = W / 2 - PILL_W / 2,
-    cy = SC_CY + 60,
-    ox = px + 8,
-    oy = cy;
+    ox = ORB_X,
+    oy = BD_CY - 14;
   c.save();
-  c.fillStyle = 'rgba(6,11,8,0.55)';
-  c.beginPath();
-  c.roundRect(px, cy - PILL_H / 2, PILL_W, PILL_H, PILL_H / 2);
-  c.fill();
-  paintChevrons(c, ox + ORB_R + 36, cy, fill, cooling, now);
-
-  // The orb: a dark socket, a ring that fills with the likes, a pink core that swells with them.
+  // The orb: a dark socket, a ring that fills with the likes, a pink heart that swells with them.
   c.fillStyle = 'rgba(6,11,8,0.85)';
   c.beginPath();
   c.arc(ox, oy, ORB_R + 8, 0, Math.PI * 2);
   c.fill();
-  c.lineWidth = 5;
+  c.lineWidth = 6;
   c.strokeStyle = 'rgba(255,255,255,0.14)';
   c.beginPath();
-  c.arc(ox, oy, ORB_R + 3, 0, Math.PI * 2);
+  c.arc(ox, oy, ORB_R + 2, 0, Math.PI * 2);
   c.stroke();
   const ringColor = frenzy > 0 ? GREEN : PINK;
   c.globalAlpha = cooling ? 0.45 : 1;
@@ -300,38 +295,38 @@ export function paintEnergy(): void {
     c.strokeStyle = `rgb(${ringColor})`;
     c.lineCap = 'round';
     c.beginPath();
-    c.arc(ox, oy, ORB_R + 3, -Math.PI / 2, -Math.PI / 2 + fill * Math.PI * 2);
+    c.arc(ox, oy, ORB_R + 2, -Math.PI / 2, -Math.PI / 2 + fill * Math.PI * 2);
     c.stroke();
   }
-  const r = (10 + 17 * fill) * (1 + 0.18 * beat + 0.08 * f * Math.sin(now * 10));
-  const g = c.createRadialGradient(ox - r * 0.35, oy - r * 0.35, r * 0.1, ox, oy, r);
-  g.addColorStop(0, 'rgba(255,190,210,1)');
-  g.addColorStop(1, `rgba(${ringColor},1)`);
+  const r = ORB_R * (0.5 + 0.25 * fill) * (1 + 0.2 * beat + 0.08 * f * Math.sin(now * 10));
   if (f > 0 || beat > 0) {
     c.shadowColor = `rgba(${ringColor},0.9)`;
-    c.shadowBlur = 16 * Math.max(beat, f);
+    c.shadowBlur = 18 * Math.max(beat, f);
   }
-  c.fillStyle = g;
-  c.beginPath();
-  c.arc(ox, oy, r, 0, Math.PI * 2);
+  c.fillStyle = `rgb(${ringColor})`;
+  heartPath(c, ox, oy + r * 0.2, r);
   c.fill();
+  c.restore();
+  c.save();
+  paintEffect(c, ox, oy + ORB_R + 22, cooling);
+  paintBadge(c, ox + 44, oy - ORB_R - 4, now);
   c.restore();
 
   paintHint(c, ox, oy, now);
 
-  // Faces on their way in, from the bottom of the screen along a gentle curve.
+  // Faces on their way in, from just above the board along a gentle arc, never across it.
   c.save();
   for (const fl of flyers) {
     const p = fl.age / FLY_TIME,
       e = p * p * (3 - 2 * p),
       sx = W * fl.sx,
-      sy = H - 280,
-      mx = (sx + ox) / 2 + fl.bend * 220,
-      my = Math.min(sy, oy) + 60,
+      sy = Y0 - 12,
+      mx = (sx + ox) / 2 + fl.bend * 160,
+      my = oy - 50,
       x = (1 - e) * (1 - e) * sx + 2 * (1 - e) * e * mx + e * e * ox,
       y = (1 - e) * (1 - e) * sy + 2 * (1 - e) * e * my + e * e * oy;
     c.globalAlpha = Math.min(1, p / 0.15) * (p > 0.85 ? (1 - p) / 0.15 : 1);
-    paintFace(c, fl.who, x, y, 30 - 14 * e);
+    paintFace(c, fl.who, x, y, 40 - 18 * e);
   }
   c.restore();
 }
