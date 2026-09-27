@@ -2,6 +2,7 @@ import { app } from 'electron';
 
 import { ConfigError, parseConfig, type AppConfig } from './config.js';
 import { runDiagnostic } from './diagnostics/index.js';
+import { useReproducibleRendering, VISUAL_SEED } from './diagnostics/visual.js';
 import { evaluate } from './page/evaluate.js';
 import { hostRenderer } from './renderer-host.js';
 import { openControlWindow, openGameWindow } from './windows.js';
@@ -29,6 +30,7 @@ async function start(config: AppConfig): Promise<void> {
   const game = await openGameWindow(renderer.origin, {
     orientation: config.orientation,
     diagnostic: config.diagnostic !== null,
+    seed: config.diagnostic?.name === 'visual' ? VISUAL_SEED : null,
   });
 
   if (config.diagnostic) {
@@ -71,6 +73,9 @@ try {
 } catch (error) {
   fail(error);
 }
+
+// Pixel regression needs a rasteriser that is a pure function of the draw calls.
+if (config.diagnostic?.name === 'visual') useReproducibleRendering(app);
 
 if (!config.diagnostic && !app.requestSingleInstanceLock()) {
   app.quit();
