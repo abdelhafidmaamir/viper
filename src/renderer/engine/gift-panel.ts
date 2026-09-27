@@ -294,8 +294,8 @@ export function paintEffectGlyph(
     o.bezierCurveTo(x - s * 1.15, y - s * 0.05, x - s * 0.6, y - s * 0.95, x, y - s * 0.35);
     o.bezierCurveTo(x + s * 0.6, y - s * 0.95, x + s * 1.15, y - s * 0.05, x, y + s * 0.85);
     o.closePath();
-    o.fillStyle = 'rgba(228,64,58,0.95)';
-    o.shadowColor = 'rgba(228,64,58,0.7)';
+    o.fillStyle = `rgba(${rgb},0.95)`;
+    o.shadowColor = `rgba(${rgb},0.7)`;
     o.shadowBlur = 12;
     o.fill();
     o.shadowBlur = 0;
@@ -321,9 +321,9 @@ export function paintEffectGlyph(
     o.strokeStyle = 'rgba(255,255,255,0.85)';
     o.stroke();
   } else if (label === 'BERRY') {
-    // Board berry: glowing green circle.
-    o.fillStyle = 'rgba(130,214,120,0.96)';
-    o.shadowColor = 'rgba(130,214,120,0.8)';
+    // Berry: glowing circle in the team's color, like every other effect of that team.
+    o.fillStyle = `rgba(${rgb},0.96)`;
+    o.shadowColor = `rgba(${rgb},0.8)`;
     o.shadowBlur = 14;
     o.beginPath();
     o.arc(x, y, s * 0.72, 0, Math.PI * 2);

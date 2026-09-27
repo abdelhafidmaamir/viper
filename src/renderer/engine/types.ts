@@ -476,6 +476,16 @@ export interface Announcement {
   readonly ahead?: boolean;
   /** Game time the banner started showing. */
   t0?: number;
+  /** Gift value in coins, for gift banners. */
+  readonly value?: number;
+  /** How many of that gift came in this one event (a combo). */
+  readonly n?: number;
+  /** Gifts from this donor shown by this banner so far (the banner reads "×N" past one). */
+  count?: number;
+  /** Photos still to send from this banner, one per gift, each to where its gift acts. */
+  pending?: number;
+  /** Like banners: the viewer's like total, written where the text says {n}; it keeps counting. */
+  likes?: number;
 }
 
 /** A gift line in the legend. */

@@ -10,6 +10,7 @@ import { paintAiDebug, paintLiveMockup } from './debug-overlay.ts';
 import { paintDuel, paintDuelStatus } from './duel-hud.ts';
 import { paintShell, paintSparks, paintHalos } from './effects.ts';
 import { paintEndScreen } from './end-screen.ts';
+import { paintFans, paintFlyers, paintGiftBerries, updateFans } from './fan-rings.ts';
 import { paintGiftScroll, paintDuelLegend } from './gift-panel.ts';
 import {
   CELL,
@@ -33,6 +34,7 @@ import {
 import { BLUE } from './palette.ts';
 import { HATCH_TIME } from './rules.ts';
 import { paintScore, paintPersonGlyph } from './scoreboard.ts';
+import { paintEnergy } from './crowd-energy.ts';
 import { tension } from './tension.ts';
 import {
   activeIndex,
@@ -230,6 +232,7 @@ export function drawFrame(dt: number): void {
   c.save();
   paintRace();
   paintOfferings();
+  paintGiftBerries(c);
   paintStones();
   paintBrambles();
 
@@ -270,6 +273,8 @@ export function drawFrame(dt: number): void {
     storeBody();
   }
   loadBody(0);
+  updateFans(dt);
+  paintFans(c);
   if (s.aiDebug) paintAiDebug();
   // Performance readout (AI debug layer only): smoothed frames per second and worst frame time over the last 2 seconds.
   smoothedFps += ((dt > 0 ? 1 / dt : 60) - smoothedFps) * 0.05;
@@ -306,6 +311,7 @@ export function drawFrame(dt: number): void {
     a.paintFront(c, e2);
   });
   paintScore();
+  paintEnergy();
   const hasGifts = s.platform !== 'neutral';
   if (hasGifts) paintDuelStatus();
   // settings.giftDisplay: 'scroll' (scrolling banners), 'full' (full legend panel), unset for no display.
@@ -314,6 +320,7 @@ export function drawFrame(dt: number): void {
     if (giftDisplayMode === 'scroll') paintGiftScroll();
     else if (giftDisplayMode === 'full') paintDuelLegend();
   }
+  paintFlyers(c);
   // End screen painted AFTER the score and legend: one full-screen veil with the ranking on top.
   if (typedRound && typedRound.state !== 'playing') paintEndScreen();
   paintBanner();

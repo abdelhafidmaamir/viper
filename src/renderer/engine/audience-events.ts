@@ -6,10 +6,11 @@ import {
   VIEWER_THRESHOLDS,
   addAnnouncement,
   phrase,
-  likesByViewer,
+  announceLikes,
   seenThresholds,
 } from './announcements.ts';
 import { countEvents } from './crowd.ts';
+import { addLikes } from './crowd-energy.ts';
 import {
   SHIELD_COST,
   SHIELD_DURATION,
@@ -20,6 +21,7 @@ import {
   cutLength,
 } from './rules.ts';
 import { recordGift } from './gift-feedback.ts';
+import { launchFan, welcomeFan } from './fan-rings.ts';
 import {
   loadBody,
   bodies,
@@ -29,6 +31,7 @@ import {
   px,
   storeBody,
   plantSeedFor,
+  plantWelcomeBerry,
   snake,
 } from '../scripts/game.ts';
 
@@ -53,6 +56,10 @@ export function receiveEvent(ev: AudienceEvent | null | undefined): number {
   }
   const type = (e as AudienceEvent).type;
   if (type === 'join' || type === 'share' || type === 'follow') {
+    if (type === 'join') {
+      const welcome = plantWelcomeBerry((e as AudienceEvent).nickname ?? '');
+      if (welcome) welcomeFan(welcome, (e as AudienceEvent).avatar);
+    }
     addAnnouncement({
       kind: type,
       nickname: (e as AudienceEvent).nickname ?? '',
@@ -61,19 +68,9 @@ export function receiveEvent(ev: AudienceEvent | null | undefined): number {
     });
     return 0;
   }
-  if (type === 'like' && (e as AudienceEvent).nickname) {
-    const liker = (e as AudienceEvent).nickname ?? '';
-    likesByViewer[liker] = (likesByViewer[liker] ?? 0) + n;
-    if ((likesByViewer[liker] ?? 0) >= 10) {
-      addAnnouncement({
-        kind: 'like',
-        nickname: liker,
-        avatar: (e as AudienceEvent).avatar,
-        text: phrase('like', { n: likesByViewer[liker] ?? 10 }),
-      });
-      likesByViewer[liker] = 0;
-    }
-  }
+  if (type === 'like') addLikes(n, (e as AudienceEvent).nickname, (e as AudienceEvent).avatar);
+  if (type === 'like' && (e as AudienceEvent).nickname)
+    announceLikes((e as AudienceEvent).nickname ?? '', (e as AudienceEvent).avatar, n);
   // Team: explicit from the control room, or inferred from the TikTok gift name: 'rose' -> gold,
   // any other gift -> shadow. No team and no name: random draw (simulated audience).
   const ev_ = e as AudienceEvent;
@@ -103,6 +100,7 @@ export function receiveEvent(ev: AudienceEvent | null | undefined): number {
   if (ev_.type === 'like') return 0;
   if (ev_.type === 'gift') {
     recordGift(i, ev_.value ?? 0, ev_.nickname, n, ev_.avatar);
+    launchFan(i, ev_.nickname, ev_.avatar, ev_.value ?? 0);
     if ((ev_.value ?? 0) >= LIFE_COST) {
       // life: when a cut would kill the snake, it survives at 3 segments instead
       const prevLives = typedBodies[i]?.lives ?? 0;

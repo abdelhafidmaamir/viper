@@ -36,6 +36,17 @@ type Action =
       readonly winner: Team;
       readonly giftFrames: number;
       readonly frames: number;
+    }
+  /**
+   * A round played for `hatchFrames` frames, then the scripted gifts all at once (the page spaces
+   * their flights out), played for `frames` more frames.
+   */
+  | {
+      readonly kind: 'gifts';
+      readonly weather: string;
+      readonly hour: number;
+      readonly hatchFrames: number;
+      readonly frames: number;
     };
 
 interface Scene {
@@ -47,7 +58,9 @@ interface Scene {
 
 /**
  * The scripted scenes, per format: the live board once both snakes hatched, the end screen of
- * that same round, and a second weather. Software rendering costs up to a few hundred
+ * that same round, and a second weather. Then the fan photos of a gift burst: waiting with the
+ * donor's name, swooping to the head, and settled on the bodies. They come last so adding one never
+ * moves the frames of the others. Software rendering costs up to a few hundred
  * milliseconds per frame, so the frame counts are as short as the animations allow.
  */
 const SCENES: readonly Scene[] = [
@@ -80,6 +93,21 @@ const SCENES: readonly Scene[] = [
     name: 'landscape-aurora',
     orientation: 'landscape',
     action: { kind: 'round', weather: 'aurora', hour: 0.02, frames: 30 },
+  },
+  {
+    name: 'portrait-fans-flight',
+    orientation: 'portrait',
+    action: { kind: 'gifts', weather: 'rain', hour: 0.5, hatchFrames: 120, frames: 30 },
+  },
+  {
+    name: 'portrait-fans-swoop',
+    orientation: 'portrait',
+    action: { kind: 'gifts', weather: 'rain', hour: 0.5, hatchFrames: 120, frames: 62 },
+  },
+  {
+    name: 'portrait-fans-badges',
+    orientation: 'portrait',
+    action: { kind: 'gifts', weather: 'rain', hour: 0.5, hatchFrames: 120, frames: 240 },
   },
 ];
 
@@ -137,6 +165,9 @@ export const visual: Diagnostic = async ({ game, write }) => {
     if (scene.orientation !== orientation) {
       orientation = scene.orientation;
       const [width, height] = CONTENT_SIZE[orientation];
+      // Minimized by the desktop mid-run (focus change, show desktop), the window ignores its new
+      // size and the page reads a stale viewport: bring it back before resizing.
+      if (game.isMinimized()) game.restore();
       game.setContentSize(width, height);
       await evaluate(contents, waitForViewport, width, height);
     }
@@ -215,6 +246,26 @@ async function play(
       await clock.settle();
       frame = await clock.step(action.frames);
       break;
+    case 'gifts': {
+      clock.reseed(seed);
+      window.__viperKit.startDuel({ ...settings, weather: action.weather });
+      window.Viper.setHour(action.hour);
+      await clock.settle();
+      await clock.step(action.hatchFrames);
+      const gifts = [
+        ['gold', 1, 'rose', 'soleil92'],
+        ['shadow', 1, 'rose', 'zoe_moon'],
+        ['gold', 30, 'capybara', 'karim.or'],
+        ['shadow', 100, 'teddy', 'nuit.blanche'],
+        ['gold', 5, 'finger heart', 'lea_b'],
+        ['shadow', 5, 'finger heart', 'Mo'],
+      ] as const;
+      for (const [team, value, name, nickname] of gifts) {
+        window.receiveEvent({ type: 'gift', n: 1, value, name, team, nickname });
+      }
+      frame = await clock.step(action.frames);
+      break;
+    }
     case 'ending': {
       const gifts = [
         ['gold', 100, 'teddy', 'karim.or'],
