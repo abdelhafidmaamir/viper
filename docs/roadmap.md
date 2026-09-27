@@ -12,6 +12,9 @@ renders, pass a side-by-side `--diagnostic=screenshots` run against the previous
 - [x] **Source parity.** The imported sources were verified byte for byte against the shipped
       build (`dist64`) before any change. The only edits since are file paths and a Prettier
       pass, which does not change program semantics.
+- [x] **Control room rebuilt.** A typed store, controller and view models drive four tabs (Live,
+      Setup, Rehearsal, Admin), a persistent status bar, an event log, keyboard shortcuts,
+      confirmation of disruptive actions and stale-link detection. The legacy script is gone.
 - [x] **Renderer in strict TypeScript.** Engine and game scripts are typed under the same strict
       settings, with zero lint warnings; the golden master replays every scenario unchanged.
 - [x] **Main process in TypeScript.** Strict TypeScript with type-aware `typescript-eslint`,
