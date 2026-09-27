@@ -1,0 +1,217 @@
+/* tikfinity-bridge.ts : connects the game to the TikFinity desktop app Event API.
+   Endpoint: ws://localhost:21213/. Messages: {"event":"chat|gift|share|follow|like|roomUser|subscribe","data":{...}},
+   payloads follow the TikTok-Live-Connector format.
+   Streak rule: a streakable gift (giftType 1) emits one message per streak step then a final one
+   with repeatEnd:true and the total count; only that final message is counted.
+   A non-streakable gift (giftType != 1) is counted immediately.
+   Exposes window.TikFinityBridge: { start, stop, state(), process(obj), surChangement }. */
+
+import type { TikFinityState, TikFinityPayload } from '../engine/types-api.ts';
+
+/* Mutable internal copy: TikFinityState is read-only for callers */
+interface InternalState {
+  connected: boolean;
+  url: string;
+  events: number;
+  gifts: number;
+  last: string;
+  raw: string;
+  error: string;
+}
+
+const URL_PONT = 'ws://localhost:21213/';
+let ws: WebSocket | null = null;
+let intended = false;
+let attempts = 0;
+let timer: ReturnType<typeof setTimeout> | undefined;
+const state: InternalState = {
+  connected: false,
+  url: URL_PONT,
+  events: 0,
+  gifts: 0,
+  last: '',
+  raw: '',
+  error: '',
+};
+let onChange: ((s: TikFinityState) => void) | null = null;
+function notify(): void {
+  if (typeof onChange === 'function') {
+    try {
+      onChange(state);
+    } catch {
+      /* swallow listener errors */
+    }
+  }
+}
+
+/* Gift diamonds: diamondCount is per-unit in TikTok-Live-Connector;
+   the value forwarded to the game stays per-unit and n carries the count. */
+function process(m: unknown): number | null {
+  if (!m || typeof m !== 'object') return null;
+  const msg = m as Record<string, unknown>;
+  const event = msg.event;
+  if (!event || typeof event !== 'string') return null;
+  const rawData = msg.data;
+  const d = (rawData !== null && typeof rawData === 'object' ? rawData : {}) as TikFinityPayload;
+  state.events++;
+  /* raw trace: last message as received, for diagnosing what TikFinity actually sends */
+  state.raw = `${event} ${JSON.stringify(d).slice(0, 300)}`;
+  if (event === 'like') {
+    const nl = Math.max(1, parseInt(String(d.likeCount ?? '')) || 1);
+    state.last = `like x${String(nl)}${d.uniqueId ? ` @${d.uniqueId}` : ''}`;
+    notify();
+    /* cast: legacy AudienceEvent lacks avatar, but receiveEvent uses it at runtime */
+    return window.receiveEvent({
+      type: 'like',
+      n: nl,
+      nickname: d.nickname ?? d.uniqueId ?? '',
+      avatar: d.profilePictureUrl ?? '',
+    } as AudienceEvent);
+  }
+  /* joins, shares, follows: forwarded to the game for the activity banner */
+  if (event === 'member' || event === 'join' || event === 'share' || event === 'follow') {
+    const ty = event === 'share' ? 'share' : event === 'follow' ? 'follow' : 'join';
+    state.last = `${ty}${d.uniqueId ? ` @${d.uniqueId}` : ''}`;
+    notify();
+    return window.receiveEvent({
+      type: ty,
+      n: 1,
+      nickname: d.nickname ?? d.uniqueId ?? '',
+      avatar: d.profilePictureUrl ?? '',
+    } as AudienceEvent);
+  }
+  /* viewer count: tier milestones acknowledged by the banner */
+  if (event === 'roomUser') {
+    const vc = parseInt(String(d.viewerCount ?? '')) || 0;
+    state.last = `viewers ${String(vc)}`;
+    notify();
+    return window.receiveEvent({ type: 'viewers', total: vc } as AudienceEvent);
+  }
+  if (event !== 'gift') {
+    notify();
+    return null;
+  }
+  /* streak: giftType 1 means count only the final message (repeatEnd true) */
+  const streakable = d.giftType === 1 || d.gift?.gift_type === 1;
+  const isFinal = d.repeatEnd === true || d.gift?.repeat_end === 1;
+  if (streakable && !isFinal) {
+    state.last = `streak in progress (${d.giftName ?? '?'})`;
+    notify();
+    return null;
+  }
+  const n = Math.max(1, parseInt(String(d.repeatCount ?? '')) || 1);
+  const value = parseInt(String(d.diamondCount ?? '')) || 0;
+  const giftName = d.giftName ?? '';
+  state.gifts += n;
+  state.last = `${giftName} x${String(n)} (${String(value)} diamonds)${d.uniqueId ? ` @${d.uniqueId}` : ''}`;
+  notify();
+  return window.receiveEvent({
+    type: 'gift',
+    n,
+    value,
+    name: giftName,
+    nickname: d.nickname ?? d.uniqueId ?? '',
+    avatar: d.profilePictureUrl ?? '',
+  } as AudienceEvent);
+}
+
+function connect(): void {
+  if (!intended) return;
+  try {
+    ws = new WebSocket(state.url);
+  } catch (e) {
+    state.error = String((e instanceof Error ? e.message : null) ?? e);
+    reschedule();
+    return;
+  }
+  ws.onopen = function () {
+    attempts = 0;
+    state.connected = true;
+    state.error = '';
+    notify();
+  };
+  ws.onmessage = function (ev: MessageEvent) {
+    let parsed: unknown;
+    try {
+      parsed = JSON.parse(ev.data as string);
+    } catch {
+      state.error = 'unreadable message';
+      notify();
+      return;
+    }
+    try {
+      process(parsed);
+    } catch (e) {
+      state.error = `processing: ${String((e instanceof Error ? e.message : null) ?? e)}`;
+      notify();
+    }
+  };
+  ws.onclose = function () {
+    state.connected = false;
+    notify();
+    reschedule();
+  };
+  ws.onerror = function () {
+    /* onclose always follows; reconnect lives there */
+  };
+}
+/* reconnect backoff: 1 s, 2 s, 4 s... capped at 10 s, as long as start() was called */
+function reschedule(): void {
+  if (!intended) return;
+  const delay = Math.min(10000, 1000 * Math.pow(2, attempts++));
+  clearTimeout(timer);
+  timer = setTimeout(connect, delay);
+}
+function start(url?: string): void {
+  intended = true;
+  if (url) state.url = url;
+  attempts = 0;
+  clearTimeout(timer);
+  if (ws) {
+    try {
+      ws.close();
+    } catch {
+      /* already closed */
+    }
+    ws = null;
+  }
+  connect();
+}
+function stop(): void {
+  intended = false;
+  clearTimeout(timer);
+  if (ws) {
+    try {
+      ws.close();
+    } catch {
+      /* already closed */
+    }
+    ws = null;
+  }
+  state.connected = false;
+  notify();
+}
+
+const bridge = {
+  start,
+  stop,
+  process,
+  state(): TikFinityState & { readonly raw: string } {
+    return {
+      connected: state.connected,
+      url: state.url,
+      events: state.events,
+      gifts: state.gifts,
+      last: state.last,
+      raw: state.raw,
+      error: state.error,
+    };
+  },
+  get surChangement(): ((s: TikFinityState) => void) | null {
+    return onChange;
+  },
+  set surChangement(f: ((s: TikFinityState) => void) | null) {
+    onChange = f;
+  },
+};
+window.TikFinityBridge = bridge;

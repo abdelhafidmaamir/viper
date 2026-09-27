@@ -2,6 +2,8 @@
 // the anchors that move with the 9:16 / 16:9 format. Every binding here is written only by
 // changerFormat; other modules read them as live bindings.
 
+import type { Format } from './types.ts';
+
 export let W = 1080,
   H = 1920;
 export const COLS = 16,
@@ -14,8 +16,8 @@ export const COLS = 16,
 // Only the TikTok chrome is retained; the camera and game layout of that stream belonged to that
 // streamer's arrangement, not to the interface.
 // Top 0-260, comment thread from 1237: safe height is 977, not 1130.
-export let SR_X = 0,
-  SR_Y = 260,
+export const SR_X = 0;
+export let SR_Y = 260,
   SR_W = 1080,
   SR_H = 977;
 // The other chrome zones, for the guide overlay and the mockup.
@@ -89,8 +91,9 @@ export let BD_W = 600,
   BD_CX = 540; // Positioned higher, away from the timer.
 
 /** Applies a format. Returns false when it is already active, so callers can skip re-layout. */
-export function setFormat(format) {
-  const f = FORMATS[format] || FORMATS.portrait;
+export function setFormat(format: string): boolean {
+  const key: Format = format === 'landscape' ? 'landscape' : 'portrait';
+  const f = FORMATS[key];
   if (L === f) return false;
   L = f;
   OX = f.ox;

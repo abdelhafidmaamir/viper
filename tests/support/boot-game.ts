@@ -18,11 +18,11 @@ const SCRIPTS = path.resolve(import.meta.dirname, '../../src/renderer/scripts');
 
 /** Load order of game.html, minus the network bridge and the simulated audience. */
 const GAME_SCRIPTS = [
-  'forest-ambience.js',
-  'ai-human.js',
-  'ai-super.js',
-  'snake-ending.js',
-  'game.js',
+  'forest-ambience.ts',
+  'ai-human.ts',
+  'ai-super.ts',
+  'snake-ending.ts',
+  'game.ts',
 ] as const;
 
 const DRAW_OPS = [
@@ -255,6 +255,10 @@ export interface BootedGame {
 export function bootGame({ seed, record = false }: BootOptions = {}): BootedGame {
   const recorder = new DrawRecorder(record);
   const pendingFrames: ((time: number) => void)[] = [];
+  // Stands in for HTMLCanvasElement: only its prototype is used, for instanceof checks.
+  class CanvasElementStub {
+    readonly nodeName = 'CANVAS';
+  }
   const scene = fakeCanvas(1080, 1920, recorder);
   const noop = (): void => undefined;
   let clockMs = 0;
@@ -277,6 +281,7 @@ export function bootGame({ seed, record = false }: BootOptions = {}): BootedGame
     innerHeight: 1200,
     addEventListener: noop,
     removeEventListener: noop,
+    HTMLCanvasElement: CanvasElementStub,
     matchMedia: () => ({ matches: false, addEventListener: noop }),
     requestAnimationFrame: (callback: (time: number) => void) => pendingFrames.push(callback),
     // Images resolve instantly, so avatar and gift artwork paths are exercised.
@@ -305,6 +310,9 @@ export function bootGame({ seed, record = false }: BootOptions = {}): BootedGame
       body: { appendChild: noop },
     },
   });
+
+  // game.ts guards canvas access with `instanceof HTMLCanvasElement`: make the fake scene pass it.
+  Object.setPrototypeOf(scene, CanvasElementStub.prototype);
 
   for (const file of GAME_SCRIPTS) require(path.join(SCRIPTS, file));
 

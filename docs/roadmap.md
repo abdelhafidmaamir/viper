@@ -12,6 +12,8 @@ renders, pass a side-by-side `--diagnostic=screenshots` run against the previous
 - [x] **Source parity.** The imported sources were verified byte for byte against the shipped
       build (`dist64`) before any change. The only edits since are file paths and a Prettier
       pass, which does not change program semantics.
+- [x] **Renderer in strict TypeScript.** Engine and game scripts are typed under the same strict
+      settings, with zero lint warnings; the golden master replays every scenario unchanged.
 - [x] **Main process in TypeScript.** Strict TypeScript with type-aware `typescript-eslint`,
       split into config, static server, windows, layout and diagnostics. Seven ad hoc environment
       variables and their string-built page scripts became four typed diagnostics behind one
@@ -50,8 +52,7 @@ experiments that are not shipping yet live on `wip/*` branches and never block `
 
 ## Next
 
-1. **Strict TypeScript everywhere**, and zero lint warnings.
-2. **Deterministic visual regression.** Inject a seeded RNG and clock so screenshots can be
+1. **Deterministic visual regression.** Inject a seeded RNG and clock so screenshots can be
    pixel-diffed on CI.
 
 ## Toolchain notes

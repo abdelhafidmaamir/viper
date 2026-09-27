@@ -2,33 +2,43 @@
 // before one), and the effects synthesised on the fly. The ambience provides its own voices
 // (bite, hatching) and plays them through the shared output.
 
-let ac = null,
-  output = null,
+import type { Ambience, HatchPhase } from './types-api.ts';
+
+let ac: AudioContext | null = null,
+  output: GainNode | null = null,
   soundEnabled = true,
   noteIndex = 0;
 
 /** True once audio is armed and not muted. */
-export const isSoundReady = () => Boolean(soundEnabled && ac);
+export const isSoundReady = (): boolean => Boolean(soundEnabled && ac);
 
 // Browsers block autoplay before a user gesture; arm on the first click or key press.
-export function armSound() {
+export function armSound(): void {
   if (ac) {
-    if (ac.state === 'suspended') ac.resume();
+    if (ac.state === 'suspended') void ac.resume();
     return;
   }
   try {
-    ac = new (window.AudioContext || window.webkitAudioContext)();
+    ac = new window.AudioContext();
     output = ac.createGain();
     output.gain.value = 0.6;
     output.connect(ac.destination);
-    if (ac.state === 'suspended') ac.resume();
-  } catch (er) {
+    if (ac.state === 'suspended') void ac.resume();
+  } catch {
     ac = null;
   }
 }
 // A burst of filtered noise: used for both the falling wind and the impact dust.
-function playFilteredNoise(duration, gain, f0, f1, q, delay) {
-  const t0 = ac.currentTime + (delay || 0),
+function playFilteredNoise(
+  duration: number,
+  gain: number,
+  f0: number,
+  f1: number,
+  q: number,
+  delay = 0,
+): void {
+  if (!ac || !output) return;
+  const t0 = ac.currentTime + delay,
     n = Math.max(1, Math.floor(ac.sampleRate * duration));
   const buf = ac.createBuffer(1, n, ac.sampleRate),
     d = buf.getChannelData(0);
@@ -51,8 +61,8 @@ function playFilteredNoise(duration, gain, f0, f1, q, delay) {
   src.stop(t0 + duration + 0.02);
 }
 // The stone settles: nothing strikes, the earth closes around it.
-export function playStone() {
-  if (!soundEnabled || !ac) return;
+export function playStone(): void {
+  if (!soundEnabled || !ac || !output) return;
   try {
     const t0 = ac.currentTime;
     // Three layers: impact transient, body giving mass for the phone speaker, sub for headphones.
@@ -82,47 +92,59 @@ export function playStone() {
     o.start(t0);
     o.stop(t0 + 0.55);
     playFilteredNoise(0.4, 0.02, 1200, 300, 0.9, 0.05); // dust settling
-  } catch (er) {}
+  } catch {
+    // audio context errors are non-fatal
+  }
 }
 
 // The bramble does not rumble: it snaps dry and hisses. No bass, opposite of the stone.
-export function playBramble() {
+export function playBramble(): void {
   if (!soundEnabled || !ac) return;
   try {
     playFilteredNoise(0.55, 0.026, 700, 2600, 1.1);
-    [0, 0.12, 0.26].forEach((d, i) =>
-      playFilteredNoise(0.035, 0.032, 2400 - 300 * i, 1200, 1.6, d),
-    );
-  } catch (er) {}
+    [0, 0.12, 0.26].forEach((d, i) => {
+      playFilteredNoise(0.035, 0.032, 2400 - 300 * i, 1200, 1.6, d);
+    });
+  } catch {
+    // audio context errors are non-fatal
+  }
 }
 // One more segment: a short dry snap, rising in pitch each time the bramble extends.
-export function playBrambleStep(i) {
+export function playBrambleStep(i: number): void {
   if (!soundEnabled || !ac) return;
   try {
     playFilteredNoise(0.05, 0.03, 1500 + 340 * i, 900, 1.5);
     playFilteredNoise(0.18, 0.014, 900 + 200 * i, 2200, 1.0, 0.02);
-  } catch (er) {}
+  } catch {
+    // audio context errors are non-fatal
+  }
 }
 
-export function toggleSound() {
+export function toggleSound(): boolean {
   armSound();
   soundEnabled = !soundEnabled;
   return soundEnabled;
 }
 
 /** The ambience's bite note, walking up its scale one note per berry. */
-export function playBite(ambience) {
-  if (soundEnabled && ac && ambience)
+export function playBite(ambience: Ambience): void {
+  if (soundEnabled && ac && output)
     try {
-      ambience.biteSound(ac, output, ambience.scale[noteIndex++ % ambience.scale.length]);
-    } catch (er) {}
+      const freq = ambience.scale[noteIndex++ % ambience.scale.length];
+      if (freq !== undefined) ambience.biteSound(ac, output, freq);
+    } catch {
+      // audio context errors are non-fatal
+    }
 }
 
 /** The ambience's hatching sounds: 'fissure' while the egg cracks, 'naissance' when it opens. */
-export function playHatch(ambience, moment) {
+export function playHatch(ambience: Ambience, moment: HatchPhase): void {
+  if (!ac || !output) return;
   try {
-    ambience.hatchSound(ac, output, moment);
-  } catch (er) {}
+    ambience.hatchSound?.(ac, output, moment);
+  } catch {
+    // audio context errors are non-fatal
+  }
 }
 
-export const isSoundActive = () => soundEnabled;
+export const isSoundActive = (): boolean => soundEnabled;
