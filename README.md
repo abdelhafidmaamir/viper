@@ -2,117 +2,77 @@
 
 [![CI](https://github.com/abdelhafidmaamir/viper/actions/workflows/ci.yml/badge.svg)](https://github.com/abdelhafidmaamir/viper/actions/workflows/ci.yml)
 
-An interactive snake duel built for TikTok LIVE. Two AI-driven snakes, **Gold** and **Shadow**,
-fight in a forest arena while viewers tip the balance in real time with likes, shares and gifts.
-The streamer runs the show from a private control room that never appears on stream.
+Snake duel for TikTok LIVE. Two AI snakes, Gold and Shadow, play against each other and viewers
+push one side or the other with likes, shares and gifts (through TikFinity). I run the show from
+a separate control room window that doesn't go on stream.
 
-Viper ships as a portable Windows desktop app (Electron). It renders natively in 9:16 for TikTok
-and can switch to 16:9 for YouTube by extending the ambience into the side bars. Gameplay pixels
-stay untouched.
+It's an Electron app for Windows. The game is 9:16 for TikTok, there's also a 16:9 mode for
+YouTube where the background just extends into the sides.
 
-## Highlights
+## Running it
 
-- **Two-window architecture.** A capturable game window (the only thing on stream) and a control
-  room that drives it over a same-origin `BroadcastChannel`.
-- **Live event ingestion.** A WebSocket bridge to TikFinity's Event API, with automatic reconnect
-  and a simulated audience for offline rehearsal.
-- **Two AI tiers.** A human-like heuristic AI, and an adversarial search AI (iterative deepening
-  under a time budget) that can take over both sides.
-- **Canvas 2D renderer** on a fixed 1080×1920 reference frame, with pre-rendered layers, weather,
-  time of day and an effect-driven gift display designed to stay within TikTok LIVE guidelines.
-- **Headless test harness.** The real update and draw loops run in Node against a recording fake
-  canvas, so every render path is exercised on CI without a browser.
-
-## Quick start
-
-Requirements: Node.js 24 (see `.nvmrc`), and Windows for packaging.
+Node 24 (see `.nvmrc`). Packaging only works on Windows.
 
 ```bash
 npm install
-npm run dev               # Vite dev server with hot reload + the app
-npm start                 # production build, game window + control room, 9:16
-npm run start:landscape   # same, 16:9 for YouTube
+npm run dev               # dev server + hot reload
+npm start                 # build and run, 9:16
+npm run start:landscape   # same in 16:9
 ```
 
-## Scripts
+Other scripts:
 
-| Script                            | What it does                                                                |
-| --------------------------------- | --------------------------------------------------------------------------- |
-| `npm run dev`                     | Renderer on the Vite dev server with hot reload                             |
-| `npm start`                       | Production build of main and renderer, then launch                          |
-| `npm run build`                   | `tsc` for the main process, Vite for the renderer                           |
-| `npm test`                        | Unit, render and simulation suites (Vitest)                                 |
-| `npm run check`                   | Everything CI runs: format, lint, typecheck, test                           |
-| `npm run lint` / `lint:fix`       | ESLint with type-aware `typescript-eslint` strict rules                     |
-| `npm run format` / `format:check` | Prettier                                                                    |
-| `npm run typecheck`               | TypeScript, strict                                                          |
-| `npm run package`                 | Portable Windows build in `out/ViperDuel-win32-x64`                         |
-| `npm run visual`                  | Pixel regression against `tests/visual/baselines` (`-- --update` to accept) |
+| Script                      | What it does                                     |
+| --------------------------- | ------------------------------------------------ |
+| `npm test`                  | Vitest                                           |
+| `npm run check`             | format, lint, typecheck, tests (same as CI)      |
+| `npm run lint` / `lint:fix` | ESLint                                           |
+| `npm run format`            | Prettier                                         |
+| `npm run package`           | portable build in `out/ViperDuel-win32-x64`      |
+| `npm run visual`            | screenshot diff against `tests/visual/baselines` |
+
+`npm run visual -- --update` replaces the baselines when a visual change is intended.
 
 ## Diagnostics
 
-The app doubles as its own measurement harness, in development and in the packaged build. Each
-run writes its artefacts, exits with a status code, and can be scripted.
+The app can take screenshots and measure itself, also from the packaged exe:
 
 ```bash
-ViperDuel.exe --diagnostic=screenshots  --out=shots           # board, announcement, end screen, both formats
+ViperDuel.exe --diagnostic=screenshots  --out=shots
 ViperDuel.exe --diagnostic=frame-timing --out=perf --all-weathers
-ViperDuel.exe --diagnostic=draw-calls   --out=perf            # canvas calls per frame and per call site
-ViperDuel.exe --diagnostic=cpu-profile  --out=perf            # open cpu.cpuprofile in DevTools
+ViperDuel.exe --diagnostic=draw-calls   --out=perf
+ViperDuel.exe --diagnostic=cpu-profile  --out=perf
 ```
 
 Options: `--orientation=portrait|landscape`, `--weather=<name>`, `--hour=<0..1>`,
-`--settle=<seconds>`. In development: `npm run diagnose -- screenshots --out=shots`.
+`--settle=<seconds>`. In dev: `npm run diagnose -- screenshots --out=shots`.
 
 ## Releases
 
-A version tag builds and publishes a release: the tagged commit is verified (format, lint, types,
-build, tests), packaged on Windows, zipped with a SHA-256 checksum and attached to a GitHub
-release with generated notes. The tag must match the `package.json` version.
+Pushing a version tag builds the Windows zip and creates the GitHub release. The tag has to match
+`package.json`.
 
 ```bash
 npm version minor
 git push --follow-tags
 ```
 
-Builds are not code-signed yet, so Windows SmartScreen asks for confirmation on first launch.
+The exe isn't signed yet, so SmartScreen will complain the first time.
 
-## Project layout
+## Layout
 
 ```text
-src/
-  main/                  Electron main process (TypeScript, strict)
-    index.ts             Bootstrap: flags, config, server, windows
-    config.ts            Typed command-line parsing
-    static-server.ts     Loopback-only static server for the renderer
-    windows.ts           Game and control windows, locked down
-    diagnostics/         Screenshots, frame timing, draw calls, CPU profile
-    page/                Typed page-side toolkit shipped into the renderer
-    renderer-host.ts     Serves the built renderer on a stable origin with a CSP
-  renderer/              Built by Vite
-    game.html            On-stream game window
-    game/                Typed entry and control-room link
-    control.html         Private control room
-    control/             Control room: store, controller, view models and UI
-    engine/              Engine modules: rules, crowd, events, hazards, painters, layout
-    scripts/             Simulation core, AI, ambience, TikFinity bridge, simulated audience
-    public/assets/gifts/ Gift artwork, copied as-is
-  shared/                Control-room protocol and the legacy globals contract
-tests/                   Unit suites (main, renderer) and headless game suites
-scripts/                 dev.ts (Vite + Electron) and package.ts
-docs/                    Architecture and roadmap
+src/main/            Electron main process, local server, windows, diagnostics
+src/renderer/        game.html + control.html, built with Vite
+  engine/            game modules (rules, crowd, hazards, drawing...)
+  scripts/           simulation core, AI, ambience, TikFinity bridge, fake audience
+  control/           control room
+src/shared/          messages between the game and the control room
+tests/               Vitest suites, headless game runs, visual baselines
+scripts/             dev and packaging scripts
 ```
 
-## Documentation
-
-- [Architecture](docs/architecture.md): process model, event flow, rendering pipeline, testing.
-- [Roadmap](docs/roadmap.md): the staged migration to typed ES modules, and how each step is
-  proven to preserve behaviour.
-
-## Status
-
-Viper is live-tested. The codebase is being migrated in place from its prototype form (one large
-engine file with French identifiers) to typed, English, modular code. Every step keeps the game
-playable and is gated by the test suite. See the roadmap for what is done and what comes next.
+More in [docs/architecture.md](docs/architecture.md), and what's done / left in
+[docs/roadmap.md](docs/roadmap.md).
 
 © Abdel Maamir. All rights reserved.
