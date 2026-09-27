@@ -2,7 +2,7 @@ import { setTimeout as delay } from 'node:timers/promises';
 
 import type { FrameStats } from '../page/page-kit.js';
 import { evaluate } from '../page/evaluate.js';
-import { formatOf, json, WEATHER_SHOWCASE, type Diagnostic } from './context.ts';
+import { formatOf, json, WEATHER_SHOWCASE, type Diagnostic } from './context.js';
 
 /**
  * Real frame pacing inside the packaged app, under a simulated crowd at full intensity: once at

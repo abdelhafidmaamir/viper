@@ -1,7 +1,7 @@
 import { setTimeout as delay } from 'node:timers/promises';
 
 import { evaluate } from '../page/evaluate.js';
-import { formatOf, json, type Diagnostic } from './context.ts';
+import { formatOf, json, type Diagnostic } from './context.js';
 
 const SAMPLING_INTERVAL_US = 250;
 const PROFILE_MS = 12_000;

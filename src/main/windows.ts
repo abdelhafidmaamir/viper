@@ -1,7 +1,7 @@
 import { BrowserWindow, screen, type WebPreferences } from 'electron';
 
-import type { Orientation } from './config.ts';
-import { fitContentSize } from './layout.ts';
+import type { Orientation } from './config.js';
+import { fitContentSize } from './layout.js';
 
 const BACKGROUND = '#0c110e';
 
