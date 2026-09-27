@@ -63,6 +63,19 @@ ViperDuel.exe --diagnostic=cpu-profile  --out=perf            # open cpu.cpuprof
 Options: `--orientation=portrait|landscape`, `--weather=<name>`, `--hour=<0..1>`,
 `--settle=<seconds>`. In development: `npm run diagnose -- screenshots --out=shots`.
 
+## Releases
+
+A version tag builds and publishes a release: the tagged commit is verified (format, lint, types,
+build, tests), packaged on Windows, zipped with a SHA-256 checksum and attached to a GitHub
+release with generated notes. The tag must match the `package.json` version.
+
+```bash
+npm version minor
+git push --follow-tags
+```
+
+Builds are not code-signed yet, so Windows SmartScreen asks for confirmation on first launch.
+
 ## Project layout
 
 ```text

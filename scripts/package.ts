@@ -8,6 +8,8 @@ import path from 'node:path';
 
 import { packager } from '@electron/packager';
 
+import pkg from '../package.json' with { type: 'json' };
+
 const root = path.resolve(import.meta.dirname, '..');
 
 /** Only the runtime ships: the compiled main process, the built renderer and package.json. */
@@ -19,6 +21,13 @@ const paths = await packager({
   platform: 'win32',
   arch: 'x64',
   name: 'ViperDuel',
+  appVersion: pkg.version,
+  appCopyright: `Copyright ${String(new Date().getFullYear())} Abdel Maamir`,
+  win32metadata: {
+    CompanyName: 'Abdel Maamir',
+    ProductName: 'Viper Duel',
+    FileDescription: 'Viper Duel',
+  },
   asar: true,
   overwrite: true,
   prune: true,
