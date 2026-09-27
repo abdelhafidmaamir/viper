@@ -1,33 +1,43 @@
 // Everything that sits on the board besides the snakes: berries (with their offering glow),
 // rocks and brambles, each pre-rendered once into a sprite and reused every frame.
 
-import { ctx, setCtx } from './canvas.js';
-import { CELL } from './layout.js';
-import { berryGlow, berryTint } from './palette.js';
+import { ctx, setCtx } from './canvas.ts';
+import { CELL, X0, Y0 } from './layout.ts';
+import { berryGlow, berryTint } from './palette.ts';
 import {
   STONE_WARNING,
   SEED_GROW_TIME,
   BRAMBLE_WARNING,
   STONE_LIFE,
   BRAMBLE_LIFE,
-} from './rules.js';
-import { berries, seeds, px, settings, stones, brambles } from '../scripts/game.js';
+} from './rules.ts';
+import type { Bramble, BrambleSegment, Point, Team } from './types.ts';
+import { berries, seeds, settings, stones, brambles } from '../scripts/game.ts';
+
+/** Convert grid coordinates to the canvas pixel center of that cell. */
+const px = (gx: number, gy: number): Point => ({
+  x: X0 + gx * CELL + CELL / 2,
+  y: Y0 + gy * CELL + CELL / 2,
+});
 
 // What viewers offer: the seed falls, the shadow closes in, the berry opens.
 const BERRY_SPRITE_R = 58,
   BERRY_FRAMES = 48,
-  berryCache = new Map();
+  berryCache = new Map<string, HTMLCanvasElement>();
 
-function berrySprite(phase, team) {
-  const key = phase + 'd' + (team || '');
-  let s = berryCache.get(key);
-  if (s) return s;
+function berrySprite(phase: number, team: Team | null | undefined): HTMLCanvasElement {
+  const key = `${String(phase)}d${team ?? ''}`;
+  const cached = berryCache.get(key);
+  if (cached) return cached;
   const sinVal = Math.sin((phase / BERRY_FRAMES) * Math.PI * 2),
     beatScale = 1 + 0.09 * sinVal;
-  s = document.createElement('canvas');
+  const s = document.createElement('canvas');
   s.width = 2 * BERRY_SPRITE_R;
   s.height = 2 * BERRY_SPRITE_R;
-  const prev = setCtx(s.getContext('2d'));
+  // getContext never returns null for an in-memory canvas element.
+  const ctx2dB = s.getContext('2d');
+  if (!ctx2dB) return s;
+  const prev = setCtx(ctx2dB);
   ctx.translate(BERRY_SPRITE_R, BERRY_SPRITE_R);
   try {
     ctx.globalAlpha = 0.35 + 0.15 * sinVal;
@@ -55,7 +65,7 @@ function berrySprite(phase, team) {
   return s;
 }
 
-export function paintOfferings() {
+export function paintOfferings(): void {
   seeds.forEach((g) => {
     const p = px(g.x, g.y),
       u = Math.min(1, g.t / SEED_GROW_TIME),
@@ -115,10 +125,10 @@ export function paintOfferings() {
 
 // Stone emergence: nothing falls from the sky. The ground bulges, moss lifts,
 // then the stone rises out of the soil. The warning stays readable; the gesture feels organic.
-export function bump(x, y, rx, ry, force) {
+export function bump(x: number, y: number, rx: number, ry: number, force: number): void {
   const g = ctx.createRadialGradient(x, y - ry * 0.35, rx * 0.12, x, y, rx);
-  g.addColorStop(0, 'rgba(58,70,56,' + 0.55 * force + ')');
-  g.addColorStop(0.55, 'rgba(35,45,36,' + 0.5 * force + ')');
+  g.addColorStop(0, `rgba(58,70,56,${String(0.55 * force)})`);
+  g.addColorStop(0.55, `rgba(35,45,36,${String(0.5 * force)})`);
   g.addColorStop(1, 'rgba(20,30,23,0)');
   ctx.fillStyle = g;
   ctx.save();
@@ -132,7 +142,7 @@ export function bump(x, y, rx, ry, force) {
 
 // Soil plates: the ground surface splits into wedges that tilt outward.
 // Each rotates around its inner edge, so the stone appears to force through, not slide.
-export function plates(x, y, opening, j) {
+export function plates(x: number, y: number, opening: number, j: number): void {
   for (let i = 0; i < 4; i++) {
     const an = (i / 4) * Math.PI * 2 + j * 0.21,
       r0 = 9,
@@ -148,9 +158,9 @@ export function plates(x, y, opening, j) {
     ctx.lineTo(r1, r1 * baseRatio * 0.9);
     ctx.lineTo(r0, r0 * baseRatio);
     ctx.closePath();
-    ctx.fillStyle = 'rgba(31,40,32,' + (0.62 + 0.28 * opening) + ')';
+    ctx.fillStyle = `rgba(31,40,32,${String(0.62 + 0.28 * opening)})`;
     ctx.fill();
-    ctx.strokeStyle = 'rgba(150,180,140,' + 0.26 * opening + ')';
+    ctx.strokeStyle = `rgba(150,180,140,${String(0.26 * opening)})`;
     ctx.lineWidth = 1.6;
     ctx.stroke();
     ctx.restore();
@@ -158,23 +168,23 @@ export function plates(x, y, opening, j) {
 }
 
 // Crack: three dark branches opening from the center before anything breaks the surface.
-export function crack(x, y, opening, j) {
+export function crack(x: number, y: number, opening: number, j: number): void {
   ctx.save();
   ctx.translate(x, y);
   ctx.scale(1, 0.46);
-  ctx.strokeStyle = 'rgba(6,10,7,' + 0.75 * Math.min(1, opening * 2) + ')';
+  ctx.strokeStyle = `rgba(6,10,7,${String(0.75 * Math.min(1, opening * 2))})`;
   ctx.lineCap = 'round';
   for (let i = 0; i < 3; i++) {
     const an = (i / 3) * Math.PI * 2 + j * 0.4,
-      L = 13 + 20 * opening;
+      LL = 13 + 20 * opening;
     ctx.lineWidth = 3.2 - 1.1 * i * 0.4;
     ctx.beginPath();
     ctx.moveTo(0, 0);
     ctx.quadraticCurveTo(
-      Math.cos(an + 0.3) * L * 0.55,
-      Math.sin(an + 0.3) * L * 0.55,
-      Math.cos(an) * L,
-      Math.sin(an) * L,
+      Math.cos(an + 0.3) * LL * 0.55,
+      Math.sin(an + 0.3) * LL * 0.55,
+      Math.cos(an) * LL,
+      Math.sin(an) * LL,
     );
     ctx.stroke();
   }
@@ -182,7 +192,7 @@ export function crack(x, y, opening, j) {
 }
 
 // A clod torn from the stone's flank: it rolls, falls, and settles at the base.
-function clod(x, y, k, i, j) {
+function clod(x: number, y: number, k: number, i: number, j: number): void {
   if (k <= 0 || k >= 1) return;
   const side = i % 2 ? 1 : -1,
     d = 8 + 5 * ((i + j + 5) % 3);
@@ -198,52 +208,73 @@ function clod(x, y, k, i, j) {
 
 // Grain hash, same principle as ambience: deterministic noise, so a stone always has
 // exactly the same shape and moss as long as it stays at the same position.
-const HASH = (i, d) => {
+const HASH = (i: number, d: number): number => {
   const v = Math.sin((i + 1) * 12.9898 + (d + 7) * 78.233) * 43758.5453;
   return v - Math.floor(v);
 };
 
+/** Light descriptor derived from the current hour. */
+interface LightInfo {
+  readonly x: number;
+  readonly y: number;
+  readonly k: number;
+  readonly tint: string;
+}
+
 // A single light for everything on the ground, derived from the ambience keys: it comes
 // from the left at sunrise, from zenith at noon, from the right at sunset, and is dim
 // and cold at night. Without it, an object looks like a flat sticker on a painted image.
-export function light() {
+export function light(): LightInfo {
   const h = (((settings.hour || 0) % 1) + 1) % 1;
   const daylight = Math.max(0, Math.min(1, (Math.cos((h - 0.5) * Math.PI * 2) + 0.35) / 1.35));
   const an = Math.PI * (-0.82 + 0.62 * Math.min(1, Math.max(0, (h - 0.2) / 0.58)));
   const warm = [248, 226, 186],
     cool = [164, 192, 214];
-  const tint = warm.map((c, i) => Math.round(c + (cool[i] - c) * (1 - daylight)));
+  const tint = warm.map((c, i) => Math.round(c + ((cool[i] ?? 0) - c) * (1 - daylight)));
   return { x: Math.cos(an), y: Math.sin(an), k: 0.28 + 0.72 * daylight, tint: tint.join(',') };
+}
+
+/** A vertex on the stone silhouette. */
+interface StonePt {
+  readonly x: number;
+  readonly y: number;
+  readonly an: number;
 }
 
 // Stone: an irregular silhouette with eleven vertices, two sharp facet planes, a crack
 // lit on one side, grain, moss on the lit side, and a light rim running only
 // on edges facing the light source.
-function stonePoints(j, scale) {
+function stonePoints(j: number, scale?: number): StonePt[] {
   const n = 11,
-    R = 23 * (scale || 1),
-    pts = [];
+    R = 23 * (scale ?? 1),
+    pts: StonePt[] = [];
   for (let i = 0; i < n; i++) {
     const an = (i / n) * Math.PI * 2 - Math.PI / 2;
     const r = R * (0.8 + 0.28 * HASH(i, j));
-    pts.push({ x: Math.cos(an) * r, y: Math.sin(an) * r * 0.9 + 2, an: an });
+    pts.push({ x: Math.cos(an) * r, y: Math.sin(an) * r * 0.9 + 2, an });
   }
   return pts;
 }
 
-function traceStone(pts) {
+function traceStone(pts: readonly StonePt[]): void {
+  const first = pts[0];
+  if (first === undefined) return;
   ctx.beginPath();
-  ctx.moveTo(pts[0].x, pts[0].y);
-  for (let i = 1; i < pts.length; i++) ctx.lineTo(pts[i].x, pts[i].y);
+  ctx.moveTo(first.x, first.y);
+  for (let i = 1; i < pts.length; i++) {
+    const pt = pts[i];
+    if (pt === undefined) continue;
+    ctx.lineTo(pt.x, pt.y);
+  }
   ctx.closePath();
 }
 
-function stoneBody(j) {
-  const L = light(),
+function stoneBody(j: number): void {
+  const LL = light(),
     pts = stonePoints(j);
   // body: a gradient oriented by the light, from the lit flank to the shadow flank
   traceStone(pts);
-  const g = ctx.createLinearGradient(-26 * L.x, -26 * L.y, 26 * L.x, 26 * L.y);
+  const g = ctx.createLinearGradient(-26 * LL.x, -26 * LL.y, 26 * LL.x, 26 * LL.y);
   g.addColorStop(0, '#7c8798');
   g.addColorStop(0.44, '#4f5a6c');
   g.addColorStop(1, '#212934');
@@ -262,8 +293,8 @@ function stoneBody(j) {
   ctx.lineTo(-28, -34);
   ctx.closePath();
   const g2 = ctx.createLinearGradient(0, -26, 0, 2);
-  g2.addColorStop(0, 'rgba(' + L.tint + ',' + 0.34 * L.k + ')');
-  g2.addColorStop(1, 'rgba(' + L.tint + ',0)');
+  g2.addColorStop(0, `rgba(${LL.tint},${String(0.34 * LL.k)})`);
+  g2.addColorStop(1, `rgba(${LL.tint},0)`);
   ctx.fillStyle = g2;
   ctx.fill();
   // crack: carved with a dark stroke, highlighted with a light stroke on the lit side
@@ -274,11 +305,11 @@ function stoneBody(j) {
   ctx.moveTo(-6 + 2 * j, -15);
   ctx.quadraticCurveTo(2, -2, -2 + j, 17);
   ctx.stroke();
-  ctx.strokeStyle = 'rgba(' + L.tint + ',' + 0.2 * L.k + ')';
+  ctx.strokeStyle = `rgba(${LL.tint},${String(0.2 * LL.k)})`;
   ctx.lineWidth = 1;
   ctx.beginPath();
-  ctx.moveTo(-6 + 2 * j - 1.4 * L.x, -15 - 1.4 * L.y);
-  ctx.quadraticCurveTo(2 - 1.4 * L.x, -2 - 1.4 * L.y, -2 + j - 1.4 * L.x, 17 - 1.4 * L.y);
+  ctx.moveTo(-6 + 2 * j - 1.4 * LL.x, -15 - 1.4 * LL.y);
+  ctx.quadraticCurveTo(2 - 1.4 * LL.x, -2 - 1.4 * LL.y, -2 + j - 1.4 * LL.x, 17 - 1.4 * LL.y);
   ctx.stroke();
   // grain: fourteen flecks, half dark half light, always the same
   for (let i = 0; i < 14; i++) {
@@ -295,7 +326,7 @@ function stoneBody(j) {
   for (let i = 0; i < 3; i++) {
     const an = -Math.PI / 2 + (HASH(i + 2, j) - 0.5) * 1.6,
       r = 9 + 6 * HASH(i + 7, j);
-    const x = Math.cos(an) * r + L.x * 4,
+    const x = Math.cos(an) * r + LL.x * 4,
       y = Math.sin(an) * r * 0.8;
     ctx.fillStyle = 'rgba(78,110,66,0.58)';
     ctx.beginPath();
@@ -303,21 +334,22 @@ function stoneBody(j) {
     ctx.fill();
     ctx.fillStyle = 'rgba(148,182,126,0.26)';
     ctx.beginPath();
-    ctx.ellipse(x - L.x * 1.2, y - 1.4, 2.4 + 1.3 * HASH(i, j), 1.2, an, 0, Math.PI * 2);
+    ctx.ellipse(x - LL.x * 1.2, y - 1.4, 2.4 + 1.3 * HASH(i, j), 1.2, an, 0, Math.PI * 2);
     ctx.fill();
   }
   ctx.restore();
   // rim: only edges whose normal faces the light
-  ctx.strokeStyle = 'rgba(' + L.tint + ',' + 0.46 * L.k + ')';
+  ctx.strokeStyle = `rgba(${LL.tint},${String(0.46 * LL.k)})`;
   ctx.lineWidth = 2.1;
   ctx.lineJoin = 'round';
   for (let i = 0; i < pts.length; i++) {
-    const p = pts[i],
-      q = pts[(i + 1) % pts.length],
-      mx = (p.x + q.x) / 2,
+    const p = pts[i];
+    const q = pts[(i + 1) % pts.length];
+    if (p === undefined || q === undefined) continue;
+    const mx = (p.x + q.x) / 2,
       my = (p.y + q.y) / 2;
     const n = Math.hypot(mx, my) || 1;
-    if ((mx / n) * L.x + (my / n) * L.y > 0.15) continue; // edge in shadow, no rim
+    if ((mx / n) * LL.x + (my / n) * LL.y > 0.15) continue; // edge in shadow, no rim
     ctx.beginPath();
     ctx.moveTo(p.x, p.y);
     ctx.lineTo(q.x, q.y);
@@ -332,22 +364,25 @@ function stoneBody(j) {
 // `routines/profil-rendu.js`: 2170 of 4582 canvas operations per frame, i.e. 47%.
 // It is now painted once per variant and per light level into an offscreen canvas.
 const STONE_SPRITE_R = 40,
-  stoneCache = new Map();
+  stoneCache = new Map<number, HTMLCanvasElement>();
 
-let stoneCacheKey = null;
+let stoneCacheKey: number | null = null;
 
-function stoneSprite(j) {
+function stoneSprite(j: number): HTMLCanvasElement {
   const key = Math.round(((((settings.hour || 0) % 1) + 1) % 1) * 180);
   if (key !== stoneCacheKey) {
     stoneCache.clear();
     stoneCacheKey = key;
   }
-  let s = stoneCache.get(j);
-  if (s) return s;
-  s = document.createElement('canvas');
+  const cached = stoneCache.get(j);
+  if (cached) return cached;
+  const s = document.createElement('canvas');
   s.width = 2 * STONE_SPRITE_R;
   s.height = 2 * STONE_SPRITE_R;
-  const prev = setCtx(s.getContext('2d'));
+  // getContext never returns null for an in-memory canvas element.
+  const ctx2dS = s.getContext('2d');
+  if (!ctx2dS) return s;
+  const prev = setCtx(ctx2dS);
   ctx.translate(STONE_SPRITE_R, STONE_SPRITE_R);
   try {
     stoneBody(j);
@@ -359,11 +394,11 @@ function stoneSprite(j) {
 }
 
 // Replaces a stoneBody call: same drawing, same origin, a single canvas operation.
-function placeStone(j) {
+function placeStone(j: number): void {
   ctx.drawImage(stoneSprite(j), -STONE_SPRITE_R, -STONE_SPRITE_R);
 }
 
-export function paintStones() {
+export function paintStones(): void {
   stones.forEach((r) => {
     const p = px(r.x, r.y),
       j = ((r.x * 13 + r.y * 7) % 7) - 3;
@@ -444,15 +479,25 @@ export function paintStones() {
 // Bramble: a vine, not a line. The body is a filled outline, thick at the root and thin at
 // the tip, with a contact shadow on the ground, a light ribbon on the source side,
 // veined leaves and hooked thorns that appear only on the lethal segment.
-function bramblePoints(R) {
-  const pts = [];
-  R.seg.forEach((g, i) => {
+
+/** A computed point along a bramble vine. */
+interface BramblePt {
+  x: number;
+  y: number;
+  readonly duration: boolean;
+  eyeOpen: number;
+  readonly i: number;
+}
+
+function bramblePoints(R: Bramble): BramblePt[] {
+  const pts: BramblePt[] = [];
+  R.seg.forEach((g: BrambleSegment, i: number) => {
     const p = px(g.x, g.y),
       u = Math.min(1, g.t / BRAMBLE_WARNING),
       opening = u * u * (3 - 2 * u);
-    const v = R.seg[i - 1] || R.seg[i + 1];
+    const v = R.seg[i - 1] ?? R.seg[i + 1];
     if (!v || opening >= 1) {
-      pts.push({ x: p.x, y: p.y, duration: u >= 1, eyeOpen: opening, i: i });
+      pts.push({ x: p.x, y: p.y, duration: u >= 1, eyeOpen: opening, i });
       return;
     }
     const q = px(v.x, v.y);
@@ -461,7 +506,7 @@ function bramblePoints(R) {
       y: q.y + (p.y - q.y) * opening,
       duration: false,
       eyeOpen: opening,
-      i: i,
+      i,
     });
   });
   return pts;
@@ -469,36 +514,48 @@ function bramblePoints(R) {
 
 // Stem outline: traverse the line on one side, return on the other; half-thickness
 // decreases toward the tip. This makes it read as a plant, not a constant-width tube.
-function brambleOutline(pts, thickness, dx, dy) {
+function brambleOutline(pts: BramblePt[], thickness: number, dx = 0, dy = 0): void {
   const n = pts.length;
-  const normal = (i) => {
-    const a = pts[Math.max(0, i - 1)],
-      b = pts[Math.min(n - 1, i + 1)];
-    const vx = b.x - a.x,
-      vy = b.y - a.y,
+  const normal = (i: number): { x: number; y: number } => {
+    const a = pts[Math.max(0, i - 1)];
+    const b = pts[Math.min(n - 1, i + 1)];
+    const vx = (b?.x ?? 0) - (a?.x ?? 0),
+      vy = (b?.y ?? 0) - (a?.y ?? 0),
       l = Math.hypot(vx, vy) || 1;
     return { x: -vy / l, y: vx / l };
   };
-  const e = (i) =>
-    thickness * (1 - 0.52 * (i / Math.max(1, n - 1))) * Math.min(1, 0.35 + 0.65 * pts[i].eyeOpen);
+  const e = (i: number): number =>
+    thickness *
+    (1 - 0.52 * (i / Math.max(1, n - 1))) *
+    Math.min(1, 0.35 + 0.65 * (pts[i]?.eyeOpen ?? 0));
   ctx.beginPath();
   for (let i = 0; i < n; i++) {
     const u = normal(i),
       w = e(i);
-    const x = pts[i].x + u.x * w + (dx || 0),
-      y = pts[i].y + u.y * w + (dy || 0);
+    const pt = pts[i];
+    const x = (pt?.x ?? 0) + u.x * w + dx,
+      y = (pt?.y ?? 0) + u.y * w + dy;
     if (i) ctx.lineTo(x, y);
     else ctx.moveTo(x, y);
   }
   for (let i = n - 1; i >= 0; i--) {
     const u = normal(i),
       w = e(i);
-    ctx.lineTo(pts[i].x - u.x * w + (dx || 0), pts[i].y - u.y * w + (dy || 0));
+    const pt = pts[i];
+    ctx.lineTo((pt?.x ?? 0) - u.x * w + dx, (pt?.y ?? 0) - u.y * w + dy);
   }
   ctx.closePath();
 }
 
-export function leaf(x, y, an, L, bright, f, opening) {
+export function leaf(
+  x: number,
+  y: number,
+  an: number,
+  L: number,
+  bright: boolean,
+  f: number,
+  opening: number,
+): void {
   ctx.save();
   ctx.translate(x, y);
   ctx.rotate(an);
@@ -518,7 +575,7 @@ export function leaf(x, y, an, L, bright, f, opening) {
   ctx.restore();
 }
 
-function thorn(x, y, an, L, tint, f) {
+function thorn(x: number, y: number, an: number, L: number, tint: string, f: number): void {
   ctx.save();
   ctx.translate(x, y);
   ctx.rotate(an);
@@ -544,8 +601,8 @@ function thorn(x, y, an, L, tint, f) {
 // The offset is integer so the blit is pixel-exact and not resampled.
 const BRAMBLE_MARGIN = 26;
 
-export function paintBrambles() {
-  const L = light();
+export function paintBrambles(): void {
+  const LL = light();
   const lightKey = Math.round(((((settings.hour || 0) % 1) + 1) % 1) * 180);
   brambles.forEach((R) => {
     const f = R.t > BRAMBLE_LIFE - 2 ? (BRAMBLE_LIFE - R.t) / 2 : 1;
@@ -563,27 +620,31 @@ export function paintBrambles() {
     }
     const ox = Math.floor(ax - BRAMBLE_MARGIN),
       oy = Math.floor(ay - BRAMBLE_MARGIN);
-    let signature = lightKey + '|' + f.toFixed(2) + '|' + ox + '|' + oy + '|' + pts.length;
-    for (const q of pts) signature += '|' + Math.round(q.eyeOpen * 24) + (q.duration ? 'd' : '');
+    let signature = `${String(lightKey)}|${f.toFixed(2)}|${String(ox)}|${String(oy)}|${String(pts.length)}`;
+    for (const q of pts)
+      signature += `|${String(Math.round(q.eyeOpen * 24))}${q.duration ? 'd' : ''}`;
     if (R.sig !== signature) {
       const c = document.createElement('canvas');
       c.width = Math.max(1, Math.ceil(bx + BRAMBLE_MARGIN) - ox);
       c.height = Math.max(1, Math.ceil(by + BRAMBLE_MARGIN) - oy);
-      const prev = setCtx(c.getContext('2d'));
+      // getContext never returns null for an in-memory canvas element.
+      const ctx2dC = c.getContext('2d');
+      if (!ctx2dC) return;
+      const prev = setCtx(ctx2dC);
       ctx.translate(-ox, -oy);
       try {
-        brambleBody(pts, f, L, R);
+        brambleBody(pts, f, LL, R);
       } finally {
         setCtx(prev);
       }
       R.sprite = c;
       R.sig = signature;
     }
-    ctx.drawImage(R.sprite, ox, oy);
+    if (R.sprite) ctx.drawImage(R.sprite, ox, oy);
   });
 }
 
-function brambleBody(pts, f, L, R) {
+function brambleBody(pts: BramblePt[], f: number, LL: LightInfo, R: Bramble): void {
   ctx.save();
   ctx.lineJoin = 'round';
   ctx.lineCap = 'round';
@@ -599,7 +660,7 @@ function brambleBody(pts, f, L, R) {
   ctx.globalAlpha = f;
   const q0 = pts[0],
     q1 = pts[pts.length - 1];
-  const gb = ctx.createLinearGradient(q0.x, q0.y, q1.x, q1.y);
+  const gb = ctx.createLinearGradient(q0?.x ?? 0, q0?.y ?? 0, q1?.x ?? 0, q1?.y ?? 0);
   gb.addColorStop(0, '#1b2616');
   gb.addColorStop(0.55, '#26331d');
   gb.addColorStop(1, '#354823');
@@ -607,30 +668,30 @@ function brambleBody(pts, f, L, R) {
   ctx.fillStyle = gb;
   ctx.fill();
   // light ribbon on the source side, narrower than the body
-  ctx.globalAlpha = f * (0.3 + 0.34 * L.k);
-  brambleOutline(pts, 3.1, L.x * 2.6, L.y * 2.6);
-  ctx.fillStyle = 'rgba(' + L.tint + ',0.55)';
+  ctx.globalAlpha = f * (0.3 + 0.34 * LL.k);
+  brambleOutline(pts, 3.1, LL.x * 2.6, LL.y * 2.6);
+  ctx.fillStyle = 'rgba(' + LL.tint + ',0.55)';
   ctx.fill();
   // leaves: two per node, never symmetric, the bright one on the lit side
   pts.forEach((p, i) => {
-    const v = pts[i - 1] || pts[i + 1] || p;
+    const v = pts[i - 1] ?? pts[i + 1] ?? p;
     const an = Math.atan2(p.y - v.y, p.x - v.x),
       h = HASH(i, R.seg.length);
     for (let k = 0; k < 2; k++) {
       const side = k ? 1 : -1;
       const leafAngle = an + side * (0.78 + 0.34 * h);
-      const bright = Math.cos(leafAngle) * L.x + Math.sin(leafAngle) * L.y < 0;
+      const bright = Math.cos(leafAngle) * LL.x + Math.sin(leafAngle) * LL.y < 0;
       leaf(p.x, p.y, leafAngle, 8.5 + 3.5 * HASH(i + k, 3), bright, f, p.eyeOpen);
     }
   });
   // thorns: only on the live segment. They are the only signal that it kills.
   pts.forEach((p, i) => {
     if (!p.duration) return;
-    const v = pts[i - 1] || pts[i + 1] || p;
+    const v = pts[i - 1] ?? pts[i + 1] ?? p;
     const an = Math.atan2(p.y - v.y, p.x - v.x);
     for (let k = 0; k < 3; k++) {
       const leafAngle = an + (k === 1 ? -Math.PI / 2 : Math.PI / 2) + (k - 1) * 0.38;
-      thorn(p.x, p.y, leafAngle, 7.5 + 2 * HASH(i + k, 5), L.tint, f);
+      thorn(p.x, p.y, leafAngle, 7.5 + 2 * HASH(i + k, 5), LL.tint, f);
     }
   });
   ctx.restore();

@@ -1,10 +1,10 @@
 import { app } from 'electron';
 
-import { ConfigError, parseConfig, type AppConfig } from './config.js';
+import { ConfigError, parseConfig, type AppConfig } from './config.ts';
 import { runDiagnostic } from './diagnostics/index.js';
 import { evaluate } from './page/evaluate.js';
-import { hostRenderer } from './renderer-host.js';
-import { openControlWindow, openGameWindow } from './windows.js';
+import { hostRenderer } from './renderer-host.ts';
+import { openControlWindow, openGameWindow } from './windows.ts';
 
 /**
  * Windows reports a covered window as occluded and Chromium then stops painting it. The game

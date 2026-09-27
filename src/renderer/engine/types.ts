@@ -39,17 +39,22 @@ export type AiReason =
   | 'attire'
   | 'race'
   | 'trap'
+  | 'trap!'
+  | 'lure'
   | 'piege!'
   | 'berry'
+  | 'block'
   | 'barrage'
   | 'attrition'
   | 'waiting'
   | 'position'
+  | 'position (no safe berry route)'
   | 'position(baie sans route sure)'
-  | `super p${number}`;
+  | `super d${string}`
+  | `super p${string}`;
 
-/** Verdict per candidate step, keyed "dx,dy": a positional score, or a refusal. */
-export type AiStepScore = number | 'ok' | 'refused';
+/** Verdict per candidate step, keyed "dx,dy": a positional score, a refusal, or a pocket note. */
+export type AiStepScore = number | 'ok' | 'refused' | `pocket ${string}`;
 
 /** Extra overlay data filled by the adversarial search AI. */
 export interface SuperAiDebug {
@@ -180,7 +185,7 @@ export interface Body {
 
 export type RoundState = 'playing' | 'over';
 
-export type EndCause = 'place' | 'ring' | 'timeScale' | 'test' | 'unknown';
+export type EndCause = 'place' | 'ring' | 'timeScale' | 'test' | 'timeout' | 'unknown';
 
 /** The running round (game.js newRound). */
 export interface Round {

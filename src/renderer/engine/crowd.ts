@@ -1,7 +1,8 @@
 // Crowd pacing: audience activity is smoothed into a cadence, which selects the tier that sets
 // supply, targets and caps. Harnesses can pin the length cap.
 
-import { TARGET_LENGTH, TIERS } from './rules.js';
+import type { Tier } from './types.ts';
+import { TARGET_LENGTH, TIERS } from './rules.ts';
 
 // The race decides the round, not length: past the cap a berry scores without adding a segment.
 // Length is capped because it cannot be both the round clock and the death risk: longer rounds would
@@ -12,30 +13,35 @@ import { TARGET_LENGTH, TIERS } from './rules.js';
 // the tier no longer touches it.
 export let forcedLength = 0;
 
-export function forceLength(v) {
+export function forceLength(v: number): void {
   forcedLength = v;
 }
 
 // Cap = TARGET_LENGTH (ring full at 60). Two snakes at 120 on 320 cells self-trapped
 // (measured: 62 deaths / 6 rounds, all trapped; at 60: 30).
-export const maxLength = () => forcedLength || TARGET_LENGTH;
+export const maxLength = (): number => forcedLength || TARGET_LENGTH;
 
-export let cadence = 0,
-  tier = TIERS[0];
+export let cadence = 0;
+// TIERS always has four elements (defined in rules.ts); the undefined branch never executes.
+const _tier0 = TIERS[0];
+if (_tier0 === undefined) throw new Error('TIERS is empty');
+export let tier: Tier = _tier0;
 
 // Without jitter both teams advance on fixed clocks and the winner is predictable.
 // Each safety-net delay varies by plus or minus 40%.
-export const jitter = (v) => v * (0.6 + Math.random() * 0.8);
+export const jitter = (v: number): number => v * (0.6 + Math.random() * 0.8);
 
 // Each event adds to cadence, which decays to zero over one minute.
-export function countEvents(n) {
+export function countEvents(n: number): void {
   cadence += n;
 }
 
-export function updateTier(dt) {
+export function updateTier(dt: number): void {
   cadence = Math.max(0, cadence - (cadence * dt) / 60);
   const c = cadence;
-  let p = TIERS[0];
-  for (let i = 0; i < TIERS.length; i++) if (c >= TIERS[i].min) p = TIERS[i];
+  const _p0 = TIERS[0];
+  if (_p0 === undefined) throw new Error('TIERS is empty');
+  let p: Tier = _p0;
+  for (const t of TIERS) if (c >= t.min) p = t;
   tier = p;
 }

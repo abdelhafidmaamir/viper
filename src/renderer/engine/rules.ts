@@ -1,6 +1,8 @@
 // Game rules: board speed, hazard timings, crowd tiers, gift prices and durations, and the fixed
 // temperament both AIs share. The bench API retunes tier fields in place.
 
+import type { Tier } from './types.ts';
+
 export const SPEED = 7;
 
 export const SEED_GROW_TIME = 1;
@@ -22,7 +24,7 @@ export const BRAMBLE_WARNING = 0.8,
 // Four turnout tiers: the game holds from empty room to full crowd.
 // cadence = events per minute, smoothed. Each tier changes supply, target and caps.
 // skySun: berries eaten to raise the sun to the top. skyMoon: stones placed for the moon.
-export const TIERS = [
+export const TIERS: Tier[] = [
   {
     id: 'empty',
     min: 0,
@@ -101,7 +103,7 @@ export const BOOST_COST = 10,
 // Cut: the gift removes 15% of the rival's length, minimum 1 segment.
 export const CUT_COST = 20,
   CUT_FRACTION = 0.15;
-export const cutLength = (L) => Math.max(1, Math.round(L * CUT_FRACTION));
+export const cutLength = (L: number): number => Math.max(1, Math.round(L * CUT_FRACTION));
 
 // Shield at 30 coins: 15 s immunity, stackable with no cap. Life at 100 coins: no cap.
 export const SHIELD_COST = 30,
@@ -124,7 +126,7 @@ export const ADULT_LENGTH = 10;
 // The stone spawns ahead of the snake but never in the cell it will cross before the stone is solid.
 // At SPEED cells/s it covers STONE_WARNING * SPEED cells during the warning; any cell closer in its
 // lane would be passed before the stone exists. Spawn well ahead or to the side, never in that dead zone.
-export const STONE_CLEARANCE = () => SPEED * (STONE_WARNING + 0.25); // cells the snake travels during the warning window, with margin
+export const STONE_CLEARANCE = (): number => SPEED * (STONE_WARNING + 0.25); // cells the snake travels during the warning window, with margin
 
 // A round starts with a hatch: a white shell lands at the center of the board, cracks open, and the
 // snake emerges. Nothing moves while it is there.

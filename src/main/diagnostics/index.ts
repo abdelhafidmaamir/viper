@@ -5,11 +5,11 @@ import type { BrowserWindow } from 'electron';
 import type { DiagnosticName, DiagnosticOptions, Orientation } from '../config.js';
 import { evaluate } from '../page/evaluate.js';
 import { installPageKit } from '../page/page-kit.js';
-import { createContext, type Diagnostic } from './context.js';
-import { cpuProfile } from './cpu-profile.js';
-import { drawCalls } from './draw-calls.js';
-import { frameTiming } from './frame-timing.js';
-import { screenshots } from './screenshots.js';
+import { createContext, type Diagnostic } from './context.ts';
+import { cpuProfile } from './cpu-profile.ts';
+import { drawCalls } from './draw-calls.ts';
+import { frameTiming } from './frame-timing.ts';
+import { screenshots } from './screenshots.ts';
 
 const REGISTRY: Readonly<Record<DiagnosticName, Diagnostic>> = {
   screenshots,

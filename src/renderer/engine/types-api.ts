@@ -116,6 +116,8 @@ export type AmbienceGiftSound = 'help' | 'hinder' | 'world';
 /** A running ambient sound loop. */
 export interface AmbientSoundHandle {
   stop(): void;
+  /** Lower volume briefly, then restore it over `sec` seconds. */
+  silence(sec: number): void;
 }
 
 /** A visual and sound ambience registered on window.AMBIENCES (forest-ambience.js). */

@@ -1,18 +1,38 @@
 // Duel HUD: the two half-rings around the board, each team's status column (shield, life,
 // speed) and the heart and crest glyphs they use.
 
-import { CELL, COLS, H, ROWS, W, X0, Y0 } from './layout.js';
-import { ctx } from './canvas.js';
-import { SHADOW, GOLD } from './palette.js';
-import { SHIELD_DURATION, TARGET_LENGTH, REPRIEVE_LENGTH, BOOST_DURATION } from './rules.js';
-import { frameDt, pointRail } from './frame.js';
-import { HOLD_SECONDS, bodies, round, settings, t } from '../scripts/game.js';
+import type { Body, GaugeEvent, Point } from './types.ts';
+import { CELL, COLS, H, ROWS, W, X0, Y0 } from './layout.ts';
+import { ctx } from './canvas.ts';
+import { SHADOW, GOLD } from './palette.ts';
+import { SHIELD_DURATION, TARGET_LENGTH, REPRIEVE_LENGTH, BOOST_DURATION } from './rules.ts';
+import { frameDt, pointRail } from './frame.ts';
+import { HOLD_SECONDS, bodies, round, settings, t } from '../scripts/game.ts';
+
+interface SmokeParticle {
+  x: number;
+  y: number;
+  vx: number;
+  vy: number;
+  l: number;
+  m: number;
+}
+
+interface CapPoint {
+  m: Point;
+  tx: number;
+  ty: number;
+  nx: number;
+  ny: number;
+  h: number;
+}
 
 // Smoke puffs shed by the burning timer rail.
-const timerSmoke = [];
+const timerSmoke: SmokeParticle[] = [];
 
-export function paintDuel(dt) {
-  if (!round) return;
+export function paintDuel(dt: number): void {
+  const ro = round;
+  if (!ro) return;
   const x = X0 - 14,
     y = Y0 - 14,
     w = COLS * CELL + 28,
@@ -20,18 +40,20 @@ export function paintDuel(dt) {
     r = 18;
   const perimeter = 2 * (w + h) - 8 * r + 2 * Math.PI * r;
   // smooth the rings toward their target
-  for (let i = 0; i < bodies.length; i++) {
-    const targetLength = Math.min(1, (bodies[i].snake.length || 0) / TARGET_LENGTH);
-    bodies[i].ring += (targetLength - bodies[i].ring) * Math.min(1, (dt || 0.016) * 3.5); // smoother rise
+  for (const c of bodies) {
+    const targetLength = Math.min(1, (c.snake.length || 0) / TARGET_LENGTH);
+    c.ring += (targetLength - c.ring) * Math.min(1, (dt || 0.016) * 3.5); // smoother rise
   }
   // Hold: while a team keeps its ring full for HOLD_SECONDS, its half-ring pulses faster
   // and thickens, and a 5-4-3-2-1 countdown appears at the top center in its color.
   // This is the moment the opposing team must cut: it must be unmissable.
-  const holdOf = (i) =>
-    bodies[i] && round.state === 'playing' ? Math.min(HOLD_SECONDS, bodies[i].hold || 0) : 0;
+  const holdOf = (i: number): number => {
+    const body = bodies[i];
+    return body && ro.state === 'playing' ? Math.min(HOLD_SECONDS, body.hold ?? 0) : 0;
+  };
   // Slow pulse (2 Hz max) with no width jump: the earlier 8-26 rad/s version
   // caused a visible flicker on the cooldown bar.
-  const beat = (holdTime) => (holdTime > 0 ? 0.5 + 0.5 * Math.sin(t * 4) : 0);
+  const beat = (holdTime: number): number => (holdTime > 0 ? 0.5 + 0.5 * Math.sin(t * 4) : 0);
   ctx.save();
   ctx.lineWidth = 6;
   ctx.lineJoin = 'round';
@@ -52,13 +74,14 @@ export function paintDuel(dt) {
   //  - uses real frame time (frameDt). Render-only: nothing here touches the game state.
   // The bulge is capped at 7.7 px half-thickness: the timer rail sits at 12 px (7 px stroke).
   const GULP_DURATION = 1.0,
-    smooth = (v) => {
+    smooth = (v: number): number => {
       v = Math.max(0, Math.min(1, v));
       return v * v * v * (v * (6 * v - 15) + 10);
     };
   for (let i = 0; i < bodies.length && i < 2; i++) {
-    const c = bodies[i],
-      clockwise = i === 1,
+    const c = bodies[i];
+    if (!c) continue;
+    const clockwise = i === 1,
       rgb = i === 0 ? '242,197,124' : '180,212,222',
       highlight = i === 0 ? '255,238,206' : '228,243,249';
     const L = c.snake.length || 0,
@@ -69,57 +92,65 @@ export function paintDuel(dt) {
       c.gaugeEvents = [];
       c.gaugeLength = L;
     }
-    if (L > c.gaugeLength && round.state === 'playing')
-      c.gaugeEvents.push({ q: 0, done: false, gain: (L - c.gaugeLength) * pxPerSegment });
+    // gaugeLevel, gaugeVelocity, gaugeEvents and gaugeLength are initialized above when undefined
+    const events = c.gaugeEvents ?? [];
+    const gaugeLength = c.gaugeLength ?? L;
+    if (L > gaugeLength && ro.state === 'playing')
+      events.push({ q: 0, done: false, gain: (L - gaugeLength) * pxPerSegment });
     c.gaugeLength = L;
     let pending = 0;
-    for (let k = c.gaugeEvents.length - 1; k >= 0; k--) {
-      const e = c.gaugeEvents[k];
+    for (let k = events.length - 1; k >= 0; k--) {
+      const e = events[k];
+      if (!e) continue; // invariant: k < events.length
       e.q += frameDt / GULP_DURATION;
       if (!e.done && e.q >= 0.72) e.done = true;
       if (e.q >= 1) {
-        c.gaugeEvents.splice(k, 1);
+        events.splice(k, 1);
         continue;
       }
       if (!e.done) pending += e.gain;
     }
     const target = Math.max(0, Math.min(perimeter / 2, L * pxPerSegment) - pending),
       wr = 6.5;
-    c.gaugeVelocity += (wr * wr * (target - c.gaugeLevel) - 2 * wr * c.gaugeVelocity) * frameDt;
-    c.gaugeLevel += c.gaugeVelocity * frameDt;
+    c.gaugeVelocity =
+      (c.gaugeVelocity ?? 0) +
+      (wr * wr * (target - (c.gaugeLevel ?? 0)) - 2 * wr * (c.gaugeVelocity ?? 0)) * frameDt;
+    c.gaugeLevel = (c.gaugeLevel ?? 0) + (c.gaugeVelocity ?? 0) * frameDt;
     if (c.gaugeLevel < 0) {
       c.gaugeLevel = 0;
       c.gaugeVelocity = 0;
     }
-    const Lb = Math.max(c.gaugeLevel, c.gaugeEvents.length ? 16 : 0);
+    const Lb = Math.max(c.gaugeLevel, events.length ? 16 : 0);
     if (Lb < 1) continue;
     const holdTime = holdOf(i),
       beatVal = beat(holdTime),
       baseThickness = (holdTime > 0 ? 6 : 3.1) + 0.15 * Math.sin(t * 1.3 + i * 1.7);
-    const gulps = c.gaugeEvents.map((e) => ({
+    const gulps: { pos: number; a: number }[] = events.map((e: GaugeEvent) => ({
       pos: smooth(e.q) * Lb,
       a: smooth(e.q / 0.22) * (1 - smooth((e.q - 0.74) / 0.26)),
     }));
-    const halfThick = (d) => {
+    const halfThick = (d: number): number => {
       let h2 = baseThickness;
       for (const g of gulps) h2 += 4.6 * g.a * Math.exp(-Math.pow((d - g.pos) / 19, 2));
       return h2;
     };
-    const railPoint = (d) => pointRail(x, y, w, h, r, clockwise ? d : (perimeter - d) % perimeter);
+    const railPoint = (d: number): Point =>
+      pointRail(x, y, w, h, r, clockwise ? d : (perimeter - d) % perimeter);
     // body: outer outline, inner outline, two rounded caps at the correct thickness.
     // Perf: one rail point per sample (4 px step), tangent derived from neighbors.
     const N = Math.max(6, Math.ceil(Lb / 4)),
-      outer = [],
-      inner = [],
-      back = [],
-      ends = [null, null],
-      centerline = [];
+      outer: Point[] = [],
+      inner: Point[] = [],
+      back: Point[] = [],
+      ends: [CapPoint | null, CapPoint | null] = [null, null],
+      centerline: Point[] = [];
     for (let k = 0; k <= N; k++) centerline.push(railPoint((Lb * k) / N));
     for (let k = 0; k <= N; k++) {
-      const d = (Lb * k) / N,
-        a = centerline[Math.max(0, k - 1)],
-        b2 = centerline[Math.min(N, k + 1)],
-        m = centerline[k];
+      const d = (Lb * k) / N;
+      const a = centerline[Math.max(0, k - 1)];
+      const b2 = centerline[Math.min(N, k + 1)];
+      const m = centerline[k];
+      if (!a || !b2 || !m) continue; // invariant: indices in 0..N, centerline has N+1 elements
       let tx = b2.x - a.x,
         ty = b2.y - a.y;
       const nn = Math.hypot(tx, ty) || 1;
@@ -136,7 +167,7 @@ export function paintDuel(dt) {
       if (k === N) ends[1] = { m, tx, ty, nx, ny, h: h2 };
     }
     // semicircle from outer to inner edge, following the tangent direction
-    const drawCap = (e) => {
+    const drawCap = (e: CapPoint): void => {
       for (let q = 1; q < 6; q++) {
         const an = (Math.PI * q) / 6,
           ct = Math.sin(an),
@@ -144,12 +175,24 @@ export function paintDuel(dt) {
         ctx.lineTo(e.m.x + (e.tx * ct + e.nx * cn) * e.h, e.m.y + (e.ty * ct + e.ny * cn) * e.h);
       }
     };
+    const outer0 = outer[0],
+      cap0 = ends[0],
+      cap1 = ends[1];
+    if (!outer0 || !cap0 || !cap1) continue; // invariant: all set after the loop above (N >= 6)
     ctx.beginPath();
-    ctx.moveTo(outer[0].x, outer[0].y);
-    for (let k = 1; k <= N; k++) ctx.lineTo(outer[k].x, outer[k].y);
-    drawCap(ends[1]);
-    for (let k = N; k >= 0; k--) ctx.lineTo(inner[k].x, inner[k].y);
-    drawCap(ends[0]);
+    ctx.moveTo(outer0.x, outer0.y);
+    for (let k = 1; k <= N; k++) {
+      const op = outer[k];
+      if (!op) continue; // invariant: k <= N < outer.length
+      ctx.lineTo(op.x, op.y);
+    }
+    drawCap(cap1);
+    for (let k = N; k >= 0; k--) {
+      const ip = inner[k];
+      if (!ip) continue; // invariant: k in 0..N
+      ctx.lineTo(ip.x, ip.y);
+    }
+    drawCap(cap0);
     ctx.closePath();
     // Perf: halo faked with a wide translucent stroke; real blur is used only during the hold
     ctx.lineJoin = 'round';
@@ -161,7 +204,7 @@ export function paintDuel(dt) {
     ctx.stroke();
     ctx.fillStyle = 'rgba(' + rgb + ',0.96)';
     if (holdTime > 0) {
-      ctx.shadowColor = 'rgba(' + rgb + ',' + (0.45 + 0.35 * beatVal) + ')';
+      ctx.shadowColor = 'rgba(' + rgb + ',' + String(0.45 + 0.35 * beatVal) + ')';
       ctx.shadowBlur = 10 + 16 * beatVal;
     }
     ctx.fill();
@@ -174,8 +217,10 @@ export function paintDuel(dt) {
     ctx.lineJoin = 'round';
     ctx.beginPath();
     for (let k = 2; k <= N - 2; k++) {
-      if (k === 2) ctx.moveTo(back[k].x, back[k].y);
-      else ctx.lineTo(back[k].x, back[k].y);
+      const bk = back[k];
+      if (!bk) continue; // invariant: k in 2..N-2, back has N+1 elements
+      if (k === 2) ctx.moveTo(bk.x, bk.y);
+      else ctx.lineTo(bk.x, bk.y);
     }
     ctx.stroke();
     // the berry traveling inside: a soft glow, never a sharp dot
@@ -183,8 +228,8 @@ export function paintDuel(dt) {
       if (g.a < 0.02) continue;
       const m = railPoint(g.pos);
       const gr = ctx.createRadialGradient(m.x, m.y, 0, m.x, m.y, 12);
-      gr.addColorStop(0, 'rgba(' + highlight + ',' + 0.95 * g.a + ')');
-      gr.addColorStop(0.5, 'rgba(' + highlight + ',' + 0.5 * g.a + ')');
+      gr.addColorStop(0, 'rgba(' + highlight + ',' + String(0.95 * g.a) + ')');
+      gr.addColorStop(0.5, 'rgba(' + highlight + ',' + String(0.5 * g.a) + ')');
       gr.addColorStop(1, 'rgba(' + highlight + ',0)');
       ctx.fillStyle = gr;
       ctx.beginPath();
@@ -193,9 +238,9 @@ export function paintDuel(dt) {
     }
     ctx.restore();
   }
-  if (round.state === 'playing') {
+  if (ro.state === 'playing') {
     const matchDuration = settings.duelDuration || settings.duration,
-      remaining = Math.max(0, 1 - round.t / matchDuration);
+      remaining = Math.max(0, 1 - ro.t / matchDuration);
     const ex = x - 12,
       ey = y - 12,
       ew = w + 24,
@@ -210,20 +255,21 @@ export function paintDuel(dt) {
     ctx.stroke();
     if (remaining > 0.001) {
       const len = shieldEdge * remaining,
-        urgent = round.t > matchDuration - 15;
+        urgent = ro.t > matchDuration - 15;
       // Perf: a shadowBlur on a stroke that wraps the board forces the browser to blur
       // the entire board surface each frame (measured: 3.5 ms vs 0.25 ms without blur).
       // The halo is faked with two wider translucent strokes under the solid one.
       const intensity = urgent ? 0.65 + 0.35 * Math.sin(t * 6) : 0.95;
       ctx.setLineDash([len, shieldEdge - len]);
       ctx.lineDashOffset = -(ew / 2 - er);
-      [
+      const layers: [number, number][] = [
         [urgent ? 19 : 15, 0.09],
         [urgent ? 13 : 11, 0.15],
         [7, intensity],
-      ].forEach(([lw2, al]) => {
+      ];
+      layers.forEach(([lw2, al]) => {
         ctx.lineWidth = lw2;
-        ctx.strokeStyle = 'rgba(240,78,62,' + al + ')';
+        ctx.strokeStyle = 'rgba(240,78,62,' + String(al) + ')';
         ctx.beginPath();
         ctx.roundRect(ex, ey, ew, eh, er);
         ctx.stroke();
@@ -233,18 +279,18 @@ export function paintDuel(dt) {
       // Timer fuse: the last few centimeters of the stroke warm up (red, amber, warm white),
       // an ember breathes slowly at the tip, and sparse amber sparks rise and die out.
       // Render-only: nothing here touches the game state.
-      const timerRailPoint = (s) => pointRail(ex, ey, ew, eh, er, Math.max(0, s)),
+      const timerRailPoint = (s: number): Point => pointRail(ex, ey, ew, eh, er, Math.max(0, s)),
         tip = timerRailPoint(len);
       for (let i = 12; i >= 0; i--) {
         const q = timerRailPoint(len - i * 7),
           f = 1 - i / 12;
         ctx.fillStyle =
           'rgba(255,' +
-          Math.round(120 + 110 * f) +
+          String(Math.round(120 + 110 * f)) +
           ',' +
-          Math.round(70 + 120 * f * f) +
+          String(Math.round(70 + 120 * f * f)) +
           ',' +
-          0.85 * f * f +
+          String(0.85 * f * f) +
           ')';
         ctx.beginPath();
         ctx.arc(q.x, q.y, 3.5, 0, Math.PI * 2);
@@ -254,7 +300,11 @@ export function paintDuel(dt) {
       ctx.shadowColor = 'rgba(255,150,70,0.9)';
       ctx.shadowBlur = 16 + 16 * breath;
       ctx.fillStyle =
-        'rgb(255,' + Math.round(200 + 40 * breath) + ',' + Math.round(150 + 60 * breath) + ')';
+        'rgb(255,' +
+        String(Math.round(200 + 40 * breath)) +
+        ',' +
+        String(Math.round(150 + 60 * breath)) +
+        ')';
       ctx.beginPath();
       ctx.arc(tip.x, tip.y, 6.5 + 2 * breath, 0, Math.PI * 2);
       ctx.fill();
@@ -270,6 +320,7 @@ export function paintDuel(dt) {
         });
       for (let i = timerSmoke.length - 1; i >= 0; i--) {
         const g = timerSmoke[i];
+        if (!g) continue; // invariant: i < timerSmoke.length
         g.l += frameDt;
         if (g.l >= g.m) {
           timerSmoke.splice(i, 1);
@@ -277,7 +328,7 @@ export function paintDuel(dt) {
         }
         g.x += (g.vx + Math.sin(g.l * 2.2) * 14) * frameDt;
         g.y += g.vy * frameDt;
-        ctx.fillStyle = 'rgba(255,205,150,' + 0.7 * Math.sin((Math.PI * g.l) / g.m) + ')';
+        ctx.fillStyle = 'rgba(255,205,150,' + String(0.7 * Math.sin((Math.PI * g.l) / g.m)) + ')';
         ctx.beginPath();
         ctx.arc(g.x, g.y, 3, 0, Math.PI * 2);
         ctx.fill();
@@ -313,8 +364,8 @@ export function paintDuel(dt) {
     ctx.restore();
   }
   // red recoil flash per team
-  for (let i = 0; i < bodies.length; i++) {
-    const rt = bodies[i].recoilTime || 0;
+  for (const b of bodies) {
+    const rt = b.recoilTime;
     if (rt > 0) {
       ctx.save();
       ctx.globalAlpha = 0.14 * (rt / 0.9);
@@ -327,7 +378,7 @@ export function paintDuel(dt) {
 }
 
 // duel rail icons (same shapes as the heart/shield in paintDuelStatus, defined locally there)
-function duelHeart(icx, icy, s) {
+function duelHeart(icx: number, icy: number, s: number): void {
   // symmetric heart: two round lobes, one point (the earlier shape distorted at 24 px)
   ctx.beginPath();
   ctx.moveTo(icx, icy + s * 0.85);
@@ -350,7 +401,7 @@ function duelHeart(icx, icy, s) {
   ctx.closePath();
 }
 
-function duelShield(icx, icy, s) {
+function duelShield(icx: number, icy: number, s: number): void {
   ctx.beginPath();
   ctx.moveTo(icx, icy - s);
   ctx.lineTo(icx + s * 0.8, icy - s * 0.6);
@@ -361,8 +412,9 @@ function duelShield(icx, icy, s) {
   ctx.closePath();
 }
 
-export function paintDuelStatus() {
-  if (!round || round.state !== 'playing') return;
+export function paintDuelStatus(): void {
+  const ro = round;
+  if (ro?.state !== 'playing') return;
   // same coordinates as paintDuelStatus
   const RCX_LEFT = X0 - 82,
     RCX_RIGHT = X0 + COLS * CELL + 82;
@@ -371,12 +423,13 @@ export function paintDuelStatus() {
   const GAUGE_Y_TOP = GAUGE_Y_BOTTOM - 220,
     GAUGE_W = 40,
     GAUGE_H = 220;
-  const teams = [
-    { c: bodies[0], cx: RCX_LEFT, rgb: '242,197,124', tint: GOLD },
-    { c: bodies[1], cx: RCX_RIGHT, rgb: '180,212,222', tint: SHADOW },
+  const bs = bodies;
+  const teams: { c: Body | undefined; cx: number; rgb: string; tint: string }[] = [
+    { c: bs[0], cx: RCX_LEFT, rgb: '242,197,124', tint: GOLD },
+    { c: bs[1], cx: RCX_RIGHT, rgb: '180,212,222', tint: SHADOW },
   ];
   ctx.save();
-  teams.forEach(({ c, cx, rgb, tint: tint }) => {
+  teams.forEach(({ c, cx, rgb, tint }) => {
     if (!c) return;
     const surge = Math.min(1, (c.boostTime || 0) / BOOST_DURATION); // the gauge drains over the 10 s paid boost
     const invincible = (c.invincibleTime || 0) > 0;
@@ -488,7 +541,7 @@ export function paintDuelStatus() {
         ctx.font = '700 20px system-ui, sans-serif';
         ctx.textAlign = 'center';
         ctx.textBaseline = 'middle';
-        ctx.fillText(Math.ceil(c.shieldTime) + 's', cx, iconY + s + 30);
+        ctx.fillText(String(Math.ceil(c.shieldTime)) + 's', cx, iconY + s + 30);
         iconY += s * 2 + 58;
       }
       // Gifted lives: one heart per life, same size and style as the shield, readable at thumb size.
@@ -513,7 +566,7 @@ export function paintDuelStatus() {
           ctx.font = '700 22px system-ui, sans-serif';
           ctx.textAlign = 'center';
           ctx.textBaseline = 'middle';
-          ctx.fillText('x' + lifeCount, cx, iconY + s * 1.4);
+          ctx.fillText('x' + String(lifeCount), cx, iconY + s * 1.4);
         }
         iconY += s * 2.2;
       }

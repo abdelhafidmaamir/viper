@@ -2,16 +2,25 @@
 // glyphs they share. TikTok LIVE guidelines forbid on-screen prices and permanent calls to
 // action, so the columns show effects, not costs, and fade out on a configurable cycle.
 
-import { L } from './layout.js';
-import { ctx } from './canvas.js';
-import { SHADOW, GOLD } from './palette.js';
-import { SHIELD_DURATION, BOOST_DURATION } from './rules.js';
-import { giftBanner, giftFeedback } from './gift-feedback.js';
-import { bodies, settings, t } from '../scripts/game.js';
+import type {
+  Body,
+  Team,
+  GiftFeedbackEntry,
+  GiftBanner,
+  DuelGift,
+  GiftEffect,
+  EffectLabel,
+} from './types.ts';
+import { L } from './layout.ts';
+import { ctx } from './canvas.ts';
+import { SHADOW, GOLD } from './palette.ts';
+import { SHIELD_DURATION, BOOST_DURATION } from './rules.ts';
+import { giftBanner, giftFeedback } from './gift-feedback.ts';
+import { bodies, settings, t } from '../scripts/game.ts';
 
 // Duel gift legend: one column per team below the counter. Each row shows the TikTok gift image
 // (assets/gifts/*.png, transparent background), price in coins, and the in-game effect.
-export const DUEL_GIFTS = {
+export const DUEL_GIFTS: Record<Team, DuelGift[]> = {
   gold: [
     { img: 'rose-red', price: 1, effect: '+1' },
     { img: 'rose-10', price: 10, effect: 'speed 10s' },
@@ -28,10 +37,11 @@ export const DUEL_GIFTS = {
   ],
 };
 
-const giftImages = {};
+const giftImages: Record<string, HTMLImageElement | null> = {};
 
-function loadGiftImage(imgKey) {
-  if (giftImages[imgKey] !== undefined) return giftImages[imgKey];
+function loadGiftImage(imgKey: string): HTMLImageElement | null {
+  const cached = giftImages[imgKey];
+  if (cached !== undefined) return cached;
   if (typeof Image === 'undefined') {
     giftImages[imgKey] = null;
     return null;
@@ -42,40 +52,44 @@ function loadGiftImage(imgKey) {
   return img;
 }
 
-export function paintDuelLegend() {
+export function paintDuelLegend(): void {
+  const c = ctx as CanvasRenderingContext2D | null; // canvas.ts not yet typed; runtime is non-null after bindCanvas()
+  if (!c) return;
   // 5 rows of 92 px fit between y=1340 and y=1800; no team label, color identifies the team.
   const Y = L.legY,
     LH = 92,
     IMG = 64,
     CW = 400;
-  ctx.save();
-  const mode = settings.giftFeedback || 'none';
-  [
-    ['gold', L.legCxG, GOLD, '242,197,124'],
-    ['shadow', L.legCxD, SHADOW, '180,212,222'],
-  ].forEach(([team, cx, tint, rgb]) => {
+  c.save();
+  const mode = settings.giftFeedback;
+  (
+    [
+      ['gold', L.legCxG, GOLD, '242,197,124'],
+      ['shadow', L.legCxD, SHADOW, '180,212,222'],
+    ] as [Team, number, string, string][]
+  ).forEach(([team, cx, tint, rgb]) => {
     const giftList = DUEL_GIFTS[team],
       teamIdx = team === 'gold' ? 0 : 1,
-      body = bodies[teamIdx];
+      body: Body | undefined = bodies[teamIdx];
     // G4: donor banner above the column, slides up and fades out.
-    const donorBanner = giftBanner[teamIdx];
-    if (mode === 'G4' && donorBanner && t - donorBanner.t < 2.6) {
+    const donorBanner: GiftBanner | null = team === 'gold' ? giftBanner[0] : giftBanner[1];
+    if (mode === 'G4' && donorBanner !== null && t - donorBanner.t < 2.6) {
       const a = t - donorBanner.t,
         entryFade = Math.min(1, a / 0.35),
         exitFade = a > 2 ? 1 - (a - 2) / 0.6 : 1,
         e2 = 1 - Math.pow(1 - entryFade, 3);
-      ctx.globalAlpha = Math.max(0, e2 * exitFade);
-      ctx.fillStyle = tint;
-      ctx.font = '700 24px system-ui, sans-serif';
-      ctx.textAlign = 'center';
-      ctx.textBaseline = 'middle';
-      ctx.fillText(donorBanner.text, cx, Y - LH / 2 - 16 + (1 - e2) * 18);
-      ctx.globalAlpha = 1;
+      c.globalAlpha = Math.max(0, e2 * exitFade);
+      c.fillStyle = tint;
+      c.font = '700 24px system-ui, sans-serif';
+      c.textAlign = 'center';
+      c.textBaseline = 'middle';
+      c.fillText(donorBanner.text, cx, Y - LH / 2 - 16 + (1 - e2) * 18);
+      c.globalAlpha = 1;
     }
-    giftList.forEach((c, k) => {
+    giftList.forEach((gift, k) => {
       const y = Y + k * LH;
       // Visual feedback: age of the last gift on this row, and remaining fraction of a timed effect.
-      const lineFeedback = giftFeedback[teamIdx][k],
+      const lineFeedback = (giftFeedback as (GiftFeedbackEntry | undefined)[][])[teamIdx]?.[k],
         age = lineFeedback ? t - lineFeedback.t : 99;
       const remaining = body
         ? k === 1
@@ -86,27 +100,22 @@ export function paintDuelLegend() {
         : 0;
       if (mode === 'G1' && (age < 1.8 || remaining > 0)) {
         const flash = age < 1.8 ? Math.pow(1 - age / 1.8, 1.5) : 0;
-        ctx.fillStyle =
-          'rgba(' +
-          rgb +
-          ',' +
-          (0.3 * flash + (remaining > 0 ? 0.1 + 0.03 * Math.sin(t * 2.4) : 0)) +
-          ')';
-        ctx.beginPath();
-        ctx.roundRect(cx - CW / 2, y - LH / 2 + 6, CW, LH - 12, 22);
-        ctx.fill();
+        c.fillStyle = `rgba(${rgb},${String(0.3 * flash + (remaining > 0 ? 0.1 + 0.03 * Math.sin(t * 2.4) : 0))})`;
+        c.beginPath();
+        c.roundRect(cx - CW / 2, y - LH / 2 + 6, CW, LH - 12, 22);
+        c.fill();
       }
       // card background
-      ctx.fillStyle = 'rgba(6,11,8,0.46)';
-      ctx.beginPath();
-      ctx.roundRect(cx - CW / 2, y - LH / 2 + 6, CW, LH - 12, 22);
-      ctx.fill();
-      ctx.lineWidth = 1.5;
-      ctx.strokeStyle = 'rgba(' + rgb + ',0.35)';
-      ctx.stroke();
+      c.fillStyle = 'rgba(6,11,8,0.46)';
+      c.beginPath();
+      c.roundRect(cx - CW / 2, y - LH / 2 + 6, CW, LH - 12, 22);
+      c.fill();
+      c.lineWidth = 1.5;
+      c.strokeStyle = `rgba(${rgb},0.35)`;
+      c.stroke();
       // Gift image. Shadow team mirrors Gold: image and price badge on the right, effect right-aligned.
       const mirrored = team === 'shadow';
-      const img = loadGiftImage(c.img);
+      const img = loadGiftImage(gift.img);
       const ix = mirrored ? cx + CW / 2 - 16 - IMG : cx - CW / 2 + 16,
         iy = y - IMG / 2;
       // G2: image pops (scale burst); G3: image hops (vertical bounce).
@@ -114,88 +123,88 @@ export function paintDuelLegend() {
         hop = mode === 'G3' && age < 0.25 ? -9 * Math.sin((age / 0.25) * Math.PI) : 0;
       if (img && img.complete && img.naturalWidth) {
         const d2 = IMG * bounce;
-        ctx.drawImage(img, ix + IMG / 2 - d2 / 2, iy + IMG / 2 - d2 / 2 + hop, d2, d2);
+        c.drawImage(img, ix + IMG / 2 - d2 / 2, iy + IMG / 2 - d2 / 2 + hop, d2, d2);
       } else {
-        ctx.fillStyle = 'rgba(' + rgb + ',0.25)';
-        ctx.beginPath();
-        ctx.arc(ix + IMG / 2, y, IMG * 0.38, 0, Math.PI * 2);
-        ctx.fill();
+        c.fillStyle = `rgba(${rgb},0.25)`;
+        c.beginPath();
+        c.arc(ix + IMG / 2, y, IMG * 0.38, 0, Math.PI * 2);
+        c.fill();
       }
       // Price badge (tinted circle) then effect text, on one line.
       const pcx = mirrored ? ix - 18 - 17 : ix + IMG + 18 + 17; // center of the price badge
-      ctx.fillStyle = tint;
-      ctx.beginPath();
-      ctx.arc(pcx, y, 17, 0, Math.PI * 2);
-      ctx.fill();
-      ctx.fillStyle = '#0c110e';
-      ctx.font = '900 18px system-ui, sans-serif';
-      ctx.textAlign = 'center';
-      ctx.textBaseline = 'middle';
-      ctx.fillText(String(c.price), pcx, y + 1);
-      ctx.fillStyle = 'rgba(255,255,255,0.92)';
-      ctx.font = '700 30px system-ui, sans-serif';
-      ctx.textAlign = mirrored ? 'right' : 'left';
-      ctx.fillText(c.effect, mirrored ? pcx - 29 : pcx + 29, y + 1);
-      ctx.textAlign = 'left';
+      c.fillStyle = tint;
+      c.beginPath();
+      c.arc(pcx, y, 17, 0, Math.PI * 2);
+      c.fill();
+      c.fillStyle = '#0c110e';
+      c.font = '900 18px system-ui, sans-serif';
+      c.textAlign = 'center';
+      c.textBaseline = 'middle';
+      c.fillText(String(gift.price), pcx, y + 1);
+      c.fillStyle = 'rgba(255,255,255,0.92)';
+      c.font = '700 30px system-ui, sans-serif';
+      c.textAlign = mirrored ? 'right' : 'left';
+      c.fillText(gift.effect, mirrored ? pcx - 29 : pcx + 29, y + 1);
+      c.textAlign = 'left';
       if (mode === 'G1') {
-        if (lineFeedback && age < 2.2 && settings.donorNames !== false) {
-          ctx.globalAlpha = age < 1.6 ? 1 : Math.max(0, 1 - (age - 1.6) / 0.6);
-          ctx.fillStyle = tint;
-          ctx.font = '600 19px system-ui, sans-serif';
-          ctx.textAlign = mirrored ? 'left' : 'right';
-          ctx.fillText(
+        if (lineFeedback && age < 2.2 && settings.donorNames) {
+          c.globalAlpha = age < 1.6 ? 1 : Math.max(0, 1 - (age - 1.6) / 0.6);
+          c.fillStyle = tint;
+          c.font = '600 19px system-ui, sans-serif';
+          c.textAlign = mirrored ? 'left' : 'right';
+          c.fillText(
             lineFeedback.nickname,
             mirrored ? cx - CW / 2 + 18 : cx + CW / 2 - 18,
             y - LH / 2 + 24,
           );
-          ctx.globalAlpha = 1;
-          ctx.textAlign = 'left';
+          c.globalAlpha = 1;
+          c.textAlign = 'left';
         }
         if (remaining > 0) {
-          ctx.strokeStyle = 'rgba(' + rgb + ',0.95)';
-          ctx.lineWidth = 3;
-          ctx.lineCap = 'round';
-          ctx.beginPath();
-          ctx.moveTo(cx - CW / 2 + 24, y + LH / 2 - 9);
-          ctx.lineTo(cx - CW / 2 + 24 + (CW - 48) * remaining, y + LH / 2 - 9);
-          ctx.stroke();
+          c.strokeStyle = `rgba(${rgb},0.95)`;
+          c.lineWidth = 3;
+          c.lineCap = 'round';
+          c.beginPath();
+          c.moveTo(cx - CW / 2 + 24, y + LH / 2 - 9);
+          c.lineTo(cx - CW / 2 + 24 + (CW - 48) * remaining, y + LH / 2 - 9);
+          c.stroke();
         }
       }
       if (mode === 'G2' && remaining > 0) {
-        ctx.lineWidth = 4;
-        ctx.lineCap = 'round';
-        ctx.strokeStyle = 'rgba(255,255,255,0.14)';
-        ctx.beginPath();
-        ctx.arc(ix + IMG / 2, y, IMG / 2 + 5, 0, Math.PI * 2);
-        ctx.stroke();
-        ctx.strokeStyle = tint;
-        ctx.beginPath();
-        ctx.arc(ix + IMG / 2, y, IMG / 2 + 5, -Math.PI / 2, -Math.PI / 2 + Math.PI * 2 * remaining);
-        ctx.stroke();
+        c.lineWidth = 4;
+        c.lineCap = 'round';
+        c.strokeStyle = 'rgba(255,255,255,0.14)';
+        c.beginPath();
+        c.arc(ix + IMG / 2, y, IMG / 2 + 5, 0, Math.PI * 2);
+        c.stroke();
+        c.strokeStyle = tint;
+        c.beginPath();
+        c.arc(ix + IMG / 2, y, IMG / 2 + 5, -Math.PI / 2, -Math.PI / 2 + Math.PI * 2 * remaining);
+        c.stroke();
       }
       if (mode === 'G3' && lineFeedback && lineFeedback.n > 0) {
         const bx = mirrored ? ix + 6 : ix + IMG - 6,
           by = y - IMG / 2 + 8,
           pop = age < 0.3 ? 1 + 0.35 * Math.sin((age / 0.3) * Math.PI) : 1;
-        ctx.fillStyle = tint;
-        ctx.beginPath();
-        ctx.arc(bx, by, 15 * pop, 0, Math.PI * 2);
-        ctx.fill();
-        ctx.fillStyle = '#0c110e';
-        ctx.font = '900 17px system-ui, sans-serif';
-        ctx.textAlign = 'center';
-        ctx.fillText(String(lineFeedback.n), bx, by + 1);
-        ctx.textAlign = 'left';
+        c.fillStyle = tint;
+        c.beginPath();
+        c.arc(bx, by, 15 * pop, 0, Math.PI * 2);
+        c.fill();
+        c.fillStyle = '#0c110e';
+        c.font = '900 17px system-ui, sans-serif';
+        c.textAlign = 'center';
+        c.fillText(String(lineFeedback.n), bx, by + 1);
+        c.textAlign = 'left';
       }
     });
   });
-  ctx.restore();
+  c.restore();
 }
 
 // Scrolling gift ribbon (Livecade pattern): a horizontal strip at the bottom that scrolls continuously.
 // Each entry shows the animated gift image (wiggle) and the effect in full text.
 // No prices, no call-to-action verbs: this is a game menu, not a shop display.
-export const EFFECT_LABEL = {
+export const EFFECT_LABEL: Record<GiftEffect, EffectLabel> = {
   '+1': 'BERRY',
   'speed 10s': 'SPEED',
   'steal 15%': 'STEAL',
@@ -203,41 +212,54 @@ export const EFFECT_LABEL = {
   '+1 life': 'LIFE',
 };
 
-const teamTiles = {};
+interface GiftTile {
+  readonly img: string;
+  readonly label: string;
+}
 
-function getTiles(team) {
-  if (teamTiles[team]) return teamTiles[team];
-  const t = DUEL_GIFTS[team].map((c) => ({
-    img: c.img,
-    label: EFFECT_LABEL[c.effect] || c.effect.toUpperCase(),
+const teamTilesCache = new Map<Team, GiftTile[]>();
+
+function getTiles(team: Team): GiftTile[] {
+  const cached = teamTilesCache.get(team);
+  if (cached !== undefined) return cached;
+  const tiles = DUEL_GIFTS[team].map((entry) => ({
+    img: entry.img,
+    label: EFFECT_LABEL[entry.effect], // Record<GiftEffect, EffectLabel> covers all keys
   }));
-  teamTiles[team] = t;
-  return t;
+  teamTilesCache.set(team, tiles);
+  return tiles;
 }
 
 // Compact ribbon: a narrow box on one side. The team's gift list scrolls and loops, fading out at both
 // edges (rendered on a separate canvas then erased at the extremities). Animated icons (wiggle),
 // team-tinted label. No prices.
-const ribbonLayers = {};
+const ribbonLayers: Partial<Record<Team, HTMLCanvasElement>> = {};
 
-function getRibbonLayer(team, bw, bh) {
-  let c = ribbonLayers[team];
-  if (!c) {
+function getRibbonLayer(team: Team, bw: number, bh: number): HTMLCanvasElement | null {
+  let oc = ribbonLayers[team] ?? null;
+  if (!oc) {
     if (typeof document === 'undefined') return null;
-    c = document.createElement('canvas');
-    ribbonLayers[team] = c;
+    oc = document.createElement('canvas');
+    ribbonLayers[team] = oc;
   }
-  if (c.width !== bw) {
-    c.width = bw;
-    c.height = bh;
+  if (oc.width !== bw) {
+    oc.width = bw;
+    oc.height = bh;
   }
-  return c;
+  return oc;
 }
 
 // Effect glyph in the game's visual language (matching the duel rail: shield, heart, bolt, berry),
 // drawn onto a given context. This is the primary element per row; the TikTok gift image is only
 // a small secondary badge (the game effect leads, the gift icon confirms it).
-export function paintEffectGlyph(o, label, x, y, s, rgb) {
+export function paintEffectGlyph(
+  o: CanvasRenderingContext2D,
+  label: string,
+  x: number,
+  y: number,
+  s: number,
+  rgb: string,
+): void {
   o.save();
   o.lineJoin = 'round';
   o.lineCap = 'round';
@@ -250,8 +272,8 @@ export function paintEffectGlyph(o, label, x, y, s, rgb) {
     o.bezierCurveTo(x, y + s, x - s * 0.8, y + s * 0.7, x - s * 0.8, y + s * 0.1);
     o.lineTo(x - s * 0.8, y - s * 0.6);
     o.closePath();
-    o.fillStyle = 'rgba(' + rgb + ',0.92)';
-    o.shadowColor = 'rgba(' + rgb + ',0.6)';
+    o.fillStyle = `rgba(${rgb},0.92)`;
+    o.shadowColor = `rgba(${rgb},0.6)`;
     o.shadowBlur = 10;
     o.fill();
     o.shadowBlur = 0;
@@ -290,8 +312,8 @@ export function paintEffectGlyph(o, label, x, y, s, rgb) {
     o.lineTo(x - s * 0.05, y + s * 0.12);
     o.lineTo(x - s * 0.6, y + s * 0.12);
     o.closePath();
-    o.fillStyle = 'rgba(' + rgb + ',0.95)';
-    o.shadowColor = 'rgba(' + rgb + ',0.65)';
+    o.fillStyle = `rgba(${rgb},0.95)`;
+    o.shadowColor = `rgba(${rgb},0.65)`;
     o.shadowBlur = 12;
     o.fill();
     o.shadowBlur = 0;
@@ -317,8 +339,8 @@ export function paintEffectGlyph(o, label, x, y, s, rgb) {
   } else if (label === 'STEAL') {
     // Curved arrow turning inward: stealing a share from the opponent.
     o.lineWidth = 4.5;
-    o.strokeStyle = 'rgba(' + rgb + ',0.95)';
-    o.shadowColor = 'rgba(' + rgb + ',0.6)';
+    o.strokeStyle = `rgba(${rgb},0.95)`;
+    o.shadowColor = `rgba(${rgb},0.6)`;
     o.shadowBlur = 10;
     o.beginPath();
     o.arc(x, y, s * 0.72, -Math.PI * 0.15, Math.PI * 1.25);
@@ -326,7 +348,7 @@ export function paintEffectGlyph(o, label, x, y, s, rgb) {
     o.shadowBlur = 0;
     const ax = x + Math.cos(-Math.PI * 0.15) * s * 0.72,
       ay = y + Math.sin(-Math.PI * 0.15) * s * 0.72;
-    o.fillStyle = 'rgba(' + rgb + ',0.95)';
+    o.fillStyle = `rgba(${rgb},0.95)`;
     o.beginPath();
     o.moveTo(ax + s * 0.05, ay - s * 0.5);
     o.lineTo(ax + s * 0.45, ay + s * 0.05);
@@ -344,39 +366,54 @@ export function paintEffectGlyph(o, label, x, y, s, rgb) {
 
 // Vertical ribbon: one team column scrolling up or down. Each entry shows an icon and effect label.
 // Spotlight at the vertical center, fade at top and bottom, production-quality card.
-function paintGiftRibbon(team, x0, y0, bw, bh, rgb, speed, direction) {
+function paintGiftRibbon(
+  team: Team,
+  x0: number,
+  y0: number,
+  bw: number,
+  bh: number,
+  rgb: string,
+  speed: number,
+  direction: number,
+): void {
+  const c = ctx as CanvasRenderingContext2D | null; // canvas.ts not yet typed; runtime is non-null after bindCanvas()
+  if (!c) return;
   const T = getTiles(team),
     n = T.length,
     TH = 132,
     FADE = 64,
     midY = bh / 2,
     icx = 52;
-  ctx.save();
+  c.save();
   // Translucent card: game ambience shows through. Soft drop shadow, tinted border.
-  ctx.shadowColor = 'rgba(0,0,0,0.35)';
-  ctx.shadowBlur = 16;
-  ctx.shadowOffsetY = 5;
-  const pg = ctx.createLinearGradient(x0, 0, x0 + bw, 0);
+  c.shadowColor = 'rgba(0,0,0,0.35)';
+  c.shadowBlur = 16;
+  c.shadowOffsetY = 5;
+  const pg = c.createLinearGradient(x0, 0, x0 + bw, 0);
   pg.addColorStop(0, 'rgba(14,19,16,0.42)');
   pg.addColorStop(1, 'rgba(8,11,9,0.5)');
-  ctx.fillStyle = pg;
-  ctx.beginPath();
-  ctx.roundRect(x0, y0, bw, bh, 22);
-  ctx.fill();
-  ctx.shadowColor = 'transparent';
-  ctx.shadowBlur = 0;
-  ctx.shadowOffsetY = 0;
-  ctx.lineWidth = 2;
-  ctx.strokeStyle = 'rgba(' + rgb + ',0.5)';
-  ctx.stroke();
-  ctx.lineWidth = 1;
-  ctx.strokeStyle = 'rgba(255,255,255,0.07)';
-  ctx.beginPath();
-  ctx.roundRect(x0 + 2, y0 + 2, bw - 4, bh - 4, 20);
-  ctx.stroke();
+  c.fillStyle = pg;
+  c.beginPath();
+  c.roundRect(x0, y0, bw, bh, 22);
+  c.fill();
+  c.shadowColor = 'transparent';
+  c.shadowBlur = 0;
+  c.shadowOffsetY = 0;
+  c.lineWidth = 2;
+  c.strokeStyle = `rgba(${rgb},0.5)`;
+  c.stroke();
+  c.lineWidth = 1;
+  c.strokeStyle = 'rgba(255,255,255,0.07)';
+  c.beginPath();
+  c.roundRect(x0 + 2, y0 + 2, bw - 4, bh - 4, 20);
+  c.stroke();
   const oc = getRibbonLayer(team, bw, bh);
   if (oc) {
     const o = oc.getContext('2d');
+    if (!o) {
+      c.restore();
+      return;
+    } // getContext returned null; save is balanced by this restore
     o.clearRect(0, 0, bw, bh);
     // Both columns share the same scroll position; the direction>0 side is the vertical mirror of the other:
     // the same effect is centered on both sides at the same moment, while scrolling in opposite directions.
@@ -386,7 +423,9 @@ function paintGiftRibbon(team, x0, y0, bw, bh, rgb, speed, direction) {
     o.textAlign = 'left';
     o.textBaseline = 'middle';
     for (let i = firstTile; i * TH - scrollOffset < bh + TH; i++) {
-      const it = T[((i % n) + n) % n],
+      const itRaw = T[((i % n) + n) % n]; // modular arithmetic always in bounds; n = T.length > 0
+      if (!itRaw) continue;
+      const it = itRaw,
         cyB = i * TH - scrollOffset + TH / 2,
         cy = direction > 0 ? bh - cyB : cyB;
       if (cy < -TH || cy > bh + TH) continue;
@@ -402,7 +441,7 @@ function paintGiftRibbon(team, x0, y0, bw, bh, rgb, speed, direction) {
         sc = 1 + envelope * 0.15;
       if (envelope > 0.04) {
         const r = o.createRadialGradient(icx, cy, 0, icx, cy, 66);
-        r.addColorStop(0, 'rgba(' + rgb + ',' + 0.22 * envelope + ')');
+        r.addColorStop(0, `rgba(${rgb},${String(0.22 * envelope)})`);
         r.addColorStop(1, 'rgba(' + rgb + ',0)');
         o.fillStyle = r;
         o.fillRect(icx - 66, cy - 66, 132, 132);
@@ -418,7 +457,7 @@ function paintGiftRibbon(team, x0, y0, bw, bh, rgb, speed, direction) {
       o.shadowColor = 'rgba(0,0,0,0.6)';
       o.shadowBlur = 4;
       o.shadowOffsetY = 2;
-      o.fillStyle = 'rgba(' + rgb + ',' + (0.9 + 0.1 * envelope) + ')';
+      o.fillStyle = `rgba(${rgb},${String(0.9 + 0.1 * envelope)})`;
       o.font = '800 24px system-ui, sans-serif';
       o.fillText(it.label, icx + 36, cy + 1);
       o.shadowColor = 'transparent';
@@ -439,23 +478,23 @@ function paintGiftRibbon(team, x0, y0, bw, bh, rgb, speed, direction) {
     }
     // Fade top and bottom: erase the layer content (alpha), the translucent card behind stays intact.
     o.globalCompositeOperation = 'destination-out';
-    let gt = o.createLinearGradient(0, 0, 0, FADE);
+    const gt = o.createLinearGradient(0, 0, 0, FADE);
     gt.addColorStop(0, 'rgba(0,0,0,1)');
     gt.addColorStop(1, 'rgba(0,0,0,0)');
     o.fillStyle = gt;
     o.fillRect(0, 0, bw, FADE);
-    let gb = o.createLinearGradient(0, bh - FADE, 0, bh);
+    const gb = o.createLinearGradient(0, bh - FADE, 0, bh);
     gb.addColorStop(0, 'rgba(0,0,0,0)');
     gb.addColorStop(1, 'rgba(0,0,0,1)');
     o.fillStyle = gb;
     o.fillRect(0, bh - FADE, bw, FADE);
     o.globalCompositeOperation = 'source-over';
-    ctx.beginPath();
-    ctx.roundRect(x0, y0, bw, bh, 22);
-    ctx.clip();
-    ctx.drawImage(oc, x0, y0);
+    c.beginPath();
+    c.roundRect(x0, y0, bw, bh, 22);
+    c.clip();
+    c.drawImage(oc, x0, y0);
   }
-  ctx.restore();
+  c.restore();
 }
 
 // Ribbons are NOT permanent on screen (a permanent panel is a documented TikTok trigger).
@@ -463,10 +502,10 @@ function paintGiftRibbon(team, x0, y0, bw, bh, rgb, speed, direction) {
 // Soft fade in and out. Independent of incoming gifts (pure timing pattern).
 const SCROLL_FADE = 0.7; // s
 
-function scrollAlpha() {
+function scrollAlpha(): number {
   // 0 is a valid hidden duration (always visible): do not treat it as unset.
   const visibleDuration = settings.scrollVisible > 0 ? settings.scrollVisible : 8,
-    hiddenDuration = settings.scrollHidden == null ? 12 : settings.scrollHidden,
+    hiddenDuration = settings.scrollHidden, // settings.scrollHidden: number (always present)
     P = visibleDuration + hiddenDuration,
     ph = t % P;
   if (hiddenDuration <= 0) return 1; // always-visible option (off-live testing)
@@ -481,7 +520,9 @@ function scrollAlpha() {
   return Math.max(0, Math.min(1, a));
 }
 
-export function paintGiftScroll() {
+export function paintGiftScroll(): void {
+  const c = ctx as CanvasRenderingContext2D | null; // canvas.ts not yet typed; runtime is non-null after bindCanvas()
+  if (!c) return;
   const al = scrollAlpha();
   if (al <= 0.01) return;
   // Two tall vertical columns on the right side, below the board (left side stays free).
@@ -490,9 +531,9 @@ export function paintGiftScroll() {
     YB = L.scrollRowY,
     XD = L.scrollRightX,
     XG = L.scrollLeftX;
-  ctx.save();
-  ctx.globalAlpha = al;
+  c.save();
+  c.globalAlpha = al;
   paintGiftRibbon('gold', XG, YB, BW, BH, '242,197,124', 40, -1);
   paintGiftRibbon('shadow', XD, YB, BW, BH, '180,212,222', 40, 1);
-  ctx.restore();
+  c.restore();
 }

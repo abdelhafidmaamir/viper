@@ -1,8 +1,8 @@
 // Viper Live: game loop module. Single AI-driven snake duel in the forest.
 // Constant speed, self-collision always kills, no canvas text, no background sound.
 
-import { W, H, COLS, ROWS, CELL, X0, Y0, OX, WF, setFormat } from '../engine/layout.js';
-import { canvas, ctx, bindCanvas } from '../engine/canvas.js';
+import { W, H, COLS, ROWS, CELL, X0, Y0, OX, WF, setFormat } from '../engine/layout.ts';
+import { canvas, ctx, bindCanvas } from '../engine/canvas.ts';
 import {
   armSound,
   toggleSound,
@@ -11,9 +11,9 @@ import {
   playHatch,
   playStone,
   isSoundReady,
-} from '../engine/audio.js';
-import { announceStreak, resetRoundDonations, announceRescue } from '../engine/announcements.js';
-import { SHADOW, GOLD } from '../engine/palette.js';
+} from '../engine/audio.ts';
+import { announceStreak, resetRoundDonations, announceRescue } from '../engine/announcements.ts';
+import { SHADOW, GOLD } from '../engine/palette.ts';
 import {
   ADULT_LENGTH,
   STONE_WARNING,
@@ -37,8 +37,8 @@ import {
   STONE_LIFE,
   BRAMBLE_LIFE,
   SPEED,
-} from '../engine/rules.js';
-import { cadence, forceLength, maxLength, updateTier, tier, jitter } from '../engine/crowd.js';
+} from '../engine/rules.ts';
+import { cadence, forceLength, maxLength, updateTier, tier, jitter } from '../engine/crowd.ts';
 import {
   extendBramble,
   freeCells,
@@ -46,57 +46,98 @@ import {
   activeBrambles,
   allFruits,
   isDeadZone,
-} from '../engine/hazards.js';
-import { sceneState, endScene, launchScene, scene } from '../engine/scenes.js';
-import { updateTension, tension } from '../engine/tension.js';
-import { receiveEvent } from '../engine/audience-events.js';
-import { clearGiftFeedback } from '../engine/gift-feedback.js';
-import { drawFrame } from '../engine/frame.js';
+} from '../engine/hazards.ts';
+import { sceneState, endScene, launchScene, scene } from '../engine/scenes.ts';
+import { updateTension, tension } from '../engine/tension.ts';
+import { receiveEvent } from '../engine/audience-events.ts';
+import { clearGiftFeedback } from '../engine/gift-feedback.ts';
+import { drawFrame } from '../engine/frame.ts';
+import type {
+  AiMemory,
+  Berry,
+  Body,
+  Bramble,
+  BurstOptions,
+  Cell,
+  DeathCause,
+  Direction,
+  Egg,
+  EndCause,
+  Halo,
+  Moments,
+  Point,
+  Round,
+  RoundRecord,
+  RoundWinner,
+  Scene,
+  Seed,
+  Settings,
+  Spark,
+  SparkTint,
+  Stone,
+  Team,
+  Tier,
+} from '../engine/types.ts';
+import type { Ambience, AiState } from '../engine/types-api.ts';
 
-let adjustCanvas = null;
+// canvas and ctx are exported as `null` from canvas.ts (not yet typed there);
+// at runtime they are HTMLCanvasElement / CanvasRenderingContext2D after bindCanvas.
+// The declared return types make callers handle nullability without touching canvas.ts.
+// canvas.ts declares canvas as HTMLElement | null; at runtime it is always an HTMLCanvasElement
+// (set by bindCanvas). The cast narrows to the more specific type without touching canvas.ts.
+const getCanvas = (): HTMLCanvasElement | null => canvas as HTMLCanvasElement | null;
+const getCtx = (): CanvasRenderingContext2D | null => ctx;
+// scene is exported as `null` from scenes.ts; at runtime it is Scene | null.
+const getScene = (): Scene | null => scene;
+// tier is always a valid Tier: crowd.ts initialises it to TIERS[0] and only reassigns
+// it to elements of TIERS (which is never empty).
+const getTier = (): Tier => tier;
+
+let adjustCanvas: (() => void) | null = null;
 
 // Applies the format requested in settings; called at the start of each round (never mid-round).
-function applyFormat() {
+function applyFormat(): void {
   if (!setFormat(settings.format)) return;
-  if (canvas) {
-    canvas.style.aspectRatio = WF + '/' + H;
+  const c = getCanvas();
+  if (c) {
+    c.style.aspectRatio = `${String(WF)}/${String(H)}`;
     if (WF > H) {
-      canvas.style.width = '100vw';
-      canvas.style.height = 'auto';
+      c.style.width = '100vw';
+      c.style.height = 'auto';
     } else {
-      canvas.style.width = '';
-      canvas.style.height = '100vh';
+      c.style.width = '';
+      c.style.height = '100vh';
     }
   }
   if (adjustCanvas) adjustCanvas();
 }
 
-export let brambles = [];
+export let brambles: Bramble[] = [];
 
-export let halos = [];
-export let snake = [],
-  positionHistory = [],
-  dir = { x: 1, y: 0 },
-  nextDir = { x: 1, y: 0 };
-export let fruit = null,
-  subStep = 0,
+export const halos: Halo[] = [];
+export let snake: Cell[] = [],
+  positionHistory: Cell[] = [],
+  dir: Direction = { x: 1, y: 0 },
+  nextDir: Direction = { x: 1, y: 0 };
+export const fruit = null;
+export let subStep = 0,
   grew = false,
-  aiMemory = {},
-  trace = [];
+  aiMemory: AiMemory = {},
+  trace: Point[] = [];
 // segments still to push out of the shell: the body grows step by step from the egg
 let toPush = 0;
 // Viewer gifts: a seed drops, germinates in 1 s, becomes an edible berry. At most 3 active.
-export let seeds = [],
-  berries = [],
-  sparks = [],
+export let seeds: Seed[] = [],
+  berries: Berry[] = [],
   gifted = 0,
   giftsEaten = 0;
+export const sparks: Spark[] = [];
 
 // Two teams, two snakes: gold feeds (sun), shadow blocks (moon). The round decides between them.
-export let stones = [],
-  round = null,
-  rounds = [],
+export let stones: Stone[] = [],
+  round: Round | null = null,
   berrylessTime = 0;
+export const rounds: RoundRecord[] = [];
 let aiAdjustments = 0,
   aiHolds = 0; // anti-wiggle: re-decisions at crossing, and decisions held
 let tickOrder = 0; // duel: alternates which snake resolves first each tick (fairness)
@@ -104,26 +145,28 @@ let tickOrder = 0; // duel: alternates which snake resolves first each tick (fai
 let wildDelay = 0;
 
 // A silently swallowed render error once broke the game with no indication: keep the last message.
-let lastError = null;
-const firstLine = (err) =>
-  ((err && err.stack ? err.stack : '').split(String.fromCharCode(10))[1] || '').trim();
+let lastError: string | null = null;
+const firstLine = (err: unknown): string => {
+  const stack = err instanceof Error ? (err.stack ?? '') : '';
+  return (stack.split(String.fromCharCode(10))[1] ?? '').trim();
+};
 export let t = 0,
   pause = 0,
   berriesEaten = 0,
-  stonesPlaced = 0,
-  hits = 0,
   deaths = 0,
   errors = 0,
   turns = 0,
   staircases = 0,
-  avoidable = 0,
-  deathLengths = [],
-  dirs = [];
+  avoidable = 0;
+export const stonesPlaced = 0,
+  hits = 0;
+export const deathLengths: number[] = [];
+export const dirs: Direction[] = [];
 // Single mode: gold vs shadow duel.
 // caps: false by default, so stones, brambles, and berries can be placed without limit until the
 // board is full. True restores tier caps, the only state where balance harnesses measure
 // something comparable.
-export const settings = {
+export const settings: Settings = {
   ai: true,
   mockup: false,
   timeScale: 1,
@@ -183,17 +226,21 @@ export const settings = {
   aiDebug: false,
 };
 
-export const px = (gx, gy) => ({ x: X0 + gx * CELL + CELL / 2, y: Y0 + gy * CELL + CELL / 2 });
-export const getAmbience = () => (window.AMBIENCES || []).find((a) => a.id === 'forest') || null;
+export const px = (gx: number, gy: number): Point => ({
+  x: X0 + gx * CELL + CELL / 2,
+  y: Y0 + gy * CELL + CELL / 2,
+});
+export const getAmbience = (): Ambience | null =>
+  (window.AMBIENCES ?? []).find((a) => a.id === 'forest') ?? null;
 
 export let HOLD_SECONDS = 5; // seconds to hold the full ring to win (setHoldSeconds for the harness)
 // engagement-moment counters (proxy for profit): holds started, reprieve periods, parries
-let moments = { holds: 0, reprieve: 0, parries: 0, rounds: 0 };
+let moments: Moments = { holds: 0, reprieve: 0, parries: 0, rounds: 0 };
 
 // burstSegments: converts segments into active berries (duel cut or duel death).
 // Call under loadBody(i): isDeadZone uses the correct head context (duel checks both).
 // team: dropped segments keep the color of the snake that lost them. No team = neutral green berry.
-function burstSegments(segs, team) {
+function burstSegments(segs: Cell[], team: Team | undefined): void {
   segs.forEach((s) => {
     if (isDeadZone(s, 0)) return;
     const p = px(s.x, s.y);
@@ -203,15 +250,15 @@ function burstSegments(segs, team) {
       4,
       team === 'gold' ? 'gift-gold' : team === 'shadow' ? 'gift-shadow' : 'neutral-burst',
     );
-    berries.push({ x: s.x, y: s.y, nickname: '', t: 0, wild: false, team: team || null });
+    berries.push({ x: s.x, y: s.y, nickname: '', t: 0, wild: false, team: team ?? null });
   });
 }
 
 // plantSeedFor(i, nickname): plants a berry in the half of the board nearest to body i's head.
 // Must be called while processing a duel event; call loadBody(0) after the loop.
-export function plantSeedFor(i, nickname) {
-  const headIndex = bodies[i] && bodies[i].snake[0];
-  const rivalHeadIndex = bodies[1 - i] && bodies[1 - i].snake[0];
+export function plantSeedFor(i: number, nickname: string): number {
+  const headIndex = bodies[i]?.snake[0];
+  const rivalHeadIndex = bodies[1 - i]?.snake[0];
   if (!headIndex) return 0;
   loadBody(i);
   let l = freeCells().filter((c) => !isDeadZone(c, SEED_GROW_TIME));
@@ -234,7 +281,8 @@ export function plantSeedFor(i, nickname) {
   // cells fill outward from the head.
   // Prefer cells ahead: keep those with a positive dot product against the snake's direction
   // (ahead or side-ahead); fall back to all cells if none.
-  const dirI = bodies[i].dir || { x: 1, y: 0 };
+  const bi = bodies[i];
+  const dirI: Direction = bi?.dir ?? { x: 1, y: 0 };
   const inFront = l.filter((c) => (c.x - headIndex.x) * dirI.x + (c.y - headIndex.y) * dirI.y > 0);
   if (inFront.length) l = inFront;
   l.sort(
@@ -243,14 +291,19 @@ export function plantSeedFor(i, nickname) {
       Math.abs(p.y - headIndex.y) -
       (Math.abs(q.x - headIndex.x) + Math.abs(q.y - headIndex.y)),
   );
-  const c = l[Math.floor(Math.random() * Math.min(4, l.length))];
+  const idx = Math.floor(Math.random() * Math.min(4, l.length));
+  const c = l[idx];
+  if (!c) {
+    storeBody();
+    return 0;
+  } // invariant: idx < l.length since l is non-empty
   seeds.push({
     x: c.x,
     y: c.y,
     nickname: nickname || '',
     t: 0,
-    team: bodies[i].team,
-    owner: bodies[i].team,
+    team: bi?.team ?? 'gold',
+    owner: bi?.team ?? 'gold',
   }); // tinted by the team, and RESERVED for that team (no stealing berries)
   gifted++;
   storeBody();
@@ -259,22 +312,23 @@ export function plantSeedFor(i, nickname) {
 
 // cutDuel(adverseIdx, k): removes k segments from the tail of the opponent body, bursting them as berries.
 // Returns the number of segments actually cut. Ends with storeBody() but NOT loadBody(0).
-export function cutDuel(adverseIdx, k, thiefIndex) {
+export function cutDuel(adverseIdx: number, k: number, thiefIndex?: number): number {
   loadBody(adverseIdx);
-  if (!snake.length) {
+  const body = bodies[adverseIdx];
+  if (!snake.length || !body) {
     storeBody();
     return 0;
   }
-  if (bodies[adverseIdx].shieldTime > 0) {
+  if (body.shieldTime > 0) {
     // the shield parries the entire cut while active; the rail and head display it
-    bodies[adverseIdx].parryTime = 0.9;
+    body.parryTime = 0.9;
     moments.parries++;
     announceRescue(adverseIdx, 'shield');
     // Balance test: the parried cut is GIVEN BACK to the shielded snake; it grows by the amount that would have been cut.
     const gain = Math.max(1, Math.round(snake.length * CUT_FRACTION));
     toPush += gain;
-    const pos = px(snake[0].x, snake[0].y);
-    burst(pos.x, pos.y, 20, 'shell');
+    const head0 = snake[0];
+    if (head0) burst(px(head0.x, head0.y).x, px(head0.x, head0.y).y, 20, 'shell');
     storeBody();
     return 0;
   }
@@ -283,7 +337,7 @@ export function cutDuel(adverseIdx, k, thiefIndex) {
     storeBody();
     return 0;
   }
-  if (snake.length - count < 3 && !bodies[adverseIdx].adult) {
+  if (snake.length - count < 3 && !body.adult) {
     // young snake (never reaches 10 segments): cut down to YOUNG_MIN_LENGTH, never kill a snake in its shell
     count = Math.max(0, snake.length - YOUNG_MIN_LENGTH);
     if (count <= 0) {
@@ -291,10 +345,10 @@ export function cutDuel(adverseIdx, k, thiefIndex) {
       return 0;
     }
   }
-  if (snake.length - count < 3 && bodies[adverseIdx].lives > 0) {
+  if (snake.length - count < 3 && body.lives > 0) {
     // a life absorbs the death: cut stops at 3 segments
-    bodies[adverseIdx].lives--;
-    bodies[adverseIdx].parryTime = 0.9;
+    body.lives--;
+    body.parryTime = 0.9;
     announceRescue(adverseIdx, 'life');
     count = Math.max(0, snake.length - 3);
     if (count <= 0) {
@@ -302,28 +356,32 @@ export function cutDuel(adverseIdx, k, thiefIndex) {
       return 0;
     }
   }
-  bodies[adverseIdx].ringPeak = snake.length / TARGET_LENGTH;
-  bodies[adverseIdx].recoilTime = 0.9;
-  bodies[adverseIdx].cutTime = 0.9;
+  body.ringPeak = snake.length / TARGET_LENGTH;
+  body.recoilTime = 0.9;
+  body.cutTime = 0.9;
   const segs = snake.slice(-count);
   snake = snake.slice(0, snake.length - count);
   positionHistory = positionHistory.slice(0, Math.max(1, snake.length + 3));
-  if (segs.length) {
-    const p = px(segs[0].x, segs[0].y);
+  const segs0 = segs[0];
+  if (segs.length && segs0) {
+    const p = px(segs0.x, segs0.y);
     burst(p.x, p.y, 16, 'neutral-burst');
   }
-  if (thiefIndex !== undefined && bodies[thiefIndex]) {
-    // Steal: segments do not drop as berries, they pass directly to the thieving team's snake.
-    bodies[thiefIndex].toPush = (bodies[thiefIndex].toPush || 0) + segs.length;
-    segs.forEach((sg) => {
-      const p = px(sg.x, sg.y);
-      burst(p.x, p.y, 3, bodies[thiefIndex].team === 'gold' ? 'gift-gold' : 'gift-shadow');
-    });
-  } else burstSegments(segs, bodies[adverseIdx].team);
-  if (snake.length < 3 && bodies[adverseIdx].adult) {
+  if (thiefIndex !== undefined) {
+    const thief = bodies[thiefIndex];
+    if (thief) {
+      // Steal: segments do not drop as berries, they pass directly to the thieving team's snake.
+      thief.toPush += segs.length;
+      segs.forEach((sg) => {
+        const p = px(sg.x, sg.y);
+        burst(p.x, p.y, 3, thief.team === 'gold' ? 'gift-gold' : 'gift-shadow');
+      });
+    }
+  } else burstSegments(segs, body.team);
+  if (snake.length < 3 && body.adult) {
     snake = [];
     // adverseIdx lost: the opposing team wins
-    const gagnant = bodies[adverseIdx].team === 'shadow' ? 'gold' : 'shadow';
+    const gagnant: RoundWinner = body.team === 'shadow' ? 'gold' : 'shadow';
     storeBody();
     endRound(gagnant, 'place');
     return count;
@@ -334,15 +392,15 @@ export function cutDuel(adverseIdx, k, thiefIndex) {
 }
 
 // opt controls burst strength: speed, upward thrust, gravity, size, opacity.
-export function burst(x, y, n, tint, opt) {
-  const o = opt || {},
-    v0 = o.v0 !== undefined ? o.v0 : 60,
-    v1 = o.v1 !== undefined ? o.v1 : 240;
-  const upBoost = o.top !== undefined ? o.top : 40,
-    g = o.g !== undefined ? o.g : 520;
-  const r = o.r !== undefined ? o.r : 1,
-    a0 = o.a !== undefined ? o.a : 1,
-    d = o.duration !== undefined ? o.duration : 0.5;
+export function burst(x: number, y: number, n: number, tint: SparkTint, opt?: BurstOptions): void {
+  const o = opt ?? {},
+    v0 = o.v0 ?? 60,
+    v1 = o.v1 ?? 240;
+  const upBoost = o.top ?? 40,
+    g = o.g ?? 520;
+  const r = o.r ?? 1,
+    a0 = o.a ?? 1,
+    d = o.duration ?? 0.5;
   for (let i = 0; i < n; i++) {
     const a = Math.random() * Math.PI * 2,
       v = v0 + Math.random() * (v1 - v0);
@@ -357,7 +415,7 @@ export function burst(x, y, n, tint, opt) {
       r,
       g,
       a: a0,
-      k: o.frein || 0,
+      k: o.frein ?? 0,
     });
   }
 }
@@ -367,35 +425,45 @@ window.receiveEvent = receiveEvent;
 // Sky race: sun on the left, moon on the right, both starting low.
 // Each berry eaten raises the sun one notch; each stone placed raises the moon.
 // First to the top ends the round. The snake is the ball, not the player.
-function newRound() {
+function newRound(): void {
   applyFormat();
   settings.advantage = 0; // advantage is a one-time nudge, not a persistent setting
   clearGiftFeedback();
   resetRoundDonations();
   if (settings.autoAmbience) {
-    const weatherOptions = [
-      'rain',
-      'snow',
-      'autumn',
-      'summer',
-      'spring',
-      'storm',
-      'stars',
-      'aurora',
-      'fireflies',
-      'embers',
-      'mist',
-    ].filter((keyMap) => keyMap !== settings.weather);
-    settings.weather = weatherOptions[Math.floor(Math.random() * weatherOptions.length)];
-    settings.hour = ['stars', 'aurora', 'fireflies'].includes(settings.weather)
+    const weatherOptions = (
+      [
+        'rain',
+        'snow',
+        'autumn',
+        'summer',
+        'spring',
+        'storm',
+        'stars',
+        'aurora',
+        'fireflies',
+        'embers',
+        'mist',
+      ] as const
+    ).filter((keyMap) => keyMap !== settings.weather);
+    const widx = Math.floor(Math.random() * weatherOptions.length);
+    const wopt = weatherOptions[widx];
+    if (wopt) settings.weather = wopt;
+    settings.hour = (['stars', 'aurora', 'fireflies'] as const).includes(
+      settings.weather as 'stars' | 'aurora' | 'fireflies',
+    )
       ? 0.02
       : settings.weather === 'embers'
         ? 0.78
         : settings.weather === 'spring'
           ? 0.36
-          : [0.02, 0.22, 0.36, 0.5, 0.64, 0.78][Math.floor(Math.random() * 6)];
+          : (() => {
+              const hourOpts = [0.02, 0.22, 0.36, 0.5, 0.64, 0.78] as const;
+              return hourOpts[Math.floor(Math.random() * 6)] ?? 0.22;
+            })();
   }
   endScene(); // scene does not survive the round; underdog state does (explicit toggle)
+  const t0 = getTier();
   round = {
     t: 0,
     state: 'playing',
@@ -406,11 +474,11 @@ function newRound() {
     end: 0,
     skySun: 0,
     skyMoon: 0,
-    topSun: tier.skySun,
-    topMoon: tier.skyMoon,
+    topSun: t0.skySun,
+    topMoon: t0.skyMoon,
     pulseSun: 9,
     pulseMoon: 9,
-    target: tier.target,
+    target: t0.target,
     harvest: 0,
   };
   stones = [];
@@ -421,28 +489,28 @@ function newRound() {
     createBody('shadow', SHADOW, COLS / 2, Math.floor(ROWS / 2), { x: 1, y: 0 }),
   ];
   for (let i = 0; i < bodies.length; i++) {
+    const bi = bodies[i];
+    if (!bi) continue; // invariant: bodies has 2 elements from the createBody calls above
     loadBody(i);
-    spawn(false, bodies[i].x0, bodies[i].y0, bodies[i].dir0);
+    spawn(false, bi.x0, bi.y0, bi.dir0);
     storeBody();
   }
   loadBody(0);
 }
 
+type SkyTeam = 'Sun' | 'Moon';
+
 // Turnout grows: the sky only stretches, never shrinks, and the orb keeps its on-screen height.
 // Without this, a rush of viewers would push the sun back down, breaking race readability.
-function stretchSky(team, target, increment) {
-  const heightKey = 'top' + team,
-    skyKey = 'sky' + team,
-    h = round[heightKey];
+function stretchSky(team: SkyTeam, target: number, increment: number): void {
+  if (!round) return; // invariant: only called inside round.state === 'playing'
+  const heightKey = ('top' + team) as 'topSun' | 'topMoon';
+  const skyKey = ('sky' + team) as 'skySun' | 'skyMoon';
+  const h = round[heightKey];
   if (target <= h) return;
   const newHeight = Math.min(target, h + increment);
   round[skyKey] *= newHeight / h;
   round[heightKey] = newHeight;
-}
-
-// Advance one notch for a team. First to the top of the sky wins.
-export function rise(team, n) {
-  return;
 }
 
 // Streak counter. Counts ROUNDS won, not points, and survives across rounds:
@@ -453,10 +521,10 @@ export let snakeScore = 0,
   scoreViewers = 0,
   snakePulse = 9,
   viewersPulse = 9;
-const isSnakeTeam = (c) => c === 'snake' || c === 'sun' || c === 'gold';
+const isSnakeTeam = (c: string): boolean => c === 'snake' || c === 'sun' || c === 'gold';
 
-function endRound(team, cause) {
-  if (!round || round.state !== 'playing') return;
+function endRound(team: RoundWinner, cause?: EndCause): void {
+  if (round?.state !== 'playing') return;
   round.state = 'over';
   round.winner = team;
   round.end = 0;
@@ -475,7 +543,7 @@ function endRound(team, cause) {
   }
   rounds.push({
     team: team,
-    cause: cause || 'unknown',
+    cause: cause ?? 'unknown',
     duration: round.t,
     length: snake.length,
     sun: round.sun,
@@ -485,23 +553,23 @@ function endRound(team, cause) {
     target: round.target,
     harvest: round.harvest,
     mode: settings.mode,
-    tier: tier.id,
+    tier: getTier().id,
   });
 }
 
-export let egg = null;
+export let egg: Egg | null = null;
 
 // Multi-body architecture: load/store pattern.
 // Load body i into module variables, work on it, then store back.
-function createBody(team, tint, x0, y0, dir0) {
+function createBody(team: Team, tint: string, x0: number, y0: number, dir0: Direction): Body {
   return {
     team: team,
     tint: tint,
-    flair: FLAIR_BY_TEAM[team] || 0,
-    hunt: HUNT_BY_TEAM[team] || 0,
-    x0: x0 !== undefined ? x0 : Math.floor(COLS / 2),
-    y0: y0 !== undefined ? y0 : Math.floor(ROWS / 2),
-    dir0: dir0 || { x: 1, y: 0 },
+    flair: FLAIR_BY_TEAM[team],
+    hunt: HUNT_BY_TEAM[team],
+    x0: x0,
+    y0: y0,
+    dir0: dir0,
     snake: [],
     positionHistory: [],
     dir: { x: 1, y: 0 },
@@ -524,12 +592,13 @@ function createBody(team, tint, x0, y0, dir0) {
     parryTime: 0,
   };
 }
-export let bodies = [],
+export let bodies: Body[] = [],
   activeIndex = 0;
 
-export function loadBody(i) {
+export function loadBody(i: number): void {
   activeIndex = i;
   const c = bodies[i];
+  if (!c) return; // invariant: called with valid index (newRound, loadBody(0), etc.)
   snake = c.snake;
   positionHistory = c.positionHistory;
   dir = c.dir;
@@ -541,8 +610,9 @@ export function loadBody(i) {
   toPush = c.toPush;
   egg = c.egg;
 }
-export function storeBody() {
+export function storeBody(): void {
   const c = bodies[activeIndex];
+  if (!c) return; // invariant: called after loadBody, activeIndex is always valid
   c.snake = snake;
   c.positionHistory = positionHistory;
   c.dir = dir;
@@ -554,25 +624,26 @@ export function storeBody() {
   c.toPush = toPush;
   c.egg = egg;
 }
-export const rival = () => (bodies.length > 1 ? bodies[1 - activeIndex] : null);
+export const rival = (): Body | null =>
+  bodies.length > 1 ? (bodies[1 - activeIndex] ?? null) : null;
 
-function spawn(keep, x0, y0, dir0) {
-  const cx = x0 !== undefined ? x0 : Math.floor(COLS / 2);
-  const cy = y0 !== undefined ? y0 : Math.floor(ROWS / 2);
+function spawn(keep: boolean, x0?: number, y0?: number, dir0?: Direction | null): void {
+  const cx = x0 ?? Math.floor(COLS / 2);
+  const cy = y0 ?? Math.floor(ROWS / 2);
   snake = [];
   positionHistory = [];
   trace = [];
-  egg = { t: 0, x: cx, y: cy, keep: !!keep, dir0: dir0 || null };
+  egg = { t: 0, x: cx, y: cy, keep: keep, dir0: dir0 ?? null };
   if (!keep) {
     seeds = [];
     berries = [];
   }
 }
 
-function hatch(keep) {
+function hatch(keep: boolean): void {
   const cx = egg ? egg.x : Math.floor(COLS / 2);
   const cy = egg ? egg.y : Math.floor(ROWS / 2);
-  const d0 = egg && egg.dir0 ? egg.dir0 : { x: 1, y: 0 };
+  const d0: Direction = egg?.dir0 ?? { x: 1, y: 0 };
   snake = [{ x: cx, y: cy }];
   toPush = START_LENGTH - 1;
   positionHistory = snake.map((s) => ({ ...s }));
@@ -583,7 +654,7 @@ function hatch(keep) {
   aiMemory = {};
   // Mid-round respawn: viewer offerings stay; only the spawn cell is cleared.
   if (keep) {
-    const isOccupied = (c) => snake.some((s) => s.x === c.x && s.y === c.y);
+    const isOccupied = (c: Cell): boolean => snake.some((s) => s.x === c.x && s.y === c.y);
     seeds = seeds.filter((g) => !isOccupied(g));
     berries = berries.filter((b) => !isOccupied(b));
     stones = stones.filter((r) => !isOccupied(r) && Math.abs(r.x - cx) + Math.abs(r.y - cy) > 2);
@@ -595,7 +666,7 @@ function hatch(keep) {
 // the same berry and collided head-on (probe: 48 head-ons in 90 s, all lost by gold resolved
 // first in the loop). The four neighbors of the opponent's head are therefore forbidden to the
 // AI: it routes around instead of charging.
-function opponentCrown(a) {
+function opponentCrown(a: Body): Cell[] {
   const h = a.snake[0];
   if (!h) return [];
   return [
@@ -604,14 +675,16 @@ function opponentCrown(a) {
     [0, 1],
     [0, -1],
   ]
-    .map(([x, y]) => ({ x: h.x + x, y: h.y + y }))
+    .map(([x, y]) => ({ x: h.x + (x ?? 0), y: h.y + (y ?? 0) }))
     .filter((c) => c.x >= 0 && c.y >= 0 && c.x < COLS && c.y < ROWS);
 }
-export function requestAiMove(keep) {
+export function requestAiMove(keep?: boolean): void {
   if (!settings.ai || !window.ViperAi || !snake.length) return;
   try {
     const otherBody = rival();
-    const state = {
+    const sc = getScene();
+    const body = bodies[activeIndex]; // always valid: called after loadBody
+    const state: AiState = {
       cols: COLS,
       rows: ROWS,
       body: snake,
@@ -625,24 +698,22 @@ export function requestAiMove(keep) {
       avoid: otherBody ? opponentCrown(otherBody) : [],
       toGrow: toPush,
       recklessness: settings.recklessness,
-      advantage: bodies[activeIndex]
-        ? ((bodies[activeIndex].team === 'gold' ? 1 : -1) * (settings.advantage || 0)) / 100
-        : 0,
-      flair: bodies[activeIndex] ? bodies[activeIndex].flair : 0,
-      hunt: bodies[activeIndex] ? bodies[activeIndex].hunt : 0,
+      advantage: body ? ((body.team === 'gold' ? 1 : -1) * settings.advantage) / 100 : 0,
+      flair: body?.flair ?? 0,
+      hunt: body?.hunt ?? 0,
       opponent: otherBody ? otherBody.snake : null,
-      opponentInvincible: !!(otherBody && otherBody.invincibleTime > 0),
+      opponentInvincible: otherBody !== null && otherBody.invincibleTime > 0,
       memory: aiMemory,
     };
     // Scene: the half concerning the active body's team is applied to state.
-    if (scene && bodies[activeIndex]) {
-      const teamScene = scene[bodies[activeIndex].team] || {};
+    if (sc && body) {
+      const teamScene = sc[body.team];
       if (teamScene.stance) state.forcedStance = teamScene.stance;
       if (teamScene.pA) state.attackRange = teamScene.pA;
       if (teamScene.pD) state.defenseRange = teamScene.pD;
-      if (teamScene.hunt != null) state.forcedHunt = teamScene.hunt;
-      if (teamScene.flair != null) state.forcedFlair = teamScene.flair;
-      if (teamScene.recklessness != null) state.recklessness = teamScene.recklessness;
+      if (teamScene.hunt !== undefined) state.forcedHunt = teamScene.hunt;
+      if (teamScene.flair !== undefined) state.forcedFlair = teamScene.flair;
+      if (teamScene.recklessness !== undefined) state.recklessness = teamScene.recklessness;
       if (teamScene.berryRace) state.berryRace = true;
       if (teamScene.immediateTrap) state.immediateTrap = true;
       if (teamScene.lure) state.lure = true;
@@ -652,12 +723,13 @@ export function requestAiMove(keep) {
     }
     // Underdog: the shorter snake silently gets +recklessness and +2 cells of range.
     if (settings.underdog && bodies.length === 2) {
-      const myLength = bodies[activeIndex].snake.length,
-        oppLength = bodies[1 - activeIndex].snake.length;
+      const myLength = body?.snake.length ?? 0;
+      const opp = bodies[1 - activeIndex];
+      const oppLength = opp?.snake.length ?? 0;
       if (myLength < oppLength) {
-        state.recklessness = (state.recklessness || 0) + 0.03;
-        state.attackRange = (state.attackRange || 12) + 2;
-        state.defenseRange = (state.defenseRange || 10) + 2;
+        state.recklessness = state.recklessness + 0.03;
+        state.attackRange = (state.attackRange ?? 12) + 2;
+        state.defenseRange = (state.defenseRange ?? 10) + 2;
       }
     }
     if (settings.aiDebug) {
@@ -668,43 +740,46 @@ export function requestAiMove(keep) {
       delete aiMemory.dbgAvoid;
       delete aiMemory.dbgFlash;
     }
-    const superActive = !!(
-      !scene &&
-      window.ViperSuperAi &&
-      bodies[activeIndex] &&
-      (settings.superAi === true || settings.superAi === bodies[activeIndex].team)
-    );
+    const superActive =
+      !sc &&
+      window.ViperSuperAi !== undefined &&
+      body !== undefined &&
+      (settings.superAi === true || settings.superAi === body.team);
     if (superActive && keep) state.preferred = nextDir;
-    let d = superActive ? window.ViperSuperAi.choose(state) : window.ViperAi.choose(state);
+    let d: Direction =
+      superActive && window.ViperSuperAi
+        ? window.ViperSuperAi.choose(state)
+        : window.ViperAi.choose(state);
     // Hold: a direction already announced (and drawn) is kept if the AI still judges it safe.
     if (
       !superActive &&
       keep &&
-      d &&
       (d.x !== nextDir.x || d.y !== nextDir.y) &&
-      window.ViperAi.safeStep &&
       window.ViperAi.safeStep(state, nextDir)
     )
       d = nextDir;
     // The back is the neck segment, not the last attempted direction (after a failed step into a wall,
     // dir points into the wall and its inverse may be the only way out).
-    const neck = snake[1]
-      ? { x: snake[1].x - snake[0].x, y: snake[1].y - snake[0].y }
-      : { x: -dir.x, y: -dir.y };
-    if (d && !(d.x === neck.x && d.y === neck.y)) nextDir = d;
+    const s0 = snake[0];
+    const s1 = snake[1];
+    const neck: Direction =
+      s1 && s0 ? { x: s1.x - s0.x, y: s1.y - s0.y } : { x: -dir.x, y: -dir.y };
+    if (!(d.x === neck.x && d.y === neck.y)) nextDir = d;
   } catch (err) {
     errors++;
-    lastError =
-      'ai: ' + err.message + ' | ' + (err.stack || '').split('\n').slice(0, 3).join(' > ');
+    const e = err instanceof Error ? err : new Error(String(err));
+    lastError = 'ai: ' + e.message + ' | ' + (e.stack ?? '').split('\n').slice(0, 3).join(' > ');
   }
 }
 
-function die(cause) {
-  if (bodies[activeIndex]) bodies[activeIndex].deathCause = cause || 'self'; // for probes: cause of death
+function die(cause: DeathCause): void {
+  const body = bodies[activeIndex];
+  if (body) body.deathCause = cause; // for probes: cause of death
   // Avoidable death: the head still had a free neighbor cell.
   // The tail does not free its cell on a bite step: it counts as occupied.
-  const h = snake[0],
-    currentSegs = grew ? snake : snake.slice(0, -1);
+  const head = snake[0];
+  if (!head) return; // invariant: die() only called when snake is non-empty
+  const currentSegs = grew ? snake : snake.slice(0, -1);
   if (
     [
       [0, -1],
@@ -712,8 +787,8 @@ function die(cause) {
       [0, 1],
       [-1, 0],
     ].some(([x, y]) => {
-      const a = h.x + x,
-        b = h.y + y;
+      const a = head.x + (x ?? 0),
+        b = head.y + (y ?? 0);
       return (
         a >= 0 && b >= 0 && a < COLS && b < ROWS && !currentSegs.some((c) => c.x === a && c.y === b)
       );
@@ -726,15 +801,15 @@ function die(cause) {
   // Death no longer ends the round: it advances the moon a few notches, then the snake respawns.
   // Duel: no respawn pause. Shrink to max(3, floor(L/2)).
   // The lost half bursts into berries. Below 3 segments: outright death, the opposing team wins.
-  if (bodies[activeIndex].shieldTime > 0) {
+  if ((body?.shieldTime ?? 0) > 0) {
     // the shield parries the collision: no segments lost, respawns invincible
-    bodies[activeIndex].parryTime = 0.9;
-    bodies[activeIndex].invincibleTime = 1.5;
-    announceRescue(activeIndex, 'shield');
-    if (snake.length) {
-      const pos = px(snake[0].x, snake[0].y);
-      burst(pos.x, pos.y, 20, 'shell');
+    if (body) {
+      body.parryTime = 0.9;
+      body.invincibleTime = 1.5;
     }
+    announceRescue(activeIndex, 'shield');
+    const pos = px(head.x, head.y);
+    burst(pos.x, pos.y, 20, 'shell');
     requestAiMove();
     return;
   }
@@ -743,46 +818,47 @@ function die(cause) {
   // Exception: if the opponent cornered it (within 2 cells of the head), it counts as an opponent
   // trap, not a self fault.
   const opponentBody = rival();
-  const h0 = snake[0];
-  const cornered = !!(
-    opponentBody &&
-    h0 &&
-    opponentBody.snake.some((q) => Math.abs(q.x - h0.x) + Math.abs(q.y - h0.y) <= 2)
-  );
+  const cornered =
+    opponentBody?.snake.some((q) => Math.abs(q.x - head.x) + Math.abs(q.y - head.y) <= 2) ?? false;
+  let effectiveCause: DeathCause = cause;
   if (cornered && (cause === 'wall' || cause === 'self')) {
-    cause = 'adverse';
-    bodies[activeIndex].deathCause = 'adverse';
+    effectiveCause = 'adverse';
+    if (body) body.deathCause = 'adverse';
   }
-  if (cause === 'wall' || cause === 'self') {
-    bodies[activeIndex].invincibleTime = 1.5;
-    bodies[activeIndex].parryTime = 0.4;
-    if (snake.length) {
-      const pos = px(snake[0].x, snake[0].y);
-      burst(pos.x, pos.y, 10, 'dust');
+  if (effectiveCause === 'wall' || effectiveCause === 'self') {
+    if (body) {
+      body.invincibleTime = 1.5;
+      body.parryTime = 0.4;
     }
+    burst(head.x * CELL + X0 + CELL / 2, head.y * CELL + Y0 + CELL / 2, 10, 'dust');
     requestAiMove();
     return;
   }
   const L = snake.length;
-  const threshold = Math.max(bodies[activeIndex].adult ? 3 : YOUNG_MIN_LENGTH, Math.floor(L / 2));
+  const threshold = Math.max((body?.adult ?? false) ? 3 : YOUNG_MIN_LENGTH, Math.floor(L / 2));
   const lostSegments = snake.slice(threshold);
   snake = snake.slice(0, threshold);
   positionHistory = positionHistory.slice(0, Math.max(1, threshold + 3));
-  bodies[activeIndex].invincibleTime = 1.5;
-  bodies[activeIndex].ringPeak = L / TARGET_LENGTH;
-  bodies[activeIndex].recoilTime = 0.9;
-  bodies[activeIndex].cutTime = 0.9;
-  burstSegments(lostSegments, bodies[activeIndex].team);
-  if (snake.length < 3 && bodies[activeIndex].adult) {
+  if (body) {
+    body.invincibleTime = 1.5;
+    body.ringPeak = L / TARGET_LENGTH;
+    body.recoilTime = 0.9;
+    body.cutTime = 0.9;
+  }
+  burstSegments(lostSegments, body?.team);
+  if (snake.length < 3 && (body?.adult ?? false)) {
     snake = [];
     const opponent = rival();
     endRound(opponent ? opponent.team : 'gold', 'place');
   } else requestAiMove(); // otherwise it keeps heading into the wall and dies again when invincibility ends
-  return;
 }
 
-function step() {
+function step(): boolean {
   if (!snake.length) return false;
+  const head = snake[0];
+  if (!head) return false; // invariant: snake.length > 0 checked above
+  const activeBody = bodies[activeIndex];
+  if (!activeBody) return false; // invariant: activeIndex is always valid when step() is called
   // Duel: the opponent has moved since the last decision; re-decide on its real position.
   // Without this, all deaths were "avoidable" (probe): the head charged into a cell the opponent
   // had just taken. With it, the opponent's crown is current and head-ons vanish.
@@ -799,32 +875,36 @@ function step() {
     aiMemory.dbgFlash = {
       t,
       change: prevDir.x !== nextDir.x || prevDir.y !== nextDir.y,
-      x: snake[0].x,
-      y: snake[0].y,
+      x: head.x,
+      y: head.y,
     };
   if (nextDir.x !== dir.x || nextDir.y !== dir.y) {
     turns++;
     // staircase: a, b, a, b over four consecutive steps
     const n = dirs.length,
       c = nextDir;
-    if (
-      n >= 3 &&
-      dirs[n - 1] !== dirs[n - 2] &&
-      dirs[n - 2] !== dirs[n - 3] &&
-      dirs[n - 2].x === c.x &&
-      dirs[n - 2].y === c.y &&
-      dirs[n - 1].x === dirs[n - 3].x &&
-      dirs[n - 1].y === dirs[n - 3].y
-    )
-      staircases++;
+    if (n >= 3) {
+      const dn1 = dirs[n - 1] ?? dir;
+      const dn2 = dirs[n - 2] ?? dir;
+      const dn3 = dirs[n - 3] ?? dir;
+      if (
+        dn1 !== dn2 &&
+        dn2 !== dn3 &&
+        dn2.x === c.x &&
+        dn2.y === c.y &&
+        dn1.x === dn3.x &&
+        dn1.y === dn3.y
+      )
+        staircases++;
+    }
   }
   dir = nextDir;
   dirs.push(dir);
   if (dirs.length > 4) dirs.shift();
-  const nx = snake[0].x + dir.x,
-    ny = snake[0].y + dir.y;
+  const nx = head.x + dir.x,
+    ny = head.y + dir.y;
   // temporary invincibility (after a life absorbs a death, or after a head-on collision in a duel)
-  const isInvincible = bodies[activeIndex].invincibleTime > 0;
+  const isInvincible = activeBody.invincibleTime > 0;
   if (nx < 0 || nx >= COLS || ny < 0 || ny >= ROWS) {
     if (!isInvincible) {
       die('wall');
@@ -837,14 +917,17 @@ function step() {
     die('stone');
     return false;
   }
-  if (activeBrambles().some((g) => g.x === nx && g.y === ny)) {
+  if (activeBrambles(1).some((g) => g.x === nx && g.y === ny)) {
     die('bramble');
     return false;
   }
   // berry reserved for the other team: the snake passes over it without eating
-  const myTeam = bodies[activeIndex] ? bodies[activeIndex].team : null;
+  const myTeam = activeBody.team;
   const berryIdx = berries.findIndex(
-    (b) => b.x === nx && b.y === ny && !(b.owner && myTeam && b.owner !== myTeam),
+    (b) =>
+      b.x === nx &&
+      b.y === ny &&
+      !(b.owner !== undefined && b.owner !== null && b.owner !== myTeam),
   );
   const eating = berryIdx >= 0;
   const isPushing = toPush > 0;
@@ -859,16 +942,15 @@ function step() {
   if (!isInvincible && blocking.some((s) => s.x === nx && s.y === ny)) {
     // Duel, head-on: both snakes take the hit (shared fault). Otherwise the snake resolved first in
     // the loop absorbs all head-ons.
-    const opponentHead = otherBodyDuel && otherBodyDuel.snake[0];
+    const opponentHead = otherBodyDuel?.snake[0];
     if (
-      opponentHead &&
-      opponentHead.x === nx &&
+      opponentHead?.x === nx &&
       opponentHead.y === ny &&
-      otherBodyDuel.invincibleTime <= 0
+      (otherBodyDuel?.invincibleTime ?? 1) <= 0
     ) {
       const myIdx = activeIndex;
       die('headOn');
-      if (round && round.state === 'playing') {
+      if (round?.state === 'playing') {
         storeBody();
         loadBody(1 - myIdx);
         die('headOn');
@@ -877,11 +959,7 @@ function step() {
       }
       return false;
     }
-    die(
-      otherBodyDuel && otherBodyDuel.snake.some((s) => s.x === nx && s.y === ny)
-        ? 'adverse'
-        : 'self',
-    );
+    die(otherBodyDuel?.snake.some((s) => s.x === nx && s.y === ny) ? 'adverse' : 'self');
     return false;
   }
   snake = growing ? [{ x: nx, y: ny }, ...snake] : [{ x: nx, y: ny }, ...snake.slice(0, -1)];
@@ -893,39 +971,39 @@ function step() {
     const p = px(nx, ny);
     const b = berries[berryIdx];
     berries.splice(berryIdx, 1);
-    if (!b || !b.wild) giftsEaten++;
+    if (!b?.wild) giftsEaten++;
     // halo tinted by the eaten berry: gold, shadow, or green (no team)
     halos.push({
       x: p.x,
       y: p.y,
       t: 0,
-      duration: b && b.wild ? 0.85 : 1.1,
-      tint:
-        b && b.wild
-          ? 'nature'
-          : b && b.team === 'gold'
-            ? 'gift-gold'
-            : b && b.team === 'shadow'
-              ? 'gift-shadow'
-              : 'gifted',
+      duration: b?.wild ? 0.85 : 1.1,
+      tint: b?.wild
+        ? 'nature'
+        : b?.team === 'gold'
+          ? 'gift-gold'
+          : b?.team === 'shadow'
+            ? 'gift-shadow'
+            : 'gifted',
     });
-    rise('sun', 1);
     const a = getAmbience();
-    playBite(a);
+    if (a) playBite(a);
   }
   requestAiMove();
   return true;
 }
 
 // Smooth trace: one Bezier arc per cell, midpoint to midpoint (rounded turns, exact continuity).
-function vertex(k) {
+function vertex(k: number): Cell {
   if (k < 0) {
     const h = positionHistory[0];
+    if (!h) return { x: nextDir.x, y: nextDir.y }; // invariant: positionHistory is non-empty when called
     return { x: h.x + nextDir.x, y: h.y + nextDir.y };
   }
-  return positionHistory[Math.min(k, positionHistory.length - 1)];
+  const idx = Math.min(k, positionHistory.length - 1);
+  return positionHistory[idx] ?? { x: 0, y: 0 }; // invariant: idx >= 0 when positionHistory is non-empty
 }
-function pointOn(p) {
+function pointOn(p: number): Point {
   const k = Math.round(p),
     u = Math.min(1, Math.max(0, p - k + 0.5));
   const a = vertex(k - 1),
@@ -938,19 +1016,19 @@ function pointOn(p) {
     i = 1 - u;
   return px(i * i * Ax + 2 * u * i * v.x + u * u * Bx, i * i * Ay + 2 * u * i * v.y + u * u * By);
 }
-function computeTrace() {
+function computeTrace(): Point[] {
   const L = snake.length;
   if (!L) return [];
   const ph = 1 - subStep,
     pt = grew ? L - 1 : L - subStep,
-    pts = [];
+    pts: Point[] = [];
   for (let p = ph; p < pt; p += 1 / 3) pts.push(pointOn(p));
   pts.push(pointOn(pt));
   return pts;
 }
 
 // Advances logic by dt seconds (no rendering: also used by the Node harness).
-function advance(dt) {
+function advance(dt: number): void {
   t += dt;
   updateTier(dt);
   // score animation lives OUTSIDE the round: it starts exactly when the round ends
@@ -958,13 +1036,15 @@ function advance(dt) {
   viewersPulse += dt;
   // day cycle advances on its own: night, sunrise, noon, sunset, looping
   if (settings.cycle > 0) settings.hour = (settings.hour + dt / settings.cycle) % 1;
-  if (scene && round && round.state === 'playing') {
-    scene.remaining -= dt;
-    if (scene.remaining <= 0) endScene();
+  const sc = getScene();
+  if (sc && round?.state === 'playing') {
+    sc.remaining -= dt;
+    if (sc.remaining <= 0) endScene();
   }
   // seeds: they germinate, then become edible berries
   for (let i = seeds.length - 1; i >= 0; i--) {
     const g = seeds[i];
+    if (!g) continue; // invariant: backward loop, i < seeds.length
     g.t += dt;
     if (g.t >= SEED_GROW_TIME) {
       seeds.splice(i, 1);
@@ -973,15 +1053,10 @@ function advance(dt) {
         y: g.y,
         nickname: g.nickname,
         t: 0,
-        team: g.team || null,
-        owner: g.owner || null,
+        team: g.team,
+        owner: g.owner,
       });
-      burst(
-        px(g.x, g.y).x,
-        px(g.x, g.y).y,
-        6,
-        g.team === 'gold' ? 'gift-gold' : g.team === 'shadow' ? 'gift-shadow' : 'gifted',
-      );
+      burst(px(g.x, g.y).x, px(g.x, g.y).y, 6, g.team === 'gold' ? 'gift-gold' : 'gift-shadow');
       requestAiMove();
     }
   }
@@ -990,11 +1065,14 @@ function advance(dt) {
   });
   updateTension(dt);
   for (let i = halos.length - 1; i >= 0; i--) {
-    halos[i].t += dt;
-    if (halos[i].t >= halos[i].duration) halos.splice(i, 1);
+    const h = halos[i];
+    if (!h) continue; // invariant: backward loop, i < halos.length
+    h.t += dt;
+    if (h.t >= h.duration) halos.splice(i, 1);
   }
   for (let i = sparks.length - 1; i >= 0; i--) {
     const e = sparks[i];
+    if (!e) continue; // invariant: backward loop, i < sparks.length
     e.t += dt;
     if (e.t >= e.duration) {
       sparks.splice(i, 1);
@@ -1002,7 +1080,7 @@ function advance(dt) {
     }
     e.x += e.vx * dt;
     e.y += e.vy * dt;
-    e.vy += (e.g === undefined ? 520 : e.g) * dt;
+    e.vy += e.g * dt;
     if (e.k) {
       const fr = Math.max(0, 1 - e.k * dt);
       e.vx *= fr;
@@ -1012,6 +1090,7 @@ function advance(dt) {
   // stones: shadow first, then the stone, then fade out
   for (let i = stones.length - 1; i >= 0; i--) {
     const r = stones[i];
+    if (!r) continue; // invariant: backward loop, i < stones.length
     r.t += dt;
     if (r.t >= STONE_LIFE) stones.splice(i, 1);
     else if (r.t >= STONE_WARNING && r.t - dt < STONE_WARNING) {
@@ -1033,8 +1112,11 @@ function advance(dt) {
   }
   for (let i = brambles.length - 1; i >= 0; i--) {
     const bramble = brambles[i];
+    if (!bramble) continue; // invariant: backward loop, i < brambles.length
     bramble.t += dt;
-    bramble.seg.forEach((g) => (g.t += dt));
+    bramble.seg.forEach((g) => {
+      g.t += dt;
+    });
     if (bramble.t >= BRAMBLE_LIFE) {
       brambles.splice(i, 1);
       requestAiMove();
@@ -1067,52 +1149,70 @@ function advance(dt) {
       round.t += dt;
       // target rises only with turnout: a rush does not trivialize the round,
       // and a thinning crowd does not punish remaining viewers
-      stretchSky('Sun', tier.skySun, dt * 14);
-      stretchSky('Moon', tier.skyMoon, dt * 2);
+      const t0 = getTier();
+      stretchSky('Sun', t0.skySun, dt * 14);
+      stretchSky('Moon', t0.skyMoon, dt * 2);
       // Target grows with turnout, so harvest rescales the same way stretchSky() does for the orbs.
       // Without this, a full ring would fall to 17 % when the crowd arrived and viewers would see
       // progress GO BACKWARD.
-      if (tier.target > round.target) {
+      if (t0.target > round.target) {
         const avant = round.target;
-        round.target = Math.min(tier.target, round.target + dt * 14);
+        round.target = Math.min(t0.target, round.target + dt * 14);
         if (avant > 0 && round.target > avant) round.harvest *= round.target / avant;
       }
       round.pulseSun += dt;
       round.pulseMoon += dt;
       // Duel, ring win: a team wins when its half-ring is full (TARGET_LENGTH segments)
       // and it holds for HOLD_SECONDS without being cut below. The timer is the fallback.
-      const fullBodies = [];
-      for (let i = 0; i < bodies.length; i++) {
-        const c = bodies[i];
-        const prevHold = c.hold || 0;
-        c.hold = c.snake.length >= TARGET_LENGTH ? (c.hold || 0) + dt : 0;
-        if (prevHold === 0 && c.hold > 0) moments.holds++;
+      const fullBodies: Body[] = [];
+      for (const c of bodies) {
+        const prevHold = c.hold ?? 0;
+        c.hold = c.snake.length >= TARGET_LENGTH ? (c.hold ?? 0) + dt : 0;
+        if (prevHold === 0 && (c.hold ?? 0) > 0) moments.holds++;
         if (c.snake.length >= ADULT_LENGTH) c.adult = true;
         const enSursis = !c.egg && c.snake.length > 0 && c.snake.length < REPRIEVE_LENGTH;
         if (enSursis && !c.reprieve) moments.reprieve++;
         c.reprieve = enSursis;
-        if (c.hold >= HOLD_SECONDS) fullBodies.push(c);
+        if ((c.hold ?? 0) >= HOLD_SECONDS) fullBodies.push(c);
       }
       // Strict tie-break: previously the loop broke on the first body holding its ring,
       // so gold could beat shadow by array order alone. Both are now evaluated: longer hold wins;
       // identical hold = draw.
-      if (fullBodies.length === 1) endRound(fullBodies[0].team, 'ring');
-      else if (fullBodies.length > 1) {
-        const a = fullBodies[0],
-          b = fullBodies[1];
-        endRound(a.hold === b.hold ? 'draw' : a.hold > b.hold ? a.team : b.team, 'ring');
+      if (fullBodies.length === 1) {
+        const fb = fullBodies[0];
+        if (fb) {
+          endRound(fb.team, 'ring');
+          return;
+        }
+      } else if (fullBodies.length > 1) {
+        const fa = fullBodies[0],
+          fb = fullBodies[1];
+        if (fa && fb) {
+          endRound(
+            (fa.hold ?? 0) === (fb.hold ?? 0)
+              ? 'draw'
+              : (fa.hold ?? 0) > (fb.hold ?? 0)
+                ? fa.team
+                : fb.team,
+            'ring',
+          );
+          return;
+        }
       }
-      if (round.state !== 'playing') return;
       // duel: round timer (balance test: at 120 s, calm audiences never fill the ring)
       if (round.t >= (settings.duelDuration || settings.duration)) {
         // Longer wins. Both snakes at or below START_LENGTH: draw, no point.
-        const l0 = bodies[0].snake.length,
-          l1 = bodies[1].snake.length;
-        // Strict tie-break: equal length was silently awarded to shadow (team bias). Without viewers,
-        // both snakes often end at the same length (5 % of measured rounds): that is a draw, no point.
-        if (l0 === l1) endRound('draw', 'timeout');
-        else if (l0 <= START_LENGTH && l1 <= START_LENGTH) endRound('draw', 'timeout');
-        else endRound(l0 > l1 ? 'gold' : 'shadow', 'timeout');
+        const b0 = bodies[0],
+          b1 = bodies[1];
+        if (b0 && b1) {
+          const l0 = b0.snake.length,
+            l1 = b1.snake.length;
+          // Strict tie-break: equal length was silently awarded to shadow (team bias). Without viewers,
+          // both snakes often end at the same length (5 % of measured rounds): that is a draw, no point.
+          if (l0 === l1) endRound('draw', 'timeout');
+          else if (l0 <= START_LENGTH && l1 <= START_LENGTH) endRound('draw', 'timeout');
+          else endRound(l0 > l1 ? 'gold' : 'shadow', 'timeout');
+        }
       }
       // Safety net: without viewers the board stays empty and nothing can happen.
       // Viewer gifts are unlimited (no cap on seeds), but the forest feeds on its own
@@ -1135,29 +1235,35 @@ function advance(dt) {
           // right under the snake's nose is a free gift requiring no decision; it should behave
           // like any seeded berry. Same delay, GERMINATES.
           let l = freeCells().filter((c) => !isDeadZone(c, SEED_GROW_TIME));
-          if (bodies[0] && bodies[1] && bodies[0].snake[0] && bodies[1].snake[0]) {
-            const a = bodies[0].snake[0],
-              b = bodies[1].snake[0];
-            const distDiff = (c) =>
-              Math.abs(
-                Math.abs(c.x - a.x) +
-                  Math.abs(c.y - a.y) -
-                  (Math.abs(c.x - b.x) + Math.abs(c.y - b.y)),
+          const b0w = bodies[0],
+            b1w = bodies[1];
+          if (b0w && b1w) {
+            const a = b0w.snake[0],
+              b = b1w.snake[0];
+            if (a && b) {
+              const distDiff = (c: Cell): number =>
+                Math.abs(
+                  Math.abs(c.x - a.x) +
+                    Math.abs(c.y - a.y) -
+                    (Math.abs(c.x - b.x) + Math.abs(c.y - b.y)),
+                );
+              const equidistantCells = l.filter(
+                (c) => distDiff(c) <= 1 && !isDeadZone(c, SEED_GROW_TIME),
               );
-            const equidistantCells = l.filter(
-              (c) => distDiff(c) <= 1 && !isDeadZone(c, SEED_GROW_TIME),
-            );
-            if (equidistantCells.length) l = equidistantCells;
-            else {
-              l.sort((p, q) => distDiff(p) - distDiff(q));
-              l = l.slice(0, 4);
+              if (equidistantCells.length) l = equidistantCells;
+              else {
+                l.sort((p, q) => distDiff(p) - distDiff(q));
+                l = l.slice(0, 4);
+              }
             }
           }
           if (!l.length) l = freeCells();
           if (l.length) {
             const c = l[Math.floor(Math.random() * l.length)];
-            berries.push({ x: c.x, y: c.y, nickname: '', t: 0, wild: true });
-            requestAiMove();
+            if (c) {
+              berries.push({ x: c.x, y: c.y, nickname: '', t: 0, wild: true });
+              requestAiMove();
+            }
           }
         }
       } else {
@@ -1189,25 +1295,20 @@ function advance(dt) {
 }
 
 // Advances the loaded (active) body by dt seconds. Called from advance() after loadBody(i).
-function advanceBody(dt) {
-  // per-body timers in duel (boostTime, invincibleTime, cutTime)
-  if (bodies[activeIndex].boostTime > 0)
-    bodies[activeIndex].boostTime = Math.max(0, bodies[activeIndex].boostTime - dt);
-  if (bodies[activeIndex].invincibleTime > 0)
-    bodies[activeIndex].invincibleTime = Math.max(0, bodies[activeIndex].invincibleTime - dt);
-  if (bodies[activeIndex].cutTime > 0)
-    bodies[activeIndex].cutTime = Math.max(0, bodies[activeIndex].cutTime - dt);
-  if (bodies[activeIndex].parryTime > 0)
-    bodies[activeIndex].parryTime = Math.max(0, bodies[activeIndex].parryTime - dt);
-  if (bodies[activeIndex].shieldTime > 0)
-    bodies[activeIndex].shieldTime = Math.max(0, bodies[activeIndex].shieldTime - dt);
-  if (bodies[activeIndex].recoilTime > 0)
-    bodies[activeIndex].recoilTime = Math.max(0, bodies[activeIndex].recoilTime - dt);
+function advanceBody(dt: number): void {
+  const body = bodies[activeIndex];
+  if (!body) return; // invariant: called after loadBody, activeIndex is always valid
+  if (body.boostTime > 0) body.boostTime = Math.max(0, body.boostTime - dt);
+  if (body.invincibleTime > 0) body.invincibleTime = Math.max(0, body.invincibleTime - dt);
+  if (body.cutTime > 0) body.cutTime = Math.max(0, body.cutTime - dt);
+  if (body.parryTime > 0) body.parryTime = Math.max(0, body.parryTime - dt);
+  if (body.shieldTime > 0) body.shieldTime = Math.max(0, body.shieldTime - dt);
+  if (body.recoilTime > 0) body.recoilTime = Math.max(0, body.recoilTime - dt);
   if (pause > 0) {
     pause -= dt;
     if (pause <= 0) {
       pause = 0;
-      spawn(!!(round && round.state === 'playing'));
+      spawn(round?.state === 'playing');
     }
     return;
   }
@@ -1215,7 +1316,7 @@ function advanceBody(dt) {
     const avant = egg.t;
     egg.t += dt;
     const a0 = getAmbience();
-    if (isSoundReady() && a0 && a0.hatchSound) {
+    if (isSoundReady() && a0?.hatchSound) {
       const uu = egg.t / HATCH_TIME,
         ua = avant / HATCH_TIME;
       [0.34, 0.46, 0.55].forEach((keyMap) => {
@@ -1231,9 +1332,9 @@ function advanceBody(dt) {
       hatch(egg.keep);
     }
     if (egg.t >= HATCH_TIME + TRAIL_TIME) egg = null;
-    if (!egg || !egg.emerged) return;
+    if (!egg?.emerged) return;
   }
-  const boosted = bodies[activeIndex].boostTime > 0;
+  const boosted = body.boostTime > 0;
   subStep += dt * SPEED * (boosted ? BOOST_FACTOR : 1); // like: boost cadence
   while (subStep >= 1) {
     subStep -= 1;
@@ -1242,7 +1343,7 @@ function advanceBody(dt) {
 }
 
 let lastFrameTime = 0;
-function loop(ts) {
+function loop(ts: number): void {
   const now = ts / 1000,
     dt = Math.min(now - lastFrameTime, 0.1);
   lastFrameTime = now;
@@ -1256,17 +1357,19 @@ function loop(ts) {
     storeBody();
   }
   loadBody(0);
-  trace = bodies[0] ? bodies[0].trace : [];
+  const b0 = bodies[0];
+  trace = b0 ? b0.trace : [];
   try {
     drawFrame(dt);
   } catch (err) {
     errors++;
-    lastError = 'render: ' + err.message + ' | ' + firstLine(err);
+    const e = err instanceof Error ? err : new Error(String(err));
+    lastError = 'render: ' + e.message + ' | ' + firstLine(e);
   }
   requestAnimationFrame(loop);
 }
 
-window.Viper = {
+const viperPublic = {
   settings: settings,
   spawn: spawn,
   advance: advance,
@@ -1277,28 +1380,33 @@ window.Viper = {
   scene: sceneState,
   launchScene: launchScene,
   stopScene: endScene,
-  endTest: (team) => {
-    endRound(team || 'gold', 'test');
+  endTest: (team?: RoundWinner) => {
+    endRound(team ?? 'gold', 'test');
   },
   soundOn: isSoundActive,
-  tier: () => ({
-    id: tier.id,
-    cadence: Math.round(cadence),
-    topSun: round ? Math.round(round.topSun) : tier.skySun,
-    topMoon: round ? Math.round(round.topMoon) : tier.skyMoon,
-  }),
+  tier: () => {
+    const t0 = getTier();
+    return {
+      id: t0.id,
+      cadence: Math.round(cadence),
+      topSun: round ? Math.round(round.topSun) : t0.skySun,
+      topMoon: round ? Math.round(round.topMoon) : t0.skyMoon,
+    };
+  },
   round: () =>
-    round && {
-      state: round.state,
-      t: round.t,
-      sun: round.sun,
-      moon: round.moonEvents,
-      winner: round.winner,
-      skySun: round.skySun,
-      skyMoon: round.skyMoon,
-      harvest: round.harvest,
-      target: round.target,
-    },
+    round
+      ? {
+          state: round.state,
+          t: round.t,
+          sun: round.sun,
+          moon: round.moonEvents,
+          winner: round.winner,
+          skySun: round.skySun,
+          skyMoon: round.skyMoon,
+          harvest: round.harvest,
+          target: round.target,
+        }
+      : null,
   rounds: () => rounds,
   score: () => ({ snake: snakeScore, viewers: scoreViewers }),
   resetScore: () => {
@@ -1325,82 +1433,86 @@ window.Viper = {
     hits: hits,
     berries: berries.length + seeds.length,
   }),
-  duel: () => ({
-    t: round && round.t,
-    winner: round && round.winner,
-    gold: bodies[0]
-      ? {
-          length: bodies[0].snake.length,
-          stance: (bodies[0].aiMemory && bodies[0].aiMemory.activeStance) || 'neutral',
-          reason: bodies[0].aiMemory && bodies[0].aiMemory.reason,
-          hold: bodies[0].hold || 0,
-          shieldTime: bodies[0].shieldTime,
-          lives: bodies[0].lives,
-          boostTime: bodies[0].boostTime,
-          invincibleTime: bodies[0].invincibleTime,
-          cutTime: bodies[0].cutTime,
-          recoilTime: bodies[0].recoilTime,
-        }
-      : null,
-    shadow: bodies[1]
-      ? {
-          length: bodies[1].snake.length,
-          stance: (bodies[1].aiMemory && bodies[1].aiMemory.activeStance) || 'neutral',
-          reason: bodies[1].aiMemory && bodies[1].aiMemory.reason,
-          hold: bodies[1].hold || 0,
-          shieldTime: bodies[1].shieldTime,
-          lives: bodies[1].lives,
-          boostTime: bodies[1].boostTime,
-          invincibleTime: bodies[1].invincibleTime,
-          cutTime: bodies[1].cutTime,
-          recoilTime: bodies[1].recoilTime,
-        }
-      : null,
-  }),
+  duel: () => {
+    const g = bodies[0],
+      s = bodies[1];
+    return {
+      t: round?.t ?? 0,
+      winner: round?.winner ?? null,
+      gold: g
+        ? {
+            length: g.snake.length,
+            stance: g.aiMemory.activeStance ?? 'neutral',
+            reason: g.aiMemory.reason,
+            hold: g.hold ?? 0,
+            shieldTime: g.shieldTime,
+            lives: g.lives,
+            boostTime: g.boostTime,
+            invincibleTime: g.invincibleTime,
+            cutTime: g.cutTime,
+            recoilTime: g.recoilTime,
+          }
+        : null,
+      shadow: s
+        ? {
+            length: s.snake.length,
+            stance: s.aiMemory.activeStance ?? 'neutral',
+            reason: s.aiMemory.reason,
+            hold: s.hold ?? 0,
+            shieldTime: s.shieldTime,
+            lives: s.lives,
+            boostTime: s.boostTime,
+            invincibleTime: s.invincibleTime,
+            cutTime: s.cutTime,
+            recoilTime: s.recoilTime,
+          }
+        : null,
+    };
+  },
   // race parameters for the balance harnesses
-  setSky: (id, sun, moon) => {
+  setSky: (id: string, sun?: number, moon?: number) => {
     const p = TIERS.find((x) => x.id === id);
     if (!p) return;
     if (sun) p.skySun = sun;
     if (moon) p.skyMoon = moon;
   },
-  setTarget: (id, c) => {
+  setTarget: (id: string, c: number) => {
     const p = TIERS.find((x) => x.id === id);
     if (p) p.target = c;
   },
   setMaxLength: forceLength,
-  setMaxStones: (id, v) => {
+  setMaxStones: (id: string, v: number) => {
     const p = TIERS.find((x) => x.id === id);
     if (p) p.maxStones = v;
   },
-  setHit: (id, v) => {
+  setHit: (id: string, v: number) => {
     const p = TIERS.find((x) => x.id === id);
     if (p) p.hit = v;
   },
   // per-team flair in duel (control room, harnesses): applied to current and future bodies
-  setFlair: (team, v) => {
+  setFlair: (team: Team, v: number) => {
     FLAIR_BY_TEAM[team] = v;
     bodies.forEach((c) => {
       if (c.team === team) c.flair = v;
     });
   },
-  setHoldSeconds: (s) => {
-    HOLD_SECONDS = Math.max(0.5, +s || 5);
+  setHoldSeconds: (s: number) => {
+    HOLD_SECONDS = Math.max(0.5, s || 5);
   },
   moments: () => Object.assign({}, moments),
   resetMoments: () => {
     moments = { holds: 0, reprieve: 0, parries: 0, rounds: 0 };
   },
-  setHunt: (team, v) => {
+  setHunt: (team: Team, v: number) => {
     HUNT_BY_TEAM[team] = v;
     bodies.forEach((c) => {
       if (c.team === team) c.hunt = v;
     });
   },
-  setHour: (h) => {
+  setHour: (h: number) => {
     settings.hour = ((h % 1) + 1) % 1;
   },
-  egg: () => egg && { t: egg.t, duration: HATCH_TIME },
+  egg: () => (egg ? { t: egg.t, duration: HATCH_TIME } : null),
   plantBramble: () => plantBramble('probe'),
   internal: () => ({
     snake: snake,
@@ -1415,46 +1527,51 @@ window.Viper = {
     speed: SPEED,
     brambleWarning: BRAMBLE_WARNING,
     brambleMax: BRAMBLE_MAX_SEGMENTS,
-    berries: berries.map((b) => ({ x: b.x, y: b.y, team: b.team || null })),
+    berries: berries.map((b) => ({ x: b.x, y: b.y, team: b.team ?? null })),
     seeds: seeds.map((g) => ({ x: g.x, y: g.y })),
     body: bodies.map((c) => ({
       team: c.team,
       length: c.snake.length,
-      head: c.snake[0] || null,
+      head: c.snake[0] ?? null,
       snake: c.snake.map((s) => ({ x: s.x, y: s.y })),
       dir: { ...c.dir },
       invincibleTime: c.invincibleTime,
-      deathCause: c.deathCause || null,
-      debug: c.aiMemory.debug || null,
+      deathCause: c.deathCause ?? null,
+      debug: c.aiMemory.debug ?? null,
     })),
   }),
 };
 
-function start() {
+// window.Viper is typed via legacy-globals.d.ts (GameApi, a loose subset);
+// the full API is structurally compatible at runtime.
+window.Viper = viperPublic as unknown as typeof window.Viper;
+
+function start(): void {
   bindCanvas(document.getElementById('scene'));
-  if (!canvas) return;
+  const localCanvas = getCanvas();
+  if (!localCanvas) return;
   // sharp render: canvas surface matches displayed size and screen pixel ratio
   const adjust = () => {
-    const r = canvas.getBoundingClientRect(),
+    const r = localCanvas.getBoundingClientRect(),
       dpr = Math.min(window.devicePixelRatio || 1, 2);
     const w = r.width > 0 ? Math.round(r.width * dpr) : W;
-    canvas.width = w;
-    canvas.height = Math.round((w * H) / WF);
-    const s = canvas.width / WF;
-    ctx.setTransform(s, 0, 0, s, OX * s, 0);
+    localCanvas.width = w;
+    localCanvas.height = Math.round((w * H) / WF);
+    const s = localCanvas.width / WF;
+    // ctx is always non-null after bindCanvas
+    const c = getCtx();
+    if (c) c.setTransform(s, 0, 0, s, OX * s, 0);
   };
   adjust();
   window.addEventListener('resize', adjust);
   adjustCanvas = adjust;
-  ['pointerdown', 'keydown'].forEach((ev) =>
-    window.addEventListener(ev, armSound, { once: false, passive: true }),
-  );
-  if (window.ResizeObserver)
-    try {
-      new ResizeObserver(adjust).observe(canvas);
-    } catch (e) {}
+  ['pointerdown', 'keydown'].forEach((ev) => {
+    window.addEventListener(ev, armSound, { once: false, passive: true });
+  });
+  // Absent in headless runs; the window resize listener above still keeps the canvas fitted.
+  if ('ResizeObserver' in window) new ResizeObserver(adjust).observe(localCanvas);
   document.addEventListener('keydown', (ev) => {
-    const keyMap = {
+    const keyMap: Record<string, Direction> = {
       ArrowUp: { x: 0, y: -1 },
       ArrowDown: { x: 0, y: 1 },
       ArrowLeft: { x: -1, y: 0 },

@@ -2,7 +2,7 @@ import { setTimeout as delay } from 'node:timers/promises';
 
 import { ORIENTATIONS } from '../config.js';
 import { evaluate } from '../page/evaluate.js';
-import { formatOf, json, type Diagnostic } from './context.js';
+import { formatOf, json, type Diagnostic } from './context.ts';
 
 const CONTENT_SIZE = {
   portrait: [720, 1280],

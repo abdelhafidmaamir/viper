@@ -1,34 +1,35 @@
 // On-stream announcements: the banner that credits viewers for their plays, the phrasing it
 // uses (no mention of gifts or prices, per TikTok LIVE guidelines) and viewer avatars.
 
-import { paintEffectGlyph } from './gift-panel.js';
-import { BD_CX, BD_CY, BD_W, CELL, W } from './layout.js';
-import { paintSnakeGlyph } from './scoreboard.js';
-import { ctx } from './canvas.js';
-import { SHADOW, GOLD } from './palette.js';
-import { pointRail } from './frame.js';
-import { getAmbience, bodies, round, settings, t } from '../scripts/game.js';
+import type { Announcement, Body, Point, Round, RoundDonation, Team } from './types.ts';
+import { paintEffectGlyph } from './gift-panel.ts';
+import { BD_CX, BD_CY, BD_W, CELL, W } from './layout.ts';
+import { paintSnakeGlyph } from './scoreboard.ts';
+import { ctx } from './canvas.ts';
+import { SHADOW, GOLD } from './palette.ts';
+import { pointRail } from './frame.ts';
+import { getAmbience, bodies, round, settings, t } from '../scripts/game.ts';
 
 // ===== Activity banner, top center. One announcement at a time; gifts jump the queue. Same panel
 // geometry as the scoreboard legend rows, with the actual miniature snake rendered. Suppressed during
 // the ring hold countdown (same screen area). Standalone render.
-let announcements = [],
-  currentAnnouncement = null;
+const announcements: Announcement[] = [];
+let currentAnnouncement: Announcement | null = null;
 // Likes counted per viewer, announced every tenth one.
-export const likesByViewer = {};
+export const likesByViewer: Record<string, number> = {};
 
 // Per-stream state (not per-round): viewer thresholds already acknowledged, first gifts, win streaks,
 // and current-round donations per viewer (for the end-of-round ranking).
 export const VIEWER_THRESHOLDS = [10, 25, 50, 100, 250, 500, 1000, 2500, 5000];
 
-export let seenThresholds = {},
-  alreadyDonated = {},
-  streakTeam = null,
-  streakCount = 0,
-  roundDonations = {},
-  rescueTime = [-9, -9];
+export const seenThresholds: Record<number, number> = {};
+export const alreadyDonated: Record<string, unknown> = {};
+export let streakTeam: Team | null = null;
+export let streakCount = 0;
+export const roundDonations: Record<string, RoundDonation> = {};
+export const rescueTime: [number, number] = [-9, -9];
 
-export function teamName(c) {
+export function teamName(c: Team): string {
   return c === 'gold' ? 'Or' : 'Ombre';
 }
 
@@ -61,36 +62,49 @@ const PHRASES = {
   streak: ['{n} wins in a row! Who can stop them?', "That's {n} in a row, unstoppable!"],
   rescue: ["{name}'s {q} just saved the day!", "What a save! {name}'s {q} kept them alive."],
   rescueWithout: ['A {q} just saved the day!', 'What a save, that {q} kept them alive!'],
-};
+} as const;
 
-const lastPhraseIdx = {};
+type PhraseKey = keyof typeof PHRASES;
 
-export function phrase(key, v) {
-  const l = PHRASES[key];
-  let k = Math.floor(Math.random() * l.length);
-  if (l.length > 1 && k === lastPhraseIdx[key]) k = (k + 1) % l.length;
-  lastPhraseIdx[key] = k;
-  return l[k]
-    .replace('{n}', v && v.n !== undefined ? v.n : '')
-    .replace('{c}', (v && v.c) || '')
-    .replace('{a}', (v && v.a) || '')
-    .replace('{q}', (v && v.q) || '');
+const lastPhraseIdx: Partial<Record<PhraseKey, number>> = {};
+
+interface PhraseVars {
+  n?: number | string;
+  c?: string;
+  a?: string;
+  q?: string;
 }
 
-export function announceRescue(i, effectType) {
+export function phrase(key: PhraseKey, v?: PhraseVars): string {
+  const l = PHRASES[key];
+  const arr: readonly string[] = l;
+  let k = Math.floor(Math.random() * arr.length);
+  if (arr.length > 1 && k === lastPhraseIdx[key]) k = (k + 1) % arr.length;
+  lastPhraseIdx[key] = k;
+  return (arr[k] ?? '')
+    .replace('{n}', v?.n !== undefined ? String(v.n) : '')
+    .replace('{c}', v?.c ?? '')
+    .replace('{a}', v?.a ?? '')
+    .replace('{q}', v?.q ?? '');
+}
+
+export function announceRescue(i: number, effectType: string): void {
   // A shield or extra life just prevented a loss.
-  if (t - rescueTime[i] < 4) return;
-  rescueTime[i] = t;
-  const team = i === 0 ? 'gold' : 'shadow',
-    donor = bodies[i] && bodies[i][effectType === 'life' ? 'lifeBy' : 'shieldBy'];
+  const idx = i as 0 | 1;
+  if (t - rescueTime[idx] < 4) return;
+  rescueTime[idx] = t;
+  const team: Team = i === 0 ? 'gold' : 'shadow';
+  const typedBodies: (Body | undefined)[] = bodies;
+  const body = typedBodies[i];
+  const donor = body?.[effectType === 'life' ? 'lifeBy' : 'shieldBy'];
   addAnnouncement({
     kind: 'rescue',
-    nickname: donor || '',
+    nickname: donor ?? '',
     text: phrase(donor ? 'rescue' : 'rescueWithout', {
       c: teamName(team),
       q: effectType === 'life' ? 'extra life' : 'shield',
     }),
-    avatar: bodies[i] && bodies[i][effectType === 'life' ? 'lifeAvatar' : 'shieldAvatar'],
+    avatar: body?.[effectType === 'life' ? 'lifeAvatar' : 'shieldAvatar'],
     team: team,
     effect: effectType === 'life' ? 'LIFE' : 'SHIELD',
     ahead: true,
@@ -101,7 +115,7 @@ const BANNER_DURATION = 3.8,
   BANNER_HEIGHT = 96;
 
 // Team win streak, announced from the second consecutive win.
-export function announceStreak(team) {
+export function announceStreak(team: Team): void {
   if (streakTeam === team) streakCount++;
   else {
     streakTeam = team;
@@ -122,12 +136,13 @@ export function announceStreak(team) {
 }
 
 // Donations are counted per round; the end-of-round ranking resets.
-export function resetRoundDonations() {
-  roundDonations = {};
+export function resetRoundDonations(): void {
+  for (const k in roundDonations) Reflect.deleteProperty(roundDonations, k);
 }
 
-export function addAnnouncement(a) {
-  if (!settings.banner || settings.banner === 'none') return;
+export function addAnnouncement(a: Announcement): void {
+  const s = settings as { banner?: string };
+  if (!s.banner || s.banner === 'none') return;
   if (a.kind === 'gift' || a.ahead) {
     let k = announcements.findIndex((q) => q.kind !== 'gift');
     if (k < 0) k = announcements.length;
@@ -137,16 +152,16 @@ export function addAnnouncement(a) {
 }
 
 // Viewer profile photos (URL from TikFinity): bounded cache, returns the image if loaded or null.
-const photos = {};
+const photos: Record<string, HTMLImageElement> = {};
 
 let photoCount = 0;
 
-export function getProfilePhoto(url) {
+export function getProfilePhoto(url: string | undefined): HTMLImageElement | null {
   if (!url || typeof url !== 'string' || !/^https?:/.test(url)) return null;
   let im = photos[url];
   if (!im) {
     if (photoCount > 80) {
-      for (const k in photos) delete photos[k];
+      for (const k in photos) Reflect.deleteProperty(photos, k);
       photoCount = 0;
     }
     im = new Image();
@@ -158,98 +173,115 @@ export function getProfilePhoto(url) {
   return im.complete && im.naturalWidth ? im : null;
 }
 
-export function paintMiniSnake(pts, tint, scale) {
+export function paintMiniSnake(pts: Point[], tint: string, scale: number): void {
   const a = getAmbience();
-  if (!a || !a.paintSnake || pts.length < 2) return;
-  ctx.save();
-  ctx.scale(scale, scale);
+  if (!a?.paintSnake || pts.length < 2) return;
+  const c = ctx as CanvasRenderingContext2D | null;
+  if (!c) return;
+  c.save();
+  c.scale(scale, scale);
   a.paintSnake(
-    ctx,
+    c,
     pts.map((p) => ({ x: p.x / scale, y: p.y / scale })),
     CELL,
     { tint: tint },
   );
-  ctx.restore();
+  c.restore();
 }
 
-export function paintBanner() {
-  const mode = settings.banner;
+// Word-wrapping types used only inside paintBanner / drawPanel.
+interface MeasuredToken {
+  t: string;
+  strong: boolean;
+  l: number;
+}
+type WordGroup = MeasuredToken[] & { l: number; x: number };
+
+function makeWordGroup(): WordGroup {
+  return Object.assign([], { l: 0, x: 0 });
+}
+
+export function paintBanner(): void {
+  const s = settings as { banner?: string; donorNames?: boolean };
+  const mode = s.banner;
   if (!mode || mode === 'none' || !round) return;
-  const holdActive = bodies.some((c) => c && (c.hold || 0) > 0 && round.state === 'playing');
+  const typedBodies: (Body | undefined)[] = bodies;
+  const typedRound: Round = round;
+  const holdActive = typedBodies.some(
+    (b) => b && (b.hold ?? 0) > 0 && typedRound.state === 'playing',
+  );
   if (holdActive) {
     currentAnnouncement = null;
     return;
   }
   if (!currentAnnouncement && announcements.length) {
-    currentAnnouncement = announcements.shift();
-    currentAnnouncement.t0 = t;
+    currentAnnouncement = announcements.shift() ?? null;
+    if (currentAnnouncement) currentAnnouncement.t0 = t;
   }
-  const smooth = (v) => {
+  const smoothFn = (v: number): number => {
     v = Math.max(0, Math.min(1, v));
     return v * v * v * (v * (6 * v - 15) + 10);
   };
-  if (currentAnnouncement && t - currentAnnouncement.t0 >= BANNER_DURATION)
+  if (currentAnnouncement && t - (currentAnnouncement.t0 ?? 0) >= BANNER_DURATION)
     currentAnnouncement = null;
   const active = currentAnnouncement,
-    age = active ? t - active.t0 : 0;
-  const tint = active && active.team ? (active.team === 'gold' ? GOLD : SHADOW) : '#e8f1dc',
-    rgb =
-      active && active.team
-        ? active.team === 'gold'
-          ? '242,197,124'
-          : '180,212,222'
-        : '232,241,220';
-  const entryFade = active ? smooth(age / 0.55) : 0,
-    exitFade = active ? smooth((age - (BANNER_DURATION - 0.55)) / 0.55) : 0;
+    age = active ? t - (active.t0 ?? 0) : 0;
+  const tint = active?.team ? (active.team === 'gold' ? GOLD : SHADOW) : '#e8f1dc',
+    rgb = active?.team ? (active.team === 'gold' ? '242,197,124' : '180,212,222') : '232,241,220';
+  const entryFade = active ? smoothFn(age / 0.55) : 0,
+    exitFade = active ? smoothFn((age - (BANNER_DURATION - 0.55)) / 0.55) : 0;
   const cx = BD_CX + (mode === 'P3' ? 34 : 0),
     x = cx - BD_W / 2,
     y = BD_CY - BANNER_HEIGHT / 2;
   // Panel and its content; reveal = fraction visible from the left (P2, P3), global alpha.
-  const drawPanel = (reveal, alpha, dy) => {
+  const drawPanel = (reveal: number, alpha: number, dy: number | undefined): void => {
+    if (!active) return;
     if (alpha <= 0.01 || reveal <= 0.01) return;
-    ctx.save();
-    ctx.globalAlpha = alpha;
-    ctx.translate(0, dy || 0);
-    ctx.beginPath();
-    ctx.rect(x - 4, y - 6, (BD_W + 8) * reveal, BANNER_HEIGHT + 12);
-    ctx.clip();
-    ctx.fillStyle = 'rgba(8,12,10,0.74)';
-    ctx.beginPath();
-    ctx.roundRect(x, y, BD_W, BANNER_HEIGHT, 24);
-    ctx.fill();
-    ctx.fillStyle = 'rgba(' + rgb + ',' + (0.1 * (1 - Math.min(1, age / 1.6))).toFixed(3) + ')';
-    ctx.fill();
-    ctx.lineWidth = 1.5;
-    ctx.strokeStyle = 'rgba(' + rgb + ',0.38)';
-    ctx.stroke();
+    const c = ctx as CanvasRenderingContext2D | null;
+    if (!c) return;
+    c.save();
+    c.globalAlpha = alpha;
+    c.translate(0, dy ?? 0);
+    c.beginPath();
+    c.rect(x - 4, y - 6, (BD_W + 8) * reveal, BANNER_HEIGHT + 12);
+    c.clip();
+    c.fillStyle = 'rgba(8,12,10,0.74)';
+    c.beginPath();
+    c.roundRect(x, y, BD_W, BANNER_HEIGHT, 24);
+    c.fill();
+    c.fillStyle = `rgba(${rgb},${(0.1 * (1 - Math.min(1, age / 1.6))).toFixed(3)})`;
+    c.fill();
+    c.lineWidth = 1.5;
+    c.strokeStyle = `rgba(${rgb},0.38)`;
+    c.stroke();
     const AV = 64,
       ax = x + 16 + AV / 2,
       pop =
         age < 0.9
           ? 1 + 0.14 * Math.sin(Math.min(1, Math.max(0, (age - 0.45) / 0.45)) * Math.PI)
           : 1;
-    const showNames = settings.donorNames !== false,
+    const showNames = s.donorNames !== false,
       displayName = showNames && active.nickname ? active.nickname.slice(0, 18) : '',
       av = showNames ? getProfilePhoto(active.avatar) : null;
     // Viewer profile photo, circular, outlined in team color; falls back to initial letter, then snake glyph.
     if (displayName) {
-      ctx.save();
-      ctx.beginPath();
-      ctx.arc(ax, BD_CY, (AV / 2) * pop, 0, Math.PI * 2);
-      ctx.closePath();
+      c.save();
+      c.beginPath();
+      c.arc(ax, BD_CY, (AV / 2) * pop, 0, Math.PI * 2);
+      c.closePath();
       if (av) {
-        ctx.save();
-        ctx.clip();
-        ctx.drawImage(av, ax - (AV / 2) * pop, BD_CY - (AV / 2) * pop, AV * pop, AV * pop);
-        ctx.restore();
+        c.save();
+        c.clip();
+        c.drawImage(av, ax - (AV / 2) * pop, BD_CY - (AV / 2) * pop, AV * pop, AV * pop);
+        c.restore();
       } else {
-        ctx.fillStyle = 'rgba(' + rgb + ',0.22)';
-        ctx.fill();
-        ctx.fillStyle = tint;
-        ctx.font = '800 32px system-ui, sans-serif';
-        ctx.textAlign = 'center';
-        ctx.textBaseline = 'middle';
-        ctx.fillText(
+        c.fillStyle = `rgba(${rgb},0.22)`;
+        c.fill();
+        c.fillStyle = tint;
+        c.font = '800 32px system-ui, sans-serif';
+        c.textAlign = 'center';
+        c.textBaseline = 'middle';
+        c.fillText(
           displayName
             .replace(/[^A-Za-z0-9]/g, '')
             .charAt(0)
@@ -258,57 +290,57 @@ export function paintBanner() {
           BD_CY + 2,
         );
       }
-      ctx.lineWidth = 2.5;
-      ctx.strokeStyle = 'rgba(' + rgb + ',0.85)';
-      ctx.beginPath();
-      ctx.arc(ax, BD_CY, (AV / 2) * pop, 0, Math.PI * 2);
-      ctx.stroke();
-      ctx.restore();
-    } else paintSnakeGlyph(ax, BD_CY, 17 * pop, active.team ? tint : null);
+      c.lineWidth = 2.5;
+      c.strokeStyle = `rgba(${rgb},0.85)`;
+      c.beginPath();
+      c.arc(ax, BD_CY, (AV / 2) * pop, 0, Math.PI * 2);
+      c.stroke();
+      c.restore();
+    } else paintSnakeGlyph(ax, BD_CY, 17 * pop, active.team ? tint : undefined);
     // Right side: the in-game effect glyph.
     const IM = 60,
       aImg = !!active.effect;
     if (aImg) {
-      ctx.save();
-      ctx.translate(x + BD_W - 16 - IM / 2, BD_CY);
-      ctx.scale(pop, pop);
-      paintEffectGlyph(ctx, active.effect, 0, 0, 22, rgb);
-      ctx.restore();
+      c.save();
+      c.translate(x + BD_W - 16 - IM / 2, BD_CY);
+      c.scale(pop, pop);
+      paintEffectGlyph(c, active.effect ?? '', 0, 0, 22, rgb);
+      c.restore();
     }
     // Announcement text: regular words in light color, viewer name in bold team color, two lines maximum.
     const tx = ax + AV / 2 + 18,
       availableWidth = x + BD_W - (aImg ? IM + 30 : 22) - tx;
-    const parts = String(active.text).split('{name}'),
-      textTokens = [];
+    const parts = active.text.split('{name}');
+    const textTokens: MeasuredToken[] = [];
     parts.forEach((m, k) => {
-      if (k > 0) textTokens.push({ t: displayName || 'a viewer', strong: !!displayName });
-      (m.match(/\S+|\s+/g) || []).forEach((q) => textTokens.push({ t: q, strong: false }));
+      if (k > 0) textTokens.push({ t: displayName || 'a viewer', strong: !!displayName, l: 0 });
+      (m.match(/\S+|\s+/g) ?? []).forEach((q) => textTokens.push({ t: q, strong: false, l: 0 }));
     });
-    const words = [];
-    let cur = null;
+    const words: WordGroup[] = [];
+    let cur: WordGroup | null = null;
     textTokens.forEach((q) => {
       if (!q.strong && /^\s+$/.test(q.t)) {
         cur = null;
         return;
       }
       if (!cur) {
-        cur = [];
+        cur = makeWordGroup();
         words.push(cur);
       }
       cur.push(q);
     });
-    let fontSize = 30,
-      lines = [];
+    let fontSize = 30;
+    let lines: WordGroup[][] = [];
     for (; fontSize >= 19; fontSize--) {
-      const fN = '500 ' + fontSize + 'px system-ui, sans-serif',
-        fF = '800 ' + fontSize + 'px system-ui, sans-serif';
-      ctx.font = fN;
-      const spaceWidth = ctx.measureText(' ').width;
+      const fN = `500 ${String(fontSize)}px system-ui, sans-serif`,
+        fF = `800 ${String(fontSize)}px system-ui, sans-serif`;
+      c.font = fN;
+      const spaceWidth = c.measureText(' ').width;
       words.forEach((w) => {
         w.l = 0;
         w.forEach((q) => {
-          ctx.font = q.strong ? fF : fN;
-          q.l = ctx.measureText(q.t).width;
+          c.font = q.strong ? fF : fN;
+          q.l = c.measureText(q.t).width;
           w.l += q.l;
         });
       });
@@ -322,26 +354,28 @@ export function paintBanner() {
         if (lx > 0) lx += spaceWidth;
         w.x = lx;
         lx += w.l;
-        lines[lines.length - 1].push(w);
+        // invariant: lines always has at least one entry (initialized to [[]] and only push appends)
+        const tail = lines[lines.length - 1];
+        if (tail) tail.push(w);
       });
       if (lines.length <= 2 && words.every((w) => w.l <= availableWidth)) break;
     }
     const lineHeight = fontSize * 1.22,
       y0 = BD_CY - ((lines.length - 1) * lineHeight) / 2 + 1;
-    ctx.textAlign = 'left';
-    ctx.textBaseline = 'middle';
-    lines.slice(0, 2).forEach((li, k) =>
+    c.textAlign = 'left';
+    c.textBaseline = 'middle';
+    lines.slice(0, 2).forEach((li, k) => {
       li.forEach((w) => {
         let wx = tx + w.x;
         w.forEach((q) => {
-          ctx.font = (q.strong ? '800 ' : '500 ') + fontSize + 'px system-ui, sans-serif';
-          ctx.fillStyle = q.strong ? (active.team ? tint : '#ffffff') : 'rgba(255,255,255,0.86)';
-          ctx.fillText(q.t, wx, y0 + k * lineHeight);
+          c.font = `${q.strong ? '800 ' : '500 '}${String(fontSize)}px system-ui, sans-serif`;
+          c.fillStyle = q.strong ? (active.team ? tint : '#ffffff') : 'rgba(255,255,255,0.86)';
+          c.fillText(q.t, wx, y0 + k * lineHeight);
           wx += q.l;
         });
-      }),
-    );
-    ctx.restore();
+      });
+    });
+    c.restore();
   };
   if (mode === 'P1' && active) {
     // P1 orbit: the snake circles the panel, settles, then exits erasing it.
@@ -353,28 +387,31 @@ export function paintBanner() {
       rh = BANNER_HEIGHT + 2 * m,
       rr = 24 + m,
       perimeter = 2 * (rw + rh) - 8 * rr + 2 * Math.PI * rr;
-    const progress = smooth(age / 1.25),
+    const progress = smoothFn(age / 1.25),
       headPos =
         perimeter * 0.08 +
         progress * perimeter +
         Math.max(0, age - 1.25) * 22 +
         exitFade * perimeter * 0.55,
       snakeLength = Math.min(170, progress * perimeter) * (1 - exitFade * 0.4);
-    const pts = [];
+    const pts: Point[] = [];
     for (let d = 0; d <= snakeLength; d += 7) {
       const s2 = (((headPos - d) % perimeter) + perimeter) % perimeter;
       pts.push(pointRail(rx, ry, rw, rh, rr, s2));
     }
-    ctx.save();
-    ctx.globalAlpha = 1 - exitFade;
-    paintMiniSnake(pts, tint, 0.5);
-    ctx.restore();
+    const c = ctx as CanvasRenderingContext2D | null;
+    if (c) {
+      c.save();
+      c.globalAlpha = 1 - exitFade;
+      paintMiniSnake(pts, tint, 0.5);
+      c.restore();
+    }
   }
   if (mode === 'P2' && active) {
     // P2 carrier: the snake crosses while undulating, unrolling the panel behind it.
-    const hx = x - 60 + smooth(age / 1.1) * (BD_W + 140) + Math.max(0, age - 1.1) * 520;
+    const hx = x - 60 + smoothFn(age / 1.1) * (BD_W + 140) + Math.max(0, age - 1.1) * 520;
     drawPanel(Math.max(0, Math.min(1, (hx - x - 10) / BD_W)), 1 - exitFade, -exitFade * 12);
-    const pts = [];
+    const pts: Point[] = [];
     for (let i = 0; i < 26; i++) {
       const px2 = hx - i * 7;
       pts.push({ x: px2, y: BD_CY + Math.sin(px2 * 0.03) * 15 });
@@ -388,7 +425,7 @@ export function paintBanner() {
       raised = entryFade - exitFade,
       breathe = 1 + 0.03 * Math.sin(t * 2.2);
     if (active) drawPanel(entryFade, 1 - exitFade, 0);
-    const pts = [
+    const pts: Point[] = [
       { x: mx + 6 + raised * 10, y: my - 30 - raised * 16 - 2 * Math.sin(t * 2.2) },
       { x: mx + 2 + raised * 6, y: my - 22 - raised * 9 },
       { x: mx - 2, y: my - 14 },

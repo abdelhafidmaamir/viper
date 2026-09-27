@@ -1,6 +1,6 @@
 import path from 'node:path';
 
-import { startStaticServer } from './static-server.js';
+import { startStaticServer } from './static-server.ts';
 
 /**
  * Stable port for the local origin. Web storage is keyed by origin, port included: with a random

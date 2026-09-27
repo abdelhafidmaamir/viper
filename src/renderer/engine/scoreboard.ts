@@ -1,10 +1,11 @@
 // The arcade scoreboard under the board: one glyph and one count per team, the round clock
 // between them.
 
-import { SC_CY, W } from './layout.js';
-import { ctx } from './canvas.js';
-import { BLUE, SHADOW, GOLD } from './palette.js';
-import { paintViewersGlyph } from './frame.js';
+import { SC_CY, W } from './layout.ts';
+// ctx is always non-null when paint functions are called (bindCanvas runs before any rendering)
+import { ctx } from './canvas.ts';
+import { BLUE, SHADOW, GOLD } from './palette.ts';
+import { paintViewersGlyph } from './frame.ts';
 import {
   round,
   snakePulse,
@@ -12,7 +13,7 @@ import {
   settings,
   snakeScore,
   scoreViewers,
-} from '../scripts/game.js';
+} from '../scripts/game.ts';
 
 // Scoreboard under the board. The board ends at Y0+ROWS*CELL (1220) and the TikTok
 // comment feed starts at 1290. The band 1226-1284 is the only location both in the safe
@@ -39,11 +40,11 @@ const SC_R = 13; // glyph radius, compact
 const SC_BW = 250,
   SC_BH = 48; // plate width and height, kept compact
 
-export const smooth01 = (x) => (x <= 0 ? 0 : x >= 1 ? 1 : x * x * (3 - 2 * x));
+export const smooth01 = (x: number): number => (x <= 0 ? 0 : x >= 1 ? 1 : x * x * (3 - 2 * x));
 
 // Score digit bounce on a new point: a sharp push then a damped return.
 // 0.9 s maximum: beyond that the digit is still dancing when the viewer has already moved on.
-function bounce(p) {
+function bounce(p: number): number {
   if (p >= 0.9) return 1;
   const u = p / 0.9;
   // capped at 1.25: beyond that a two-digit number overflows the 84 px band
@@ -52,15 +53,15 @@ function bounce(p) {
 
 // Snake head glyph for the scoreboard: the same silhouette as in-game, at small scale.
 // Two eyes, not an abstract pictogram: this is what makes the team obvious without a label.
-export function paintSnakeGlyph(x, y, r, tint) {
-  ctx.fillStyle = tint || '#e8f1dc';
+export function paintSnakeGlyph(x: number, y: number, r: number, tint?: string): void {
+  ctx.fillStyle = tint ?? '#e8f1dc';
   ctx.beginPath();
   ctx.arc(x, y, r, 0, Math.PI * 2);
   ctx.fill();
   // neck stub pointing back, so it reads as a head and not a ball
   ctx.lineCap = 'round';
   ctx.lineWidth = r * 1.15;
-  ctx.strokeStyle = tint || '#d9e7cc';
+  ctx.strokeStyle = tint ?? '#d9e7cc';
   ctx.beginPath();
   ctx.moveTo(x - r * 0.2, y + r * 0.35);
   ctx.lineTo(x - r * 1.25, y + r * 0.72);
@@ -78,7 +79,7 @@ export function paintSnakeGlyph(x, y, r, tint) {
 // Two head-and-shoulders silhouettes with a clear gap between them, the smaller one receding:
 // the universal sign for people, and two is enough to imply plurality. The gap between
 // them is cut with `destination-out`; without it the two bodies merge into one blob at this size.
-export function paintPersonGlyph(x, y, r) {
+export function paintPersonGlyph(x: number, y: number, r: number): void {
   ctx.beginPath();
   ctx.arc(x, y - r * 0.95, r * 0.62, 0, Math.PI * 2);
   ctx.fill();
@@ -97,11 +98,18 @@ export function paintPersonGlyph(x, y, r) {
 // tint (duel): both teams are snakes, each in its team color.
 // mirrored (right team): the count moves to the center side and the glyph to the edge,
 // like a football scoreboard: glyph, count | count, glyph.
-function teamBar(cx, n, sun, pulse, tint, mirrored) {
+function teamBar(
+  cx: number,
+  n: number,
+  sun: boolean,
+  pulse: number,
+  tint: string | undefined,
+  mirrored?: boolean,
+): void {
   const sg = mirrored ? -1 : 1;
   const k = bounce(pulse),
     lively = Math.max(0, 1 - pulse / 0.9);
-  const glow = tint ? tint : sun ? 'rgba(242,197,124,0.85)' : 'rgba(143,168,216,0.85)';
+  const glow = tint ?? (sun ? 'rgba(242,197,124,0.85)' : 'rgba(143,168,216,0.85)');
   ctx.save();
   ctx.translate(cx - sg * SC_GLYPH_OFFSET, SC_CY);
   ctx.scale(sg * k, 1); // mirror: the right-team glyph faces the other way
@@ -123,14 +131,13 @@ function teamBar(cx, n, sun, pulse, tint, mirrored) {
   ctx.textAlign = 'center';
   ctx.textBaseline = 'middle';
   ctx.font = '500 30px "IBM Plex Mono", ui-monospace, monospace';
-  ctx.fillStyle = tint || (sun ? GOLD : BLUE);
+  ctx.fillStyle = tint ?? (sun ? GOLD : BLUE);
   ctx.fillText(String(n), 0, 1);
   ctx.restore();
 }
 
-export function paintScore() {
+export function paintScore(): void {
   // In duel mode: one snake per team, gold on the left, shadow on the right, same plate, same logic.
-
   const cx = W / 2;
   // The remaining round time is shown in digits between the two scores, like a football scorecard.
   // The plate widens to accommodate it; glyphs are unchanged.
@@ -150,8 +157,8 @@ export function paintScore() {
   ctx.strokeStyle = 'rgba(255,255,255,0.16)';
   if (timer) {
     const matchDuration = settings.duelDuration || settings.duration,
-      r = Math.max(0, Math.ceil(matchDuration - (round.t || 0)));
-    const txt = Math.floor(r / 60) + ':' + String(r % 60).padStart(2, '0');
+      r = Math.max(0, Math.ceil(matchDuration - (timer.t || 0)));
+    const txt = `${String(Math.floor(r / 60))}:${String(r % 60).padStart(2, '0')}`;
     ctx.beginPath();
     ctx.moveTo(cx - 42, SC_CY - 13);
     ctx.lineTo(cx - 42, SC_CY + 13);
@@ -162,7 +169,7 @@ export function paintScore() {
     ctx.textBaseline = 'middle';
     ctx.font = '500 24px "IBM Plex Mono", ui-monospace, monospace';
     ctx.fillStyle =
-      r <= 20 && round.state === 'playing' ? 'rgba(240,78,62,0.95)' : 'rgba(255,255,255,0.72)';
+      r <= 20 && timer.state === 'playing' ? 'rgba(240,78,62,0.95)' : 'rgba(255,255,255,0.72)';
     ctx.fillText(txt, cx, SC_CY + 1);
   } else {
     // vertical rule between the two teams
@@ -180,9 +187,9 @@ export function paintScore() {
 // canvas. These are not abstract reference zones: they are the actual UI elements drawn at
 // measured positions so you can see what covers what, what stays readable, and where the
 // viewer's eye actually lands. Purely visual, no effect on the game, absent by default.
-export function pill(x, y, w, h, tint, r) {
+export function pill(x: number, y: number, w: number, h: number, tint: string, r?: number): void {
   ctx.fillStyle = tint;
   ctx.beginPath();
-  ctx.roundRect(x, y, w, h, r === undefined ? h / 2 : r);
+  ctx.roundRect(x, y, w, h, r ?? h / 2);
   ctx.fill();
 }

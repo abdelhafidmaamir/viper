@@ -1,4 +1,4 @@
-import type { Orientation } from './config.js';
+import type { Orientation } from './config.ts';
 
 export interface Size {
   readonly width: number;
