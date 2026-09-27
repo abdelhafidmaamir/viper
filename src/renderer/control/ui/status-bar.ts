@@ -89,7 +89,7 @@ export function createStatusBar(onHelp: () => void): StatusBarView {
       setAttr(onAir, 'data-mode', vm.onAir ? 'live' : 'rehearsal');
       setHidden(debug, !vm.debugOverlay);
       setText(clock, vm.clock);
-      setHidden(lastKnown, !vm.lastKnown);
+      setClass(lastKnown, 'is-off', !vm.lastKnown);
       setClass(el, 'is-stale', vm.lastKnown);
       setText(gold, String(vm.gold));
       setText(shadow, String(vm.shadow));
