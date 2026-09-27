@@ -12,7 +12,13 @@ import {
   playStone,
   isSoundReady,
 } from '../engine/audio.ts';
-import { announceStreak, resetRoundDonations, announceRescue } from '../engine/announcements.ts';
+import {
+  announceStreak,
+  resetRoundDonations,
+  announceRescue,
+  addAnnouncement,
+} from '../engine/announcements.ts';
+import { updateEnergy, tempo, FRENZY_BERRIES } from '../engine/crowd-energy.ts';
 import { SHADOW, GOLD } from '../engine/palette.ts';
 import {
   ADULT_LENGTH,
@@ -308,6 +314,47 @@ export function plantSeedFor(i: number, nickname: string): number {
   gifted++;
   storeBody();
   return 1;
+}
+
+// A free cell about as far from both heads (within 1 cell), outside the dead zone, so neither
+// snake gets it for free. Used by the forest's own berries and by the welcome berry.
+function fairCell(): Cell | undefined {
+  let l = freeCells().filter((c) => !isDeadZone(c, SEED_GROW_TIME));
+  const b0w = bodies[0],
+    b1w = bodies[1];
+  if (b0w && b1w) {
+    const a = b0w.snake[0],
+      b = b1w.snake[0];
+    if (a && b) {
+      const distDiff = (c: Cell): number =>
+        Math.abs(
+          Math.abs(c.x - a.x) + Math.abs(c.y - a.y) - (Math.abs(c.x - b.x) + Math.abs(c.y - b.y)),
+        );
+      const equidistantCells = l.filter((c) => distDiff(c) <= 1 && !isDeadZone(c, SEED_GROW_TIME));
+      if (equidistantCells.length) l = equidistantCells;
+      else {
+        l.sort((p, q) => distDiff(p) - distDiff(q));
+        l = l.slice(0, 4);
+      }
+    }
+  }
+  if (!l.length) l = freeCells();
+  return l[Math.floor(Math.random() * l.length)];
+}
+
+// Welcome berries on the board at once; past this, a join only gets its banner.
+const MAX_WELCOME_BERRIES = 3;
+
+/** A viewer joined: a neutral green berry carrying their name, fair to both snakes. */
+export function plantWelcomeBerry(nickname: string): Berry | null {
+  if (round?.state !== 'playing' || !nickname) return null;
+  if (berries.filter((b) => b.wild && b.nickname).length >= MAX_WELCOME_BERRIES) return null;
+  const c = fairCell();
+  if (!c) return null;
+  const b: Berry = { x: c.x, y: c.y, nickname, t: 0, wild: true };
+  berries.push(b);
+  requestAiMove();
+  return b;
 }
 
 // cutDuel(adverseIdx, k): removes k segments from the tail of the opponent body, bursting them as berries.
@@ -1031,6 +1078,23 @@ function computeTrace(): Point[] {
 function advance(dt: number): void {
   t += dt;
   updateTier(dt);
+  const surge = updateEnergy(dt, round?.state === 'playing');
+  if (surge === 'start')
+    addAnnouncement({
+      kind: 'tier',
+      nickname: '',
+      text: 'Your likes wake the forest: berries for both!',
+    });
+  else if (
+    surge === 'drop' &&
+    berries.filter((b) => b.wild && !b.nickname).length < FRENZY_BERRIES
+  ) {
+    const c = fairCell();
+    if (c) {
+      berries.push({ x: c.x, y: c.y, nickname: '', t: 0, wild: true });
+      requestAiMove();
+    }
+  }
   // score animation lives OUTSIDE the round: it starts exactly when the round ends
   snakePulse += dt;
   viewersPulse += dt;
@@ -1234,36 +1298,10 @@ function advance(dt: number): void {
           // cannot be crossed before activating, but the rule does more than that: food appearing
           // right under the snake's nose is a free gift requiring no decision; it should behave
           // like any seeded berry. Same delay, GERMINATES.
-          let l = freeCells().filter((c) => !isDeadZone(c, SEED_GROW_TIME));
-          const b0w = bodies[0],
-            b1w = bodies[1];
-          if (b0w && b1w) {
-            const a = b0w.snake[0],
-              b = b1w.snake[0];
-            if (a && b) {
-              const distDiff = (c: Cell): number =>
-                Math.abs(
-                  Math.abs(c.x - a.x) +
-                    Math.abs(c.y - a.y) -
-                    (Math.abs(c.x - b.x) + Math.abs(c.y - b.y)),
-                );
-              const equidistantCells = l.filter(
-                (c) => distDiff(c) <= 1 && !isDeadZone(c, SEED_GROW_TIME),
-              );
-              if (equidistantCells.length) l = equidistantCells;
-              else {
-                l.sort((p, q) => distDiff(p) - distDiff(q));
-                l = l.slice(0, 4);
-              }
-            }
-          }
-          if (!l.length) l = freeCells();
-          if (l.length) {
-            const c = l[Math.floor(Math.random() * l.length)];
-            if (c) {
-              berries.push({ x: c.x, y: c.y, nickname: '', t: 0, wild: true });
-              requestAiMove();
-            }
+          const c = fairCell();
+          if (c) {
+            berries.push({ x: c.x, y: c.y, nickname: '', t: 0, wild: true });
+            requestAiMove();
           }
         }
       } else {
@@ -1335,7 +1373,8 @@ function advanceBody(dt: number): void {
     if (!egg?.emerged) return;
   }
   const boosted = body.boostTime > 0;
-  subStep += dt * SPEED * (boosted ? BOOST_FACTOR : 1); // like: boost cadence
+  // Likes speed both snakes (never the round clock), see crowd-energy.ts.
+  subStep += dt * SPEED * tempo() * (boosted ? BOOST_FACTOR : 1);
   while (subStep >= 1) {
     subStep -= 1;
     if (!step()) return;

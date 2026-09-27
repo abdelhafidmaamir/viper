@@ -13,6 +13,7 @@ import {
 import { DUEL_GIFTS, EFFECT_LABEL } from './gift-panel.ts';
 import { SHIELD_COST, CUT_COST, BOOST_COST, LIFE_COST } from './rules.ts';
 import { settings, t } from '../scripts/game.ts';
+import { clearFans } from './fan-rings.ts';
 
 export let giftFeedback: GiftFeedbackTable = [[], []],
   giftBanner: [GiftBanner | null, GiftBanner | null] = [null, null]; // [team][line] = {t, nickname, n}; banner = {t, text}
@@ -20,6 +21,7 @@ export let giftFeedback: GiftFeedbackTable = [[], []],
 export function clearGiftFeedback(): void {
   giftFeedback = [[], []];
   giftBanner = [null, null];
+  clearFans();
 }
 
 export function recordGift(
@@ -74,6 +76,8 @@ export function recordGift(
       }),
       team: i === 0 ? 'gold' : 'shadow',
       effect: EFFECT_LABEL[c.effect],
+      value,
+      n: Math.max(1, n ?? 1),
     });
   const text =
     (r.nickname && settings.donorNames ? r.nickname + '  >  ' : '') + (c ? c.effect : '');

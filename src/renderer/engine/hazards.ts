@@ -6,6 +6,7 @@ import { playBramble, playBrambleStep } from './audio.ts';
 import { tier } from './crowd.ts';
 import { COLS, ROWS } from './layout.ts';
 import { STONE_CLEARANCE, BRAMBLE_WARNING, SPEED } from './rules.ts';
+import { tempoCeiling } from './crowd-energy.ts';
 import {
   activeIndex,
   rival,
@@ -60,7 +61,7 @@ export function isDeadZone(c: Cell, delay: number): boolean {
     dy = c.y - h.y;
   const devant = dx * typedDir.x + dy * typedDir.y,
     side = Math.abs(dx * typedDir.y - dy * typedDir.x);
-  if (devant > 0 && side <= 1 && devant <= SPEED * (delay + 0.25)) return true;
+  if (devant > 0 && side <= 1 && devant <= SPEED * tempoCeiling() * (delay + 0.25)) return true;
   const a: Body | null = rival();
   if (a?.snake.length) {
     const h2 = a.snake[0];
@@ -69,7 +70,7 @@ export function isDeadZone(c: Cell, delay: number): boolean {
       dy2 = c.y - h2.y;
     const dev2 = dx2 * a.dir.x + dy2 * a.dir.y,
       cot2 = Math.abs(dx2 * a.dir.y - dy2 * a.dir.x);
-    if (dev2 > 0 && cot2 <= 1 && dev2 <= SPEED * (delay + 0.25)) return true;
+    if (dev2 > 0 && cot2 <= 1 && dev2 <= SPEED * tempoCeiling() * (delay + 0.25)) return true;
   }
   return false;
 }

@@ -3,7 +3,7 @@
 
 import { CELL, H, L, OX, ROWS, W, WF, Y0 } from './layout.ts';
 import { smooth01 } from './scoreboard.ts';
-import { roundDonations, paintMiniSnake, getProfilePhoto } from './announcements.ts';
+import { roundDonations, paintMiniSnake, getAvatar } from './announcements.ts';
 import { ctx as ctxRaw } from './canvas.ts';
 import { SHADOW, GOLD } from './palette.ts';
 import { round, settings } from '../scripts/game.ts';
@@ -163,38 +163,20 @@ function paintRankingRow(
   ctx.textAlign = 'center';
   ctx.textBaseline = 'middle';
   ctx.fillText(String(rank), rx, y + 1);
-  // Donor avatar between rank badge and name; falls back to initials if TikFinity provides none.
+  // Donor avatar between rank badge and name.
   const showNames = settings.donorNames,
     AV = h * 0.66,
     sg = mirrored ? -1 : 1,
-    pcx = rx + sg * (R + 12 + AV / 2),
-    ph = showNames ? getProfilePhoto(d.avatar) : null;
+    pcx = rx + sg * (R + 12 + AV / 2);
   if (showNames) {
     ctx.save();
     ctx.beginPath();
     ctx.arc(pcx, y, AV / 2, 0, Math.PI * 2);
     ctx.closePath();
-    if (ph) {
-      ctx.save();
-      ctx.clip();
-      ctx.drawImage(ph, pcx - AV / 2, y - AV / 2, AV, AV);
-      ctx.restore();
-    } else {
-      ctx.fillStyle = 'rgba(' + rgb + ',0.20)';
-      ctx.fill();
-      ctx.fillStyle = tint;
-      ctx.font = '800 ' + String(Math.round(AV * 0.5)) + 'px system-ui, sans-serif';
-      ctx.textAlign = 'center';
-      ctx.textBaseline = 'middle';
-      ctx.fillText(
-        d.nickname
-          .replace(/[^A-Za-z0-9]/g, '')
-          .charAt(0)
-          .toUpperCase() || '?',
-        pcx,
-        y + 1,
-      );
-    }
+    ctx.save();
+    ctx.clip();
+    ctx.drawImage(getAvatar(d.avatar, d.nickname), pcx - AV / 2, y - AV / 2, AV, AV);
+    ctx.restore();
     ctx.lineWidth = 2;
     ctx.strokeStyle = 'rgba(' + rgb + ',0.8)';
     ctx.beginPath();
@@ -247,7 +229,7 @@ function paintAvatar(cx: number, cy: number, r: number, d: DonorEntry, scale: nu
   const tint = d.team === 'gold' ? GOLD : SHADOW,
     rgb = d.team === 'gold' ? '242,197,124' : '180,212,222',
     showNames = settings.donorNames,
-    ph = showNames ? getProfilePhoto(d.avatar) : null,
+    ph = showNames ? getAvatar(d.avatar, d.nickname) : null,
     R = r * scale;
   if (R <= 0.5) return;
   ctx.save();

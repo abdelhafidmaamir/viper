@@ -9,14 +9,18 @@ import { ctx } from './canvas.ts';
 import { SHADOW, GOLD } from './palette.ts';
 import { pointRail } from './frame.ts';
 import { getAmbience, bodies, round, settings, t } from '../scripts/game.ts';
+import { launchFromBanner } from './fan-rings.ts';
 
 // ===== Activity banner, top center. One announcement at a time; gifts jump the queue. Same panel
 // geometry as the scoreboard legend rows, with the actual miniature snake rendered. Suppressed during
 // the ring hold countdown (same screen area). Standalone render.
 const announcements: Announcement[] = [];
 let currentAnnouncement: Announcement | null = null;
-// Likes counted per viewer, announced every tenth one.
+// Likes counted per viewer. A viewer gets a banner from 50 likes; while it is on screen or waiting
+// its counter keeps climbing, and a new banner needs another 50 likes after the last one.
 export const likesByViewer: Record<string, number> = {};
+const likesAtLastBanner: Record<string, number> = {};
+const LIKE_BANNER_EVERY = 50;
 
 // Per-stream state (not per-round): viewer thresholds already acknowledged, first gifts, win streaks,
 // and current-round donations per viewer (for the end-of-round ranking).
@@ -111,6 +115,28 @@ export function announceRescue(i: number, effectType: string): void {
   });
 }
 
+export function announceLikes(nickname: string, avatar: string | undefined, n: number): void {
+  const total = (likesByViewer[nickname] ?? 0) + n;
+  likesByViewer[nickname] = total;
+  const live = [currentAnnouncement, ...announcements].find(
+    (a) => a?.kind === 'like' && a.nickname === nickname,
+  );
+  if (live) {
+    live.likes = total;
+    likesAtLastBanner[nickname] = total;
+    return;
+  }
+  if (total - (likesAtLastBanner[nickname] ?? 0) < LIKE_BANNER_EVERY) return;
+  likesAtLastBanner[nickname] = total;
+  addAnnouncement({
+    kind: 'like',
+    nickname,
+    avatar,
+    text: phrase('like', { n: '{n}' }),
+    likes: total,
+  });
+}
+
 const BANNER_DURATION = 3.8,
   BANNER_HEIGHT = 96;
 
@@ -143,7 +169,27 @@ export function resetRoundDonations(): void {
 export function addAnnouncement(a: Announcement): void {
   const s = settings as { banner?: string };
   if (!s.banner || s.banner === 'none') return;
-  if (a.kind === 'gift' || a.ahead) {
+  if (a.kind === 'gift') {
+    // A gift shows at once, never after a queue: its photo must leave while its effect lands.
+    // The same donor giving again keeps their banner on screen and bumps its counter.
+    const cur = currentAnnouncement;
+    // One photo per gift in a combo, capped so a huge combo does not flood the board.
+    const photos = Math.min(10, Math.max(1, a.n ?? 1));
+    if (
+      cur?.kind === 'gift' &&
+      cur.nickname &&
+      cur.nickname === a.nickname &&
+      cur.team === a.team
+    ) {
+      cur.count = (cur.count ?? 1) + photos;
+      cur.pending = (cur.pending ?? 0) + photos;
+      cur.t0 = t - 0.55; // restart its stay without replaying the entry animation
+      return;
+    }
+    currentAnnouncement = { ...a, count: photos, pending: photos, t0: t };
+    return;
+  }
+  if (a.ahead) {
     let k = announcements.findIndex((q) => q.kind !== 'gift');
     if (k < 0) k = announcements.length;
     announcements.splice(k, 0, a);
@@ -157,7 +203,7 @@ const photos: Record<string, HTMLImageElement> = {};
 let photoCount = 0;
 
 export function getProfilePhoto(url: string | undefined): HTMLImageElement | null {
-  if (!url || typeof url !== 'string' || !/^https?:/.test(url)) return null;
+  if (!url || typeof url !== 'string' || !/^(https?:|\/assets\/avatars\/)/.test(url)) return null;
   let im = photos[url];
   if (!im) {
     if (photoCount > 80) {
@@ -171,6 +217,45 @@ export function getProfilePhoto(url: string | undefined): HTMLImageElement | nul
     photoCount++;
   }
   return im.complete && im.naturalWidth ? im : null;
+}
+
+// Faces for viewers without a photo URL (the simulated crowd, control-room buttons). Generated
+// portraits of people who don't exist, shipped in public/assets/avatars.
+const STOCK_FACES = 18;
+
+function stockFace(nickname: string): string {
+  let h = 0;
+  for (const ch of nickname) h = (h * 31 + ch.charCodeAt(0)) | 0;
+  return `/assets/avatars/viewer-${String((Math.abs(h) % STOCK_FACES) + 1).padStart(2, '0')}.jpg`;
+}
+
+let blankProfile: HTMLCanvasElement | null = null;
+
+// TikTok's default profile look (grey head and shoulders), shown while a photo loads or if it fails.
+function silhouette(): HTMLCanvasElement {
+  if (blankProfile) return blankProfile;
+  const cv = document.createElement('canvas');
+  cv.width = cv.height = 128;
+  const g = cv.getContext('2d');
+  if (g) {
+    g.fillStyle = '#d7dadf';
+    g.fillRect(0, 0, 128, 128);
+    g.fillStyle = '#f5f6f8';
+    g.beginPath();
+    g.arc(64, 50, 24, 0, Math.PI * 2);
+    g.fill();
+    g.beginPath();
+    g.ellipse(64, 124, 44, 38, 0, Math.PI, 0);
+    g.fill();
+  }
+  blankProfile = cv;
+  return cv;
+}
+
+/** Always something to draw: the viewer's photo, else a stock face, never a letter. */
+export function getAvatar(url: string | undefined, nickname: string): CanvasImageSource {
+  if (url && /^https?:/.test(url)) return getProfilePhoto(url) ?? silhouette();
+  return getProfilePhoto(stockFace(nickname)) ?? silhouette();
 }
 
 export function paintMiniSnake(pts: Point[], tint: string, scale: number): void {
@@ -200,6 +285,9 @@ type WordGroup = MeasuredToken[] & { l: number; x: number };
 function makeWordGroup(): WordGroup {
   return Object.assign([], { l: 0, x: 0 });
 }
+
+/** Where the donor's photo sits in the banner; the fan flight starts from exactly there. */
+const AVATAR = 64;
 
 export function paintBanner(): void {
   const s = settings as { banner?: string; donorNames?: boolean };
@@ -233,6 +321,27 @@ export function paintBanner(): void {
   const cx = BD_CX + (mode === 'P3' ? 34 : 0),
     x = cx - BD_W / 2,
     y = BD_CY - BANNER_HEIGHT / 2;
+  // Once the gift banner has popped in, a copy of the donor's photo leaves it for where the gift acts.
+  if (
+    active?.kind === 'gift' &&
+    active.nickname &&
+    s.donorNames !== false &&
+    (active.pending ?? 0) > 0 &&
+    age >= 0.2
+  ) {
+    // One photo per gift, sent a frame after the gift so its effect (a berry) is already placed.
+    active.pending = (active.pending ?? 1) - 1;
+    launchFromBanner(
+      active.team === 'shadow' ? 1 : 0,
+      active.nickname,
+      active.avatar,
+      active.value ?? 0,
+      x + 16 + AVATAR / 2,
+      BD_CY,
+      AVATAR / 2,
+      active.effect,
+    );
+  }
   // Panel and its content; reveal = fraction visible from the left (P2, P3), global alpha.
   const drawPanel = (reveal: number, alpha: number, dy: number | undefined): void => {
     if (!active) return;
@@ -254,7 +363,7 @@ export function paintBanner(): void {
     c.lineWidth = 1.5;
     c.strokeStyle = `rgba(${rgb},0.38)`;
     c.stroke();
-    const AV = 64,
+    const AV = AVATAR,
       ax = x + 16 + AV / 2,
       pop =
         age < 0.9
@@ -262,34 +371,17 @@ export function paintBanner(): void {
           : 1;
     const showNames = s.donorNames !== false,
       displayName = showNames && active.nickname ? active.nickname.slice(0, 18) : '',
-      av = showNames ? getProfilePhoto(active.avatar) : null;
-    // Viewer profile photo, circular, outlined in team color; falls back to initial letter, then snake glyph.
-    if (displayName) {
+      av = displayName ? getAvatar(active.avatar, active.nickname) : null;
+    // Viewer profile photo, circular, outlined in team color; snake glyph when names are hidden.
+    if (av) {
       c.save();
       c.beginPath();
       c.arc(ax, BD_CY, (AV / 2) * pop, 0, Math.PI * 2);
       c.closePath();
-      if (av) {
-        c.save();
-        c.clip();
-        c.drawImage(av, ax - (AV / 2) * pop, BD_CY - (AV / 2) * pop, AV * pop, AV * pop);
-        c.restore();
-      } else {
-        c.fillStyle = `rgba(${rgb},0.22)`;
-        c.fill();
-        c.fillStyle = tint;
-        c.font = '800 32px system-ui, sans-serif';
-        c.textAlign = 'center';
-        c.textBaseline = 'middle';
-        c.fillText(
-          displayName
-            .replace(/[^A-Za-z0-9]/g, '')
-            .charAt(0)
-            .toUpperCase() || '?',
-          ax,
-          BD_CY + 2,
-        );
-      }
+      c.save();
+      c.clip();
+      c.drawImage(av, ax - (AV / 2) * pop, BD_CY - (AV / 2) * pop, AV * pop, AV * pop);
+      c.restore();
       c.lineWidth = 2.5;
       c.strokeStyle = `rgba(${rgb},0.85)`;
       c.beginPath();
@@ -310,7 +402,9 @@ export function paintBanner(): void {
     // Announcement text: regular words in light color, viewer name in bold team color, two lines maximum.
     const tx = ax + AV / 2 + 18,
       availableWidth = x + BD_W - (aImg ? IM + 30 : 22) - tx;
-    const parts = active.text.split('{name}');
+    const count = active.count ?? 1;
+    const text = active.text.replace('{n}', String(active.likes ?? ''));
+    const parts = (count > 1 ? `${text}  ×${String(count)}` : text).split('{name}');
     const textTokens: MeasuredToken[] = [];
     parts.forEach((m, k) => {
       if (k > 0) textTokens.push({ t: displayName || 'a viewer', strong: !!displayName, l: 0 });
