@@ -27,6 +27,7 @@ function makeGameState(overrides?: Partial<FeedState>): FeedState {
     waiting: 0,
     eaten: 0,
     leaders: [],
+    gifts: [],
     likes: 0,
     crowd: 0,
     settings: {

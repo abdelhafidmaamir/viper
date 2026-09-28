@@ -94,12 +94,39 @@ function process(m: unknown): number | null {
   /* streak: giftType 1 means count only the final message (repeatEnd true) */
   const streakable = d.giftType === 1 || d.gift?.gift_type === 1;
   const isFinal = d.repeatEnd === true || d.gift?.repeat_end === 1;
+  // Live streaks (Feed): every step of a streak counts at once, as the difference with the step
+  // before, so a burst pays as it happens and nothing is lost if the final message never comes.
+  if (streakable && liveStreaks) {
+    const key = `${d.uniqueId ?? d.nickname ?? ''}|${d.giftName ?? ''}`,
+      total = Math.max(1, parseInt(String(d.repeatCount ?? '')) || 1),
+      now = Date.now(),
+      seen = streaks.get(key),
+      // A count lower than what was paid means a new streak began (the last one's final message
+      // was lost), and a streak silent for a while is over: both start again from zero.
+      counted = seen && total >= seen.count && now - seen.at < STREAK_IDLE_MS ? seen.count : 0,
+      delta = total - counted;
+    if (isFinal) streaks.delete(key);
+    else streaks.set(key, { count: Math.max(counted, total), at: now });
+    if (delta <= 0) {
+      notify();
+      return null;
+    }
+    return forwardGift(d, delta);
+  }
   if (streakable && !isFinal) {
     state.last = `streak in progress (${d.giftName ?? '?'})`;
     notify();
     return null;
   }
-  const n = Math.max(1, parseInt(String(d.repeatCount ?? '')) || 1);
+  return forwardGift(d, Math.max(1, parseInt(String(d.repeatCount ?? '')) || 1));
+}
+
+/** Counted streaks in live mode: gift key to the repeat count already forwarded, and when. */
+const streaks = new Map<string, { count: number; at: number }>();
+const STREAK_IDLE_MS = 60_000;
+let liveStreaks = false;
+
+function forwardGift(d: TikFinityPayload, n: number): number | null {
   const value = parseInt(String(d.diamondCount ?? '')) || 0;
   const giftName = d.giftName ?? '';
   state.gifts += n;
@@ -196,6 +223,11 @@ const bridge = {
   start,
   stop,
   process,
+  /** Feed: count each step of a streak at once instead of waiting for its final message. */
+  liveStreaks(on: boolean): void {
+    liveStreaks = on;
+    streaks.clear();
+  },
   state(): TikFinityState & { readonly raw: string } {
     return {
       connected: state.connected,

@@ -178,7 +178,14 @@ export function paintFull(): void {
   c.fillStyle = '#fff';
   c.font = `800 26px ${FONT}`;
   const left = Math.max(0, Math.ceil(FULL_HOLD - a));
-  c.fillText(tr('feed.next', { n: game.eaten, q: String(left) }), W / 2, 298);
+  c.fillText(tr('feed.next', { n: game.eaten, q: String(left) }), W / 2, 292);
+  // Berries paid for but not dropped yet: they open the next round, and everyone is told.
+  const owed = waiting();
+  if (owed > 0) {
+    c.fillStyle = GREEN;
+    c.font = `800 19px ${FONT}`;
+    c.fillText(tr('feed.carriedNext', { n: owed }), W / 2, 318);
+  }
   const champ = likers(1)[0];
   if (champ) {
     pill(W / 2, 370, 460, 84, 'rgba(12,20,15,0.9)');

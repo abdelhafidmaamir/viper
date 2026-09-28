@@ -87,6 +87,8 @@ const en = {
   'feed.title.100': 'BERRY KEEPER',
   'feed.title.300': 'FOREST GUARDIAN',
   'feed.title.1000': 'ANCIENT OAK',
+  'feed.carried': 'FROM LAST ROUND',
+  'feed.carriedNext': '{n} berries carry over to the next round',
   'welcome.new': 'First time here, welcome {name}!',
   'welcome.back': 'Welcome back, {name}!',
 } as const;
@@ -175,6 +177,8 @@ const fr: Translations = {
   'feed.title.100': 'GARDIEN DES BAIES',
   'feed.title.300': 'GARDIEN DE LA FORÊT',
   'feed.title.1000': 'CHÊNE ANCESTRAL',
+  'feed.carried': 'MANCHE PRÉCÉDENTE',
+  'feed.carriedNext': '{n} baies reportées à la manche suivante',
   'welcome.new': 'Premier live ici, bienvenue {name} !',
   'welcome.back': 'Content de te revoir, {name} !',
 };

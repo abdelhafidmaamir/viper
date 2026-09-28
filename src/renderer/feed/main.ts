@@ -28,6 +28,7 @@ import {
   isLive,
   linkFeedControl,
   receiveFeedEvent,
+  restoreUnpaid,
   rollAmbience,
   settings,
 } from './control-link.ts';
@@ -243,9 +244,13 @@ function start(): void {
     snap = true;
   };
   newRound();
+  // Nothing a viewer paid for is lost, even if the app closed mid-live.
+  restoreUnpaid(localStorage);
   requestAnimationFrame(loop);
   // Live gifts when TikFinity runs on this machine; a page that may not open it still plays.
+  // A burst pays as it happens: each step of a streak drops its berries at once.
   try {
+    window.TikFinityBridge.liveStreaks?.(true);
     window.TikFinityBridge.start();
   } catch {
     /* no bridge: the control room's test gifts and the simulated audience still work */

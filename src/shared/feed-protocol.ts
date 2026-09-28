@@ -13,10 +13,25 @@ export const FEED_STATE_INTERVAL_MS = 500;
 export const FEED_GIFTS = { rose: 1, rosa: 10 } as const;
 export type FeedGift = keyof typeof FEED_GIFTS;
 
-/** Berries a TikTok gift is worth in this mode: a Rose drops 1, a Rosa 10, any other gift 0. */
-export function berriesPerGift(name: string | undefined): number {
+/**
+ * Berries one of a TikTok gift is worth in this mode: one per coin, for the Rose (1) and the Rosa
+ * (10) only; any other gift is worth 0. The coin value TikFinity reports wins over the name's
+ * usual price, so what a viewer paid is exactly what drops.
+ */
+export function berriesPerGift(name: string | undefined, coins?: number): number {
   const key = (name ?? '').trim().toLowerCase();
-  return key === 'rose' || key === 'rosa' ? FEED_GIFTS[key] : 0;
+  if (key !== 'rose' && key !== 'rosa') return 0;
+  return coins !== undefined && coins >= 1 && coins <= 100 ? Math.round(coins) : FEED_GIFTS[key];
+}
+
+/** One gift as the game received it, for the control room's proof list. */
+export interface FeedGiftLine {
+  readonly at: number;
+  readonly nickname: string;
+  readonly name: string;
+  readonly count: number;
+  /** Berries it gave; 0 for a gift that does not feed the snake. */
+  readonly berries: number;
 }
 
 /** Forest weathers, the same set the duel offers. */
@@ -97,6 +112,8 @@ export interface FeedState {
   readonly eaten: number;
   readonly leaders: readonly FeedLeader[];
   readonly likes: number;
+  /** The last gifts received, newest first. */
+  readonly gifts: readonly FeedGiftLine[];
   readonly crowd: CrowdLevel;
   readonly settings: FeedSettings;
   /** Frames per second over the last second, as the game window renders them. */

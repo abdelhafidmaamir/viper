@@ -114,15 +114,17 @@ export function paintFlower(t: number): void {
       rx = FLOWER.x + 118 - slide;
     c.strokeText(name, lx, FLOWER.y - 14);
     c.fillText(name, lx, FLOWER.y - 14);
-    if (pour.title) {
+    // Berries owed from the last round say so, so the giver knows they were not lost.
+    const tag = pour.carried ? tr('feed.carried') : pour.title;
+    if (tag) {
       c.font = `800 17px ${FONT}`;
-      const w = c.measureText(pour.title).width + 26;
+      const w = c.measureText(tag).width + 26;
       c.fillStyle = 'rgba(12,20,15,0.85)';
       c.beginPath();
       c.roundRect(lx - w, FLOWER.y + 8, w, 30, 15);
       c.fill();
       c.fillStyle = GOLD;
-      c.fillText(pour.title, lx - 13, FLOWER.y + 24);
+      c.fillText(tag, lx - 13, FLOWER.y + 24);
     }
     c.textAlign = 'left';
     c.font = `900 50px ${FONT}`;

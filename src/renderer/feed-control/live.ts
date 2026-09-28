@@ -204,6 +204,40 @@ function giftLeadersCard(): FeedView {
   };
 }
 
+/** Proof list: every live gift, what it was and the berries it gave. */
+function giftsCard(): FeedView {
+  const rows = Array.from({ length: 12 }, () => h('p', { class: 'card__line' }));
+  const card = createCard({ title: 'Gifts received' }, [
+    h('p', {
+      class: 'field__caption',
+      text: 'Each live gift and the berries it gave. Only Rose and Rosa feed the snake.',
+    }),
+    ...rows,
+  ]);
+  return {
+    el: card.el,
+    update(state) {
+      const gifts = state.gameState?.gifts ?? [];
+      rows.forEach((row, i) => {
+        const g = gifts[i];
+        if (!g) {
+          setText(row, i === 0 ? 'No gift yet' : '');
+          setHidden(row, i !== 0);
+          return;
+        }
+        const time = new Date(g.at).toLocaleTimeString('en-GB');
+        setText(
+          row,
+          `${time}  ${g.nickname}: ${g.name} x${String(g.count)}  →  ${
+            g.berries > 0 ? `${String(g.berries)} berries` : 'not counted'
+          }`,
+        );
+        setHidden(row, false);
+      });
+    },
+  };
+}
+
 function ambienceCard(dispatch: Dispatch, reason: Reason): FeedView {
   const weather = createSegmented({
     label: 'Weather',
@@ -253,11 +287,12 @@ export function createLiveScreen(
   const bridgeV = bridgeCard(dispatch, reason);
   const leadersV = giftLeadersCard();
   const ambienceV = ambienceCard(dispatch, reason);
-  const all = [roundV, bridgeV, leadersV, ambienceV];
+  const giftsV = giftsCard();
+  const all = [roundV, bridgeV, leadersV, giftsV, ambienceV];
   return {
     el: h('div', { class: 'screen screen--live' }, [
       h('div', { class: 'column column--left' }, [roundV.el, bridgeV.el]),
-      h('div', { class: 'column column--center' }, [leadersV.el, ambienceV.el]),
+      h('div', { class: 'column column--center' }, [leadersV.el, giftsV.el, ambienceV.el]),
     ]),
     update(state) {
       for (const view of all) view.update(state);
