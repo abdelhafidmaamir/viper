@@ -100,4 +100,28 @@ describe('live streaks (Feed): whatever a viewer pays is counted once, no matter
     send(msg(2, true, { streak: false }));
     expect(total()).toBe(4);
   });
+
+  it('a follow sent as a social message is a follow, and counted once', () => {
+    const seen: string[] = [];
+    window.receiveEvent = (ev) => {
+      seen.push(`${ev.type}:${String(ev.nickname)}`);
+      return 1;
+    };
+    const social = (displayType: string, user: string) => ({
+      event: 'social',
+      data: { displayType, label: '{0:user} followed the host', uniqueId: user, nickname: user },
+    });
+    window.TikFinityBridge.process(social('pm_main_follow_message_viewer_2', 'moe'));
+    window.TikFinityBridge.process({ event: 'follow', data: { uniqueId: 'moe', nickname: 'moe' } });
+    window.TikFinityBridge.process({
+      event: 'social',
+      data: {
+        displayType: 'pm_mt_guidance_share',
+        label: '{0:user} shared the LIVE',
+        uniqueId: 'lou',
+        nickname: 'lou',
+      },
+    });
+    expect(seen).toEqual(['follow:moe', 'share:lou']);
+  });
 });
