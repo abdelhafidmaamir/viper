@@ -45,10 +45,11 @@ interface Heart {
 }
 
 const CX = W / 2,
-  CY = FY0 + BOARD_H + 108,
-  CARD_W = 660,
-  CARD_H = 92,
-  AVATAR = 64;
+  // Sized for a phone screen: the viewer's photo and name must read at a glance on a live.
+  CY = FY0 + BOARD_H + 150,
+  CARD_W = 900,
+  CARD_H = 136,
+  AVATAR = 104;
 const STAY: Readonly<Record<AlertKind, number>> = {
   join: 3.2,
   like: 3.8,
@@ -207,7 +208,7 @@ export function updateAlerts(dt: number): void {
     // the card, they never drift onto the board.
     // Butterflies stay close to the card and flutter there.
     const e = edgePoint(),
-      speed = (60 + Math.random() * 70) * (a.kind === 'follow' ? 0.4 : 1);
+      speed = (80 + Math.random() * 90) * (a.kind === 'follow' ? 0.4 : 1);
     hearts.push({
       owner: a,
       kind: a.kind,
@@ -217,7 +218,7 @@ export function updateAlerts(dt: number): void {
       vx: e.nx < 0 ? e.nx * speed + (Math.random() - 0.5) * 30 : e.nx * speed + Math.random() * 15,
       vy: e.ny * speed - 10 - Math.random() * 20,
       age: 0,
-      size: 18 + Math.random() * 12,
+      size: 26 + Math.random() * 16,
       spin: (Math.random() - 0.5) * 1.2,
       phase: Math.random() * Math.PI * 2,
     });
@@ -271,7 +272,7 @@ export function paintAlerts(): void {
         y = -CARD_H / 2;
       c.fillStyle = 'rgba(8,12,10,0.78)';
       c.beginPath();
-      c.roundRect(x, y, CARD_W, CARD_H, 26);
+      c.roundRect(x, y, CARD_W, CARD_H, CARD_H / 2);
       c.fill();
       const accent = ACCENT[a.kind];
       c.fillStyle = `rgba(${accent},${(0.12 * (1 - Math.min(1, a.age / 1.4))).toFixed(3)})`;
@@ -286,7 +287,7 @@ export function paintAlerts(): void {
       // Text: regular words in light, the name bold in gold, shrunk to fit one line.
       const [before, name, after] = sentence(a),
         // The bloom reaches past the photo: the welcome's text starts a little further right.
-        tx = ax + AVATAR / 2 + (a.kind === 'join' ? 34 : 18),
+        tx = ax + AVATAR / 2 + (a.kind === 'join' ? AVATAR * 0.6 : 18),
         room = x + CARD_W - 24 - tx;
       const widths = (px: number): [number, number, number] => {
         c.font = `500 ${String(px)}px ${FONT}`;
@@ -295,9 +296,9 @@ export function paintAlerts(): void {
         c.font = `800 ${String(px)}px ${FONT}`;
         return [b, c.measureText(name).width, af];
       };
-      let size = 30,
+      let size = 44,
         [wB, wN, wA] = widths(size);
-      while (size > 18 && wB + wN + wA > room) [wB, wN, wA] = widths(--size);
+      while (size > 26 && wB + wN + wA > room) [wB, wN, wA] = widths(--size);
       c.textAlign = 'left';
       c.textBaseline = 'middle';
       c.font = `500 ${String(size)}px ${FONT}`;

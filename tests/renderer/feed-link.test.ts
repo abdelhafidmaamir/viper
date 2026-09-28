@@ -5,6 +5,7 @@ import {
   feedSnapshot,
   receiveFeedEvent,
   restoreSettings,
+  restoreUnpaid,
   settings,
   type FeedLinkDeps,
 } from '../../src/renderer/feed/control-link.ts';
@@ -14,6 +15,7 @@ import {
   game,
   nearFull,
   newRound,
+  unpaid,
   waiting,
 } from '../../src/renderer/feed/state.ts';
 
@@ -85,6 +87,30 @@ describe('feed control link', () => {
     // Real gifts from TikFinity still count.
     receiveFeedEvent({ type: 'gift', name: 'Rosa', n: 1, nickname: 'real' });
     expect(waiting()).toBe(10);
+  });
+
+  it('a Rosa gives exactly its coins in berries, and every gift is logged', () => {
+    receiveFeedEvent({ type: 'gift', name: 'Rosa', n: 5, value: 10, nickname: 'fan' });
+    receiveFeedEvent({ type: 'gift', name: 'Rose', n: 1, value: 1, nickname: 'fan' });
+    receiveFeedEvent({ type: 'gift', name: 'Lion', n: 1, value: 29999, nickname: 'rich' });
+    expect(waiting()).toBe(51);
+    const log = feedSnapshot(deps()).gifts;
+    expect(log.slice(0, 3).map((g) => [g.name, g.count, g.berries])).toEqual([
+      ['Lion', 1, 0],
+      ['Rose', 1, 1],
+      ['Rosa', 5, 50],
+    ]);
+  });
+
+  it('what viewers paid survives the app closing mid-live', () => {
+    receiveFeedEvent({ type: 'gift', name: 'Rosa', n: 3, value: 10, nickname: 'fan' });
+    const saved = JSON.stringify(unpaid());
+    game.queue = [];
+    newRound(() => 0.5);
+    expect(waiting()).toBe(0);
+    restoreUnpaid({ getItem: () => saved, setItem: () => undefined });
+    expect(waiting()).toBe(30);
+    expect(game.queue[0]?.carried).toBe(true);
   });
 
   it('test gifts from the control room follow the same rule', () => {

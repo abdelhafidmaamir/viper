@@ -64,6 +64,8 @@ export interface Pour {
   n: number;
   total: number;
   title: string;
+  /** Berries owed from the round before: the flower says so. */
+  carried?: boolean;
 }
 
 export interface Spark {
@@ -247,7 +249,7 @@ export function newRound(rand: () => number = Math.random): void {
   game.round++;
   game.eaten = 0;
   game.combo = 0;
-  for (const c of carry) pourIn(c.nickname, c.avatar, c.n);
+  for (const c of carry) pourIn(c.nickname, c.avatar, c.n, true);
   hooks.round();
 }
 
@@ -275,8 +277,25 @@ export function gift(nickname: string, avatar: string | undefined, coins: number
   hooks.gift(n);
 }
 
+/** Berries paid for and not eaten yet, per viewer: in the flower, waiting, or on the board. */
+export function unpaid(): { nickname: string; n: number }[] {
+  const owedTo = new Map<string, number>();
+  const add = (nickname: string, n: number): void => {
+    if (nickname && n > 0) owedTo.set(nickname, (owedTo.get(nickname) ?? 0) + n);
+  };
+  for (const q of game.queue) add(q.nickname, q.n);
+  for (const l of late) add(l.nickname, l.n);
+  for (const b of game.berries.values()) add(b.by, 1);
+  return [...owedTo].map(([nickname, n]) => ({ nickname, n }));
+}
+
+/** Pours again what a previous session still owed (the app was closed or crashed mid-live). */
+export function repay(owed: readonly { nickname: string; n: number }[]): void {
+  for (const { nickname, n } of owed) if (n > 0) pourIn(nickname, undefined, n, true);
+}
+
 /** Puts a viewer's berries in the flower and ranks them on the round's leaderboard. */
-function pourIn(nickname: string, avatar: string | undefined, n: number): void {
+function pourIn(nickname: string, avatar: string | undefined, n: number, carried = false): void {
   const fan = game.fans.get(nickname) ?? { nickname, avatar, coins: 0 };
   fan.coins += n;
   if (avatar) fan.avatar = avatar;
@@ -288,7 +307,8 @@ function pourIn(nickname: string, avatar: string | undefined, n: number): void {
     lastQ.n += n;
     lastQ.total += n;
     lastQ.title = titleFor(day);
-  } else game.queue.push({ id: ++game.pours, nickname, n, total: n, title: titleFor(day) });
+  } else
+    game.queue.push({ id: ++game.pours, nickname, n, total: n, title: titleFor(day), carried });
 }
 
 function dropOne(by: string): boolean {

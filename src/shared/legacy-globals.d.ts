@@ -75,6 +75,7 @@ interface TikFinityBridge {
   start(url?: string): void;
   stop(): void;
   process(message: unknown): void;
+  liveStreaks?(on: boolean): void;
   state(): unknown;
 }
 

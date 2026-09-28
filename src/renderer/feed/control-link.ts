@@ -12,6 +12,7 @@ import {
   sanitizeSetting,
   type CrowdLevel,
   type FeedCommand,
+  type FeedGiftLine,
   type FeedSettingName,
   type FeedSettings,
   type FeedState,
@@ -30,11 +31,36 @@ import {
   like,
   nearFull,
   newRound,
+  repay,
   setStartFill,
+  unpaid,
   waiting,
 } from './state.ts';
 
 const STORAGE_KEY = 'viper-feed-settings';
+/** Berries viewers paid for and did not get yet, saved twice a second. */
+const UNPAID_KEY = 'viper-feed-unpaid';
+
+/** Gives back what the last session still owed; call once the first round has started. */
+export function restoreUnpaid(storage: FeedLinkDeps['storage']): void {
+  const raw = safely(() => storage.getItem(UNPAID_KEY));
+  const saved = raw ? safely(() => JSON.parse(raw) as unknown) : null;
+  if (!Array.isArray(saved)) return;
+  repay(
+    saved.flatMap((e: unknown) =>
+      typeof e === 'object' &&
+      e !== null &&
+      'nickname' in e &&
+      'n' in e &&
+      typeof e.nickname === 'string' &&
+      typeof e.n === 'number' &&
+      e.n > 0 &&
+      e.n <= 100000
+        ? [{ nickname: e.nickname, n: Math.round(e.n) }]
+        : [],
+    ),
+  );
+}
 
 export const settings: { -readonly [K in FeedSettingName]: FeedSettings[K] } = {
   weather: 'rain',
@@ -123,6 +149,10 @@ export function rollAmbience(rand: () => number = Math.random): void {
           : (hours[Math.floor(rand() * hours.length)] ?? 0.22);
 }
 
+/** Every gift received, newest first, so the operator can check what each one gave. */
+const GIFT_LOG = 12;
+const giftLog: FeedGiftLine[] = [];
+
 /**
  * Live events from the bridge: only the Rose (1 berry) and the Rosa (10 berries) feed the snake,
  * likes rank. Every other gift and event does nothing in this mode. Returns the gifts counted.
@@ -137,7 +167,15 @@ export function receiveFeedEvent(ev: AudienceEvent | null | undefined): number {
   if (ev?.type === 'join' || ev?.type === 'share' || ev?.type === 'follow')
     alertViewer(ev.type, ev.nickname ?? '', ev.avatar);
   if (ev?.type !== 'gift') return 0;
-  const berries = berriesPerGift(ev.name ?? ev.gift);
+  const berries = berriesPerGift(ev.name ?? ev.gift, ev.value);
+  giftLog.unshift({
+    at: Date.now(),
+    nickname: ev.nickname ?? 'viewer',
+    name: ev.name ?? ev.gift ?? '?',
+    count: n,
+    berries: berries * n,
+  });
+  if (giftLog.length > GIFT_LOG) giftLog.length = GIFT_LOG;
   if (!berries) return 0;
   gift(ev.nickname ?? 'viewer', ev.avatar, berries * n);
   return n;
@@ -201,6 +239,7 @@ export function feedSnapshot(deps: FeedLinkDeps): FeedState {
     eaten: game.eaten,
     leaders: leaders(5).map((f) => ({ nickname: f.nickname, coins: f.coins })),
     likes,
+    gifts: [...giftLog],
     crowd: deps.crowd(),
     settings: { ...settings },
     fps: m.fps,
@@ -235,6 +274,9 @@ export function linkFeedControl(
   });
   const timer = setInterval(() => {
     channel.postMessage({ feed: feedSnapshot(deps) });
+    safely(() => {
+      deps.storage.setItem(UNPAID_KEY, JSON.stringify(unpaid()));
+    });
   }, FEED_STATE_INTERVAL_MS);
   return () => {
     clearInterval(timer);
