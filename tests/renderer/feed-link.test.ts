@@ -113,6 +113,21 @@ describe('feed control link', () => {
     expect(game.queue[0]?.carried).toBe(true);
   });
 
+  it('berries carried from the last round drop but do not take the crown', () => {
+    receiveFeedEvent({ type: 'gift', name: 'Rosa', n: 3, value: 10, nickname: 'old' });
+    newRound(() => 0.5);
+    expect(waiting()).toBe(30);
+    expect(game.fans.has('old')).toBe(false);
+    receiveFeedEvent({ type: 'gift', name: 'Rose', n: 1, value: 1, nickname: 'first' });
+    expect(game.fans.get('first')?.coins).toBe(1);
+    expect([...game.fans.keys()]).toEqual(['first']);
+  });
+
+  it('rehearsal gifts are never brought back after a restart', () => {
+    applyFeedCommand({ cmd: 'gift', gift: 'rosa', count: 5 }, deps());
+    expect(unpaid()).toEqual([]);
+  });
+
   it('test gifts from the control room follow the same rule', () => {
     const d = deps();
     applyFeedCommand({ cmd: 'gift', gift: 'rosa', count: 5 }, d);

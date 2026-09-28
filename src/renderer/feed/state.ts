@@ -66,6 +66,7 @@ export interface Pour {
   title: string;
   /** Berries owed from the round before: the flower says so. */
   carried?: boolean;
+  avatar?: string | undefined;
 }
 
 export interface Spark {
@@ -215,9 +216,14 @@ export function newRound(rand: () => number = Math.random): void {
     ...[...onBoard].map(([nickname, n]) => ({ nickname, avatar: fanOf(nickname)?.avatar, n })),
     ...game.queue
       .filter((q) => q.nickname !== '' && q.n > 0)
-      .map((q) => ({ nickname: q.nickname, avatar: fanOf(q.nickname)?.avatar, n: q.n })),
-    ...late.splice(0),
+      .map((q) => ({
+        nickname: q.nickname,
+        avatar: fanOf(q.nickname)?.avatar ?? q.avatar,
+        n: q.n,
+      })),
   ];
+  // Gifts sent during the end screen are new money for the new round: they rank in it.
+  const fresh = late.splice(0);
   // Five fixed patterns, one per round in turn: each round has its own recognisable route.
   let seed = PATTERNS[game.round % PATTERNS.length] ?? 1;
   game.loop = buildLoop(
@@ -250,6 +256,7 @@ export function newRound(rand: () => number = Math.random): void {
   game.eaten = 0;
   game.combo = 0;
   for (const c of carry) pourIn(c.nickname, c.avatar, c.n, true);
+  for (const c of fresh) pourIn(c.nickname, c.avatar, c.n);
   hooks.round();
 }
 
@@ -265,8 +272,17 @@ export const likers = (n = 4): Liker[] =>
   [...game.likes.values()].sort((a, b) => b.likes - a.likes).slice(0, n);
 
 /** A gift: its coins become berries, its giver climbs the leaderboard. */
-export function gift(nickname: string, avatar: string | undefined, coins: number): void {
+/** Viewers who paid with a real live gift: only their berries are saved across a restart. */
+const liveGivers = new Set<string>();
+
+export function gift(
+  nickname: string,
+  avatar: string | undefined,
+  coins: number,
+  live = false,
+): void {
   const n = Math.max(1, Math.min(MAX_PER_GIFT, Math.round(coins)));
+  if (live) liveGivers.add(nickname);
   today.set(nickname, (today.get(nickname) ?? 0) + n);
   if (game.full >= 0) {
     late.push({ nickname, avatar, n });
@@ -280,8 +296,10 @@ export function gift(nickname: string, avatar: string | undefined, coins: number
 /** Berries paid for and not eaten yet, per viewer: in the flower, waiting, or on the board. */
 export function unpaid(): { nickname: string; n: number }[] {
   const owedTo = new Map<string, number>();
+  // Only real live gifts are owed: rehearsal and simulated gifts never come back after a restart.
   const add = (nickname: string, n: number): void => {
-    if (nickname && n > 0) owedTo.set(nickname, (owedTo.get(nickname) ?? 0) + n);
+    if (nickname && n > 0 && liveGivers.has(nickname))
+      owedTo.set(nickname, (owedTo.get(nickname) ?? 0) + n);
   };
   for (const q of game.queue) add(q.nickname, q.n);
   for (const l of late) add(l.nickname, l.n);
@@ -291,15 +309,23 @@ export function unpaid(): { nickname: string; n: number }[] {
 
 /** Pours again what a previous session still owed (the app was closed or crashed mid-live). */
 export function repay(owed: readonly { nickname: string; n: number }[]): void {
-  for (const { nickname, n } of owed) if (n > 0) pourIn(nickname, undefined, n, true);
+  for (const { nickname, n } of owed)
+    if (n > 0) {
+      liveGivers.add(nickname);
+      pourIn(nickname, undefined, n, true);
+    }
 }
 
 /** Puts a viewer's berries in the flower and ranks them on the round's leaderboard. */
 function pourIn(nickname: string, avatar: string | undefined, n: number, carried = false): void {
-  const fan = game.fans.get(nickname) ?? { nickname, avatar, coins: 0 };
-  fan.coins += n;
-  if (avatar) fan.avatar = avatar;
-  game.fans.set(nickname, fan);
+  // Berries carried from an earlier round still drop, but they were paid then: they do not rank
+  // in this round, so the round's own first gifter takes the crown above the head.
+  if (!carried) {
+    const fan = game.fans.get(nickname) ?? { nickname, avatar, coins: 0 };
+    fan.coins += n;
+    if (avatar) fan.avatar = avatar;
+    game.fans.set(nickname, fan);
+  }
   const day = today.get(nickname) ?? n;
   const lastQ = game.queue[game.queue.length - 1];
   if (lastQ?.nickname === nickname) {
@@ -308,7 +334,15 @@ function pourIn(nickname: string, avatar: string | undefined, n: number, carried
     lastQ.total += n;
     lastQ.title = titleFor(day);
   } else
-    game.queue.push({ id: ++game.pours, nickname, n, total: n, title: titleFor(day), carried });
+    game.queue.push({
+      id: ++game.pours,
+      nickname,
+      n,
+      total: n,
+      title: titleFor(day),
+      carried,
+      avatar,
+    });
 }
 
 function dropOne(by: string): boolean {

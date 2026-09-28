@@ -46,10 +46,10 @@ interface Heart {
 
 const CX = W / 2,
   // Sized for a phone screen: the viewer's photo and name must read at a glance on a live.
-  CY = FY0 + BOARD_H + 150,
-  CARD_W = 900,
-  CARD_H = 136,
-  AVATAR = 104;
+  CY = FY0 + BOARD_H + 132,
+  CARD_W = 790,
+  CARD_H = 114,
+  AVATAR = 86;
 const STAY: Readonly<Record<AlertKind, number>> = {
   join: 3.2,
   like: 3.8,
@@ -218,7 +218,7 @@ export function updateAlerts(dt: number): void {
       vx: e.nx < 0 ? e.nx * speed + (Math.random() - 0.5) * 30 : e.nx * speed + Math.random() * 15,
       vy: e.ny * speed - 10 - Math.random() * 20,
       age: 0,
-      size: 26 + Math.random() * 16,
+      size: 22 + Math.random() * 14,
       spin: (Math.random() - 0.5) * 1.2,
       phase: Math.random() * Math.PI * 2,
     });
@@ -296,9 +296,9 @@ export function paintAlerts(): void {
         c.font = `800 ${String(px)}px ${FONT}`;
         return [b, c.measureText(name).width, af];
       };
-      let size = 44,
+      let size = 38,
         [wB, wN, wA] = widths(size);
-      while (size > 26 && wB + wN + wA > room) [wB, wN, wA] = widths(--size);
+      while (size > 22 && wB + wN + wA > room) [wB, wN, wA] = widths(--size);
       c.textAlign = 'left';
       c.textBaseline = 'middle';
       c.font = `500 ${String(size)}px ${FONT}`;
