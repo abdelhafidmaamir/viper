@@ -1,8 +1,9 @@
 // Feed the Snake: soft, satisfying sound, synthesised (no files). A bite is a round "bloop" that
 // climbs a pentatonic scale while the snake eats a line of berries in a row, with a tiny crunch;
 // landing berries tick like rain on leaves; a gift shimmers; a full board swells into a chord.
-// A low filtered rain sits underneath. Browsers only allow sound after a gesture: armSound().
+// Browsers only allow sound after a gesture: armSound().
 
+import { alertSounds } from './alerts.ts';
 import { hooks } from './state.ts';
 
 let ac: AudioContext | null = null,
@@ -15,26 +16,12 @@ function noiseBuffer(ctx: AudioContext): AudioBuffer {
   const b = ctx.createBuffer(1, ctx.sampleRate * 2, ctx.sampleRate),
     d = b.getChannelData(0);
   let last = 0;
-  // Brown noise: soft and round, closer to rain than hiss.
+  // Brown noise: soft and round, the texture of the little ticks.
   for (let i = 0; i < d.length; i++) {
     last = (last + 0.02 * (Math.random() * 2 - 1)) / 1.02;
     d[i] = last * 3.5;
   }
   return b;
-}
-
-function ambience(ctx: AudioContext, dest: AudioNode): void {
-  if (!noise) return;
-  const src = ctx.createBufferSource();
-  src.buffer = noise;
-  src.loop = true;
-  const lp = ctx.createBiquadFilter();
-  lp.type = 'lowpass';
-  lp.frequency.value = 700;
-  const g = ctx.createGain();
-  g.gain.value = 0.05;
-  src.connect(lp).connect(g).connect(dest);
-  src.start();
 }
 
 export function armSound(): void {
@@ -50,7 +37,6 @@ export function armSound(): void {
   out.gain.value = 0.7;
   out.connect(comp).connect(ac.destination);
   noise = noiseBuffer(ac);
-  ambience(ac, out);
 }
 
 function tone(
@@ -152,4 +138,29 @@ hooks.full = () => {
   [523.25, 659.25, 783.99, 1046.5, 1318.51].forEach((f, i) => {
     tone(f, now + i * 0.09, 2.2, 0.07);
   });
+};
+
+// Viewer alerts, soft like the berries: a light wooden chime for a join, two bright notes going
+// up for a follow or a share, tiny pops under the hearts of a like.
+alertSounds.show = (kind, first) => {
+  if (!ac) return;
+  const now = ac.currentTime;
+  if (kind === 'join') {
+    // A soft bloom: three notes rising, a fourth one for a first visit.
+    const notes = first ? [783.99, 1046.5, 1318.51, 1567.98] : [783.99, 1046.5, 1318.51];
+    notes.forEach((f, i) => {
+      tone(f, now + i * 0.09, 0.6, 0.035, 'sine');
+    });
+  } else if (kind === 'follow') {
+    tone(1046.5, now, 0.4, 0.04, 'sine');
+    tone(1567.98, now + 0.08, 0.5, 0.035, 'sine');
+  } else if (kind === 'share') {
+    tone(1174.66, now, 0.4, 0.04, 'triangle');
+    tone(1760, now + 0.08, 0.5, 0.03, 'triangle');
+  }
+};
+
+alertSounds.heart = () => {
+  if (!ac) return;
+  tick(ac.currentTime, 1800 + Math.random() * 900, 0.04, 0.035);
 };

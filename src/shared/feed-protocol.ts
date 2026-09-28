@@ -42,12 +42,19 @@ export const FEED_HOURS = [0.02, 0.22, 0.5, 0.78] as const;
 export const CROWD_LEVELS = [0, 1, 2, 3] as const;
 export type CrowdLevel = (typeof CROWD_LEVELS)[number];
 
+/** Board share a round starts at: 0 is the normal start (short snake, sprint to 40%). */
+export const START_FILLS = [0, 0.5, 0.75, 0.9, 0.95] as const;
+
 export interface FeedSettings {
   readonly weather: FeedWeather;
   readonly hour: number;
   /** Each round draws a new weather and hour. */
   readonly autoAmbience: boolean;
   readonly language: 'en' | 'fr';
+  /** Length the snake starts each round at, as a share of the board (START_FILLS). */
+  readonly startFill: number;
+  /** Viewer alerts under the board (joins, likes, shares, follows). */
+  readonly alerts: boolean;
 }
 
 export type FeedSettingName = keyof FeedSettings;
@@ -146,6 +153,10 @@ export function sanitizeSetting<K extends FeedSettingName>(
       return typeof value === 'boolean' ? ok(value) : undefined;
     case 'language':
       return value === 'en' || value === 'fr' ? ok(value) : undefined;
+    case 'alerts':
+      return typeof value === 'boolean' ? ok(value) : undefined;
+    case 'startFill':
+      return START_FILLS.includes(value as (typeof START_FILLS)[number]) ? ok(value) : undefined;
   }
   return undefined;
 }
