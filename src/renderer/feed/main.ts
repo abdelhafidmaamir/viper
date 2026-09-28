@@ -9,6 +9,7 @@ import '../game/game.css';
 
 import { bindCanvas, ctx } from '../engine/canvas.ts';
 import { CELL, H, OX, W, WF } from '../engine/layout.ts';
+import { paintAlerts, updateAlerts } from './alerts.ts';
 import { paintFlower } from './flower.ts';
 import { FCELL, FCOLS, FROWS, FX0, FY0, K } from './grid.ts';
 import type { AmbienceFrame } from '../engine/types-api.ts';
@@ -169,6 +170,7 @@ function step(dt: number): void {
   t += dt;
   simulate(dt);
   advance(dt);
+  updateAlerts(dt);
   easeHour(dt);
   const c = ctx as CanvasRenderingContext2D | null,
     a = ambience();
@@ -199,6 +201,7 @@ function step(dt: number): void {
     paintFlower(t);
     paintFull();
     paintReady();
+    paintAlerts();
     a.update(dt, e);
   }
   snap = false;

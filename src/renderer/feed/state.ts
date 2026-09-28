@@ -195,6 +195,14 @@ export function titleFor(coins: number): string {
 /** Gifts sent while the end screen shows: they open the next round. */
 const late: { nickname: string; avatar: string | undefined; n: number }[] = [];
 
+/** Share of the board a round starts at: 0 is the normal start, a short snake and its sprint. */
+let startFill = 0;
+
+/** Sets how long the snake is when the next rounds start (control room, "Start length"). */
+export function setStartFill(fill: number): void {
+  startFill = Math.max(0, Math.min(0.97, fill));
+}
+
 export function newRound(rand: () => number = Math.random): void {
   // Nobody's berries are lost: what lay uneaten on the board, what the flower still owed, and
   // what came in during the end screen, pour again in the new round.
@@ -217,8 +225,10 @@ export function newRound(rand: () => number = Math.random): void {
   );
   game.berries.clear();
   game.grow = 0;
-  placeBody(Math.floor(rand() * TOTAL), START_LEN);
-  game.len = START_LEN;
+  // A long start skips the start-up sprint: the snake is already as long as asked.
+  const startLen = startFill > 0 ? Math.max(START_LEN, Math.round(TOTAL * startFill)) : START_LEN;
+  placeBody(Math.floor(rand() * TOTAL), startLen);
+  game.len = startLen;
   game.ready = 0;
   game.house = 0;
   game.stretch = 0;
@@ -392,7 +402,7 @@ export function advance(dt: number, rand: () => number = Math.random): boolean {
   // the countdown runs; at GO! the snake sets off through them at its one and only speed.
   if (game.ready >= 0) {
     // Nothing falls during the countdown: the berries start at GO!
-    if (game.ready === 0) {
+    if (game.ready === 0 && game.len < WARM_LEN) {
       game.house = HOUSE_BERRIES;
       game.houseAt = (game.body.ord[game.head] ?? 0) + HOUSE_GAP;
     }

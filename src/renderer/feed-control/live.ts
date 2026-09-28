@@ -2,6 +2,7 @@
 import {
   FEED_HOURS,
   FEED_WEATHERS,
+  START_FILLS,
   type FeedCommand,
   type FeedWeather,
 } from '../../shared/feed-protocol.ts';
@@ -61,6 +62,11 @@ function nearestHourPreset(hour: number): number | undefined {
   return HOUR_OPTIONS.find((o) => Math.abs(o.value - hour) < HOUR_THRESHOLD)?.value;
 }
 
+const START_OPTIONS = START_FILLS.map((value) => ({
+  value,
+  label: value === 0 ? 'Normal' : `${String(Math.round(value * 100))}%`,
+}));
+
 function roundCard(dispatch: Dispatch, pressArm: (k: ArmKey, f: () => void) => void): FeedView {
   const newRound = createButton({
     label: 'New round',
@@ -82,8 +88,18 @@ function roundCard(dispatch: Dispatch, pressArm: (k: ArmKey, f: () => void) => v
   );
   const fillPct = h('span', { class: 'meter__value' });
   const stats = h('p', { class: 'card__line' });
+  // How long the snake is when a round starts; applies from the next round.
+  const startLen = createSegmented({
+    label: 'Start length',
+    options: START_OPTIONS,
+    onSelect: (value) => {
+      dispatch({ cmd: 'setting', name: 'startFill', value });
+    },
+  });
   const card = createCard({ title: 'Round' }, [
     newRound.el,
+    startLen.el,
+    h('p', { class: 'field__caption', text: 'Applies from the next round.' }),
     phase,
     info,
     h('div', { class: 'meter' }, [fill, fillPct]),
@@ -94,6 +110,16 @@ function roundCard(dispatch: Dispatch, pressArm: (k: ArmKey, f: () => void) => v
     update(state) {
       const reason = controlsReason(state);
       newRound.update({ reason, armed: armVm(state, 'round') });
+      const sf = resolvePending(
+        state.gameState?.settings.startFill,
+        state.pending.startFill,
+        state.now,
+      );
+      startLen.update({
+        value: typeof sf.value === 'number' ? sf.value : undefined,
+        status: sf.status,
+        reason,
+      });
       const g = state.gameState;
       if (!g) {
         setText(phase, '');

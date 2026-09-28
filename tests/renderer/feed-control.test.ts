@@ -34,6 +34,8 @@ function makeGameState(overrides?: Partial<FeedState>): FeedState {
       hour: 0.02,
       autoAmbience: true,
       language: 'en',
+      startFill: 0,
+      alerts: true,
     },
     fps: 60,
     slowFrames: 0,
@@ -178,7 +180,14 @@ describe('armVm', () => {
 describe('cleanPending', () => {
   it('removes confirmed slots', () => {
     const gs = makeGameState({
-      settings: { weather: 'snow', hour: 0.02, autoAmbience: true, language: 'en' },
+      settings: {
+        weather: 'snow',
+        hour: 0.02,
+        autoAmbience: true,
+        language: 'en',
+        startFill: 0,
+        alerts: true,
+      },
     });
     const pending = { weather: { value: 'snow', sentAt: 0 } };
     const result = cleanPending(pending, gs.settings, 1000);

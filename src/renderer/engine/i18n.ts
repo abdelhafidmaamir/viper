@@ -87,6 +87,8 @@ const en = {
   'feed.title.100': 'BERRY KEEPER',
   'feed.title.300': 'FOREST GUARDIAN',
   'feed.title.1000': 'ANCIENT OAK',
+  'welcome.new': 'First time here, welcome {name}!',
+  'welcome.back': 'Welcome back, {name}!',
 } as const;
 
 // The `fr` object must have exactly the same keys as `en`.
@@ -173,6 +175,8 @@ const fr: Translations = {
   'feed.title.100': 'GARDIEN DES BAIES',
   'feed.title.300': 'GARDIEN DE LA FORÊT',
   'feed.title.1000': 'CHÊNE ANCESTRAL',
+  'welcome.new': 'Premier live ici, bienvenue {name} !',
+  'welcome.back': 'Content de te revoir, {name} !',
 };
 
 export type I18nKey = keyof typeof en;

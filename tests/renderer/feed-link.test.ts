@@ -8,7 +8,14 @@ import {
   settings,
   type FeedLinkDeps,
 } from '../../src/renderer/feed/control-link.ts';
-import { game, nearFull, newRound, waiting } from '../../src/renderer/feed/state.ts';
+import {
+  TOTAL,
+  advance,
+  game,
+  nearFull,
+  newRound,
+  waiting,
+} from '../../src/renderer/feed/state.ts';
 
 function deps(storage = new Map<string, string>()): FeedLinkDeps {
   let crowd: 0 | 1 | 2 | 3 = 0;
@@ -115,6 +122,22 @@ describe('feed control link', () => {
     expect(settings.weather).toBe('snow');
     expect(settings.language).toBe('fr');
     settings.language = 'en';
+  });
+
+  it('starts rounds at the chosen length, without the start-up sprint', () => {
+    const d = deps();
+    applyFeedCommand({ cmd: 'setting', name: 'startFill', value: 0.9 }, d);
+    newRound(() => 0.5);
+    expect(game.len).toBe(Math.round(TOTAL * 0.9));
+    expect(new Set(game.body.cells).size).toBe(game.body.cells.length);
+    for (let f = 0; f < 60 * 5; f++) advance(1 / 60, () => 0.5);
+    expect(game.house).toBe(0);
+    expect(game.full).toBeLessThan(0);
+    applyFeedCommand({ cmd: 'setting', name: 'startFill', value: 0.33 }, d);
+    expect(settings.startFill).toBe(0.9);
+    applyFeedCommand({ cmd: 'setting', name: 'startFill', value: 0 }, d);
+    newRound(() => 0.5);
+    expect(game.len).toBe(3);
   });
 
   it('publishes the round for the control room', () => {

@@ -3,6 +3,7 @@ import { CROWD_LEVELS, type FeedCommand } from '../../shared/feed-protocol.ts';
 import { createButton } from '../control/ui/components/button.ts';
 import { createCard, createLockBanner } from '../control/ui/components/card.ts';
 import { createSegmented } from '../control/ui/components/segmented.ts';
+import { createToggle } from '../control/ui/components/toggle.ts';
 import { h } from '../control/ui/dom.ts';
 import { rehearsalReason, resolvePending, type FeedControlState } from './store.ts';
 import type { FeedView } from './ui.ts';
@@ -158,11 +159,24 @@ export function createSetupScreen(dispatch: Dispatch, reason: Reason): FeedView 
     },
   });
   const langCard = createCard({ title: 'Language' }, [language.el]);
+  const alerts = createToggle({
+    label: 'Viewer alerts under the board',
+    onToggle: (value) => {
+      dispatch({ cmd: 'setting', name: 'alerts', value });
+    },
+  });
+  const alertsCard = createCard({ title: 'Alerts' }, [
+    alerts.el,
+    h('p', {
+      class: 'field__caption',
+      text: 'Joins, likes, shares and follows, each with its own little animation and sound.',
+    }),
+  ]);
   const shortcutText = h('pre', { class: 'card__line', text: SHORTCUTS_TEXT });
   const helpCard = createCard({ title: 'Keyboard shortcuts' }, [shortcutText]);
 
   return {
-    el: h('div', { class: 'screen screen--grid' }, [langCard.el, helpCard.el]),
+    el: h('div', { class: 'screen screen--grid' }, [langCard.el, alertsCard.el, helpCard.el]),
     update(state) {
       const r = reason();
       const lang = resolvePending(
@@ -175,6 +189,8 @@ export function createSetupScreen(dispatch: Dispatch, reason: Reason): FeedView 
         status: lang.status,
         reason: r,
       });
+      const al = resolvePending(state.gameState?.settings.alerts, state.pending.alerts, state.now);
+      alerts.update({ on: al.value !== false, status: al.status, reason: r });
     },
   };
 }

@@ -18,6 +18,7 @@ import {
   type FeedStateMessage,
 } from '../../shared/feed-protocol.ts';
 import { setLanguage } from '../engine/i18n.ts';
+import { alertViewer, setAlertsOn } from './alerts.ts';
 import type { AudienceEvent } from '../engine/types.ts';
 import {
   PATTERNS,
@@ -29,6 +30,7 @@ import {
   like,
   nearFull,
   newRound,
+  setStartFill,
   waiting,
 } from './state.ts';
 
@@ -39,6 +41,8 @@ export const settings: { -readonly [K in FeedSettingName]: FeedSettings[K] } = {
   hour: 0.06,
   autoAmbience: true,
   language: 'en',
+  startFill: 0,
+  alerts: true,
 };
 
 export interface FrameMetrics {
@@ -87,6 +91,8 @@ function apply(name: FeedSettingName, value: unknown): boolean {
   if (clean === undefined) return false;
   Object.assign(settings, { [name]: clean });
   if (name === 'language') setLanguage(settings.language);
+  if (name === 'startFill') setStartFill(settings.startFill);
+  if (name === 'alerts') setAlertsOn(settings.alerts);
   return true;
 }
 
@@ -124,7 +130,12 @@ export function rollAmbience(rand: () => number = Math.random): void {
 export function receiveFeedEvent(ev: AudienceEvent | null | undefined): number {
   // A streak counts whole: Rose x500 drops 500 berries.
   const n = Math.max(1, Math.min(parseInt(String(ev?.n ?? 1)) || 1, 10000));
-  if (ev?.type === 'like') like(ev.nickname ?? 'viewer', ev.avatar, n);
+  if (ev?.type === 'like') {
+    like(ev.nickname ?? 'viewer', ev.avatar, n);
+    alertViewer('like', ev.nickname ?? '', ev.avatar, n);
+  }
+  if (ev?.type === 'join' || ev?.type === 'share' || ev?.type === 'follow')
+    alertViewer(ev.type, ev.nickname ?? '', ev.avatar);
   if (ev?.type !== 'gift') return 0;
   const berries = berriesPerGift(ev.name ?? ev.gift);
   if (!berries) return 0;
