@@ -2,6 +2,9 @@
 
 ## Windows
 
+The app opens on `launcher.html`. Picking a mode opens that mode's game window and control room
+and closes the launcher; "Change mode" in a control room does the reverse.
+
 ```text
 +----------------------- Electron main process -----------------------+
 |  local server on 127.0.0.1:47813, serves dist/renderer               |
@@ -9,6 +12,7 @@
                 |                                      |
       +---------v---------+   BroadcastChannel   +-----v-------------+
       |   game.html       |<---- 'viper-duel' ---+  control.html     |
+      |   feed.html       |<---- 'viper-feed' ---+  feed-control.html|
       |   (on stream)     |  commands in,        |  (private)        |
       |                   |  state out (2 Hz)    |                   |
       +---------+---------+                      +-------------------+
@@ -17,6 +21,12 @@
       | TikFinity desktop |  likes, shares, gifts, joins
       +-------------------+
 ```
+
+Only one mode runs at a time. Each has its own channel and protocol
+(`src/shared/control-protocol.ts`, `src/shared/feed-protocol.ts`), so a change to one can't
+break the other. Pages ask the main process for a window change by navigating to a reserved
+path (`/__viper/open?mode=feed`, `/__viper/launcher`) that it intercepts, so no page needs a
+preload bridge.
 
 Some things that look odd but are on purpose:
 
@@ -28,8 +38,10 @@ Some things that look odd but are on purpose:
   window as black. Crop it in the capture tool.
 - Background throttling is off: the game window is captured, not looked at, and Chromium drops
   hidden windows to about 1 fps.
-- Both windows are sandboxed, can't navigate away, and keep their titles (capture tools pick
-  windows by title). A second launch just focuses the first one.
+- All windows are sandboxed, can't navigate away, and keep their titles (capture tools pick
+  windows by title: `Viper Duel`, `Viper Feed`). A second launch just focuses the open ones.
+- Settings still live under the old `Viper Duel` user data folder, so the rename to Viper didn't
+  reset anything.
 
 ## Engine
 

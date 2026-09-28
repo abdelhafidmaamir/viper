@@ -1,11 +1,14 @@
-import { app } from 'electron';
+import path from 'node:path';
 
-import { ConfigError, parseConfig, type AppConfig } from './config.js';
+import { app, type BrowserWindow } from 'electron';
+
+import { ConfigError, parseConfig, type AppConfig, type Mode } from './config.js';
 import { runDiagnostic } from './diagnostics/index.js';
 import { useReproducibleRendering, VISUAL_SEED } from './diagnostics/visual.js';
 import { evaluate } from './page/evaluate.js';
 import { hostRenderer } from './renderer-host.js';
-import { openControlWindow, openGameWindow } from './windows.js';
+import type { AppRequest } from './app-request.js';
+import { openControlWindow, openGameWindow, openLauncherWindow } from './windows.js';
 
 /**
  * Windows reports a covered window as occluded and Chromium then stops painting it. The game
@@ -18,6 +21,93 @@ function keepRenderingWhenCovered(): void {
   app.commandLine.appendSwitch('disable-background-timer-throttling');
 }
 
+/**
+ * The windows on screen: the launcher, or one mode's game window and its control room. Closing
+ * the game window closes its control room and quits; closing the control room leaves the game on
+ * stream, as before. "Change mode" in a control room goes back to the launcher.
+ */
+function createSession(origin: string, config: AppConfig) {
+  let windows: BrowserWindow[] = [];
+  /** Set while windows are swapped, so closing the old ones does not close the new ones. */
+  let swapping = false;
+
+  const closeAll = (keep: readonly BrowserWindow[] = []): void => {
+    for (const win of windows) if (!keep.includes(win) && !win.isDestroyed()) win.close();
+  };
+
+  /** Opens the new windows first, then closes the old ones: the app never has zero windows. */
+  const swap = async (open: () => Promise<BrowserWindow[]>): Promise<void> => {
+    if (swapping) return;
+    swapping = true;
+    const previous = windows;
+    try {
+      const next = await open();
+      windows = next;
+      for (const win of previous) if (!win.isDestroyed()) win.close();
+      // The game window takes its control room with it.
+      const [game] = next;
+      if (next.length > 1 && game)
+        game.once('closed', () => {
+          if (!swapping && windows === next) closeAll();
+        });
+    } finally {
+      swapping = false;
+    }
+  };
+
+  const onRequest = (request: AppRequest): void => {
+    const task = request.kind === 'open' ? openMode(request.mode) : openLauncher();
+    task.catch((error: unknown) => {
+      console.error('[app] could not switch windows', error);
+      // Never leave the operator without a window to act from.
+      if (windows.every((win) => win.isDestroyed())) void openLauncher().catch(() => undefined);
+    });
+  };
+
+  const openMode = (mode: Mode): Promise<void> =>
+    swap(async () => {
+      const game = await openGameWindow(origin, {
+        mode,
+        orientation: config.orientation,
+        diagnostic: false,
+        seed: null,
+      });
+      let control: BrowserWindow;
+      try {
+        if (mode === 'duel' && config.orientation === 'landscape') {
+          await evaluate(game.webContents, () => {
+            window.Viper.settings.format = 'landscape';
+            window.Viper.newRound();
+          });
+        }
+        control = await openControlWindow(origin, mode, onRequest);
+      } catch (error) {
+        if (!game.isDestroyed()) game.close();
+        throw error;
+      }
+      // Closed while its control room was loading: drop the pair, the launcher stays.
+      if (game.isDestroyed()) {
+        control.close();
+        throw new Error('game window closed while opening');
+      }
+      return [game, control];
+    });
+
+  const openLauncher = (): Promise<void> =>
+    swap(async () => [await openLauncherWindow(origin, onRequest)]);
+
+  const focus = (): void => {
+    for (const win of windows) {
+      if (win.isDestroyed()) continue;
+      if (win.isMinimized()) win.restore();
+      win.show();
+      win.focus();
+    }
+  };
+
+  return { openMode, openLauncher, focus };
+}
+
 async function start(config: AppConfig): Promise<void> {
   await app.whenReady();
 
@@ -27,35 +117,23 @@ async function start(config: AppConfig): Promise<void> {
     app.quit();
   });
 
-  const game = await openGameWindow(renderer.origin, {
-    orientation: config.orientation,
-    diagnostic: config.diagnostic !== null,
-    seed: config.diagnostic?.name === 'visual' ? VISUAL_SEED : null,
-  });
-
   if (config.diagnostic) {
     const { name, options } = config.diagnostic;
+    const game = await openGameWindow(renderer.origin, {
+      mode: name === 'feed-timing' ? 'feed' : 'duel',
+      orientation: config.orientation,
+      diagnostic: true,
+      seed: name === 'visual' ? VISUAL_SEED : null,
+    });
     app.exit(await runDiagnostic(game, name, config.orientation, options));
     return;
   }
 
-  if (config.orientation === 'landscape') {
-    await evaluate(game.webContents, () => {
-      window.Viper.settings.format = 'landscape';
-      window.Viper.newRound();
-    });
-  }
-  const control = await openControlWindow(renderer.origin);
+  const session = createSession(renderer.origin, config);
+  await (config.mode ? session.openMode(config.mode) : session.openLauncher());
 
   // A second launch focuses this instance instead of opening a competing local server.
-  app.on('second-instance', () => {
-    for (const win of [game, control]) {
-      if (win.isDestroyed()) continue;
-      if (win.isMinimized()) win.restore();
-      win.show();
-      win.focus();
-    }
-  });
+  app.on('second-instance', session.focus);
 }
 
 function fail(error: unknown): never {
@@ -65,6 +143,9 @@ function fail(error: unknown): never {
 }
 
 keepRenderingWhenCovered();
+
+// The app was named Viper Duel before it had a second mode: its settings stay where they were.
+app.setPath('userData', path.join(app.getPath('appData'), 'Viper Duel'));
 
 let config: AppConfig;
 try {

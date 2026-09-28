@@ -1,8 +1,8 @@
 /**
  * Packages the app as a portable Windows folder (no installer, runs from any directory).
  *
- *   npm run package                       -> out/ViperDuel-win32-x64
- *   OUT_DIR=out/dist65 npm run package    -> out/dist65/ViperDuel-win32-x64
+ *   npm run package                       -> out/Viper-win32-x64
+ *   OUT_DIR=out/dist65 npm run package    -> out/dist65/Viper-win32-x64
  */
 import path from 'node:path';
 
@@ -20,13 +20,13 @@ const paths = await packager({
   out: path.resolve(root, process.env.OUT_DIR ?? 'out'),
   platform: 'win32',
   arch: 'x64',
-  name: 'ViperDuel',
+  name: 'Viper',
   appVersion: pkg.version,
   appCopyright: `Copyright ${String(new Date().getFullYear())} Abdel Maamir`,
   win32metadata: {
     CompanyName: 'Abdel Maamir',
-    ProductName: 'Viper Duel',
-    FileDescription: 'Viper Duel',
+    ProductName: 'Viper',
+    FileDescription: 'Viper',
   },
   asar: true,
   overwrite: true,

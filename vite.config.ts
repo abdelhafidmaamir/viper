@@ -21,6 +21,9 @@ export default defineConfig({
       input: {
         game: resolve(root, 'game.html'),
         control: resolve(root, 'control.html'),
+        feed: resolve(root, 'feed.html'),
+        launcher: resolve(root, 'launcher.html'),
+        'feed-control': resolve(root, 'feed-control.html'),
       },
     },
   },

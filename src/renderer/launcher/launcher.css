@@ -1,0 +1,281 @@
+/* Viper launcher. Dark forest theme; tokens aligned with the control room. */
+@import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap');
+
+:root {
+  --bg-0: #0c110e;
+  --surface-1: #121714;
+  --surface-2: #19201c;
+  --surface-3: #222b26;
+  --border: #2a3430;
+  --border-strong: #3a4640;
+  --text-1: #e8ede9;
+  --text-2: #a7b2ac;
+  --text-3: #76827c;
+  --team-gold: #f2c57c;
+  --team-shadow: #b4d4de;
+  --focus: #7cc4ff;
+  --ok: #3ecf8e;
+
+  --space-3: 8px;
+  --space-4: 12px;
+  --space-5: 16px;
+  --space-6: 24px;
+  --space-7: 32px;
+  --space-8: 48px;
+
+  --radius-card: 12px;
+  --radius-button: 8px;
+  --radius-badge: 6px;
+
+  --font-ui:
+    'Inter', 'Segoe UI Variable Text', 'Segoe UI', system-ui, -apple-system, Roboto, sans-serif;
+
+  --motion: 160ms ease-out;
+
+  color-scheme: dark;
+}
+
+*,
+*::before,
+*::after {
+  box-sizing: border-box;
+}
+
+html,
+body {
+  height: 100%;
+  margin: 0;
+}
+
+body {
+  background: var(--bg-0);
+  color: var(--text-1);
+  font: 400 14px / 1.5 var(--font-ui);
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  min-height: 100vh;
+  padding: var(--space-6);
+}
+
+main#app {
+  width: 100%;
+  max-width: 900px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: var(--space-8);
+}
+
+/* Header */
+.launcher-header {
+  text-align: center;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: var(--space-3);
+}
+
+.wordmark {
+  font-size: 40px;
+  font-weight: 700;
+  letter-spacing: 0.18em;
+  color: var(--team-gold);
+  margin: 0;
+  line-height: 1;
+  text-transform: uppercase;
+}
+
+.subtitle {
+  font-size: 14px;
+  color: var(--text-2);
+  margin: 0;
+  letter-spacing: 0.04em;
+}
+
+/* Cards row */
+.cards {
+  display: flex;
+  gap: var(--space-6);
+  width: 100%;
+  justify-content: center;
+}
+
+@media (max-width: 759px) {
+  .cards {
+    flex-direction: column;
+    align-items: center;
+  }
+}
+
+/* Single mode card */
+.mode-card {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-5);
+  background: var(--surface-1);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-card);
+  padding: var(--space-6);
+  width: 100%;
+  max-width: 400px;
+  cursor: pointer;
+  transition:
+    border-color var(--motion),
+    background var(--motion),
+    box-shadow var(--motion);
+  outline: none;
+  position: relative;
+}
+
+.mode-card:hover {
+  border-color: var(--border-strong);
+  background: var(--surface-2);
+}
+
+.mode-card.highlighted {
+  border-color: var(--team-gold);
+  background: var(--surface-2);
+  box-shadow:
+    0 0 0 1px var(--team-gold),
+    0 4px 24px rgba(242, 197, 124, 0.1);
+}
+
+.mode-card:focus-visible {
+  outline: 2px solid var(--focus);
+  outline-offset: 2px;
+}
+
+/* Preview canvas */
+.preview-wrap {
+  position: relative;
+  width: 100%;
+  aspect-ratio: 16 / 10;
+  border-radius: 8px;
+  overflow: hidden;
+  background: #0a0e0c;
+}
+
+.preview-wrap canvas {
+  width: 100%;
+  height: 100%;
+  display: block;
+}
+
+/* Last played badge */
+.last-badge {
+  position: absolute;
+  top: var(--space-3);
+  right: var(--space-3);
+  background: rgba(242, 197, 124, 0.15);
+  border: 1px solid rgba(242, 197, 124, 0.4);
+  color: var(--team-gold);
+  font-size: 11px;
+  font-weight: 600;
+  letter-spacing: 0.06em;
+  padding: 3px 8px;
+  border-radius: var(--radius-badge);
+  text-transform: uppercase;
+  pointer-events: none;
+}
+
+/* Card body */
+.card-body {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-3);
+}
+
+.card-title-row {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: var(--space-3);
+}
+
+.card-title {
+  font-size: 18px;
+  font-weight: 600;
+  color: var(--text-1);
+  margin: 0;
+}
+
+kbd {
+  display: inline-block;
+  background: var(--surface-3);
+  border: 1px solid var(--border-strong);
+  color: var(--text-3);
+  font-size: 11px;
+  font-family: var(--font-ui);
+  font-weight: 600;
+  padding: 1px 6px;
+  border-radius: 4px;
+  line-height: 1.6;
+}
+
+.card-desc {
+  font-size: 13px;
+  color: var(--text-2);
+  margin: 0;
+  line-height: 1.5;
+}
+
+/* Play button */
+.play-btn {
+  margin-top: var(--space-3);
+  padding: 10px 20px;
+  background: var(--surface-3);
+  border: 1px solid var(--border-strong);
+  border-radius: var(--radius-button);
+  color: var(--text-1);
+  font-size: 14px;
+  font-weight: 600;
+  cursor: pointer;
+  transition:
+    background var(--motion),
+    border-color var(--motion),
+    color var(--motion);
+  width: 100%;
+  text-align: center;
+}
+
+.play-btn:hover {
+  background: var(--border-strong);
+  border-color: var(--team-gold);
+  color: var(--team-gold);
+}
+
+.play-btn:focus-visible {
+  outline: 2px solid var(--focus);
+  outline-offset: 2px;
+}
+
+.play-btn:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+.mode-card.highlighted .play-btn {
+  background: rgba(242, 197, 124, 0.12);
+  border-color: var(--team-gold);
+  color: var(--team-gold);
+}
+
+/* Footer */
+.launcher-footer {
+  font-size: 12px;
+  color: var(--text-3);
+  text-align: center;
+}
+
+/* Reduced motion: keep static, no animation */
+@media (prefers-reduced-motion: reduce) {
+  .mode-card {
+    transition: none;
+  }
+
+  .play-btn {
+    transition: none;
+  }
+}
