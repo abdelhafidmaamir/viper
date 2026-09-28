@@ -236,6 +236,9 @@ export type TikFinityEventName =
 
 /** Payload fields the bridge reads (TikTok-Live-Connector format). */
 export interface TikFinityPayload {
+  /** 'social' messages: what the viewer did, e.g. "pm_main_follow_message_viewer_2". */
+  readonly displayType?: string;
+  readonly label?: string;
   readonly uniqueId?: string;
   readonly nickname?: string;
   readonly profilePictureUrl?: string;

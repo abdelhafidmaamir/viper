@@ -68,9 +68,27 @@ function process(m: unknown): number | null {
       avatar: d.profilePictureUrl ?? '',
     } as AudienceEvent);
   }
-  /* joins, shares, follows: forwarded to the game for the activity banner */
-  if (event === 'member' || event === 'join' || event === 'share' || event === 'follow') {
-    const ty = event === 'share' ? 'share' : event === 'follow' ? 'follow' : 'join';
+  /* joins, shares, follows: forwarded to the game for the activity banner. TikTok sends follows
+     and shares as a 'social' message whose displayType or label names the action. */
+  const social =
+    event === 'social'
+      ? /follow/i.test(`${d.displayType ?? ''} ${d.label ?? ''}`)
+        ? 'follow'
+        : /share/i.test(`${d.displayType ?? ''} ${d.label ?? ''}`)
+          ? 'share'
+          : null
+      : null;
+  if (social || event === 'member' || event === 'join' || event === 'share' || event === 'follow') {
+    const ty = social ?? (event === 'share' ? 'share' : event === 'follow' ? 'follow' : 'join');
+    // The same follow or share can come both as 'social' and as its own event: count it once.
+    const key = `${ty}|${d.uniqueId ?? d.nickname ?? ''}`,
+      now = Date.now();
+    if (ty !== 'join' && now - (recentSocial.get(key) ?? -1e9) < SOCIAL_DEDUPE_MS) {
+      notify();
+      return null;
+    }
+    recentSocial.set(key, now);
+    if (recentSocial.size > 500) recentSocial.clear();
     state.last = `${ty}${d.uniqueId ? ` @${d.uniqueId}` : ''}`;
     notify();
     return window.receiveEvent({
@@ -120,6 +138,10 @@ function process(m: unknown): number | null {
   }
   return forwardGift(d, Math.max(1, parseInt(String(d.repeatCount ?? '')) || 1));
 }
+
+/** Follows and shares seen lately, so one arriving twice is announced once. */
+const recentSocial = new Map<string, number>();
+const SOCIAL_DEDUPE_MS = 5000;
 
 /** Counted streaks in live mode: gift key to the repeat count already forwarded, and when. */
 const streaks = new Map<string, { count: number; at: number }>();
