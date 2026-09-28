@@ -58,6 +58,21 @@ export interface FeedLinkDeps {
   readonly someone: () => string;
 }
 
+/** TikFinity is connected: a real live, where nothing fake may reach the board. */
+export function isLive(bridge: TikFinityBridge): boolean {
+  try {
+    const state = bridge.state();
+    return typeof state === 'object' && state !== null && 'connected' in state
+      ? state.connected === true
+      : false;
+  } catch {
+    return false;
+  }
+}
+
+/** Rehearsal commands: refused during a real live, so a stray key can never fake a gift. */
+const REHEARSAL: ReadonlySet<FeedCommand['cmd']> = new Set(['gift', 'likes', 'near-full']);
+
 /** Storage can throw (quota, disabled storage). Preferences are a convenience, never fatal. */
 function safely<T>(action: () => T): T | undefined {
   try {
@@ -120,6 +135,8 @@ export function receiveFeedEvent(ev: AudienceEvent | null | undefined): number {
 const count = (value: number): number => Math.max(1, Math.min(100, Math.round(value) || 1));
 
 export function applyFeedCommand(command: FeedCommand, deps: FeedLinkDeps): void {
+  const live = isLive(deps.bridge);
+  if (live && REHEARSAL.has(command.cmd)) return;
   switch (command.cmd) {
     case 'gift':
       if (!(command.gift in FEED_GIFTS)) return;
@@ -145,7 +162,7 @@ export function applyFeedCommand(command: FeedCommand, deps: FeedLinkDeps): void
       nearFull();
       return;
     case 'crowd':
-      if (CROWD_LEVELS.includes(command.level)) deps.setCrowd(command.level);
+      if (CROWD_LEVELS.includes(command.level)) deps.setCrowd(live ? 0 : command.level);
       return;
     case 'setting':
       if (!Object.hasOwn(settings, command.name) || !apply(command.name, command.value)) return;

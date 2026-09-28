@@ -55,6 +55,31 @@ describe('feed control link', () => {
     expect(game.queue[0]?.total).toBe(1100);
   });
 
+  it('during a real live nothing fake reaches the board', () => {
+    let crowd = 3;
+    const live: FeedLinkDeps = {
+      ...deps(),
+      bridge: {
+        start: () => undefined,
+        stop: () => undefined,
+        process: () => undefined,
+        state: () => ({ connected: true }),
+      },
+      setCrowd: (level) => {
+        crowd = level;
+      },
+    };
+    applyFeedCommand({ cmd: 'gift', gift: 'rosa', count: 5 }, live);
+    applyFeedCommand({ cmd: 'likes', count: 25 }, live);
+    applyFeedCommand({ cmd: 'crowd', level: 2 }, live);
+    expect(waiting()).toBe(0);
+    expect(game.likes.size).toBe(0);
+    expect(crowd).toBe(0);
+    // Real gifts from TikFinity still count.
+    receiveFeedEvent({ type: 'gift', name: 'Rosa', n: 1, nickname: 'real' });
+    expect(waiting()).toBe(10);
+  });
+
   it('test gifts from the control room follow the same rule', () => {
     const d = deps();
     applyFeedCommand({ cmd: 'gift', gift: 'rosa', count: 5 }, d);

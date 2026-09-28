@@ -4,6 +4,7 @@ import {
   armVm,
   cleanPending,
   controlsReason,
+  rehearsalReason,
   fpsTone,
   isGameLinkStale,
   resolvePending,
@@ -103,6 +104,23 @@ describe('controlsReason', () => {
   it('returns null when link is healthy', () => {
     const reason = controlsReason(makeState({ lastStateAt: 4500, now: 5000 }));
     expect(reason).toBeNull();
+  });
+});
+
+describe('rehearsalReason', () => {
+  it('locks rehearsal tools while TikFinity is live', () => {
+    const live = makeState({
+      lastStateAt: 4500,
+      now: 5000,
+      gameState: makeGameState({ bridge: { connected: true, url: 'ws://x', events: 1, gifts: 0 } }),
+    });
+    expect(rehearsalReason(live)).toBe('Off while TikFinity is live');
+    expect(controlsReason(live)).toBeNull();
+  });
+
+  it('allows them off live', () => {
+    const off = makeState({ lastStateAt: 4500, now: 5000, gameState: makeGameState() });
+    expect(rehearsalReason(off)).toBeNull();
   });
 });
 

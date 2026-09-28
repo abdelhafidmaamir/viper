@@ -3,6 +3,7 @@
  * Nothing here imports DOM or channel code: every export is testable in Vitest.
  */
 import type { FeedSettingName, FeedState } from '../../shared/feed-protocol.ts';
+import { decodeBridge } from '../control/decode.ts';
 import type { SlotStatus } from '../control/pending.ts';
 import type { Tone } from '../control/view-models/status.ts';
 
@@ -50,6 +51,14 @@ export function isGameLinkStale(state: Pick<FeedControlState, 'lastStateAt' | 'n
 export function controlsReason(state: FeedControlState): string | null {
   if (state.lastStateAt === null) return 'Waiting for the game window';
   if (isGameLinkStale(state)) return 'Game not responding';
+  return null;
+}
+
+/** Why rehearsal tools (test gifts, simulated audience, near full) are off: never on a live. */
+export function rehearsalReason(state: FeedControlState): string | null {
+  const reason = controlsReason(state);
+  if (reason !== null) return reason;
+  if (decodeBridge(state.gameState?.bridge).connected) return 'Off while TikFinity is live';
   return null;
 }
 
