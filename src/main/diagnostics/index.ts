@@ -8,11 +8,13 @@ import { installPageKit } from '../page/page-kit.js';
 import { createContext, type Diagnostic } from './context.js';
 import { cpuProfile } from './cpu-profile.js';
 import { drawCalls } from './draw-calls.js';
+import { feedTiming } from './feed-timing.js';
 import { frameTiming } from './frame-timing.js';
 import { screenshots } from './screenshots.js';
 import { visual } from './visual.js';
 
 const REGISTRY: Readonly<Record<DiagnosticName, Diagnostic>> = {
+  'feed-timing': feedTiming,
   screenshots,
   'frame-timing': frameTiming,
   'cpu-profile': cpuProfile,
@@ -22,7 +24,7 @@ const REGISTRY: Readonly<Record<DiagnosticName, Diagnostic>> = {
 
 /**
  * Runs one diagnostic against a loaded game window and returns the process exit code, so the
- * packaged app can be scripted (`ViperDuel.exe --diagnostic=... && next-step`).
+ * packaged app can be scripted (`Viper.exe --diagnostic=... && next-step`).
  */
 export async function runDiagnostic(
   game: BrowserWindow,

@@ -49,6 +49,7 @@ export function createStatusBar(onHelp: () => void): StatusBarView {
     [h('kbd', { class: 'kbd', text: '?', attrs: { 'aria-hidden': 'true' } }), ' Shortcuts'],
   );
   help.addEventListener('click', onHelp);
+  const modeSwitch = createModeSwitch();
 
   const el = h('header', { class: 'statusbar', attrs: { 'aria-label': 'Show status' } }, [
     h('div', { class: 'statusbar__group' }, [game.el, bridge.el, onAir, debug]),
@@ -76,6 +77,7 @@ export function createStatusBar(onHelp: () => void): StatusBarView {
         tier,
       ]),
       help,
+      modeSwitch,
     ]),
   ]);
 
@@ -108,4 +110,33 @@ export function createStatusBar(onHelp: () => void): StatusBarView {
       setText(tier, vm.tier);
     },
   };
+}
+
+/** How long "Confirm change mode" waits for the second click. */
+const MODE_CONFIRM_MS = 3000;
+
+/**
+ * Back to the mode launcher, after a second click: the Electron main process catches this
+ * navigation, opens the launcher and closes the game and this window.
+ */
+function createModeSwitch(): HTMLButtonElement {
+  const button = h('button', {
+    class: 'btn btn--ghost btn--small',
+    text: 'Change mode',
+    attrs: { type: 'button', title: 'Close this mode and go back to the launcher' },
+  });
+  let armedUntil = 0;
+  button.addEventListener('click', () => {
+    if (Date.now() < armedUntil) {
+      location.assign('/__viper/launcher');
+      return;
+    }
+    armedUntil = Date.now() + MODE_CONFIRM_MS;
+    setText(button, 'Confirm change mode');
+    setTimeout(() => {
+      armedUntil = 0;
+      setText(button, 'Change mode');
+    }, MODE_CONFIRM_MS);
+  });
+  return button;
 }

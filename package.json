@@ -1,9 +1,9 @@
 {
   "name": "viper",
-  "productName": "Viper Duel",
+  "productName": "Viper",
   "version": "0.1.0",
   "private": true,
-  "description": "Interactive TikTok LIVE snake duel: a capturable game window driven by a private control room.",
+  "description": "Interactive TikTok LIVE snake games (Duel, Feed the Snake): a capturable game window driven by a private control room.",
   "author": "Abdel Maamir",
   "license": "UNLICENSED",
   "main": "dist/main/index.js",

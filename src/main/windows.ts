@@ -1,6 +1,7 @@
 import { BrowserWindow, screen, type WebPreferences } from 'electron';
 
-import type { Orientation } from './config.js';
+import { appRequest, type AppRequest } from './app-request.js';
+import type { Mode, Orientation } from './config.js';
 import { fitContentSize } from './layout.js';
 
 const BACKGROUND = '#0c110e';
@@ -13,14 +14,27 @@ const SECURE_PREFERENCES = {
   webSecurity: true,
 } as const satisfies WebPreferences;
 
+export type RequestHandler = (request: AppRequest) => void;
+
 /**
  * Pages only ever load from the local server: navigation elsewhere and pop-ups are refused, and
  * the window title stays owned by the main process (capture tools select windows by title).
  */
-function lockDown(win: BrowserWindow, origin: string, title: string): void {
+function lockDown(
+  win: BrowserWindow,
+  origin: string,
+  title: string,
+  onRequest?: RequestHandler,
+): void {
   const { webContents } = win;
   webContents.setWindowOpenHandler(() => ({ action: 'deny' }));
   webContents.on('will-navigate', (event, url) => {
+    const request = appRequest(url, origin);
+    if (request) {
+      event.preventDefault();
+      onRequest?.(request);
+      return;
+    }
     if (new URL(url).origin !== origin) event.preventDefault();
   });
   win.on('page-title-updated', (event) => {
@@ -29,7 +43,12 @@ function lockDown(win: BrowserWindow, origin: string, title: string): void {
   });
 }
 
+/** Window titles: OBS and LIVE Studio find the game window by title, one source per mode. */
+const GAME_TITLE: Readonly<Record<Mode, string>> = { duel: 'Viper Duel', feed: 'Viper Feed' };
+const GAME_PAGE: Readonly<Record<Mode, string>> = { duel: 'game.html', feed: 'feed.html' };
+
 export interface GameWindowOptions {
+  readonly mode: Mode;
   readonly orientation: Orientation;
   /**
    * Diagnostics run the game alone, pinned on top, as large as the screen allows: Windows
@@ -49,10 +68,11 @@ export interface GameWindowOptions {
  */
 export async function openGameWindow(
   origin: string,
-  { orientation, diagnostic, seed }: GameWindowOptions,
+  { mode, orientation, diagnostic, seed }: GameWindowOptions,
 ): Promise<BrowserWindow> {
-  const landscape = orientation === 'landscape';
-  const title = 'Viper Duel';
+  // Feed the Snake is drawn for portrait only.
+  const landscape = mode === 'duel' && orientation === 'landscape';
+  const title = GAME_TITLE[mode];
   const win = new BrowserWindow({
     title,
     width: landscape ? 960 : 540,
@@ -62,7 +82,12 @@ export async function openGameWindow(
     backgroundColor: BACKGROUND,
     show: !diagnostic,
     // The window is captured, not watched: it must render at full rate even when covered.
-    webPreferences: { ...SECURE_PREFERENCES, backgroundThrottling: false },
+    webPreferences: {
+      ...SECURE_PREFERENCES,
+      backgroundThrottling: false,
+      // Feed the Snake's sound is part of the show: it plays without a click in its window.
+      ...(mode === 'feed' ? { autoplayPolicy: 'no-user-gesture-required' as const } : {}),
+    },
   });
   lockDown(win, origin, title);
 
@@ -74,7 +99,7 @@ export async function openGameWindow(
   }
 
   const query = seed === null ? '' : `?seed=${String(seed)}`;
-  await win.loadURL(`${origin}/game.html${query}`);
+  await win.loadURL(`${origin}/${GAME_PAGE[mode]}${query}`);
 
   if (diagnostic) {
     win.show();
@@ -84,9 +109,13 @@ export async function openGameWindow(
   return win;
 }
 
-/** The private control room. It is never captured, so the admin section is enabled. */
-export async function openControlWindow(origin: string): Promise<BrowserWindow> {
-  const title = 'Viper Duel | Control Room';
+/** The private control room of a mode. It is never captured, so the admin section is enabled. */
+export async function openControlWindow(
+  origin: string,
+  mode: Mode,
+  onRequest: RequestHandler,
+): Promise<BrowserWindow> {
+  const title = `${GAME_TITLE[mode]} | Control Room`;
   const win = new BrowserWindow({
     title,
     width: 1280,
@@ -97,7 +126,30 @@ export async function openControlWindow(origin: string): Promise<BrowserWindow> 
     backgroundColor: BACKGROUND,
     webPreferences: SECURE_PREFERENCES,
   });
-  lockDown(win, origin, title);
-  await win.loadURL(`${origin}/control.html?admin=1`);
+  lockDown(win, origin, title, onRequest);
+  await win.loadURL(
+    mode === 'duel' ? `${origin}/control.html?admin=1` : `${origin}/feed-control.html`,
+  );
+  return win;
+}
+
+/** The first window: pick a mode. */
+export async function openLauncherWindow(
+  origin: string,
+  onRequest: RequestHandler,
+): Promise<BrowserWindow> {
+  const title = 'Viper';
+  const win = new BrowserWindow({
+    title,
+    width: 960,
+    height: 620,
+    minWidth: 720,
+    minHeight: 520,
+    autoHideMenuBar: true,
+    backgroundColor: BACKGROUND,
+    webPreferences: SECURE_PREFERENCES,
+  });
+  lockDown(win, origin, title, onRequest);
+  await win.loadURL(`${origin}/launcher.html`);
   return win;
 }

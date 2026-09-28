@@ -65,6 +65,28 @@ const en = {
   'ranking.supporter.n': 'supporter {n}',
   // Total coins label in MVP card
   'ranking.coins': 'coins',
+  // Feed the Snake
+  'feed.ready': 'GET READY',
+  'feed.go': 'GO!',
+  'feed.filled': 'BOARD FILLED!',
+  'feed.next': '{n} berries eaten · next round in {q}s',
+  'feed.likeChampion': 'LIKE CHAMPION',
+  'feed.likes': '{n} likes',
+  'feed.topSupporters': 'TOP SUPPORTERS',
+  'feed.finalRanking': 'FINAL RANKING',
+  'feed.topLikes': 'TOP LIKES',
+  'feed.thisRound': 'THIS ROUND',
+  'feed.coins': 'coins',
+  'feed.likesUnit': 'likes',
+  'feed.nobody': 'nobody yet',
+  'feed.berry': 'BERRY',
+  'feed.berries': 'BERRIES',
+  'feed.today': '{q} · {n}+ TODAY',
+  'feed.title.1': 'SPROUT',
+  'feed.title.30': 'SEED SOWER',
+  'feed.title.100': 'BERRY KEEPER',
+  'feed.title.300': 'FOREST GUARDIAN',
+  'feed.title.1000': 'ANCIENT OAK',
 } as const;
 
 // The `fr` object must have exactly the same keys as `en`.
@@ -129,6 +151,28 @@ const fr: Translations = {
   'ranking.supporter.n': 'supporter {n}',
   // Total coins label in MVP card
   'ranking.coins': 'pièces',
+  // Feed the Snake
+  'feed.ready': 'PRÊTS ?',
+  'feed.go': 'GO !',
+  'feed.filled': 'PLATEAU REMPLI !',
+  'feed.next': '{n} baies mangées · manche suivante dans {q} s',
+  'feed.likeChampion': 'ROI DES LIKES',
+  'feed.likes': '{n} likes',
+  'feed.topSupporters': 'TOP DONATEURS',
+  'feed.finalRanking': 'CLASSEMENT FINAL',
+  'feed.topLikes': 'TOP LIKES',
+  'feed.thisRound': 'CETTE MANCHE',
+  'feed.coins': 'pièces',
+  'feed.likesUnit': 'likes',
+  'feed.nobody': 'personne encore',
+  'feed.berry': 'BAIE',
+  'feed.berries': 'BAIES',
+  'feed.today': "{q} · {n}+ AUJOURD'HUI",
+  'feed.title.1': 'POUSSE',
+  'feed.title.30': 'SEMEUR',
+  'feed.title.100': 'GARDIEN DES BAIES',
+  'feed.title.300': 'GARDIEN DE LA FORÊT',
+  'feed.title.1000': 'CHÊNE ANCESTRAL',
 };
 
 export type I18nKey = keyof typeof en;

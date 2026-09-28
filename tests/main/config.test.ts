@@ -6,9 +6,16 @@ describe('parseConfig', () => {
   it('defaults to a portrait live session', () => {
     expect(parseConfig([])).toEqual({
       orientation: 'portrait',
+      mode: null,
       rendererOrigin: null,
       diagnostic: null,
     });
+  });
+
+  it('opens a mode directly, or leaves the choice to the launcher', () => {
+    expect(parseConfig(['--mode=feed']).mode).toBe('feed');
+    expect(parseConfig(['--mode=duel']).mode).toBe('duel');
+    expect(parseConfig([]).mode).toBeNull();
   });
 
   it('accepts landscape', () => {
@@ -18,6 +25,7 @@ describe('parseConfig', () => {
   it('ignores switches it does not own, such as the ones Chromium forwards', () => {
     expect(parseConfig(['--enable-logging', '--no-sandbox', 'some-positional'])).toEqual({
       orientation: 'portrait',
+      mode: null,
       rendererOrigin: null,
       diagnostic: null,
     });
@@ -69,6 +77,7 @@ describe('parseConfig', () => {
   });
 
   it.each([
+    [['--mode=race'], /--mode must be one of duel, feed/],
     [['--orientation=sideways'], /--orientation must be one of portrait, landscape/],
     [['--diagnostic=benchmark'], /--diagnostic must be one of/],
     [['--renderer-url=https://example.com'], /must be an http loopback URL/],

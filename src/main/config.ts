@@ -3,7 +3,12 @@ import { parseArgs } from 'node:util';
 export const ORIENTATIONS = ['portrait', 'landscape'] as const;
 export type Orientation = (typeof ORIENTATIONS)[number];
 
+/** The game modes. With no `--mode`, the launcher asks which one to open. */
+export const MODES = ['duel', 'feed'] as const;
+export type Mode = (typeof MODES)[number];
+
 export const DIAGNOSTICS = [
+  'feed-timing',
   'screenshots',
   'frame-timing',
   'cpu-profile',
@@ -27,6 +32,8 @@ export interface DiagnosticOptions {
 
 export interface AppConfig {
   readonly orientation: Orientation;
+  /** Opens this mode directly, skipping the launcher. Null shows the launcher. */
+  readonly mode: Mode | null;
   /**
    * Development only: origin of the Vite dev server that serves the renderer with hot reload.
    * Null in production, where the main process serves the built renderer itself.
@@ -82,8 +89,9 @@ function numberIn(flag: string, value: string, min: number, max: number): number
  * forward their own switches through the same argv.
  *
  * @example
- *   ViperDuel.exe --orientation=landscape
- *   ViperDuel.exe --diagnostic=frame-timing --out=perf --all-weathers
+ *   Viper.exe --mode=feed
+ *   Viper.exe --mode=duel --orientation=landscape
+ *   Viper.exe --diagnostic=frame-timing --out=perf --all-weathers
  */
 export function parseConfig(argv: readonly string[]): AppConfig {
   const { values } = parseArgs({
@@ -92,6 +100,7 @@ export function parseConfig(argv: readonly string[]): AppConfig {
     allowPositionals: true,
     options: {
       orientation: { type: 'string' },
+      mode: { type: 'string' },
       'renderer-url': { type: 'string' },
       diagnostic: { type: 'string' },
       out: { type: 'string' },
@@ -112,16 +121,20 @@ export function parseConfig(argv: readonly string[]): AppConfig {
     ? oneOf('orientation', orientationFlag, ORIENTATIONS)
     : 'portrait';
 
+  const modeFlag = text('mode');
+  const mode = modeFlag ? oneOf('mode', modeFlag, MODES) : null;
+
   const rendererFlag = text('renderer-url');
   const rendererOrigin = rendererFlag ? loopbackOrigin('renderer-url', rendererFlag) : null;
 
   const diagnosticFlag = text('diagnostic');
-  if (!diagnosticFlag) return { orientation, rendererOrigin, diagnostic: null };
+  if (!diagnosticFlag) return { orientation, mode, rendererOrigin, diagnostic: null };
 
   const hour = text('hour');
   const settle = text('settle');
   return {
     orientation,
+    mode,
     rendererOrigin,
     diagnostic: {
       name: oneOf('diagnostic', diagnosticFlag, DIAGNOSTICS),
