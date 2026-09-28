@@ -177,7 +177,7 @@ export function receiveFeedEvent(ev: AudienceEvent | null | undefined): number {
   });
   if (giftLog.length > GIFT_LOG) giftLog.length = GIFT_LOG;
   if (!berries) return 0;
-  gift(ev.nickname ?? 'viewer', ev.avatar, berries * n);
+  gift(ev.nickname ?? 'viewer', ev.avatar, berries * n, true);
   return n;
 }
 
