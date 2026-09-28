@@ -113,13 +113,23 @@ describe('feed control link', () => {
     expect(game.queue[0]?.carried).toBe(true);
   });
 
-  it('berries carried from the last round drop but do not take the crown', () => {
+  it('berries carried from the last round keep their giver on the leaderboard', () => {
     receiveFeedEvent({ type: 'gift', name: 'Rosa', n: 3, value: 10, nickname: 'old' });
     newRound(() => 0.5);
     expect(waiting()).toBe(30);
-    expect(game.fans.has('old')).toBe(false);
+    expect(game.fans.get('old')?.coins).toBe(30);
+  });
+
+  it('berries given back after a restart drop but do not take the crown', () => {
+    game.queue = [];
+    newRound(() => 0.5);
+    restoreUnpaid({
+      getItem: () => JSON.stringify([{ nickname: 'jg', n: 40 }]),
+      setItem: () => undefined,
+    });
+    expect(waiting()).toBe(40);
+    expect(game.fans.has('jg')).toBe(false);
     receiveFeedEvent({ type: 'gift', name: 'Rose', n: 1, value: 1, nickname: 'first' });
-    expect(game.fans.get('first')?.coins).toBe(1);
     expect([...game.fans.keys()]).toEqual(['first']);
   });
 

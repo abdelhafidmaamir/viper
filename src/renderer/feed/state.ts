@@ -312,15 +312,21 @@ export function repay(owed: readonly { nickname: string; n: number }[]): void {
   for (const { nickname, n } of owed)
     if (n > 0) {
       liveGivers.add(nickname);
-      pourIn(nickname, undefined, n, true);
+      pourIn(nickname, undefined, n, true, false);
     }
 }
 
 /** Puts a viewer's berries in the flower and ranks them on the round's leaderboard. */
-function pourIn(nickname: string, avatar: string | undefined, n: number, carried = false): void {
-  // Berries carried from an earlier round still drop, but they were paid then: they do not rank
-  // in this round, so the round's own first gifter takes the crown above the head.
-  if (!carried) {
+function pourIn(
+  nickname: string,
+  avatar: string | undefined,
+  n: number,
+  carried = false,
+  ranks = true,
+): void {
+  // Berries carried from the last round keep their giver's rank (crown, leaderboard, end screen);
+  // berries given back when the app starts do not rank, so they never hold the crown.
+  if (ranks) {
     const fan = game.fans.get(nickname) ?? { nickname, avatar, coins: 0 };
     fan.coins += n;
     if (avatar) fan.avatar = avatar;
