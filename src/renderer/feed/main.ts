@@ -23,7 +23,13 @@ import {
   snakeTrace,
 } from './paint.ts';
 import { berriesPerGift, type CrowdLevel } from '../../shared/feed-protocol.ts';
-import { linkFeedControl, receiveFeedEvent, rollAmbience, settings } from './control-link.ts';
+import {
+  isLive,
+  linkFeedControl,
+  receiveFeedEvent,
+  rollAmbience,
+  settings,
+} from './control-link.ts';
 import { armSound } from './sound.ts';
 import { TOTAL, advance, game, gift, hooks, like, newRound } from './state.ts';
 
@@ -69,8 +75,19 @@ const GIFT_GAP: Record<Exclude<CrowdLevel, 0>, [number, number]> = {
   3: [0.4, 1.4],
 };
 
+let liveCheck = 0;
+
 function simulate(dt: number): void {
   if (crowd === 0) return;
+  // A real live switches the simulated audience off, whatever was left on from a rehearsal.
+  liveCheck -= dt;
+  if (liveCheck <= 0) {
+    liveCheck = 0.5;
+    if (isLive(window.TikFinityBridge)) {
+      crowd = 0;
+      return;
+    }
+  }
   simTimer -= dt;
   likeTimer -= dt;
   if (likeTimer <= 0) {

@@ -126,7 +126,7 @@ export function mountFeedApp(
 
   const screens: Record<TabId, FeedView> = {
     live: createLiveScreen(store, dispatch, pressArm),
-    rehearsal: createRehearsalScreen(dispatch, reason),
+    rehearsal: createRehearsalScreen(dispatch),
     setup: createSetupScreen(dispatch, reason),
   };
 

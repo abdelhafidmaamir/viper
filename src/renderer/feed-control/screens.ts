@@ -4,7 +4,7 @@ import { createButton } from '../control/ui/components/button.ts';
 import { createCard, createLockBanner } from '../control/ui/components/card.ts';
 import { createSegmented } from '../control/ui/components/segmented.ts';
 import { h } from '../control/ui/dom.ts';
-import { resolvePending, type FeedControlState } from './store.ts';
+import { rehearsalReason, resolvePending, type FeedControlState } from './store.ts';
 import type { FeedView } from './ui.ts';
 
 export { createLiveScreen } from './live.ts';
@@ -23,7 +23,7 @@ const CROWD_OPTIONS = CROWD_LEVELS.map((level) => ({
   label: CROWD_LABELS[level],
 }));
 
-export function createRehearsalScreen(dispatch: Dispatch, reason: Reason): FeedView {
+export function createRehearsalScreen(dispatch: Dispatch): FeedView {
   const lock = createLockBanner();
   const giftButtons = [
     createButton({
@@ -101,8 +101,8 @@ export function createRehearsalScreen(dispatch: Dispatch, reason: Reason): FeedV
   const views: FeedView[] = [
     {
       el: giftsCard.el,
-      update() {
-        const r = reason();
+      update(state: FeedControlState) {
+        const r = rehearsalReason(state);
         lock.update(r);
         for (const b of giftButtons) b.update({ reason: r });
       },
@@ -110,13 +110,13 @@ export function createRehearsalScreen(dispatch: Dispatch, reason: Reason): FeedV
     {
       el: crowdCard.el,
       update(state: FeedControlState) {
-        crowd.update({ value: state.gameState?.crowd ?? 0, reason: reason() });
+        crowd.update({ value: state.gameState?.crowd ?? 0, reason: rehearsalReason(state) });
       },
     },
     {
       el: nearFullCard.el,
-      update() {
-        nearFull.update({ reason: reason() });
+      update(state: FeedControlState) {
+        nearFull.update({ reason: rehearsalReason(state) });
       },
     },
   ];

@@ -10,6 +10,7 @@ import {
 import {
   cleanPending,
   controlsReason,
+  rehearsalReason,
   createStore,
   initialState,
   saveTab,
@@ -83,6 +84,10 @@ function bindShortcuts(
     // All other shortcuts require the game to be connected
     const state: FeedControlState = store.get();
     if (controlsReason(state) !== null) return;
+
+    // Test gifts, the simulated audience and near full never fire during a real live.
+    const rehearsalOff = rehearsalReason(state) !== null;
+    if (rehearsalOff && event.key !== 'n' && event.key !== 'N') return;
 
     switch (event.key) {
       case 'n':
