@@ -4,7 +4,7 @@ import { createButton } from '../control/ui/components/button.ts';
 import { createCard, createLockBanner } from '../control/ui/components/card.ts';
 import { createSegmented } from '../control/ui/components/segmented.ts';
 import { createToggle } from '../control/ui/components/toggle.ts';
-import { h } from '../control/ui/dom.ts';
+import { h, setText } from '../control/ui/dom.ts';
 import { rehearsalReason, resolvePending, type FeedControlState } from './store.ts';
 import type { FeedView } from './ui.ts';
 
@@ -149,6 +149,26 @@ const SHORTCUTS_TEXT = [
   'Alt+1/2/3  Switch tab (Live / Rehearsal / Setup)',
 ].join('\n');
 
+/**
+ * "name ; coins" per line, optionally "; @handle" (a tab or a comma works too); lines that do not
+ * read are skipped.
+ */
+export function parsePastSupporters(
+  text: string,
+): { nickname: string; berries: number; id?: string }[] {
+  return text.split(/\r?\n/).flatMap((line) => {
+    const m =
+      /^(.+?)\s*[;\t,]\s*([\d\s.]+?)\s*(?:pi[eè]ces?|coins?)?\s*(?:[;\t,]\s*@?([\w.]+))?\s*$/i.exec(
+        line.trim(),
+      );
+    const berries = m ? Number((m[2] ?? '').replace(/[\s.]/g, '')) : 0;
+    const nickname = (m?.[1] ?? '').trim();
+    const id = m?.[3];
+    if (!nickname || !(berries > 0)) return [];
+    return [{ nickname: nickname.slice(0, 60), berries, ...(id ? { id } : {}) }];
+  });
+}
+
 export function createSetupScreen(dispatch: Dispatch, reason: Reason): FeedView {
   const language = createSegmented({
     label: 'Game language',
@@ -211,6 +231,38 @@ export function createSetupScreen(dispatch: Dispatch, reason: Reason): FeedView 
     }),
     h('div', { class: 'row row--wrap' }, [mods, saveMods.el]),
   ]);
+  // Supporters from before the game kept count, pasted from TikTok's top viewers list.
+  const past = h('textarea', {
+    class: 'input',
+    attrs: {
+      rows: '6',
+      placeholder: 'KAPACH971 ; 210\nskohlds ; 194',
+      'aria-label': 'Past supporters',
+    },
+  });
+  const pastDone = h('p', { class: 'field__caption' });
+  const importPast = createButton({
+    label: 'Import',
+    variant: 'secondary',
+    onPress: () => {
+      const lines = parsePastSupporters(past.value);
+      if (!lines.length) {
+        setText(pastDone, 'One per line: name ; coins');
+        return;
+      }
+      dispatch({ cmd: 'seed-supporters', lines });
+      setText(pastDone, `${String(lines.length)} supporters imported.`);
+    },
+  });
+  const pastCard = createCard({ title: 'Import past supporters' }, [
+    h('p', {
+      class: 'field__caption',
+      text: "From TikTok's top viewers list (most gifts): one per line, name ; coins, and ; @handle when you know it. 1 coin = 1 berry. Without a handle, each is matched to their account by name the first time they come to a live. Importing again adds nothing twice.",
+    }),
+    past,
+    importPast.el,
+    pastDone,
+  ]);
   const shortcutText = h('pre', { class: 'card__line', text: SHORTCUTS_TEXT });
   const helpCard = createCard({ title: 'Keyboard shortcuts' }, [shortcutText]);
 
@@ -219,6 +271,7 @@ export function createSetupScreen(dispatch: Dispatch, reason: Reason): FeedView 
       langCard.el,
       alertsCard.el,
       modsCard.el,
+      pastCard.el,
       journalCard.el,
       helpCard.el,
     ]),
@@ -237,6 +290,7 @@ export function createSetupScreen(dispatch: Dispatch, reason: Reason): FeedView 
       const al = resolvePending(state.gameState?.settings.alerts, state.pending.alerts, state.now);
       alerts.update({ on: al.value !== false, status: al.status, reason: r });
       saveMods.update({ reason: r });
+      importPast.update({ reason: r });
       // Fill the field once with what the game remembers, then leave it to the operator.
       const saved = state.gameState?.settings.mods;
       if (!modsShown && typeof saved === 'string') {

@@ -4,6 +4,7 @@
  *   npm run package                       -> out/Viper-win32-x64
  *   OUT_DIR=out/dist65 npm run package    -> out/dist65/Viper-win32-x64
  */
+import { existsSync } from 'node:fs';
 import path from 'node:path';
 
 import { packager } from '@electron/packager';
@@ -29,6 +30,10 @@ const paths = await packager({
     FileDescription: 'Viper',
   },
   asar: true,
+  // The key to the streamer's online supporters list, when this computer has it (never committed).
+  ...(existsSync(path.join(root, 'cloud.local.json'))
+    ? { extraResource: [path.join(root, 'cloud.local.json')] }
+    : {}),
   overwrite: true,
   prune: true,
   // Paths arrive relative to `dir`, with a leading slash; '' is the root itself. Source maps

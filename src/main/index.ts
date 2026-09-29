@@ -6,6 +6,7 @@ import { app, shell, type BrowserWindow } from 'electron';
 import { ConfigError, parseConfig, type AppConfig, type Mode } from './config.js';
 import { runDiagnostic } from './diagnostics/index.js';
 import { backUpFeed } from './feed-backup.js';
+import { readCloudConfig } from './feed-cloud.js';
 import { journalDir, journalFeed } from './feed-journal.js';
 import { useReproducibleRendering, VISUAL_SEED } from './diagnostics/visual.js';
 import { evaluate } from './page/evaluate.js';
@@ -105,7 +106,9 @@ function createSession(origin: string, config: AppConfig) {
       // Feed saves its round every second, so a sudden shutdown can be undone on the next launch.
       if (mode === 'feed') {
         const stop = await backUpFeed(game, app.getPath('userData'));
-        const stopJournal = await journalFeed(game, app.getPath('userData'));
+        // The supporters list lives online too when the build carries its key (feed-cloud.ts).
+        const cloud = await readCloudConfig([process.resourcesPath, app.getAppPath()]);
+        const stopJournal = await journalFeed(game, app.getPath('userData'), cloud);
         game.once('closed', () => {
           stop();
           stopJournal();

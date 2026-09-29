@@ -23,7 +23,11 @@ import { setLanguage } from '../engine/i18n.ts';
 import { alertSounds, alertViewer, setAlertsOn } from './alerts.ts';
 import { note, noteJoin, noteLikes, noteViewers } from './journal.ts';
 import {
+  claimSeed,
   lifetimeRank,
+  seedSupporters,
+  supporterPhoto,
+  supporterSettings,
   supporter,
   supporterGift,
   supporterJoin,
@@ -161,6 +165,30 @@ function apply(name: FeedSettingName, value: unknown): boolean {
   return true;
 }
 
+/** The settings that travel with the supporters list to a new computer (not the ambience). */
+const SHARED: readonly FeedSettingName[] = [
+  'language',
+  'startFill',
+  'alerts',
+  'entranceGap',
+  'mods',
+  'autoAmbience',
+];
+const shared = (): Record<string, unknown> =>
+  Object.fromEntries(SHARED.map((name) => [name, settings[name]]));
+
+/** Settings that came back with the supporters list (another computer's): applied and kept. */
+export function applySavedSettings(
+  saved: Record<string, unknown>,
+  storage: FeedLinkDeps['storage'],
+): void {
+  for (const name of SHARED) if (name in saved) apply(name, saved[name]);
+  supporterSettings(shared());
+  safely(() => {
+    storage.setItem(STORAGE_KEY, JSON.stringify(settings));
+  });
+}
+
 export function restoreSettings(storage: FeedLinkDeps['storage']): void {
   const raw = safely(() => storage.getItem(STORAGE_KEY));
   if (!raw) return;
@@ -204,6 +232,8 @@ export function receiveFeedEvent(ev: AudienceEvent | null | undefined): number {
   // Everything that comes from the live goes into the journal and the supporters list.
   const id = ev?.id ?? '',
     who = ev?.nickname ?? '';
+  // A supporter imported from before, seen for the first time: their berries become theirs.
+  if (id && who) claimSeed(id, who);
   if (ev?.type === 'viewers') noteViewers(Math.max(0, Number(ev.total) || 0));
   if (ev?.type === 'like') {
     like(ev.nickname ?? 'viewer', ev.avatar, n);
@@ -220,6 +250,8 @@ export function receiveFeedEvent(ev: AudienceEvent | null | undefined): number {
     supporterSocial(ev.type, id, who);
     alertViewer(ev.type, ev.nickname ?? '', ev.avatar);
   }
+  // Their latest photo, kept with them for the Hall of Fame.
+  if (id) supporterPhoto(id, ev?.avatar);
   if (ev?.type !== 'gift') return 0;
   const berries = berriesPerGift(ev.name ?? ev.gift, ev.value);
   note({
@@ -233,6 +265,7 @@ export function receiveFeedEvent(ev: AudienceEvent | null | undefined): number {
   });
   const before = topSupporters(3).map((s) => s.id);
   supporterGift(id, who, berries * n);
+  supporterPhoto(id, ev.avatar);
   if (berries > 0) announcePass(id, who, ev.avatar, before);
   giftLog.unshift({
     at: Date.now(),
@@ -416,6 +449,28 @@ export function applyFeedCommand(command: FeedCommand, deps: FeedLinkDeps): void
       if (giftLog.length > GIFT_LOG) giftLog.length = GIFT_LOG;
       return;
     }
+    case 'seed-supporters':
+      if (!Array.isArray(command.lines)) return;
+      seedSupporters(
+        command.lines.slice(0, 500).flatMap((l: unknown) =>
+          typeof l === 'object' &&
+          l !== null &&
+          'nickname' in l &&
+          'berries' in l &&
+          typeof l.nickname === 'string' &&
+          typeof l.berries === 'number'
+            ? [
+                {
+                  nickname: l.nickname.slice(0, 60),
+                  berries: l.berries,
+                  id: 'id' in l && typeof l.id === 'string' ? l.id.slice(0, 40) : undefined,
+                },
+              ]
+            : [],
+        ),
+      );
+      note({ event: 'past supporters imported', source: 'manual', count: command.lines.length });
+      return;
     case 'skip-entrance':
       skipEntrance();
       return;
@@ -437,6 +492,7 @@ export function applyFeedCommand(command: FeedCommand, deps: FeedLinkDeps): void
         source: 'manual',
         detail: `${command.name} = ${String(settings[command.name])}`,
       });
+      supporterSettings(shared());
       safely(() => {
         deps.storage.setItem(STORAGE_KEY, JSON.stringify(settings));
       });

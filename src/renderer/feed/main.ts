@@ -28,6 +28,7 @@ import {
   isLive,
   linkFeedControl,
   receiveFeedEvent,
+  applySavedSettings,
   backupText,
   restoreBackup,
   rollAmbience,
@@ -36,7 +37,7 @@ import {
 import { COLUMNS, drainJournal, note } from './journal.ts';
 import { armSound } from './sound.ts';
 import { paintSupporters, updateSupporters } from './vip.ts';
-import { restoreSupporters, supportersText } from './supporters.ts';
+import { restoreSupporters, settingsIn, supportersText } from './supporters.ts';
 import { TOTAL, advance, game, gift, hooks, like, newRound } from './state.ts';
 
 const NAMES = [
@@ -263,7 +264,13 @@ function start(): void {
     journal: () => drainJournal(isLive(window.TikFinityBridge)),
     journalHeader: () => COLUMNS.join(';'),
     supporters: supportersText,
-    restoreSupporters,
+    // The list may come from another computer: its control room settings come with it.
+    restoreSupporters: (text: string) => {
+      const n = restoreSupporters(text),
+        saved = settingsIn(text);
+      if (saved) applySavedSettings(saved, localStorage);
+      return n;
+    },
   };
   requestAnimationFrame(loop);
   // Live gifts when TikFinity runs on this machine; a page that may not open it still plays.

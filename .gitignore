@@ -9,3 +9,6 @@ Thumbs.db
 !.env.example
 dist/
 /diagnostics/
+
+# Cloud save key for the Feed supporters list: never committed.
+cloud.local.json
