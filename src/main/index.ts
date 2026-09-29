@@ -1,10 +1,12 @@
+import { mkdir } from 'node:fs/promises';
 import path from 'node:path';
 
-import { app, type BrowserWindow } from 'electron';
+import { app, shell, type BrowserWindow } from 'electron';
 
 import { ConfigError, parseConfig, type AppConfig, type Mode } from './config.js';
 import { runDiagnostic } from './diagnostics/index.js';
 import { backUpFeed } from './feed-backup.js';
+import { journalDir, journalFeed } from './feed-journal.js';
 import { useReproducibleRendering, VISUAL_SEED } from './diagnostics/visual.js';
 import { evaluate } from './page/evaluate.js';
 import { hostRenderer } from './renderer-host.js';
@@ -57,6 +59,15 @@ function createSession(origin: string, config: AppConfig) {
   };
 
   const onRequest = (request: AppRequest): void => {
+    if (request.kind === 'journal') {
+      const folder = journalDir(app.getPath('userData'));
+      void mkdir(folder, { recursive: true })
+        .then(() => shell.openPath(folder))
+        .catch((error: unknown) => {
+          console.error('[app] could not open the journal folder', error);
+        });
+      return;
+    }
     const task = request.kind === 'open' ? openMode(request.mode) : openLauncher();
     task.catch((error: unknown) => {
       console.error('[app] could not switch windows', error);
@@ -94,7 +105,11 @@ function createSession(origin: string, config: AppConfig) {
       // Feed saves its round every second, so a sudden shutdown can be undone on the next launch.
       if (mode === 'feed') {
         const stop = await backUpFeed(game, app.getPath('userData'));
-        game.once('closed', stop);
+        const stopJournal = await journalFeed(game, app.getPath('userData'));
+        game.once('closed', () => {
+          stop();
+          stopJournal();
+        });
       }
       return [game, control];
     });

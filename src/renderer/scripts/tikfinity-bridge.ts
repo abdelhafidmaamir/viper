@@ -65,6 +65,7 @@ function process(m: unknown): number | null {
       type: 'like',
       n: nl,
       nickname: d.nickname ?? d.uniqueId ?? '',
+      id: d.uniqueId ?? '',
       avatar: d.profilePictureUrl ?? '',
     } as AudienceEvent);
   }
@@ -95,6 +96,7 @@ function process(m: unknown): number | null {
       type: ty,
       n: 1,
       nickname: d.nickname ?? d.uniqueId ?? '',
+      id: d.uniqueId ?? '',
       avatar: d.profilePictureUrl ?? '',
     } as AudienceEvent);
   }
@@ -160,6 +162,7 @@ function forwardGift(d: TikFinityPayload, n: number): number | null {
     value,
     name: giftName,
     nickname: d.nickname ?? d.uniqueId ?? '',
+    id: d.uniqueId ?? '',
     avatar: d.profilePictureUrl ?? '',
   } as AudienceEvent);
 }

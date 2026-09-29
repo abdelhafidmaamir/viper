@@ -20,6 +20,8 @@ import {
 } from '../../shared/feed-protocol.ts';
 import { setLanguage } from '../engine/i18n.ts';
 import { alertViewer, setAlertsOn } from './alerts.ts';
+import { note, noteJoin, noteLikes, noteViewers } from './journal.ts';
+import { supporterGift, supporterJoin, supporterLikes, supporterSocial } from './supporters.ts';
 import type { AudienceEvent } from '../engine/types.ts';
 import {
   PATTERNS,
@@ -167,14 +169,35 @@ export function receiveFeedEvent(ev: AudienceEvent | null | undefined): number {
   const n = Math.max(1, Math.min(parseInt(String(ev?.n ?? 1)) || 1, 10000));
   // Any event carries the viewer's photo: remember it for every place their face shows.
   notePhoto(ev?.nickname ?? '', ev?.avatar === '' ? undefined : ev?.avatar);
+  // Everything that comes from the live goes into the journal and the supporters list.
+  const id = ev?.id ?? '',
+    who = ev?.nickname ?? '';
+  if (ev?.type === 'viewers') noteViewers(Math.max(0, Number(ev.total) || 0));
   if (ev?.type === 'like') {
     like(ev.nickname ?? 'viewer', ev.avatar, n);
     alertViewer('like', ev.nickname ?? '', ev.avatar, n);
+    noteLikes(id || who, n);
+    supporterLikes(id, who, n);
+  }
+  if (ev?.type === 'join') noteJoin(supporterJoin(id, who));
+  if (ev?.type === 'share' || ev?.type === 'follow') {
+    note({ event: ev.type, source: 'tiktok', nickname: who, id });
+    supporterSocial(ev.type, id, who);
   }
   if (ev?.type === 'join' || ev?.type === 'share' || ev?.type === 'follow')
     alertViewer(ev.type, ev.nickname ?? '', ev.avatar);
   if (ev?.type !== 'gift') return 0;
   const berries = berriesPerGift(ev.name ?? ev.gift, ev.value);
+  note({
+    event: 'gift',
+    source: 'tiktok',
+    nickname: who,
+    id,
+    gift: ev.name ?? ev.gift ?? '?',
+    count: n,
+    berries: berries * n,
+  });
+  supporterGift(id, who, berries * n);
   giftLog.unshift({
     at: Date.now(),
     nickname: ev.nickname ?? 'viewer',
@@ -225,6 +248,10 @@ export function restoreBackup(text: string): boolean {
     newRound();
     repay(saved.owed, true);
   } else resumeRound(saved);
+  note({
+    event: 'round restored',
+    detail: `after a restart, ${String((saved.owed ?? []).reduce((sum, o) => sum + o.n, 0))} berries owed`,
+  });
   giftLog.unshift({
     at: Date.now(),
     nickname: 'Backup',
@@ -241,11 +268,19 @@ export function applyFeedCommand(command: FeedCommand, deps: FeedLinkDeps): void
   switch (command.cmd) {
     case 'gift':
       if (!(command.gift in FEED_GIFTS)) return;
-      gift(
-        command.nickname ?? deps.someone(),
-        undefined,
-        FEED_GIFTS[command.gift] * count(command.count),
-      );
+      {
+        const nickname = command.nickname ?? deps.someone(),
+          berries = FEED_GIFTS[command.gift] * count(command.count);
+        gift(nickname, undefined, berries);
+        note({
+          event: 'gift',
+          source: 'manual',
+          nickname,
+          gift: command.gift,
+          count: count(command.count),
+          berries,
+        });
+      }
       return;
     case 'likes':
       like(command.nickname ?? deps.someone(), undefined, count(command.count));
@@ -257,6 +292,7 @@ export function applyFeedCommand(command: FeedCommand, deps: FeedLinkDeps): void
       deps.bridge.stop();
       return;
     case 'round':
+      note({ event: 'new round by hand', source: 'manual' });
       newRound();
       return;
     case 'near-full':
@@ -272,11 +308,17 @@ export function applyFeedCommand(command: FeedCommand, deps: FeedLinkDeps): void
       if (!nickname) return;
       gift(nickname, photoOf(nickname), n, true);
       giftLog.unshift({ at: Date.now(), nickname, name: 'Given by hand', count: 1, berries: n });
+      note({ event: 'given back', source: 'manual', nickname, berries: n });
       if (giftLog.length > GIFT_LOG) giftLog.length = GIFT_LOG;
       return;
     }
     case 'setting':
       if (!Object.hasOwn(settings, command.name) || !apply(command.name, command.value)) return;
+      note({
+        event: 'setting',
+        source: 'manual',
+        detail: `${command.name} = ${String(settings[command.name])}`,
+      });
       safely(() => {
         deps.storage.setItem(STORAGE_KEY, JSON.stringify(settings));
       });

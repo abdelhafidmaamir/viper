@@ -20,6 +20,11 @@ describe('appRequest', () => {
     expect(appRequest(`${ORIGIN}/__viper/launcher`, ORIGIN)).toEqual({ kind: 'launcher' });
   });
 
+  it('reads the request to open the journal folder', () => {
+    expect(appRequest(`${ORIGIN}/__viper/journal`, ORIGIN)).toEqual({ kind: 'journal' });
+    expect(appRequest('http://evil.example/__viper/journal', ORIGIN)).toBeNull();
+  });
+
   it.each([
     `${ORIGIN}/game.html`,
     `${ORIGIN}/__viper/open?mode=race`,

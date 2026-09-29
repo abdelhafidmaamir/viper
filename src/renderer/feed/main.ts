@@ -33,7 +33,9 @@ import {
   rollAmbience,
   settings,
 } from './control-link.ts';
+import { COLUMNS, drainJournal, note } from './journal.ts';
 import { armSound } from './sound.ts';
+import { restoreSupporters, supportersText } from './supporters.ts';
 import { TOTAL, advance, game, gift, hooks, like, newRound } from './state.ts';
 
 const NAMES = [
@@ -102,7 +104,10 @@ function simulate(dt: number): void {
   simTimer = lo + Math.random() * (hi - lo);
   // The rule: a Rose drops 1 berry, a Rosa drops 10, times the streak.
   const berries = Math.random() < 0.8 ? berriesPerGift('Rose') : berriesPerGift('Rosa');
-  gift(someone(), undefined, berries * (1 + Math.floor(Math.random() * 3)));
+  const nickname = someone(),
+    n = berries * (1 + Math.floor(Math.random() * 3));
+  gift(nickname, undefined, n);
+  note({ event: 'gift', source: 'simulated', nickname, berries: n });
 }
 
 window.receiveEvent = receiveFeedEvent;
@@ -250,6 +255,11 @@ function start(): void {
   (window as unknown as { __viperFeed: unknown }).__viperFeed = {
     snapshot: backupText,
     restore: restoreBackup,
+    // The live's journal and the lifetime supporters, saved by the app (src/main/feed-journal.ts).
+    journal: () => drainJournal(isLive(window.TikFinityBridge)),
+    journalHeader: () => COLUMNS.join(';'),
+    supporters: supportersText,
+    restoreSupporters,
   };
   requestAnimationFrame(loop);
   // Live gifts when TikFinity runs on this machine; a page that may not open it still plays.
