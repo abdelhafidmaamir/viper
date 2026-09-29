@@ -1,7 +1,9 @@
 /** Live screen: round, TikFinity, top gifters, and ambience cards. */
 import {
+  ENTRANCE_GAPS,
   FEED_HOURS,
   FEED_WEATHERS,
+  ONCE_PER_LIVE,
   START_FILLS,
   type FeedCommand,
   type FeedWeather,
@@ -15,6 +17,7 @@ import { h, setHidden, setText, setVar } from '../control/ui/dom.ts';
 import {
   armVm,
   controlsReason,
+  rehearsalReason,
   resolvePending,
   type ArmKey,
   type FeedControlStore,
@@ -288,6 +291,85 @@ function grantCard(dispatch: Dispatch, reason: Reason): FeedView {
   };
 }
 
+const GAP_OPTIONS = ENTRANCE_GAPS.map((value) => ({
+  value,
+  label:
+    value === 0
+      ? 'Every arrival'
+      : value < 0
+        ? 'Off'
+        : value >= ONCE_PER_LIVE
+          ? 'Once per live'
+          : `${String(value)} min`,
+}));
+
+/**
+ * Supporter entrances: gifters and moderators arriving get a big entrance over the board. How often
+ * the same person gets it, a Skip for one that comes at a bad time, and rehearsal buttons.
+ */
+function entrancesCard(dispatch: Dispatch, reason: Reason, rehearsal: Reason): FeedView {
+  const gap = createSegmented({
+    label: 'Same person, big entrance at most every',
+    options: GAP_OPTIONS,
+    onSelect: (value) => {
+      dispatch({ cmd: 'setting', name: 'entranceGap', value });
+    },
+  });
+  const skip = createButton({
+    label: 'Skip entrance',
+    variant: 'secondary',
+    onPress: () => {
+      dispatch({ cmd: 'skip-entrance' });
+    },
+  });
+  const tests = (
+    [
+      ['Test gifter', 0, false],
+      ['Test #1', 1, false],
+      ['Test mod', 0, true],
+    ] as const
+  ).map(([label, rank, mod]) =>
+    createButton({
+      label,
+      variant: 'secondary',
+      onPress: () => {
+        dispatch({ cmd: 'test-entrance', rank, mod });
+      },
+    }),
+  );
+  const card = createCard({ title: 'Supporter entrances' }, [
+    gap.el,
+    h('p', {
+      class: 'field__caption',
+      text: 'In between, they get the gold alert at the bottom. Every pass in the top 3 is shown.',
+    }),
+    skip.el,
+    h(
+      'div',
+      { class: 'row row--wrap' },
+      tests.map((b) => b.el),
+    ),
+  ]);
+  return {
+    el: card.el,
+    update(state) {
+      const r = reason();
+      const g = resolvePending(
+        state.gameState?.settings.entranceGap,
+        state.pending.entranceGap,
+        state.now,
+      );
+      gap.update({
+        value: typeof g.value === 'number' ? g.value : undefined,
+        status: g.status,
+        reason: r,
+      });
+      skip.update({ reason: r });
+      for (const b of tests) b.update({ reason: rehearsal() });
+    },
+  };
+}
+
 function ambienceCard(dispatch: Dispatch, reason: Reason): FeedView {
   const weather = createSegmented({
     label: 'Weather',
@@ -339,10 +421,11 @@ export function createLiveScreen(
   const ambienceV = ambienceCard(dispatch, reason);
   const giftsV = giftsCard();
   const grantV = grantCard(dispatch, reason);
-  const all = [roundV, bridgeV, leadersV, giftsV, grantV, ambienceV];
+  const entrancesV = entrancesCard(dispatch, reason, () => rehearsalReason(store.get()));
+  const all = [roundV, bridgeV, leadersV, giftsV, grantV, entrancesV, ambienceV];
   return {
     el: h('div', { class: 'screen screen--live' }, [
-      h('div', { class: 'column column--left' }, [roundV.el, bridgeV.el]),
+      h('div', { class: 'column column--left' }, [roundV.el, bridgeV.el, entrancesV.el]),
       h('div', { class: 'column column--center' }, [
         leadersV.el,
         giftsV.el,

@@ -543,6 +543,8 @@ export interface AudienceEvent {
   readonly nickname?: string;
   /** The viewer's TikTok @handle: stays the same when they change their display name. */
   readonly id?: string;
+  /** The viewer moderates the live, as TikTok reports it. */
+  readonly mod?: boolean;
   readonly avatar?: string;
   /** Viewer count ('viewers' events). */
   readonly total?: number;

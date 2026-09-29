@@ -97,6 +97,7 @@ function process(m: unknown): number | null {
       n: 1,
       nickname: d.nickname ?? d.uniqueId ?? '',
       id: d.uniqueId ?? '',
+      mod: isModerator(d),
       avatar: d.profilePictureUrl ?? '',
     } as AudienceEvent);
   }
@@ -139,6 +140,19 @@ function process(m: unknown): number | null {
     return null;
   }
   return forwardGift(d, Math.max(1, parseInt(String(d.repeatCount ?? '')) || 1));
+}
+
+/** Whether TikTok says the viewer moderates this live: the flag, or a moderator badge. */
+function isModerator(d: TikFinityPayload): boolean {
+  const badges: readonly { readonly type?: string; readonly name?: string }[] = Array.isArray(
+    d.userBadges,
+  )
+    ? d.userBadges
+    : [];
+  return (
+    d.isModerator === true ||
+    badges.some((b) => /moderator/i.test(`${b.type ?? ''} ${b.name ?? ''}`))
+  );
 }
 
 /** Follows and shares seen lately, so one arriving twice is announced once. */

@@ -16,6 +16,8 @@ export interface Supporter {
   shares: number;
   first: number;
   last: number;
+  /** Berries by day ("2026-09-29"), so the ranking can later be counted over a month too. */
+  days?: Record<string, number> | undefined;
 }
 
 /** Past this, the viewers seen longest ago and never supporting are forgotten first. */
@@ -67,7 +69,25 @@ export function supporterGift(
   now = Date.now(),
 ): void {
   const s = entry(id, nickname, now);
-  if (s && berries > 0) s.berries += berries;
+  if (!s || berries <= 0) return;
+  s.berries += berries;
+  const day = dayOf(now);
+  s.days ??= {};
+  s.days[day] = (s.days[day] ?? 0) + berries;
+}
+
+const dayOf = (at: number): string => {
+  const d = new Date(at);
+  return `${String(d.getFullYear())}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
+};
+
+/** Normalises a TikTok id the way the list keys it. */
+export const supporterKey = (id: string): string => key(id);
+
+/** Place in the all-time top three (1 to 3), or 0. */
+export function lifetimeRank(id: string): number {
+  const k = key(id);
+  return k ? topSupporters(3).findIndex((s) => s.id === k) + 1 : 0;
 }
 
 export function supporterLikes(id: string, nickname: string, n: number, now = Date.now()): void {
@@ -104,6 +124,14 @@ export function supporter(id: string): Supporter | undefined {
   return all.get(key(id));
 }
 
+/** The all-time ranking: berries given first, likes to break a tie and to rank those who only like. */
+export function topSupporters(n = 5): Supporter[] {
+  return [...all.values()]
+    .filter((s) => s.berries > 0 || s.likes > 0)
+    .sort((a, b) => b.berries - a.berries || b.likes - a.likes)
+    .slice(0, n);
+}
+
 /** The whole list to save, or null when nothing changed since the last save. */
 export function supportersText(): string | null {
   if (!dirty) return null;
@@ -113,6 +141,14 @@ export function supportersText(): string | null {
 
 const num = (v: unknown): number =>
   typeof v === 'number' && Number.isFinite(v) && v >= 0 ? Math.round(v) : 0;
+
+function readDays(v: unknown): Record<string, number> | undefined {
+  if (typeof v !== 'object' || v === null) return undefined;
+  const out: Record<string, number> = {};
+  for (const [day, n] of Object.entries(v))
+    if (/^\d{4}-\d{2}-\d{2}$/.test(day) && num(n) > 0) out[day] = num(n);
+  return out;
+}
 
 /**
  * Loads the saved list. Whatever this session already counted (events can arrive before the file
@@ -145,6 +181,7 @@ export function restoreSupporters(text: string): number {
       shares: num(r.shares),
       first: num(r.first),
       last: num(r.last),
+      days: readDays(r.days),
     };
     if (now) {
       now.berries += back.berries;
@@ -153,6 +190,10 @@ export function restoreSupporters(text: string): number {
       now.follows += back.follows;
       now.shares += back.shares;
       now.first = Math.min(now.first, back.first || now.first);
+      for (const [day, n] of Object.entries(back.days ?? {})) {
+        now.days ??= {};
+        now.days[day] = (now.days[day] ?? 0) + n;
+      }
     } else all.set(k, back);
     n++;
   }

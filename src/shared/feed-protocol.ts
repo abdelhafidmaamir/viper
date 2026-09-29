@@ -60,6 +60,13 @@ export type CrowdLevel = (typeof CROWD_LEVELS)[number];
 /** Board share a round starts at: 0 is the normal start (short snake, sprint to 40%). */
 export const START_FILLS = [0, 0.5, 0.75, 0.9, 0.95] as const;
 
+/**
+ * How often the same supporter gets their big entrance, in minutes: 0 at every arrival, 9999 once
+ * per live, -1 never (the gold alert at the bottom only).
+ */
+export const ENTRANCE_GAPS = [0, 5, 15, 30, 9999, -1] as const;
+export const ONCE_PER_LIVE = 9999;
+
 export interface FeedSettings {
   readonly weather: FeedWeather;
   readonly hour: number;
@@ -70,6 +77,10 @@ export interface FeedSettings {
   readonly startFill: number;
   /** Viewer alerts under the board (joins, likes, shares, follows). */
   readonly alerts: boolean;
+  /** Supporter entrances over the board: minutes between two for the same person (ENTRANCE_GAPS). */
+  readonly entranceGap: number;
+  /** Moderators' TikTok @handles, comma separated, for when TikTok does not say so itself. */
+  readonly mods: string;
 }
 
 export type FeedSettingName = keyof FeedSettings;
@@ -91,6 +102,10 @@ export type FeedCommand =
   | { readonly cmd: 'crowd'; readonly level: CrowdLevel }
   /** Gives a viewer berries by hand (to make up for a loss): they rank like a gift. */
   | { readonly cmd: 'grant'; readonly nickname: string; readonly count: number }
+  /** Ends the supporter entrance on screen now. */
+  | { readonly cmd: 'skip-entrance' }
+  /** Rehearsal: a made-up supporter arrives (a gifter, a top 3 place, or a moderator). */
+  | { readonly cmd: 'test-entrance'; readonly rank?: number; readonly mod?: boolean }
   | { readonly cmd: 'setting'; readonly name: FeedSettingName; readonly value: unknown };
 
 export interface FeedLeader {
@@ -139,6 +154,8 @@ const COMMANDS: ReadonlySet<string> = new Set<FeedCommand['cmd']>([
   'crowd',
   'setting',
   'grant',
+  'skip-entrance',
+  'test-entrance',
 ]);
 
 const isRecord = (value: unknown): value is Record<string, unknown> =>
@@ -177,6 +194,12 @@ export function sanitizeSetting<K extends FeedSettingName>(
       return typeof value === 'boolean' ? ok(value) : undefined;
     case 'startFill':
       return START_FILLS.includes(value as (typeof START_FILLS)[number]) ? ok(value) : undefined;
+    case 'entranceGap':
+      return ENTRANCE_GAPS.includes(value as (typeof ENTRANCE_GAPS)[number])
+        ? ok(value)
+        : undefined;
+    case 'mods':
+      return typeof value === 'string' ? ok(value.slice(0, 600)) : undefined;
   }
   return undefined;
 }
