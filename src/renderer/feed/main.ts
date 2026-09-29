@@ -35,6 +35,7 @@ import {
 } from './control-link.ts';
 import { COLUMNS, drainJournal, note } from './journal.ts';
 import { armSound } from './sound.ts';
+import { paintSupporters, updateSupporters } from './vip.ts';
 import { restoreSupporters, supportersText } from './supporters.ts';
 import { TOTAL, advance, game, gift, hooks, like, newRound } from './state.ts';
 
@@ -178,6 +179,8 @@ function step(dt: number): void {
   simulate(dt);
   advance(dt);
   updateAlerts(dt);
+  // Supporter entrances wait while the board is not in play (get ready, end screen).
+  updateSupporters(dt, game.ready >= 0 || game.full >= 0);
   easeHour(dt);
   const c = ctx as CanvasRenderingContext2D | null,
     a = ambience();
@@ -208,6 +211,7 @@ function step(dt: number): void {
     paintFlower(t);
     paintFull();
     paintReady();
+    paintSupporters(t);
     paintAlerts();
     a.update(dt, e);
   }

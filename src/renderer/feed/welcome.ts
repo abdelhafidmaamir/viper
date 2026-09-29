@@ -62,33 +62,72 @@ const easeOutBack = (u: number): number => {
   return 1 + 2.4 * x * x * x + 1.4 * x * x;
 };
 
+/** A flower's look: the berry flower's pink by default, another colour and petal for others. */
+export interface BloomStyle {
+  readonly base: string;
+  readonly tip: string;
+  readonly edge: string;
+  /** Pointed petals, like a lotus, instead of the berry flower's round ones. */
+  readonly pointed?: boolean;
+  /** The glow behind, as "r,g,b". */
+  readonly halo: string;
+}
+
+const BERRY_FLOWER: BloomStyle = {
+  base: 'rgb(200,84,110)',
+  tip: '#f6b8c4',
+  edge: 'rgba(255,235,240,0.35)',
+  halo: '246,184,196',
+};
+
+/** A moderator's flower: the same opening as a gifter's, a lotus in the moderators' blue. */
+export const LOTUS: BloomStyle = {
+  base: 'rgb(92,108,200)',
+  tip: '#d6ddff',
+  edge: 'rgba(235,240,255,0.4)',
+  pointed: true,
+  halo: '176,190,255',
+};
+
 /** One petal of the berry flower, pointing up from the origin. */
-function petal(len: number, wide: number): void {
+function petal(len: number, wide: number, style: BloomStyle = BERRY_FLOWER): void {
   const c = ctx,
     g = c.createLinearGradient(0, 0, 0, -len);
-  g.addColorStop(0, 'rgb(200,84,110)');
-  g.addColorStop(1, '#f6b8c4');
+  g.addColorStop(0, style.base);
+  g.addColorStop(1, style.tip);
   c.fillStyle = g;
   c.beginPath();
   c.moveTo(0, 0);
-  c.bezierCurveTo(wide, -len * 0.35, wide * 0.8, -len * 0.95, 0, -len);
-  c.bezierCurveTo(-wide * 0.8, -len * 0.95, -wide, -len * 0.35, 0, 0);
+  if (style.pointed) {
+    c.bezierCurveTo(wide * 0.95, -len * 0.3, wide * 0.55, -len * 0.75, 0, -len);
+    c.bezierCurveTo(-wide * 0.55, -len * 0.75, -wide * 0.95, -len * 0.3, 0, 0);
+  } else {
+    c.bezierCurveTo(wide, -len * 0.35, wide * 0.8, -len * 0.95, 0, -len);
+    c.bezierCurveTo(-wide * 0.8, -len * 0.95, -wide, -len * 0.35, 0, 0);
+  }
   c.fill();
-  c.strokeStyle = 'rgba(255,235,240,0.35)';
+  c.strokeStyle = style.edge;
   c.lineWidth = 1.2;
   c.stroke();
 }
 
 /** Petals opening around a photo of radius r at (x, y), `age` seconds after the card appeared. */
-export function paintBloom(x: number, y: number, r: number, age: number, t: number): void {
+export function paintBloom(
+  x: number,
+  y: number,
+  r: number,
+  age: number,
+  t: number,
+  style: BloomStyle = BERRY_FLOWER,
+): void {
   const c = ctx;
   c.save();
   c.translate(x, y);
   // A soft pink glow behind the flower, like the berry flower's.
   const open = easeOutBack((age - 0.08) / 0.7),
     halo = c.createRadialGradient(0, 0, r * 0.5, 0, 0, r * 2.6);
-  halo.addColorStop(0, `rgba(246,184,196,${String(0.45 * Math.min(1, open))})`);
-  halo.addColorStop(1, 'rgba(246,184,196,0)');
+  halo.addColorStop(0, `rgba(${style.halo},${String(0.45 * Math.min(1, open))})`);
+  halo.addColorStop(1, `rgba(${style.halo},0)`);
   c.fillStyle = halo;
   c.beginPath();
   c.arc(0, 0, r * 2.6, 0, Math.PI * 2);
@@ -104,7 +143,7 @@ export function paintBloom(x: number, y: number, r: number, age: number, t: numb
         wide = r * (0.4 + 0.22 * o);
       c.save();
       c.rotate(a);
-      petal(len, wide);
+      petal(len, wide, style);
       c.restore();
     }
   c.restore();
@@ -123,6 +162,7 @@ export function paintLoosePetals(
   count: number,
   halfH: number,
   reach: number,
+  style: BloomStyle = BERRY_FLOWER,
 ): void {
   const c = ctx;
   for (let i = 0; i < count; i++) {
@@ -141,7 +181,7 @@ export function paintLoosePetals(
     c.globalAlpha *= Math.min(1, s / 0.25);
     c.translate(px, py);
     c.rotate(0.8 + i + s * (0.7 + (i % 4) * 0.15));
-    petal(r * 0.75, r * 0.38);
+    petal(r * 0.75, r * 0.38, style);
     c.restore();
   }
 }

@@ -10,8 +10,8 @@ import { W } from '../engine/layout.ts';
 import { GOLD } from '../engine/palette.ts';
 import { BOARD_H, FY0 } from './grid.ts';
 import { burstSprite } from './alert-fx.ts';
-import { FONT, paintFace } from './paint.ts';
-import { paintBloom, paintLoosePetals, visitNumber } from './welcome.ts';
+import { FONT, crown, paintFace } from './paint.ts';
+import { LOTUS, paintBloom, paintLoosePetals, visitNumber } from './welcome.ts';
 
 export type AlertKind = 'join' | 'like' | 'share' | 'follow';
 
@@ -28,6 +28,11 @@ interface Alert {
   hearts: number;
   /** For a join: which visit this is, 1 the first time the viewer ever joins. */
   visit: number;
+  /**
+   * For a join by someone who has given before and already had their big entrance lately: 0 for
+   * a gifter, 1 to 3 for the top three, -1 for a moderator. Undefined for everyone else.
+   */
+  supporter: number | undefined;
 }
 
 interface Heart {
@@ -113,6 +118,7 @@ export function alertViewer(
   nickname: string,
   avatar: string | undefined,
   n = 1,
+  supporter?: number,
 ): void {
   if (!nickname || !alertsOn) return;
   if (kind === 'like') {
@@ -148,8 +154,20 @@ export function alertViewer(
     nickname,
     avatar,
     likes: kind === 'like' ? n : 0,
-    phrase: kind === 'join' ? (visit === 1 ? 'welcome.new' : 'welcome.back') : pickPhrase(kind),
+    phrase:
+      kind !== 'join'
+        ? pickPhrase(kind)
+        : supporter !== undefined
+          ? supporter > 0
+            ? 'welcome.top'
+            : supporter < 0
+              ? 'welcome.mod'
+              : 'welcome.supporter'
+          : visit === 1
+            ? 'welcome.new'
+            : 'welcome.back',
     visit,
+    supporter: kind === 'join' ? supporter : undefined,
     age: 0,
     hearts: kind === 'like' ? Math.min(HEARTS_PER_EVENT, n) : BURST[kind],
   };
@@ -248,7 +266,7 @@ const smooth = (v: number): number => {
 
 /** The sentence with the name cut out, so the name can be drawn bold in gold. */
 function sentence(a: Alert): [string, string, string] {
-  const text = tr(a.phrase, { n: a.likes }),
+  const text = tr(a.phrase, { n: a.phrase === 'welcome.top' ? (a.supporter ?? 0) : a.likes }),
     at = text.indexOf('{name}'),
     name = a.nickname.length > 18 ? a.nickname.slice(0, 17) + '…' : a.nickname;
   return at < 0 ? [text, '', ''] : [text.slice(0, at), name, text.slice(at + 6)];
@@ -274,7 +292,13 @@ export function paintAlerts(): void {
       c.beginPath();
       c.roundRect(x, y, CARD_W, CARD_H, CARD_H / 2);
       c.fill();
-      const accent = ACCENT[a.kind];
+      // A supporter's card is gold, the colour of their big entrance.
+      const accent =
+        a.supporter === undefined
+          ? ACCENT[a.kind]
+          : a.supporter < 0
+            ? '176,190,255'
+            : '242,197,124';
       c.fillStyle = `rgba(${accent},${(0.12 * (1 - Math.min(1, a.age / 1.4))).toFixed(3)})`;
       c.fill();
       c.lineWidth = 1.5;
@@ -282,8 +306,11 @@ export function paintAlerts(): void {
       c.stroke();
       const ax = x + 18 + AVATAR / 2;
       // A join is the viewer's first impression: the flower's petals open around their photo.
-      if (a.kind === 'join') paintBloom(ax, 0, AVATAR / 2, a.age, a.age);
+      // A moderator's welcome opens their blue lotus instead of the berry flower.
+      const flower = a.supporter !== undefined && a.supporter < 0 ? LOTUS : undefined;
+      if (a.kind === 'join') paintBloom(ax, 0, AVATAR / 2, a.age, a.age, flower);
       paintFace(a, ax, 0, AVATAR / 2, `rgb(${accent})`);
+      if (a.supporter === 1) crown(ax, -AVATAR / 2 - 6, 1.1);
       // Text: regular words in light, the name bold in gold, shrunk to fit one line.
       const [before, name, after] = sentence(a),
         // The bloom reaches past the photo: the welcome's text starts a little further right.
@@ -311,7 +338,7 @@ export function paintAlerts(): void {
       // Repeat shares: a badge on the corner that jumps at each new one.
       // Loose petals along the card's edges; only the words tell a first visit from a return.
       if (a.kind === 'join')
-        paintLoosePetals(ax, 0, AVATAR / 2, a.age, 20, CARD_H / 2, CARD_W - AVATAR - 60);
+        paintLoosePetals(ax, 0, AVATAR / 2, a.age, 20, CARD_H / 2, CARD_W - AVATAR - 60, flower);
       c.restore();
     }
   }

@@ -315,7 +315,7 @@ const BERRY_R = 44,
   BERRY_FRAMES = 32,
   berrySprites: HTMLCanvasElement[] = [];
 
-function berrySprite(phase: number): HTMLCanvasElement {
+export function berrySprite(phase: number): HTMLCanvasElement {
   const cached = berrySprites[phase];
   if (cached) return cached;
   const sprite = document.createElement('canvas');

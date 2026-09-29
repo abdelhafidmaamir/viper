@@ -37,6 +37,8 @@ function makeGameState(overrides?: Partial<FeedState>): FeedState {
       language: 'en',
       startFill: 0,
       alerts: true,
+      entranceGap: 0,
+      mods: '',
     },
     fps: 60,
     slowFrames: 0,
@@ -188,6 +190,8 @@ describe('cleanPending', () => {
         language: 'en',
         startFill: 0,
         alerts: true,
+        entranceGap: 0,
+        mods: '',
       },
     });
     const pending = { weather: { value: 'snow', sentAt: 0 } };

@@ -186,6 +186,31 @@ export function createSetupScreen(dispatch: Dispatch, reason: Reason): FeedView 
     }),
     journal.el,
   ]);
+  // Moderators TikTok does not flag: their @handles, so they get their entrance too.
+  const mods = h('input', {
+    class: 'input',
+    attrs: {
+      type: 'text',
+      placeholder: '@handle, @handle',
+      maxlength: '600',
+      'aria-label': 'Moderators',
+    },
+  });
+  const saveMods = createButton({
+    label: 'Save moderators',
+    variant: 'secondary',
+    onPress: () => {
+      dispatch({ cmd: 'setting', name: 'mods', value: mods.value });
+    },
+  });
+  let modsShown = false;
+  const modsCard = createCard({ title: 'Moderators' }, [
+    h('p', {
+      class: 'field__caption',
+      text: 'Recognised by themselves when TikTok says so. Add here the @handles it misses.',
+    }),
+    h('div', { class: 'row row--wrap' }, [mods, saveMods.el]),
+  ]);
   const shortcutText = h('pre', { class: 'card__line', text: SHORTCUTS_TEXT });
   const helpCard = createCard({ title: 'Keyboard shortcuts' }, [shortcutText]);
 
@@ -193,6 +218,7 @@ export function createSetupScreen(dispatch: Dispatch, reason: Reason): FeedView 
     el: h('div', { class: 'screen screen--grid' }, [
       langCard.el,
       alertsCard.el,
+      modsCard.el,
       journalCard.el,
       helpCard.el,
     ]),
@@ -210,6 +236,13 @@ export function createSetupScreen(dispatch: Dispatch, reason: Reason): FeedView 
       });
       const al = resolvePending(state.gameState?.settings.alerts, state.pending.alerts, state.now);
       alerts.update({ on: al.value !== false, status: al.status, reason: r });
+      saveMods.update({ reason: r });
+      // Fill the field once with what the game remembers, then leave it to the operator.
+      const saved = state.gameState?.settings.mods;
+      if (!modsShown && typeof saved === 'string') {
+        mods.value = saved;
+        modsShown = true;
+      }
     },
   };
 }

@@ -4,6 +4,7 @@
 import {
   berriesPerGift,
   CROWD_LEVELS,
+  ONCE_PER_LIVE,
   FEED_CHANNEL,
   FEED_GIFTS,
   FEED_STATE_INTERVAL_MS,
@@ -19,9 +20,19 @@ import {
   type FeedStateMessage,
 } from '../../shared/feed-protocol.ts';
 import { setLanguage } from '../engine/i18n.ts';
-import { alertViewer, setAlertsOn } from './alerts.ts';
+import { alertSounds, alertViewer, setAlertsOn } from './alerts.ts';
 import { note, noteJoin, noteLikes, noteViewers } from './journal.ts';
-import { supporterGift, supporterJoin, supporterLikes, supporterSocial } from './supporters.ts';
+import {
+  lifetimeRank,
+  supporter,
+  supporterGift,
+  supporterJoin,
+  supporterKey,
+  supporterLikes,
+  supporterSocial,
+  topSupporters,
+} from './supporters.ts';
+import { setEntranceGap, skipEntrance, welcomeSupporter, type Entrance } from './vip.ts';
 import type { AudienceEvent } from '../engine/types.ts';
 import {
   PATTERNS,
@@ -76,7 +87,12 @@ export const settings: { -readonly [K in FeedSettingName]: FeedSettings[K] } = {
   language: 'en',
   startFill: 0,
   alerts: true,
+  entranceGap: 0,
+  mods: '',
 };
+
+/** The moderators named in the control room, by TikTok @handle. */
+let modList = new Set<string>();
 
 export interface FrameMetrics {
   readonly fps: number;
@@ -108,7 +124,12 @@ export function isLive(bridge: TikFinityBridge): boolean {
 }
 
 /** Rehearsal commands: refused during a real live, so a stray key can never fake a gift. */
-const REHEARSAL: ReadonlySet<FeedCommand['cmd']> = new Set(['gift', 'likes', 'near-full']);
+const REHEARSAL: ReadonlySet<FeedCommand['cmd']> = new Set([
+  'gift',
+  'likes',
+  'near-full',
+  'test-entrance',
+]);
 
 /** Storage can throw (quota, disabled storage). Preferences are a convenience, never fatal. */
 function safely<T>(action: () => T): T | undefined {
@@ -126,6 +147,17 @@ function apply(name: FeedSettingName, value: unknown): boolean {
   if (name === 'language') setLanguage(settings.language);
   if (name === 'startFill') setStartFill(settings.startFill);
   if (name === 'alerts') setAlertsOn(settings.alerts);
+  if (name === 'entranceGap') {
+    const gap = settings.entranceGap;
+    setEntranceGap(gap < 0 ? -1 : gap >= ONCE_PER_LIVE ? Infinity : gap * 60_000);
+  }
+  if (name === 'mods')
+    modList = new Set(
+      settings.mods
+        .split(/[\s,;]+/)
+        .map((m) => supporterKey(m.replace(/^@/, '')))
+        .filter(Boolean),
+    );
   return true;
 }
 
@@ -179,13 +211,15 @@ export function receiveFeedEvent(ev: AudienceEvent | null | undefined): number {
     noteLikes(id || who, n);
     supporterLikes(id, who, n);
   }
-  if (ev?.type === 'join') noteJoin(supporterJoin(id, who));
+  if (ev?.type === 'join') {
+    noteJoin(supporterJoin(id, who));
+    welcome(ev, id, who);
+  }
   if (ev?.type === 'share' || ev?.type === 'follow') {
     note({ event: ev.type, source: 'tiktok', nickname: who, id });
     supporterSocial(ev.type, id, who);
-  }
-  if (ev?.type === 'join' || ev?.type === 'share' || ev?.type === 'follow')
     alertViewer(ev.type, ev.nickname ?? '', ev.avatar);
+  }
   if (ev?.type !== 'gift') return 0;
   const berries = berriesPerGift(ev.name ?? ev.gift, ev.value);
   note({
@@ -197,7 +231,9 @@ export function receiveFeedEvent(ev: AudienceEvent | null | undefined): number {
     count: n,
     berries: berries * n,
   });
+  const before = topSupporters(3).map((s) => s.id);
   supporterGift(id, who, berries * n);
+  if (berries > 0) announcePass(id, who, ev.avatar, before);
   giftLog.unshift({
     at: Date.now(),
     nickname: ev.nickname ?? 'viewer',
@@ -210,6 +246,74 @@ export function receiveFeedEvent(ev: AudienceEvent | null | undefined): number {
   gift(ev.nickname ?? 'viewer', ev.avatar, berries * n, true);
   return n;
 }
+
+/**
+ * Someone arrives: a gifter or a moderator gets their big entrance over the board (or, when the
+ * control room's setting says not yet, the gold alert at the bottom); everyone else the plain one.
+ */
+function welcome(ev: AudienceEvent, id: string, who: string): void {
+  if (!who) return;
+  const mine = supporter(id),
+    gave = (mine?.berries ?? 0) > 0,
+    mod =
+      ev.mod === true ||
+      (modList.size > 0 && (modList.has(supporterKey(id)) || modList.has(supporterKey(who))));
+  if (!gave && !mod) {
+    alertViewer('join', who, ev.avatar);
+    return;
+  }
+  const rank = gave ? lifetimeRank(id) : 0,
+    entrance: Entrance = {
+      nickname: who,
+      avatar: ev.avatar === '' ? undefined : ev.avatar,
+      rank,
+      berries: mine?.berries ?? 0,
+      mod,
+    };
+  if (welcomeSupporter(entrance) === 'queued') {
+    alertSounds.show('join', false);
+    note({
+      event: 'big entrance',
+      source: 'tiktok',
+      nickname: who,
+      id,
+      detail: [rank ? `top ${String(rank)}` : 'gifter', mod ? 'moderator' : '']
+        .filter(Boolean)
+        .join(', '),
+    });
+    return;
+  }
+  alertViewer('join', who, ev.avatar, 1, mod && !rank ? -1 : rank);
+}
+
+/** A gift lifted its giver past someone in the all-time top three: they knock them off the spot. */
+function announcePass(id: string, who: string, avatar: string | undefined, before: string[]): void {
+  const k = supporterKey(id);
+  if (!k) return;
+  const now = topSupporters(3).findIndex((s) => s.id === k) + 1,
+    was = before.indexOf(k) + 1 || 99;
+  if (now <= 0 || now >= was) return;
+  const passedId = before[now - 1];
+  if (!passedId || passedId === k) return;
+  const passed = supporter(passedId)?.nickname ?? passedId;
+  welcomeSupporter({
+    nickname: who,
+    avatar: avatar === '' ? undefined : avatar,
+    rank: now,
+    berries: supporter(id)?.berries ?? 0,
+    passed: { nickname: passed, avatar: photoOf(passed) },
+  });
+  alertSounds.show('follow', false);
+  note({
+    event: 'pass',
+    source: 'tiktok',
+    nickname: who,
+    id,
+    detail: `#${String(now)}, passes ${passed}`,
+  });
+}
+
+let tests = 0;
 
 const count = (value: number): number => Math.max(1, Math.min(100, Math.round(value) || 1));
 
@@ -310,6 +414,20 @@ export function applyFeedCommand(command: FeedCommand, deps: FeedLinkDeps): void
       giftLog.unshift({ at: Date.now(), nickname, name: 'Given by hand', count: 1, berries: n });
       note({ event: 'given back', source: 'manual', nickname, berries: n });
       if (giftLog.length > GIFT_LOG) giftLog.length = GIFT_LOG;
+      return;
+    }
+    case 'skip-entrance':
+      skipEntrance();
+      return;
+    case 'test-entrance': {
+      const rank = Math.max(0, Math.min(3, Math.round(command.rank ?? 0))),
+        outcome = welcomeSupporter({
+          nickname: `${deps.someone()} ${String(++tests)}`,
+          rank,
+          berries: rank ? ([0, 4820, 2310, 1175][rank] ?? 42) : 42,
+          mod: command.mod === true,
+        });
+      if (outcome === 'queued') alertSounds.show('join', false);
       return;
     }
     case 'setting':

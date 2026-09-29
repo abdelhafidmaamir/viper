@@ -76,6 +76,7 @@ const en = {
   'feed.finalRanking': 'FINAL RANKING',
   'feed.topLikes': 'TOP LIKES',
   'feed.thisRound': 'THIS ROUND',
+  'feed.allTime': 'HALL OF FAME',
   'feed.coins': 'coins',
   'feed.likesUnit': 'likes',
   'feed.nobody': 'nobody yet',
@@ -91,6 +92,9 @@ const en = {
   'feed.carriedNext': '{n} berries carry over to the next round',
   'welcome.new': 'First time here, welcome {name}!',
   'welcome.back': 'Welcome back, {name}!',
+  'welcome.supporter': 'Supporter {name} is back!',
+  'welcome.top': 'Top supporter #{n} {name} is back!',
+  'welcome.mod': 'Moderator {name} is back!',
 } as const;
 
 // The `fr` object must have exactly the same keys as `en`.
@@ -166,6 +170,7 @@ const fr: Translations = {
   'feed.finalRanking': 'CLASSEMENT FINAL',
   'feed.topLikes': 'TOP LIKES',
   'feed.thisRound': 'CETTE MANCHE',
+  'feed.allTime': 'LÉGENDES DU LIVE',
   'feed.coins': 'pièces',
   'feed.likesUnit': 'likes',
   'feed.nobody': 'personne encore',
@@ -181,6 +186,9 @@ const fr: Translations = {
   'feed.carriedNext': '{n} baies reportées à la manche suivante',
   'welcome.new': 'Premier live ici, bienvenue {name} !',
   'welcome.back': 'Content de te revoir, {name} !',
+  'welcome.supporter': 'Le soutien {name} est de retour !',
+  'welcome.top': 'Top soutien n°{n} {name} est de retour !',
+  'welcome.mod': 'Le modo {name} est de retour !',
 };
 
 export type I18nKey = keyof typeof en;
