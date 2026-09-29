@@ -4,6 +4,7 @@ import { app, type BrowserWindow } from 'electron';
 
 import { ConfigError, parseConfig, type AppConfig, type Mode } from './config.js';
 import { runDiagnostic } from './diagnostics/index.js';
+import { backUpFeed } from './feed-backup.js';
 import { useReproducibleRendering, VISUAL_SEED } from './diagnostics/visual.js';
 import { evaluate } from './page/evaluate.js';
 import { hostRenderer } from './renderer-host.js';
@@ -89,6 +90,11 @@ function createSession(origin: string, config: AppConfig) {
       if (game.isDestroyed()) {
         control.close();
         throw new Error('game window closed while opening');
+      }
+      // Feed saves its round every second, so a sudden shutdown can be undone on the next launch.
+      if (mode === 'feed') {
+        const stop = await backUpFeed(game, app.getPath('userData'));
+        game.once('closed', stop);
       }
       return [game, control];
     });

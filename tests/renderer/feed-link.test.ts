@@ -3,7 +3,9 @@ import { beforeEach, describe, expect, it } from 'vitest';
 import {
   applyFeedCommand,
   feedSnapshot,
+  backupText,
   receiveFeedEvent,
+  restoreBackup,
   restoreSettings,
   restoreUnpaid,
   settings,
@@ -136,6 +138,33 @@ describe('feed control link', () => {
   it('rehearsal gifts are never brought back after a restart', () => {
     applyFeedCommand({ cmd: 'gift', gift: 'rosa', count: 5 }, deps());
     expect(unpaid()).toEqual([]);
+  });
+
+  it('after a sudden shutdown the round comes back whole: snake, crown with photo, berries owed', () => {
+    receiveFeedEvent({ type: 'join', nickname: 'moe', avatar: 'https://p/moe.jpg' });
+    receiveFeedEvent({ type: 'gift', name: 'Rosa', n: 2, value: 10, nickname: 'moe' });
+    for (let f = 0; f < 60 * 6; f++) advance(1 / 60, () => 0.5);
+    const len = game.len,
+      round = game.round,
+      saved = backupText();
+    // The PC shuts down; the app starts again with a fresh round.
+    game.queue = [];
+    newRound(() => 0.3);
+    expect(restoreBackup(saved)).toBe(true);
+    expect(game.round).toBe(round);
+    expect(game.len).toBeCloseTo(len, 5);
+    expect(game.fans.get('moe')?.coins).toBe(20);
+    expect(game.fans.get('moe')?.avatar).toBe('https://p/moe.jpg');
+    const owed = unpaid().find((o) => o.nickname === 'moe')?.n ?? 0;
+    expect(owed + game.eaten).toBeGreaterThanOrEqual(20);
+  });
+
+  it('berries given by hand carry the viewer photo seen earlier in the live', () => {
+    receiveFeedEvent({ type: 'like', nickname: 'lou', avatar: 'https://p/lou.jpg', n: 3 });
+    const before = waiting();
+    applyFeedCommand({ cmd: 'grant', nickname: 'lou', count: 10 }, deps());
+    expect(game.fans.get('lou')?.avatar).toBe('https://p/lou.jpg');
+    expect(waiting() - before).toBe(10);
   });
 
   it('test gifts from the control room follow the same rule', () => {

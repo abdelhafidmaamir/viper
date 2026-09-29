@@ -207,6 +207,7 @@ export function setStartFill(fill: number): void {
 }
 
 export function newRound(rand: () => number = Math.random): void {
+  resumed = false;
   // Nobody's berries are lost: what lay uneaten on the board, what the flower still owed, and
   // what came in during the end screen, pour again in the new round.
   const onBoard = new Map<string, number>();
@@ -260,6 +261,34 @@ export function newRound(rand: () => number = Math.random): void {
   hooks.round();
 }
 
+/**
+ * TikTok photos of the viewers seen this live (joins, likes, gifts...), most recent last. Capped:
+ * a busy live sees thousands of people, and only recent ones are likely to be given berries.
+ */
+const photos = new Map<string, string>();
+const PHOTOS_KEPT = 5000;
+
+/**
+ * Remembers a viewer's photo and puts it on every place they already show: the leaderboard and
+ * crown, the likes, the flower. A viewer shown with initials gets their face as soon as it is known.
+ */
+export function notePhoto(nickname: string, avatar: string | undefined): void {
+  if (!nickname || !avatar) return;
+  photos.delete(nickname);
+  photos.set(nickname, avatar);
+  if (photos.size > PHOTOS_KEPT) {
+    const oldest = photos.keys().next();
+    if (!oldest.done) photos.delete(oldest.value);
+  }
+  const fan = game.fans.get(nickname);
+  if (fan) fan.avatar = avatar;
+  const liker = game.likes.get(nickname);
+  if (liker) liker.avatar = avatar;
+  for (const q of game.queue) if (q.nickname === nickname) q.avatar = avatar;
+}
+
+export const photoOf = (nickname: string): string | undefined => photos.get(nickname);
+
 /** Likes only rank: the end screen crowns the round's like champion. */
 export function like(nickname: string, avatar: string | undefined, n: number): void {
   const l = game.likes.get(nickname) ?? { nickname, avatar, likes: 0 };
@@ -293,6 +322,93 @@ export function gift(
   hooks.gift(n);
 }
 
+/** Everything a round in progress needs to pick up where it was after the app stops. */
+export interface RoundSnapshot {
+  readonly v: 1;
+  readonly round: number;
+  readonly len: number;
+  readonly headOrd: number;
+  readonly eaten: number;
+  readonly fans: readonly Fan[];
+  readonly likes: readonly Liker[];
+  readonly queue: readonly { nickname: string; n: number; total: number; avatar?: string }[];
+  readonly berries: readonly { at: number; by: string }[];
+  readonly live: readonly string[];
+  readonly photos?: readonly (readonly [string, string])[];
+}
+
+/** Set when a round was picked up after a restart: the start-up sprint is not replayed. */
+let resumed = false;
+
+/** The round in progress, or null during the end screen (the next round starts fresh then). */
+export function roundSnapshot(): RoundSnapshot | null {
+  if (game.full >= 0) return null;
+  return {
+    v: 1,
+    round: game.round,
+    len: game.len,
+    headOrd: game.body.ord[game.head] ?? 0,
+    eaten: game.eaten,
+    fans: [...game.fans.values()].map((f) => ({ ...f })),
+    likes: [...game.likes.values()].map((l) => ({ ...l })),
+    queue: game.queue
+      .filter((q) => q.nickname !== '' && q.n > 0)
+      .map((q) => ({
+        nickname: q.nickname,
+        n: q.n,
+        total: q.total,
+        ...(q.avatar ? { avatar: q.avatar } : {}),
+      })),
+    berries: [...game.berries.values()].map((b) => ({ at: b.at, by: b.by })),
+    live: [...liveGivers],
+    // Only the faces this round shows (donors, likers, berries owed): a few, not every viewer.
+    photos: [...photos].filter(
+      ([nickname]) =>
+        game.fans.has(nickname) ||
+        game.likes.has(nickname) ||
+        game.queue.some((q) => q.nickname === nickname),
+    ),
+  };
+}
+
+/**
+ * Picks a saved round up where it was: same route, same snake, same leaderboard and crown, the
+ * berries still owed back in the flower or on the board. A short GET READY runs first.
+ */
+export function resumeRound(s: RoundSnapshot, rand: () => number = Math.random): void {
+  game.queue = [];
+  game.round = Math.max(0, Math.round(s.round) - 1);
+  newRound(rand);
+  resumed = true;
+  game.len = Math.max(START_LEN, Math.min(TOTAL - 2, s.len));
+  placeBody(Math.max(0, Math.min(TOTAL - 1, Math.round(s.headOrd))), cells());
+  game.eaten = Math.max(0, Math.round(s.eaten));
+  for (const nickname of s.live) liveGivers.add(nickname);
+  for (const [nickname, url] of s.photos ?? []) photos.set(nickname, url);
+  for (const f of s.fans) game.fans.set(f.nickname, { ...f });
+  for (const l of s.likes) game.likes.set(l.nickname, { ...l });
+  for (const q of s.queue)
+    game.queue.push({
+      id: ++game.pours,
+      nickname: q.nickname,
+      n: q.n,
+      total: q.total,
+      title: titleFor(today.get(q.nickname) ?? q.total),
+      avatar: q.avatar,
+    });
+  // Berries that lay on the board go back where they were, or into the flower if the snake
+  // now covers their cell.
+  const back = new Map<string, number>();
+  for (const b of s.berries) {
+    if (b.at >= 0 && b.at < TOTAL && isFree(b.at) && !game.berries.has(b.at))
+      game.berries.set(b.at, { at: b.at, t: FALL_TIME, by: b.by });
+    else if (b.by) back.set(b.by, (back.get(b.by) ?? 0) + 1);
+  }
+  for (const [nickname, n] of back)
+    game.queue.push({ id: ++game.pours, nickname, n, total: n, title: titleFor(n) });
+  game.next = nextCell(game.body, game.berries.keys(), owed(), true);
+}
+
 /** Berries paid for and not eaten yet, per viewer: in the flower, waiting, or on the board. */
 export function unpaid(): { nickname: string; n: number }[] {
   const owedTo = new Map<string, number>();
@@ -308,11 +424,11 @@ export function unpaid(): { nickname: string; n: number }[] {
 }
 
 /** Pours again what a previous session still owed (the app was closed or crashed mid-live). */
-export function repay(owed: readonly { nickname: string; n: number }[]): void {
+export function repay(owed: readonly { nickname: string; n: number }[], ranks = false): void {
   for (const { nickname, n } of owed)
     if (n > 0) {
       liveGivers.add(nickname);
-      pourIn(nickname, undefined, n, true, false);
+      pourIn(nickname, undefined, n, true, ranks);
     }
 }
 
@@ -327,6 +443,7 @@ function pourIn(
   // Berries carried from the last round keep their giver's rank (crown, leaderboard, end screen);
   // berries given back when the app starts do not rank, so they never hold the crown.
   if (ranks) {
+    avatar ??= photos.get(nickname);
     const fan = game.fans.get(nickname) ?? { nickname, avatar, coins: 0 };
     fan.coins += n;
     if (avatar) fan.avatar = avatar;
@@ -462,7 +579,7 @@ export function advance(dt: number, rand: () => number = Math.random): boolean {
   // the countdown runs; at GO! the snake sets off through them at its one and only speed.
   if (game.ready >= 0) {
     // Nothing falls during the countdown: the berries start at GO!
-    if (game.ready === 0 && game.len < WARM_LEN) {
+    if (game.ready === 0 && game.len < WARM_LEN && !resumed) {
       game.house = HOUSE_BERRIES;
       game.houseAt = (game.body.ord[game.head] ?? 0) + HOUSE_GAP;
     }

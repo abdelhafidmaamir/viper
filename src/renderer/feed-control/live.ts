@@ -238,6 +238,56 @@ function giftsCard(): FeedView {
   };
 }
 
+/**
+ * Making up for a loss by hand: berries in a viewer's name, with their photo if they were seen
+ * this live. They drop like a gift and count for the leaderboard. Works during a live.
+ */
+function grantCard(dispatch: Dispatch, reason: Reason): FeedView {
+  const nickname = h('input', {
+    class: 'input',
+    attrs: {
+      type: 'text',
+      placeholder: 'Viewer nickname',
+      maxlength: '40',
+      'aria-label': 'Nickname',
+    },
+  });
+  const count = h('input', {
+    class: 'input',
+    attrs: { type: 'number', min: '1', max: '10000', value: '10', 'aria-label': 'Berries' },
+  });
+  const done = h('p', { class: 'field__caption' });
+  const give = createButton({
+    label: 'Give berries',
+    variant: 'secondary',
+    onPress: () => {
+      const name = nickname.value.trim(),
+        n = Math.round(Number(count.value));
+      if (!name || !(n >= 1)) {
+        setText(done, 'Type a nickname and a number of berries.');
+        return;
+      }
+      dispatch({ cmd: 'grant', nickname: name, count: Math.min(10000, n) });
+      setText(done, `${String(Math.min(10000, n))} berries given to ${name}.`);
+      nickname.value = '';
+    },
+  });
+  const card = createCard({ title: 'Give berries back' }, [
+    h('p', {
+      class: 'field__caption',
+      text: 'Make up for a loss: the berries drop in their name, with their photo, and rank like a gift.',
+    }),
+    h('div', { class: 'row row--wrap' }, [nickname, count, give.el]),
+    done,
+  ]);
+  return {
+    el: card.el,
+    update() {
+      give.update({ reason: reason() });
+    },
+  };
+}
+
 function ambienceCard(dispatch: Dispatch, reason: Reason): FeedView {
   const weather = createSegmented({
     label: 'Weather',
@@ -288,11 +338,17 @@ export function createLiveScreen(
   const leadersV = giftLeadersCard();
   const ambienceV = ambienceCard(dispatch, reason);
   const giftsV = giftsCard();
-  const all = [roundV, bridgeV, leadersV, giftsV, ambienceV];
+  const grantV = grantCard(dispatch, reason);
+  const all = [roundV, bridgeV, leadersV, giftsV, grantV, ambienceV];
   return {
     el: h('div', { class: 'screen screen--live' }, [
       h('div', { class: 'column column--left' }, [roundV.el, bridgeV.el]),
-      h('div', { class: 'column column--center' }, [leadersV.el, giftsV.el, ambienceV.el]),
+      h('div', { class: 'column column--center' }, [
+        leadersV.el,
+        giftsV.el,
+        grantV.el,
+        ambienceV.el,
+      ]),
     ]),
     update(state) {
       for (const view of all) view.update(state);
