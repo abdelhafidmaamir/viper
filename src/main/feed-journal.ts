@@ -37,6 +37,8 @@ export async function journalFeed(
   game: BrowserWindow,
   dir: string,
   cloud: CloudConfig | null = null,
+  /** Folders that may hold seed-supporters.local.json: supporters from before, added once. */
+  seedDirs: readonly string[] = [],
 ): Promise<() => void> {
   const supportersFile = path.join(dir, 'feed-supporters.json'),
     folder = journalDir(dir),
@@ -59,6 +61,18 @@ export async function journalFeed(
     await run(
       `window.__viperFeed && window.__viperFeed.restoreSupporters(${JSON.stringify(saved)})`,
     ).catch(() => undefined);
+  // Supporters from before the game kept count, shipped with the build: added once, ever (the list
+  // remembers it, here and online), so a new build or computer never counts them twice.
+  for (const d of seedDirs) {
+    const seed = await readFile(path.join(d, 'seed-supporters.local.json'), 'utf8').catch(
+      () => null,
+    );
+    if (!seed) continue;
+    await run(
+      `window.__viperFeed && window.__viperFeed.seedSupporters(${JSON.stringify(seed)})`,
+    ).catch(() => undefined);
+    break;
+  }
   // What the online copy still lacks: this computer's, when it is newer or the cloud was out of reach.
   let pending: string | null = cloud && saved && (saved !== online || !reachable) ? saved : null,
     pushedAt = 0;

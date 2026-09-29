@@ -108,7 +108,10 @@ function createSession(origin: string, config: AppConfig) {
         const stop = await backUpFeed(game, app.getPath('userData'));
         // The supporters list lives online too when the build carries its key (feed-cloud.ts).
         const cloud = await readCloudConfig([process.resourcesPath, app.getAppPath()]);
-        const stopJournal = await journalFeed(game, app.getPath('userData'), cloud);
+        const stopJournal = await journalFeed(game, app.getPath('userData'), cloud, [
+          process.resourcesPath,
+          app.getAppPath(),
+        ]);
         game.once('closed', () => {
           stop();
           stopJournal();

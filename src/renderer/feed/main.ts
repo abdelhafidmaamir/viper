@@ -28,7 +28,9 @@ import {
   isLive,
   linkFeedControl,
   receiveFeedEvent,
+  applyFeedCommand,
   applySavedSettings,
+  type FeedLinkDeps,
   backupText,
   restoreBackup,
   rollAmbience,
@@ -83,6 +85,9 @@ const GIFT_GAP: Record<Exclude<CrowdLevel, 0>, [number, number]> = {
 };
 
 let liveCheck = 0;
+
+/** What the control room link works with, kept for commands the app itself sends. */
+let linkDeps: FeedLinkDeps | undefined;
 
 function simulate(dt: number): void {
   if (crowd === 0) return;
@@ -239,7 +244,7 @@ function start(): void {
   window.addEventListener('pointerdown', armSound, { passive: true });
   armSound();
   // Settings first: the first round rolls its ambience from the saved choice.
-  linkFeedControl({
+  linkDeps = {
     bridge: window.TikFinityBridge,
     storage: localStorage,
     metrics: () => ({ fps, slowFrames, errors }),
@@ -249,7 +254,8 @@ function start(): void {
     },
     crowd: () => crowd,
     someone,
-  });
+  };
+  linkFeedControl(linkDeps);
   hooks.round = () => {
     rollAmbience();
     snap = true;
@@ -264,6 +270,17 @@ function start(): void {
     journal: () => drainJournal(isLive(window.TikFinityBridge)),
     journalHeader: () => COLUMNS.join(';'),
     supporters: supportersText,
+    // Supporters from before, shipped with the build as JSON: added once, ever.
+    seedSupporters: (json: string) => {
+      try {
+        const list = JSON.parse(json) as unknown;
+        if (Array.isArray(list))
+          if (linkDeps)
+            applyFeedCommand({ cmd: 'seed-supporters', lines: list as never }, linkDeps);
+      } catch {
+        /* a broken file adds nothing */
+      }
+    },
     // The list may come from another computer: its control room settings come with it.
     restoreSupporters: (text: string) => {
       const n = restoreSupporters(text),
