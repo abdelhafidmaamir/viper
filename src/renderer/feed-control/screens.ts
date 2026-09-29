@@ -172,11 +172,30 @@ export function createSetupScreen(dispatch: Dispatch, reason: Reason): FeedView 
       text: 'Joins, likes, shares and follows, each with its own little animation and sound.',
     }),
   ]);
+  const journal = createButton({
+    label: 'Open journal folder',
+    variant: 'secondary',
+    onPress: () => {
+      location.assign('/__viper/journal');
+    },
+  });
+  const journalCard = createCard({ title: 'Live journal' }, [
+    h('p', {
+      class: 'field__caption',
+      text: 'Every live writes a spreadsheet file: each gift, follow, share and round, likes and joins every 10 s, viewers every 30 s. Open it in Excel to compare lives.',
+    }),
+    journal.el,
+  ]);
   const shortcutText = h('pre', { class: 'card__line', text: SHORTCUTS_TEXT });
   const helpCard = createCard({ title: 'Keyboard shortcuts' }, [shortcutText]);
 
   return {
-    el: h('div', { class: 'screen screen--grid' }, [langCard.el, alertsCard.el, helpCard.el]),
+    el: h('div', { class: 'screen screen--grid' }, [
+      langCard.el,
+      alertsCard.el,
+      journalCard.el,
+      helpCard.el,
+    ]),
     update(state) {
       const r = reason();
       const lang = resolvePending(

@@ -30,7 +30,7 @@ export function worthRestoring(text: string, now = Date.now()): boolean {
 }
 
 /** Writes the whole file, forces it to disk, then swaps it in: a crash never leaves half a file. */
-async function writeDurably(file: string, text: string): Promise<void> {
+export async function writeDurably(file: string, text: string): Promise<void> {
   const tmp = `${file}.tmp`;
   const handle = await open(tmp, 'w');
   try {

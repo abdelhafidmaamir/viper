@@ -6,7 +6,10 @@ import type { Mode } from './config.js';
  * (`/__viper/launcher`). Plain navigation keeps the pages free of any preload bridge.
  */
 export type AppRequest =
-  { readonly kind: 'open'; readonly mode: Mode } | { readonly kind: 'launcher' };
+  | { readonly kind: 'open'; readonly mode: Mode }
+  | { readonly kind: 'launcher' }
+  /** The Feed control room opens the folder holding each live's journal. */
+  | { readonly kind: 'journal' };
 
 const REQUEST_PATH = '/__viper/';
 
@@ -21,6 +24,7 @@ export function appRequest(url: string, origin: string): AppRequest | null {
   if (parsed.origin !== origin || !parsed.pathname.startsWith(REQUEST_PATH)) return null;
   const action = parsed.pathname.slice(REQUEST_PATH.length);
   if (action === 'launcher') return { kind: 'launcher' };
+  if (action === 'journal') return { kind: 'journal' };
   const mode = parsed.searchParams.get('mode');
   if (action === 'open' && (mode === 'duel' || mode === 'feed')) return { kind: 'open', mode };
   return null;
