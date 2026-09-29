@@ -16,6 +16,10 @@ export interface Supporter {
   shares: number;
   first: number;
   last: number;
+  /** Their TikTok photo, the last link seen: shown in the Hall of Fame even when they are away. */
+  avatar?: string | undefined;
+  /** An imported supporter already matched to a viewer on a live (see seedSupporters). */
+  claimed?: boolean | undefined;
   /** Berries by day ("2026-09-29"), so the ranking can later be counted over a month too. */
   days?: Record<string, number> | undefined;
 }
@@ -132,11 +136,123 @@ export function topSupporters(n = 5): Supporter[] {
     .slice(0, n);
 }
 
+/**
+ * Supporters from before the game kept count, imported from TikTok's "top viewers" list, which
+ * shows display names but no @handle. Each waits under their name, already ranked, until they
+ * come to a live: the game then recognises them by name and moves their berries to their real
+ * TikTok id. A name is matched loosely: case, emoji, flags and punctuation do not count.
+ */
+const SEED = '~';
+export const looseName = (name: string): string =>
+  name
+    .normalize('NFKC')
+    .toLowerCase()
+    .replace(/[^\p{L}\p{N}]/gu, '');
+
+/** Imports past supporters. Importing the same list again changes nothing. Returns how many came in. */
+export function seedSupporters(
+  list: readonly { nickname: string; berries: number; id?: string | undefined }[],
+  now = Date.now(),
+): number {
+  let n = 0;
+  for (const { nickname, berries, id } of list) {
+    const loose = looseName(nickname),
+      k = SEED + loose;
+    if (!loose || !(berries > 0)) continue;
+    const had = all.get(k);
+    // Already claimed by a viewer who came to a live: their berries are on their own id now.
+    if (had?.claimed) continue;
+    const handle = key((id ?? '').replace(/^@/, ''));
+    if (handle) {
+      // With their @handle they need no matching: the berries go straight to their account, and
+      // the name stays marked so importing again (with or without the handle) adds nothing.
+      const mine = entry(handle, nickname.trim().slice(0, 60), now);
+      if (!mine) continue;
+      mine.berries += Math.round(Math.min(berries, 1_000_000));
+      all.set(k, { ...(had ?? blank(k, nickname, now)), berries: 0, claimed: true });
+      n++;
+      continue;
+    }
+    all.set(k, {
+      id: k,
+      nickname: nickname.trim().slice(0, 60),
+      berries: Math.round(Math.min(berries, 1_000_000)),
+      likes: 0,
+      visits: 0,
+      follows: 0,
+      shares: 0,
+      first: had?.first ?? now,
+      last: had?.last ?? now,
+    });
+    n++;
+  }
+  if (n) dirty = true;
+  return n;
+}
+
+function blank(id: string, nickname: string, now: number): Supporter {
+  return {
+    id,
+    nickname: nickname.trim().slice(0, 60),
+    berries: 0,
+    likes: 0,
+    visits: 0,
+    follows: 0,
+    shares: 0,
+    first: now,
+    last: now,
+  };
+}
+
+/** A viewer seen on a live with their TikTok id: if an imported supporter waits under their name, it is theirs. */
+export function claimSeed(id: string, nickname: string, now = Date.now()): void {
+  if (!key(id) || !nickname) return;
+  const k = SEED + looseName(nickname),
+    seed = all.get(k);
+  if (!seed || seed.claimed || seed.berries <= 0) return;
+  const mine = entry(id, nickname, now);
+  if (!mine) return;
+  mine.berries += seed.berries;
+  mine.first = Math.min(mine.first, seed.first);
+  // Kept, empty, so importing the same list again does not count them twice.
+  all.set(k, { ...seed, berries: 0, claimed: true });
+  dirty = true;
+}
+
 /** The whole list to save, or null when nothing changed since the last save. */
+/** Keeps a viewer's latest photo link with their entry. */
+export function supporterPhoto(id: string, url: string | undefined): void {
+  const s = all.get(key(id));
+  if (!s || !url || s.avatar === url || !url.startsWith('https://') || url.length > 1000) return;
+  s.avatar = url;
+  dirty = true;
+}
+
+/** The control room's settings, saved with the list so a new computer gets them back too. */
+let settingsSaved: Record<string, unknown> | undefined;
+export function supporterSettings(settings: Record<string, unknown>): void {
+  settingsSaved = { ...settings };
+  dirty = true;
+}
+
+/** The settings saved inside a list, if any. */
+export function settingsIn(text: string): Record<string, unknown> | null {
+  try {
+    const s = (JSON.parse(text) as { settings?: unknown }).settings;
+    return typeof s === 'object' && s !== null ? (s as Record<string, unknown>) : null;
+  } catch {
+    return null;
+  }
+}
+
 export function supportersText(): string | null {
   if (!dirty) return null;
   dirty = false;
-  return JSON.stringify({ savedAt: Date.now(), supporters: [...all.values()] });
+  return JSON.stringify({
+    savedAt: Date.now(),
+    supporters: [...all.values()],
+    ...(settingsSaved ? { settings: settingsSaved } : {}),
+  });
 }
 
 const num = (v: unknown): number =>
@@ -182,6 +298,11 @@ export function restoreSupporters(text: string): number {
       first: num(r.first),
       last: num(r.last),
       days: readDays(r.days),
+      claimed: r.claimed === true ? true : undefined,
+      avatar:
+        typeof r.avatar === 'string' && r.avatar.startsWith('https://')
+          ? r.avatar.slice(0, 1000)
+          : undefined,
     };
     if (now) {
       now.berries += back.berries;
@@ -190,6 +311,8 @@ export function restoreSupporters(text: string): number {
       now.follows += back.follows;
       now.shares += back.shares;
       now.first = Math.min(now.first, back.first || now.first);
+      now.avatar ??= back.avatar;
+      if (back.claimed) now.claimed = true;
       for (const [day, n] of Object.entries(back.days ?? {})) {
         now.days ??= {};
         now.days[day] = (now.days[day] ?? 0) + n;
@@ -198,6 +321,7 @@ export function restoreSupporters(text: string): number {
     n++;
   }
   if (all.size > MAX_SUPPORTERS) forgetSome();
+  settingsSaved ??= settingsIn(text) ?? undefined;
   dirty = true;
   return n;
 }

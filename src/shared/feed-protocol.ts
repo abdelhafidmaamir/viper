@@ -102,6 +102,15 @@ export type FeedCommand =
   | { readonly cmd: 'crowd'; readonly level: CrowdLevel }
   /** Gives a viewer berries by hand (to make up for a loss): they rank like a gift. */
   | { readonly cmd: 'grant'; readonly nickname: string; readonly count: number }
+  /** Supporters from before the game kept count (TikTok's top viewers list): name and coins. */
+  | {
+      readonly cmd: 'seed-supporters';
+      readonly lines: readonly {
+        readonly nickname: string;
+        readonly berries: number;
+        readonly id?: string;
+      }[];
+    }
   /** Ends the supporter entrance on screen now. */
   | { readonly cmd: 'skip-entrance' }
   /** Rehearsal: a made-up supporter arrives (a gifter, a top 3 place, or a moderator). */
@@ -156,6 +165,7 @@ const COMMANDS: ReadonlySet<string> = new Set<FeedCommand['cmd']>([
   'grant',
   'skip-entrance',
   'test-entrance',
+  'seed-supporters',
 ]);
 
 const isRecord = (value: unknown): value is Record<string, unknown> =>

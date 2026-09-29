@@ -28,6 +28,9 @@ import {
   isLive,
   linkFeedControl,
   receiveFeedEvent,
+  applyFeedCommand,
+  applySavedSettings,
+  type FeedLinkDeps,
   backupText,
   restoreBackup,
   rollAmbience,
@@ -36,7 +39,7 @@ import {
 import { COLUMNS, drainJournal, note } from './journal.ts';
 import { armSound } from './sound.ts';
 import { paintSupporters, updateSupporters } from './vip.ts';
-import { restoreSupporters, supportersText } from './supporters.ts';
+import { restoreSupporters, settingsIn, supportersText } from './supporters.ts';
 import { TOTAL, advance, game, gift, hooks, like, newRound } from './state.ts';
 
 const NAMES = [
@@ -82,6 +85,9 @@ const GIFT_GAP: Record<Exclude<CrowdLevel, 0>, [number, number]> = {
 };
 
 let liveCheck = 0;
+
+/** What the control room link works with, kept for commands the app itself sends. */
+let linkDeps: FeedLinkDeps | undefined;
 
 function simulate(dt: number): void {
   if (crowd === 0) return;
@@ -238,7 +244,7 @@ function start(): void {
   window.addEventListener('pointerdown', armSound, { passive: true });
   armSound();
   // Settings first: the first round rolls its ambience from the saved choice.
-  linkFeedControl({
+  linkDeps = {
     bridge: window.TikFinityBridge,
     storage: localStorage,
     metrics: () => ({ fps, slowFrames, errors }),
@@ -248,7 +254,8 @@ function start(): void {
     },
     crowd: () => crowd,
     someone,
-  });
+  };
+  linkFeedControl(linkDeps);
   hooks.round = () => {
     rollAmbience();
     snap = true;
@@ -263,7 +270,24 @@ function start(): void {
     journal: () => drainJournal(isLive(window.TikFinityBridge)),
     journalHeader: () => COLUMNS.join(';'),
     supporters: supportersText,
-    restoreSupporters,
+    // Supporters from before, shipped with the build as JSON: added once, ever.
+    seedSupporters: (json: string) => {
+      try {
+        const list = JSON.parse(json) as unknown;
+        if (Array.isArray(list))
+          if (linkDeps)
+            applyFeedCommand({ cmd: 'seed-supporters', lines: list as never }, linkDeps);
+      } catch {
+        /* a broken file adds nothing */
+      }
+    },
+    // The list may come from another computer: its control room settings come with it.
+    restoreSupporters: (text: string) => {
+      const n = restoreSupporters(text),
+        saved = settingsIn(text);
+      if (saved) applySavedSettings(saved, localStorage);
+      return n;
+    },
   };
   requestAnimationFrame(loop);
   // Live gifts when TikFinity runs on this machine; a page that may not open it still plays.

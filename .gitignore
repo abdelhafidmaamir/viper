@@ -9,3 +9,8 @@ Thumbs.db
 !.env.example
 dist/
 /diagnostics/
+
+# Cloud save key for the Feed supporters list: never committed.
+cloud.local.json
+# Supporters from before the game kept count (viewers' handles): never committed.
+seed-supporters.local.json

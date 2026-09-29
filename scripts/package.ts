@@ -4,6 +4,7 @@
  *   npm run package                       -> out/Viper-win32-x64
  *   OUT_DIR=out/dist65 npm run package    -> out/dist65/Viper-win32-x64
  */
+import { existsSync } from 'node:fs';
 import path from 'node:path';
 
 import { packager } from '@electron/packager';
@@ -14,6 +15,10 @@ const root = path.resolve(import.meta.dirname, '..');
 
 /** Only the runtime ships: the compiled main process, the built renderer and package.json. */
 const RUNTIME = /^\/(dist(\/(main|renderer)(\/|$)|$)|package\.json$)/;
+
+const LOCAL = ['cloud.local.json', 'seed-supporters.local.json']
+  .map((f) => path.join(root, f))
+  .filter((f) => existsSync(f));
 
 const paths = await packager({
   dir: root,
@@ -29,6 +34,9 @@ const paths = await packager({
     FileDescription: 'Viper',
   },
   asar: true,
+  // The key to the streamer's online supporters list, when this computer has it (never committed).
+  // and the supporters from before the game kept count, added once (both never committed).
+  ...(LOCAL.length ? { extraResource: LOCAL } : {}),
   overwrite: true,
   prune: true,
   // Paths arrive relative to `dir`, with a leading slash; '' is the root itself. Source maps
