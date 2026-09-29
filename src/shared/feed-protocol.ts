@@ -89,6 +89,8 @@ export type FeedCommand =
   /** Test shortcut: jumps a few cells from a full board, to rehearse the end screen. */
   | { readonly cmd: 'near-full' }
   | { readonly cmd: 'crowd'; readonly level: CrowdLevel }
+  /** Gives a viewer berries by hand (to make up for a loss): they rank like a gift. */
+  | { readonly cmd: 'grant'; readonly nickname: string; readonly count: number }
   | { readonly cmd: 'setting'; readonly name: FeedSettingName; readonly value: unknown };
 
 export interface FeedLeader {
@@ -136,6 +138,7 @@ const COMMANDS: ReadonlySet<string> = new Set<FeedCommand['cmd']>([
   'near-full',
   'crowd',
   'setting',
+  'grant',
 ]);
 
 const isRecord = (value: unknown): value is Record<string, unknown> =>

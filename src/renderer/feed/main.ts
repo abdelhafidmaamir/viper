@@ -28,7 +28,8 @@ import {
   isLive,
   linkFeedControl,
   receiveFeedEvent,
-  restoreUnpaid,
+  backupText,
+  restoreBackup,
   rollAmbience,
   settings,
 } from './control-link.ts';
@@ -244,8 +245,12 @@ function start(): void {
     snap = true;
   };
   newRound();
-  // Nothing a viewer paid for is lost, even if the app closed mid-live.
-  restoreUnpaid(localStorage);
+  // The app saves the round every second and hands it back here on the next launch, so a sudden
+  // shutdown mid-live loses nothing (src/main/feed-backup.ts).
+  (window as unknown as { __viperFeed: unknown }).__viperFeed = {
+    snapshot: backupText,
+    restore: restoreBackup,
+  };
   requestAnimationFrame(loop);
   // Live gifts when TikFinity runs on this machine; a page that may not open it still plays.
   // A burst pays as it happens: each step of a streak drops its berries at once.

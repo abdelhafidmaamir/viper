@@ -31,7 +31,12 @@ import {
   like,
   nearFull,
   newRound,
+  notePhoto,
+  photoOf,
   repay,
+  resumeRound,
+  roundSnapshot,
+  type RoundSnapshot,
   setStartFill,
   unpaid,
   waiting,
@@ -160,6 +165,8 @@ const giftLog: FeedGiftLine[] = [];
 export function receiveFeedEvent(ev: AudienceEvent | null | undefined): number {
   // A streak counts whole: Rose x500 drops 500 berries.
   const n = Math.max(1, Math.min(parseInt(String(ev?.n ?? 1)) || 1, 10000));
+  // Any event carries the viewer's photo: remember it for every place their face shows.
+  notePhoto(ev?.nickname ?? '', ev?.avatar === '' ? undefined : ev?.avatar);
   if (ev?.type === 'like') {
     like(ev.nickname ?? 'viewer', ev.avatar, n);
     alertViewer('like', ev.nickname ?? '', ev.avatar, n);
@@ -182,6 +189,51 @@ export function receiveFeedEvent(ev: AudienceEvent | null | undefined): number {
 }
 
 const count = (value: number): number => Math.max(1, Math.min(100, Math.round(value) || 1));
+
+/** The round as the app saves it every second (see src/main/feed-backup.ts). */
+type SavedRound = (RoundSnapshot | { readonly ended: true; readonly round: number }) & {
+  readonly savedAt: number;
+  readonly owed?: readonly { nickname: string; n: number }[];
+};
+
+/** What the app saves every second: the round in progress, or what is owed on an end screen. */
+export function backupText(): string {
+  const round = roundSnapshot(),
+    owedNow = unpaid();
+  return JSON.stringify(
+    round
+      ? { ...round, savedAt: Date.now(), owed: owedNow }
+      : { ended: true, round: game.round, fans: [], queue: [], savedAt: Date.now(), owed: owedNow },
+  );
+}
+
+/**
+ * On launch the app hands over last run's saved round and the game picks it up by itself: the
+ * same round goes on (route, snake, leaderboard, crown, berries owed), or, if it had stopped on
+ * an end screen, a new round opens with everything still owed. Returns whether anything came back.
+ */
+export function restoreBackup(text: string): boolean {
+  let saved: SavedRound;
+  try {
+    saved = JSON.parse(text) as SavedRound;
+  } catch {
+    return false;
+  }
+  if (typeof saved.savedAt !== 'number') return false;
+  if ('ended' in saved) {
+    if (!saved.owed?.length) return false;
+    newRound();
+    repay(saved.owed, true);
+  } else resumeRound(saved);
+  giftLog.unshift({
+    at: Date.now(),
+    nickname: 'Backup',
+    name: 'Round restored after a restart',
+    count: 1,
+    berries: (saved.owed ?? []).reduce((sum, o) => sum + o.n, 0),
+  });
+  return true;
+}
 
 export function applyFeedCommand(command: FeedCommand, deps: FeedLinkDeps): void {
   const live = isLive(deps.bridge);
@@ -213,6 +265,16 @@ export function applyFeedCommand(command: FeedCommand, deps: FeedLinkDeps): void
     case 'crowd':
       if (CROWD_LEVELS.includes(command.level)) deps.setCrowd(live ? 0 : command.level);
       return;
+    case 'grant': {
+      // Making up for a loss: berries in a viewer's name, ranked like a gift. Allowed on a live.
+      const nickname = command.nickname.trim().slice(0, 40),
+        n = Math.max(1, Math.min(10000, Math.round(command.count) || 0));
+      if (!nickname) return;
+      gift(nickname, photoOf(nickname), n, true);
+      giftLog.unshift({ at: Date.now(), nickname, name: 'Given by hand', count: 1, berries: n });
+      if (giftLog.length > GIFT_LOG) giftLog.length = GIFT_LOG;
+      return;
+    }
     case 'setting':
       if (!Object.hasOwn(settings, command.name) || !apply(command.name, command.value)) return;
       safely(() => {
@@ -274,9 +336,6 @@ export function linkFeedControl(
   });
   const timer = setInterval(() => {
     channel.postMessage({ feed: feedSnapshot(deps) });
-    safely(() => {
-      deps.storage.setItem(UNPAID_KEY, JSON.stringify(unpaid()));
-    });
   }, FEED_STATE_INTERVAL_MS);
   return () => {
     clearInterval(timer);
