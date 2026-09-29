@@ -321,6 +321,7 @@ const WEATHERS: Record<Weather, WeatherSpec | null> = {
   fireflies: { tint: [10, 30, 22], k: 0.4, pt: 1.4 },
   embers: { tint: [70, 22, 14], k: 0.42 },
   mist: { tint: [120, 132, 130], k: 0.3 },
+  sea: { tint: [40, 118, 148], k: 0.24, glow: 1.4 },
 };
 // Weight of a weather at the current frame: 1 when fully settled, 0..1 during the 3.5 s crossfade.
 // Everything drawn multiplies by this weight so nothing snaps in.
@@ -529,6 +530,82 @@ const GROUNDS: Record<string, GroundSpec> = {
           paintFrond(g, 0, 0, ang, 150 + 110 * rand(i * 4 + q, 815 + k), color);
           g.restore();
         }
+      }
+    },
+  },
+  // The seashore: dunes held by marram grass at the back, the beach in front, shells and a starfish
+  // left by the tide. The sea itself lies behind, painted with the front layers (paintSea).
+  sea: {
+    tones: [
+      ['#57543f', '#302e23'],
+      ['#9c8662', '#57493a'],
+      ['#d2b886', '#8a714f'],
+    ],
+    rim: '255,248,226',
+    rimAlpha: 0.9,
+    wind: 0.09,
+    before(g, ridge, k) {
+      if (k === 2) return;
+      paintBlades(
+        g,
+        ridge,
+        k,
+        ['#3e452a', '#4c5530'][k] ?? '#000',
+        ['#8f9a5c', '#aab46c'][k] ?? '#000',
+        k === 0 ? 34 : 46,
+        k === 0 ? 9 : 12,
+        901 + k * 5,
+      );
+    },
+    after(g, ridge, k) {
+      if (k !== 2) return;
+      // Pebbles, shells and one or two starfish, half sunk in the wet sand.
+      for (let i = 0; i < 70; i++) {
+        const x = rand(i, 911) * W,
+          y = SNOWDRIFT_H - ridge(x) + 18 + rand(i, 913) * 150,
+          s = 4 + rand(i, 915) * 7,
+          kind = rand(i, 917);
+        g.save();
+        g.translate(x, y);
+        g.rotate(rand(i, 919) * 6.28);
+        if (kind < 0.55) {
+          g.fillStyle = ['#8d8474', '#a79c88', '#6f6a5e'][i % 3] ?? '#888';
+          g.beginPath();
+          g.ellipse(0, 0, s, s * 0.65, 0, 0, Math.PI * 2);
+          g.fill();
+        } else if (kind < 0.93) {
+          // A scallop: a fan with ribs.
+          g.fillStyle = ['#f2e4cf', '#efd2c0', '#e8dcc8'][i % 3] ?? '#eee';
+          g.beginPath();
+          g.moveTo(0, s * 0.9);
+          g.arc(0, 0, s * 1.3, Math.PI * 1.1, Math.PI * 1.9);
+          g.closePath();
+          g.fill();
+          g.strokeStyle = 'rgba(150,120,100,0.45)';
+          g.lineWidth = 0.8;
+          for (let r = -2; r <= 2; r++) {
+            g.beginPath();
+            g.moveTo(0, s * 0.9);
+            g.lineTo(Math.sin(r * 0.3) * s * 1.2, -s * 0.9);
+            g.stroke();
+          }
+        } else {
+          // A starfish.
+          g.fillStyle = '#d9864a';
+          g.strokeStyle = 'rgba(120,56,24,0.6)';
+          g.lineWidth = 1.2;
+          g.beginPath();
+          for (let p = 0; p < 10; p++) {
+            const a = (p / 10) * Math.PI * 2,
+              rr = p % 2 ? s * 0.8 : s * 2.4;
+            if (p) g.lineTo(Math.cos(a) * rr, Math.sin(a) * rr);
+            else g.moveTo(Math.cos(a) * rr, Math.sin(a) * rr);
+          }
+          g.closePath();
+          g.fill();
+          g.stroke();
+        }
+        g.restore();
       }
     },
   },
@@ -773,6 +850,102 @@ const GROUNDS: Record<string, GroundSpec> = {
     },
   },
 };
+// Sea: the open water between the board and the beach, in the hour's light. Its colour comes from
+// the sky of the moment, the sun (or the moon) lays a trail of glitter on it where the light
+// stands, slow swells cross it, and gulls glide overhead while it is light.
+function paintSea(
+  g: CanvasRenderingContext2D,
+  e: AmbienceFrame,
+  A: AmbienceState,
+  P: number,
+): void {
+  const horizon = GY1 + 70,
+    bottom = H - 120,
+    // 0 at midnight, 1 at noon: the water keeps the sky's colour, blue only as the light allows.
+    day = Math.sin(Math.PI * ((((e.hour || 0) % 1) + 1) % 1));
+  g.save();
+  g.globalAlpha = P;
+  const deep = lerpColor(A.bottom, [18, 70, 92], 0.15 + 0.4 * day),
+    far = lerpColor(
+      lerpColor(A.mid, [70, 140, 160], 0.1 + 0.35 * day),
+      A.glow,
+      0.2 + 1.2 * A.glowAlpha * (1 - 0.5 * day),
+    );
+  // A soft haze first, so the water does not start on a hard line under the board.
+  const haze = g.createLinearGradient(0, horizon - 70, 0, horizon);
+  haze.addColorStop(0, rgba(far, 0));
+  haze.addColorStop(1, rgba(far, 0.6));
+  g.fillStyle = haze;
+  g.fillRect(0, horizon - 70, W, 70);
+  const water = g.createLinearGradient(0, horizon, 0, bottom);
+  water.addColorStop(0, rgb(far));
+  water.addColorStop(1, rgb(deep));
+  g.fillStyle = water;
+  g.fillRect(0, horizon, W, bottom - horizon);
+  // The horizon: a thin line of light where the sky meets the water.
+  g.fillStyle = rgba(lerpColor(A.glow, [255, 255, 255], 0.4), 0.55);
+  g.fillRect(0, horizon - 1, W, 2);
+  // The light's glow low on the water: warm at dawn and dusk, pale under the moon.
+  const cx0 = W * A.glowX,
+    halo = g.createRadialGradient(cx0, horizon, 10, cx0, horizon, W * 0.55);
+  halo.addColorStop(0, rgba(A.glow, 0.5 * Math.min(1, A.glowAlpha * 3.5)));
+  halo.addColorStop(1, rgba(A.glow, 0));
+  g.fillStyle = halo;
+  g.fillRect(0, horizon - 60, W, bottom - horizon + 60);
+  // Swells: lighter lines, flat and close far away, wider and slower near the shore.
+  g.globalCompositeOperation = 'lighter';
+  for (let row = 0; row < 11; row++) {
+    const k = row / 10,
+      y = horizon + 10 + Math.pow(k, 1.5) * (bottom - horizon - 40),
+      amp = 1.5 + k * 7,
+      len = 0.02 - k * 0.012;
+    g.strokeStyle = rgba(lerpColor(far, [255, 255, 255], 0.35), (0.07 + 0.08 * (1 - k)) * P);
+    g.lineWidth = 1 + k * 1.5;
+    g.beginPath();
+    for (let x = -20; x <= W + 20; x += 18) {
+      const yy = y + Math.sin(x * len + e.t * (0.5 + 0.4 * k) + row * 1.9) * amp;
+      if (x === -20) g.moveTo(x, yy);
+      else g.lineTo(x, yy);
+    }
+    g.stroke();
+  }
+  // The glitter trail under the sun or the moon, following the light's side of the sky.
+  const cx = W * A.glowX,
+    trail = lerpColor(A.glow, [255, 255, 255], 0.35);
+  for (let i = 0; i < 90; i++) {
+    const k = rand(i, 931),
+      y = horizon + 4 + Math.pow(k, 1.3) * (bottom - horizon - 30),
+      spread = 30 + k * 170,
+      x = cx + (rand(i, 933) - 0.5) * 2 * spread,
+      on = Math.max(0, Math.sin(e.t * (1.6 + rand(i, 935) * 2.4) + i * 2.3));
+    g.fillStyle = rgba(trail, Math.min(1, (0.25 + A.glowAlpha * 3) * on * on) * P);
+    g.fillRect(x, y, 6 + k * 18, 1.5 + k * 2);
+  }
+  g.restore();
+  // Gulls gliding while it is light, a few slow wingbeats, far and small.
+  if (day < 0.2) return;
+  g.save();
+  g.strokeStyle = rgba(
+    lerpColor(A.bottom, [30, 36, 40], 0.5),
+    0.75 * P * Math.min(1, (day - 0.2) * 2),
+  );
+  g.lineCap = 'round';
+  for (let i = 0; i < 4; i++) {
+    const span = W + 400,
+      x = ((rand(i, 941) * span + e.t * (14 + rand(i, 943) * 10)) % span) - 200,
+      y = (i < 2 ? 70 + i * 60 : horizon - 140 + i * 30) + Math.sin(e.t * 0.5 + i) * 12,
+      s = i < 2 ? 1.3 : 0.7,
+      flap = Math.sin(e.t * (2.2 + i * 0.4) + i) * 5 * s;
+    g.lineWidth = 2.4 * s;
+    g.beginPath();
+    g.moveTo(x - 18 * s, y - flap);
+    g.quadraticCurveTo(x - 8 * s, y - 8 * s - flap * 0.5, x, y);
+    g.quadraticCurveTo(x + 8 * s, y - 8 * s - flap * 0.5, x + 18 * s, y - flap);
+    g.stroke();
+  }
+  g.restore();
+}
+
 const GROUND_FOR: Record<string, string> = {
   rain: 'rain',
   autumn: 'autumn',
@@ -784,6 +957,7 @@ const GROUND_FOR: Record<string, string> = {
   aurora: 'aurora',
   fireflies: 'fireflies',
   mist: 'mist',
+  sea: 'sea',
 };
 let groundsImg: Record<string, { layers: GroundLayerObj[] }> = {};
 function groundLayer(key: string): { layers: GroundLayerObj[] } {
@@ -1937,6 +2111,12 @@ function activeCounts(e: AmbienceFrame): { nl: number; np: number } {
           g.drawImage(snowflakeImg, qx - 420, qy - 420, 840, 840);
         });
       }
+      // The sea behind the beach, under the ground layers.
+      const Psea = weight('sea');
+      if (Psea > 0.01)
+        layers.push(() => {
+          paintSea(g, e, A, Psea);
+        });
       // Season ground layer at the front, rising with the round and animated.
       Object.keys(GROUND_FOR).forEach((m) => {
         const P = weight(m);
@@ -1980,6 +2160,8 @@ function activeCounts(e: AmbienceFrame): { nl: number; np: number } {
       paintRising(weight('summer'), 34, 341, [250, 232, 160], 'spore', 30, 5, 0.12, 0);
       paintRising(weight('embers'), 46, 441, [255, 140, 60], 'ember', 120, 6, 0.34, 0.5);
       paintRising(weight('fireflies'), 60, 461, [210, 255, 120], 'firefly', 10, 10, 0.32, 1);
+      // Sea spray: a few fine droplets drifting up from the shore.
+      paintRising(weight('sea'), 26, 491, [230, 246, 255], 'spray', 16, 4, 0.1, 0);
       const Pb = weight('mist');
       if (Pb > 0.01) {
         const mistImg = tint('mist', halo, [196, 210, 208], 64, 64);

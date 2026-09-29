@@ -48,6 +48,7 @@ const WEATHER_OPTIONS = FEED_WEATHERS.map((w) => ({
       fireflies: 'Fireflies',
       embers: 'Embers',
       mist: 'Mist',
+      sea: 'Sea',
     } as Record<FeedWeather, string>
   )[w],
 }));

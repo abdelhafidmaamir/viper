@@ -47,6 +47,7 @@ export const FEED_WEATHERS = [
   'fireflies',
   'embers',
   'mist',
+  'sea',
 ] as const;
 export type FeedWeather = (typeof FEED_WEATHERS)[number];
 
