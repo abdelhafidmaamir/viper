@@ -44,12 +44,9 @@ jobs:
           node-version-file: .nvmrc
           cache: npm
       - run: npm ci
+      # Proves the exe still builds on a clean machine. The build itself is not kept: the one
+      # used on stream is packaged locally, and 154 MB a run filled the artifact storage.
       - run: npm run package
-      - uses: actions/upload-artifact@v7
-        with:
-          name: Viper-win32-x64
-          path: out/Viper-win32-x64
-          retention-days: 14
 
   visual:
     name: Visual regression
@@ -69,4 +66,4 @@ jobs:
         with:
           name: visual-regression
           path: out/visual
-          retention-days: 14
+          retention-days: 7
