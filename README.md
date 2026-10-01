@@ -15,6 +15,21 @@ broadcasting software captures as the video source.
 
 Status: 0.9.1, in use on real streams. Solo project. Windows only.
 
+## What was built
+
+| Area             | What it does                                                                                                                                       | Where                                                        |
+| ---------------- | -------------------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------ |
+| Event adapter    | Turns a third-party WebSocket feed into typed game events: reconnect with backoff, deduplication, incremental counting of cumulative gift counters | `src/renderer/scripts/tikfinity-bridge.ts`                   |
+| Two simulations  | A two-snake duel and a board-filling snake on a Hamiltonian loop, each with its own rules, state and typed message protocol                        | `src/renderer/engine/`, `src/renderer/feed/`, `src/shared/`  |
+| Snake AI         | A path planner with escape checks, and a minimax search with alpha-beta pruning, iterative deepening and a time budget                             | `src/renderer/scripts/ai-human.ts`, `ai-super.ts`            |
+| Rendering        | Canvas 2D in a fixed 1080x1920 frame, cached offscreen layers, twelve procedural sceneries with a day and night cycle                              | `src/renderer/engine/frame.ts`, `scripts/forest-ambience.ts` |
+| Persistence      | Crash-safe round backup, append-only CSV journal, long-term supporters list, all written by the main process with atomic file swaps                | `src/main/feed-backup.ts`, `feed-journal.ts`                 |
+| Cloud sync       | Supporters list mirrored to Firestore over REST, sharded past the document size limit, optional                                                    | `src/main/feed-cloud.ts`                                     |
+| Operator console | A second window with settings, test inputs, live state and a simulated audience                                                                    | `src/renderer/control/`, `feed-control/`                     |
+| Test harness     | Headless runs of the real game on a recording canvas, golden hash of draw calls, screenshot diff                                                   | `tests/`                                                     |
+| Self-measurement | Frame timing, CPU profile, draw-call count and screenshots taken by the packaged exe itself                                                        | `src/main/diagnostics/`                                      |
+| Delivery         | CI on every pull request (checks, packaging, screenshot diff), tag-driven Windows release                                                          | `.github/workflows/`                                         |
+
 ## System overview
 
 ```mermaid
