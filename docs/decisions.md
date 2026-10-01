@@ -132,12 +132,11 @@ events (likes, joins) are aggregated per 10 s.
 The supporters list must outlive both.
 
 **Decision.** Mirror the list to Firestore over its REST API, without the Firebase SDK and without
-user sign-in. Access depends on a secret document id of at least 40 characters. On launch the
+user sign-in. The access configuration is private and not part of the repository. On launch the
 newer copy replaces the other.
 
-**Cost.** Whole-list replacement is correct only when one machine runs at a time. The secret
-ships inside the build, so anyone holding a build can read and write the list. Both are accepted
-for a single-operator app and would have to change for more than one.
+**Cost.** Whole-list replacement is correct only when one machine runs at a time. Access without
+sign-in is acceptable for a single-operator app. Both would have to change for more than one.
 
 ## 13. Smaller choices
 

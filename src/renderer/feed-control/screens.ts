@@ -236,7 +236,7 @@ export function createSetupScreen(dispatch: Dispatch, reason: Reason): FeedView 
     class: 'input',
     attrs: {
       rows: '6',
-      placeholder: 'KAPACH971 ; 210\nskohlds ; 194',
+      placeholder: 'MAPLE482 ; 210\nriverfox ; 194',
       'aria-label': 'Past supporters',
     },
   });
