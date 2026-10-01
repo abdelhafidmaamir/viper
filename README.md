@@ -2,113 +2,125 @@
 
 [![CI](https://github.com/abdelhafidmaamir/viper/actions/workflows/ci.yml/badge.svg)](https://github.com/abdelhafidmaamir/viper/actions/workflows/ci.yml)
 
-Viper is a snake game that nobody plays with a controller. It runs during a live stream, and the
-people watching steer it with what they already do on the stream: liking, sharing, following,
-sending gifts. The streamer only shows the game window.
+Viper is a Windows desktop app (Electron, TypeScript) that renders a snake game for a live
+stream. The game takes no local input. Its inputs are audience events from a TikTok live
+(likes, follows, paid gifts), received over a local WebSocket. Its output is a window that
+broadcasting software captures as the video source.
 
 <p align="center">
-  <img src="docs/images/feed.png" alt="Feed the Snake, Sea ambience" width="300">
+  <img src="docs/images/feed.png" alt="Feed mode" width="280">
   &nbsp;&nbsp;
-  <img src="docs/images/duel.png" alt="Duel, rain in the forest" width="300">
+  <img src="docs/images/duel.png" alt="Duel mode" width="280">
 </p>
 
-<p align="center"><sub>Feed the Snake on the left, Duel on the right. Both with the built-in fake audience.</sub></p>
+Status: 0.9.1, in use on real streams. Solo project. Windows only.
 
-## The idea, if you don't know TikTok LIVE
-
-On TikTok LIVE a creator broadcasts and viewers react in real time. They can tap to like, share,
-follow, comment, and send gifts, which are small paid animations. An interactive live game treats
-those reactions as its only input. The viewers are the players, there can be thousands of them,
-and none of them installed anything.
-
-That changes what the software has to be good at:
-
-- **No player input to trust.** Events arrive from the outside, in bursts, sometimes twice,
-  sometimes late. The game has to stay fair and readable whatever comes in.
-- **Gifts are real money.** If a viewer paid for something, it has to show up on screen, even
-  after a crash or a restart.
-- **It runs for hours, unattended.** The streamer is talking to the room, not watching the app.
-- **It's watched on a phone.** Portrait 9:16, big shapes, almost no text.
-
-## Two modes
-
-|                 | Duel                                                           | Feed the Snake                                           |
-| --------------- | -------------------------------------------------------------- | -------------------------------------------------------- |
-| What happens    | Two AI snakes, Gold and Shadow, fight over the board           | One snake follows a fixed route until it fills the board |
-| What gifts do   | Pick a side and trigger an effect (speed, steal...)            | Drop berries: a Rose is 1 berry, a Rosa is 10            |
-| What likes do   | Fill a shared orb that speeds both snakes up                   | Rank the viewer (and, by the sea, give them a crab)      |
-| A round ends on | A side holding a full ring (40 segments) for 5 s, or the clock | A full board, then a leaderboard and the next round      |
-| Viewers are     | Two teams against each other                                   | One room working together                                |
-
-A launcher asks which mode to open. Each mode has its own game window (the one that goes on
-stream) and its own control room (private, for the streamer).
-
-## How it fits together
+## System overview
 
 ```mermaid
 flowchart LR
-  V[Viewers] -->|likes, gifts, follows| T[TikTok LIVE]
-  T --> F[TikFinity]
-  F -->|WebSocket, localhost:21213| G[Game window]
-  C[Control room] <-->|BroadcastChannel| G
-  G -->|window capture| O[OBS or LIVE Studio]
-  O -->|video| T
+  subgraph external[External]
+    TT[TikTok live]
+    TF[TikFinity]
+    CAP[OBS / LIVE Studio]
+    FS[(Firestore)]
+  end
+
+  subgraph viper[Viper, one Electron app]
+    MAIN[Main process]
+    GAME[Game window]
+    CTRL[Control room window]
+    DISK[(Local files)]
+  end
+
+  TT -->|audience events| TF
+  TF -->|WebSocket, localhost:21213| GAME
+  CTRL <-->|BroadcastChannel| GAME
+  MAIN -->|HTTP, 127.0.0.1:47813| GAME
+  MAIN -->|HTTP| CTRL
+  GAME -->|state, polled every 1 s| MAIN
+  MAIN -->|atomic writes| DISK
+  MAIN <-->|REST, at most every 15 s| FS
+  GAME -.->|window capture| CAP
+  CAP -->|video| TT
 ```
 
-- **TikFinity** is a third-party desktop app that connects to a live and re-emits its events on a
-  local WebSocket. Viper never talks to TikTok directly.
-- **The game window** draws everything on one canvas. It is the only thing viewers see.
-- **The control room** is a second window with the settings, test buttons and live state. The two
-  talk over a `BroadcastChannel`, so the game has no idea whether a command came from a button or
-  from a test.
-- **The stream** is a plain window capture. Viper doesn't encode or broadcast anything itself.
+| Component    | Role                                                                                |
+| ------------ | ----------------------------------------------------------------------------------- |
+| TikFinity    | Third-party app. Connects to the live and re-emits its events on a local WebSocket. |
+| Game window  | Renderer. Runs the simulation and draws it on one canvas. The only captured window. |
+| Control room | Renderer. Settings, test inputs, live state. Operator only.                         |
+| Main process | Serves the pages, owns the windows, and persists what must survive a crash.         |
+| Local files  | Round backup, supporters list, one CSV journal per stream (`%APPDATA%\Viper Duel`). |
+| Firestore    | Online copy of the supporters list, so it survives a machine or build change.       |
 
-Without TikFinity the app still runs: the control room has a fake audience that feeds the same
-game rules. In the Duel it enters through the exact function TikFinity calls. In Feed it skips the
-journal and the supporters list on purpose, since only real viewers belong there. That's how the
-screenshots above were taken, and how the game is rehearsed before a live.
+Viper has no direct connection to TikTok and does not encode or upload video. Firestore is
+optional: without its config file the supporters list stays local.
+
+## Design constraints
+
+| Constraint                                               | Consequence in the code                                                                                |
+| -------------------------------------------------------- | ------------------------------------------------------------------------------------------------------ |
+| Input is an external event stream: bursty, duplicated    | One adapter (`tikfinity-bridge.ts`) normalises and deduplicates; the game only sees its own event type |
+| Some events are payments and must not be lost            | Round state written to disk every second and restored on launch; unspent credit carries to next round  |
+| The process runs for hours with nobody watching it       | Auto-reconnect, automatic restore, rounds chain without operator action                                |
+| The window is captured while hidden behind other windows | Background throttling and occlusion detection disabled; framed window with a fixed title               |
+| Behaviour must not change silently during refactoring    | Simulation runs headless in tests; draw calls are hashed against a golden record                       |
+
+## Game modes
+
+The app ships two games. A launcher picks one; each has its own game window, control room and
+message protocol.
+
+|               | Duel                                                 | Feed                                              |
+| ------------- | ---------------------------------------------------- | ------------------------------------------------- |
+| Simulation    | Two AI-driven snakes compete on a 16x20 grid         | One snake follows a fixed loop on a 30x30 grid    |
+| Paid events   | Assign the sender to a team and apply an effect      | Add food to the board, one unit per coin          |
+| Likes         | Raise the speed of both snakes                       | Rank the sender; no effect on the board           |
+| Round ends on | Target length held for 5 s, a knockout, or the clock | Board full                                        |
+| Persistence   | Settings only                                        | Round backup, supporters list, journal, Firestore |
+
+Rules and constants: [docs/rules-duel.md](docs/rules-duel.md),
+[docs/rules-feed.md](docs/rules-feed.md).
 
 ## Running it
 
-Node 24 (see `.nvmrc`). It's an Electron app, built and packaged on Windows.
+Requires Node 24 (see `.nvmrc`).
 
 ```bash
 npm install
-npm run dev               # dev server + hot reload
-npm start                 # build and run, 9:16
+npm run dev               # Vite dev server and Electron, hot reload
+npm start                 # production build, then run
 ```
 
-`npm run start:landscape` starts in 16:9, which only the Duel supports (for YouTube, the background
-extends into the sides). `--mode=duel` or `--mode=feed` skips the launcher.
+`--mode=duel|feed` skips the launcher. `npm run start:landscape` starts in 16:9, which only the
+Duel supports.
+
+TikFinity is not required for development. The control room has a simulated audience that
+generates events locally.
 
 | Script                      | What it does                                     |
 | --------------------------- | ------------------------------------------------ |
-| `npm test`                  | Vitest                                           |
 | `npm run check`             | format, lint, typecheck, tests (same as CI)      |
+| `npm test`                  | Vitest                                           |
 | `npm run lint` / `lint:fix` | ESLint                                           |
 | `npm run format`            | Prettier                                         |
-| `npm run package`           | portable build in `out/Viper-win32-x64`          |
 | `npm run visual`            | screenshot diff against `tests/visual/baselines` |
+| `npm run package`           | portable build in `out/Viper-win32-x64`          |
 
-`npm run visual -- --update` replaces the baselines when a visual change is intended.
+## Testing
 
-## What's worth a look in the code
-
-- **Tests without a screen.** The real game scripts run in Node against a fake canvas that records
-  every draw call. A golden test replays seeded rounds and compares a hash of those calls, so a
-  refactor can't change a frame silently. `npm run visual` does the same on real pixels.
-- **Nothing paid gets lost.** In Feed, the main process saves the round every second and restores
-  it on the next launch; berries that didn't fit carry over to the next round with their donor's
-  rank.
-- **The app measures itself.** The packaged exe takes its own screenshots, frame timings and CPU
-  profiles (see below), which is how performance gets checked on the machine that streams.
-- **One writer per state.** Each engine module owns its state; the others read it or call its
-  functions.
-
-The reasoning behind the odd-looking choices (local HTTP server, fixed port, framed window, no
-background throttling) is in [docs/architecture.md](docs/architecture.md).
+- Tests run in Node with Vitest. The game scripts are loaded against a fake canvas that records
+  draw calls (`tests/support/boot-game.ts`).
+- A golden test replays seeded rounds and compares a hash of the recorded draw calls.
+- `npm run visual` runs the game with a seeded clock in software rendering and diffs screenshots
+  against baselines. Baselines are Windows-specific (system fonts). `npm run visual -- --update`
+  regenerates them.
+- CI runs the checks, the packaging and the screenshot diff on every pull request.
 
 ## Diagnostics
+
+The packaged exe can measure itself on the machine that streams:
 
 ```bash
 Viper.exe --diagnostic=screenshots  --out=shots
@@ -119,40 +131,57 @@ Viper.exe --diagnostic=feed-timing  --out=perf
 ```
 
 Options: `--orientation=portrait|landscape`, `--weather=<name>`, `--hour=<0..1>`,
-`--settle=<seconds>`. In dev: `npm run diagnose -- screenshots --out=shots`.
+`--settle=<seconds>`. In development: `npm run diagnose -- screenshots --out=shots`.
 
 ## Releases
 
-Pushing a version tag builds the Windows zip and creates the GitHub release. The tag has to match
-`package.json`.
+Pushing a `vX.Y.Z` tag runs the checks, builds on Windows and publishes a zip with its SHA-256 as
+a GitHub release. The tag must match `package.json`.
 
 ```bash
 npm version minor
 git push --follow-tags
 ```
 
-A minor is a feature viewers can see, a patch is a fix. 1.0.0 is reserved for the first version
-I consider stable over a full real live. The exe isn't signed yet, so SmartScreen will complain
-the first time.
+Minor: a change visible on stream. Patch: a fix. 1.0.0 is reserved for the first version that
+holds a full stream without intervention. The exe is not code-signed.
 
-## Layout
+## Known limits
+
+- Supporters sync is last-writer-wins on the whole list. Two machines running at the same time
+  would overwrite each other.
+- The TikFinity message format is not a published contract. The adapter is the only place that
+  depends on it.
+- The Duel has no crash recovery.
+- No macOS or Linux build.
+
+## Repository layout
 
 ```text
-src/main/            Electron main process, local server, windows, diagnostics
+src/main/            main process: static server, windows, persistence, diagnostics
 src/renderer/        one page per window, built with Vite
-  launcher/          first screen, picks the mode
+  launcher/          mode selection
   game/              Duel page entry
-  engine/            Duel modules (rules, crowd, hazards, drawing...)
-  scripts/           simulation core, AI, ambience, TikFinity bridge, fake audience
-  control/           Duel control room, and the UI parts both control rooms share
-  feed/              Feed the Snake
-  feed-control/      Feed the Snake control room
-src/shared/          messages between the game and the control room
+  engine/            Duel modules (rules, crowd, hazards, drawing)
+  scripts/           simulation core, AI, scenery, TikFinity adapter, simulated audience
+  control/           Duel control room, and UI parts shared by both control rooms
+  feed/              Feed game
+  feed-control/      Feed control room
+src/shared/          message protocols between game and control room
 tests/               Vitest suites, headless game runs, visual baselines
 scripts/             dev and packaging scripts
 ```
 
-More in [docs/architecture.md](docs/architecture.md), and what's done / left in
-[docs/roadmap.md](docs/roadmap.md).
+## Documentation
+
+| Document                                     | Content                                         |
+| -------------------------------------------- | ----------------------------------------------- |
+| [docs/architecture.md](docs/architecture.md) | Processes, windows, modules, persistence, tests |
+| [docs/decisions.md](docs/decisions.md)       | Technical choices and their cost                |
+| [docs/operations.md](docs/operations.md)     | Data files, recovery, sync, release             |
+| [docs/rules-duel.md](docs/rules-duel.md)     | Duel rules and constants                        |
+| [docs/rules-feed.md](docs/rules-feed.md)     | Feed rules and constants                        |
+| [docs/concepts.md](docs/concepts.md)         | Glossary of the live-streaming terms used       |
+| [docs/roadmap.md](docs/roadmap.md)           | Done and planned                                |
 
 © Abdel Maamir. All rights reserved.
