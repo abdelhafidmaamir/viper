@@ -68,13 +68,6 @@ export function updateMilestones(dt: number): void {
   if (age >= SHOW) confetti = [];
 }
 
-/** For tests and a fresh session. */
-export function resetMilestones(): void {
-  roomLikes = reached = seq = 0;
-  age = SHOW;
-  confetti = [];
-}
-
 export function paintMilestones(): void {
   const c = ctx as CanvasRenderingContext2D | null;
   if (!c || age >= SHOW) return;

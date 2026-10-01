@@ -34,4 +34,3 @@ stay on `wip/*`.
 
 - No `electron-vite`: it only supports Vite 7. `scripts/dev.ts` runs Vite and Electron itself.
 - TypeScript stays on 6.0 until `typescript-eslint` supports 7.
-- Some lint rules are still warnings in `src/renderer` (see `eslint.config.js`).

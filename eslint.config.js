@@ -30,21 +30,4 @@ export default defineConfig(
     files: ['eslint.config.js'],
     languageOptions: { globals: globals.node },
   },
-  {
-    // Engine modules still being migrated (docs/roadmap.md): typed and strict once converted to TS.
-    // Legacy findings stay visible as warnings until their file is migrated.
-    files: ['src/renderer/**/*.js'],
-    languageOptions: {
-      ecmaVersion: 2024,
-      sourceType: 'module',
-      globals: globals.browser,
-    },
-    rules: {
-      'no-empty': ['warn', { allowEmptyCatch: true }],
-      'no-unused-vars': ['warn', { args: 'none', caughtErrors: 'none' }],
-      'no-redeclare': 'warn',
-      'no-useless-assignment': 'warn',
-      'no-prototype-builtins': 'warn',
-    },
-  },
 );
