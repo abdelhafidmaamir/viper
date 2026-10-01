@@ -26,7 +26,7 @@ describe('online supporters list', () => {
   it('reads back what it saved, and nothing before the first save', async () => {
     const { fetch } = fakeFirestore();
     expect(await pullSupporters(cloud, fetch)).toBeNull();
-    const text = JSON.stringify({ savedAt: 5, supporters: [{ id: 'kapach971', berries: 210 }] });
+    const text = JSON.stringify({ savedAt: 5, supporters: [{ id: 'maple482', berries: 210 }] });
     await pushSupporters(cloud, text, fetch);
     expect(await pullSupporters(cloud, fetch)).toBe(text);
   });

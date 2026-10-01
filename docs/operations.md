@@ -40,7 +40,7 @@ then read as defaults for that session.
 | App crash or kill (Duel) | Nothing restored. The round restarts                                                                    | The round in progress      |
 | TikFinity disconnect     | Reconnect after 1, 2, 4, 8 s, then every 10 s. Journal rows `tiktok lost` and `tiktok connected` (Feed) | Events sent during the gap |
 | No network               | Supporters list stays local; pushed when Firestore is reachable again                                   | None                       |
-| No `cloud.local.json`    | Cloud sync disabled, everything else unchanged                                                          | None                       |
+| No sync configuration    | Cloud sync disabled, everything else unchanged                                                          | None                       |
 | Port 47813 taken         | Random port                                                                                             | Settings for that session  |
 | A gift not credited      | Operator credits it by hand ("Give berries back" in the Feed control room)                              | None                       |
 
@@ -71,11 +71,11 @@ renderer buffers at most 20,000 rows between two collections.
 - Pushed to Firestore at most every 15 s when changed.
 - On launch, the copy with the newer `savedAt` replaces the other, whole. See "Conflict rule" in
   the architecture document for the limit of this.
-- `cloud.local.json` (`projectId`, `space`) is not in the repository. `npm run package` copies it
-  into the app's `resources/` folder when it exists on the build machine.
+- The access configuration is private and not part of the repository. Without it, sync is
+  disabled and the list stays local.
 
 **Importing earlier supporters.** Two entry points: the "Import past supporters" form in the
-control room, and a `seed-supporters.local.json` file shipped in `resources/`. Imported entries
+control room, and a private seed file read at launch. Imported entries
 are stored under a key derived from the name. When a viewer with a matching name appears in a
 stream, the totals move to their TikTok id and the imported entry is marked `claimed`.
 Re-importing the same list does not count anyone twice.

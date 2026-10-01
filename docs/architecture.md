@@ -140,10 +140,9 @@ Atomic means: write to `<file>.tmp`, `fsync`, rename over the target (`writeDura
 SDK in the app and no user sign-in. The list is stored as one string in the document
 `viper/<space>`. Past 200,000 characters it is split across `viper/<space>/shards/<i>`, written
 before the head document so a reader never follows a head to parts that don't exist yet; a missing
-part on read is treated as no data. Access relies on `<space>` being a secret of at least 40
-characters, read from `cloud.local.json`. That file is not in the repository; packaging copies it
-into the app's `resources/` folder when present. Without it, or offline, the app runs on the local
-copy and pushes once the network is back.
+part on read is treated as no data. The access configuration is private and not part of the
+repository. Without it, or offline, the app runs on the local copy and pushes once the network is
+back.
 
 **Conflict rule.** On launch the local and online copies are compared by the `savedAt` timestamp
 inside the list and the newer one replaces the other, whole. This is correct for one machine at a
