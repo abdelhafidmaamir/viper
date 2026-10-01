@@ -21,6 +21,7 @@ import {
 } from '../../shared/feed-protocol.ts';
 import { setLanguage } from '../engine/i18n.ts';
 import { alertSounds, alertViewer, setAlertsOn } from './alerts.ts';
+import { crabLike } from './crabs.ts';
 import { note, noteJoin, noteLikes, noteViewers } from './journal.ts';
 import {
   claimSeed,
@@ -87,6 +88,7 @@ export function restoreUnpaid(storage: FeedLinkDeps['storage']): void {
 export const settings: { -readonly [K in FeedSettingName]: FeedSettings[K] } = {
   weather: 'rain',
   hour: 0.06,
+  dayCycle: 20,
   autoAmbience: true,
   language: 'en',
   startFill: 0,
@@ -173,6 +175,7 @@ const SHARED: readonly FeedSettingName[] = [
   'entranceGap',
   'mods',
   'autoAmbience',
+  'dayCycle',
 ];
 const shared = (): Record<string, unknown> =>
   Object.fromEntries(SHARED.map((name) => [name, settings[name]]));
@@ -203,6 +206,8 @@ export function rollAmbience(rand: () => number = Math.random): void {
   if (!settings.autoAmbience) return;
   const others = FEED_WEATHERS.filter((w) => w !== settings.weather);
   settings.weather = others[Math.floor(rand() * others.length)] ?? 'rain';
+  // With the day running by itself, the hour is left where the clock has brought it.
+  if (settings.dayCycle > 0) return;
   const hours = [0.02, 0.22, 0.36, 0.5, 0.64, 0.78] as const;
   settings.hour =
     settings.weather === 'stars' ||
@@ -238,6 +243,7 @@ export function receiveFeedEvent(ev: AudienceEvent | null | undefined): number {
   if (ev?.type === 'like') {
     like(ev.nickname ?? 'viewer', ev.avatar, n);
     alertViewer('like', ev.nickname ?? '', ev.avatar, n);
+    crabLike(ev.nickname ?? '', ev.avatar);
     noteLikes(id || who, n);
     supporterLikes(id, who, n);
   }
@@ -419,9 +425,12 @@ export function applyFeedCommand(command: FeedCommand, deps: FeedLinkDeps): void
         });
       }
       return;
-    case 'likes':
-      like(command.nickname ?? deps.someone(), undefined, count(command.count));
+    case 'likes': {
+      const who = command.nickname ?? deps.someone();
+      like(who, undefined, count(command.count));
+      crabLike(who, undefined);
       return;
+    }
     case 'bridge-start':
       deps.bridge.start(command.url);
       return;
