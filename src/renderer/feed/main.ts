@@ -13,7 +13,7 @@ import { paintAlerts, updateAlerts } from './alerts.ts';
 import { paintCrabs } from './crabs.ts';
 import { paintFlower } from './flower.ts';
 import { FCELL, FCOLS, FROWS, FX0, FY0, K } from './grid.ts';
-import type { AmbienceFrame } from '../engine/types-api.ts';
+import type { Ambience, AmbienceFrame } from '../engine/types-api.ts';
 import { paintFull, paintReady, paintRing } from './hud.ts';
 import {
   TINT,
@@ -183,6 +183,59 @@ function loop(ms: number): void {
   }
 }
 
+type Trace = ReturnType<typeof snakeTrace>;
+
+/** The body and its skin: the duel's snake painter scaled down to the finer grid, then the scales. */
+function paintBody(g: CanvasRenderingContext2D, a: Ambience, trace: Trace, e: AmbienceFrame): void {
+  g.save();
+  // A fat snake: the duel's body drawn 30% thicker than the grid alone would give.
+  const fat = K * 1.3;
+  g.scale(fat, fat);
+  a.paintSnake(
+    g,
+    trace.map((p) => ({ x: p.x / fat, y: p.y / fat })),
+    CELL,
+    { ...e, tint: TINT },
+  );
+  g.restore();
+  paintScales(trace, g);
+}
+
+// Perf: during the countdown and the end screen the snake stands still, and on a full board its
+// skin is some 1800 stamps a frame. It is painted once on a layer of its own, then the layer is
+// stamped; anything that changes the body (a new round, a round picked back up, the near-full
+// shortcut, a resize) repaints it.
+let still: HTMLCanvasElement | null = null,
+  stillKey = '';
+
+function paintStillBody(
+  c: CanvasRenderingContext2D,
+  a: Ambience,
+  trace: Trace,
+  e: AmbienceFrame,
+): void {
+  const { width, height } = c.canvas,
+    key = [width, height, game.round, game.len, game.head, game.full >= 0].join();
+  still ??= document.createElement('canvas');
+  if (key !== stillKey) {
+    const g = still.getContext('2d');
+    if (!g) {
+      paintBody(c, a, trace, e);
+      return;
+    }
+    // Setting the size also wipes the layer.
+    still.width = width;
+    still.height = height;
+    g.setTransform(c.getTransform());
+    paintBody(g, a, trace, e);
+    stillKey = key;
+  }
+  c.save();
+  c.setTransform(1, 0, 0, 1, 0, 0);
+  c.drawImage(still, 0, 0);
+  c.restore();
+}
+
 function step(dt: number): void {
   t += dt;
   simulate(dt);
@@ -200,19 +253,8 @@ function step(dt: number): void {
     a.paintBack(c, e);
     paintRing(t);
     paintBerries();
-    // The duel's snake painter, scaled down to the finer grid.
-    c.save();
-    // A fat snake: the duel's body drawn 30% thicker than the grid alone would give.
-    const fat = K * 1.3;
-    c.scale(fat, fat);
-    a.paintSnake(
-      c,
-      trace.map((p) => ({ x: p.x / fat, y: p.y / fat })),
-      CELL,
-      { ...e, tint: TINT },
-    );
-    c.restore();
-    paintScales(trace);
+    if (game.ready >= 0 || game.full >= 0) paintStillBody(c, a, trace, e);
+    else paintBody(c, a, trace, e);
     paintGulps(trace);
     paintHead(head, t);
     paintBites();

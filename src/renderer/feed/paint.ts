@@ -156,10 +156,9 @@ const BAND_EVERY = 5,
  * loop at the snake's speed, and the whole body reads as moving, not just the head and the tail.
  * `trace` holds a point every third of a cell from the head, so distance q is index q * 3.
  */
-export function paintScales(trace: Point[]): void {
+export function paintScales(trace: Point[], c: CanvasRenderingContext2D = ctx): void {
   if (trace.length < 3) return;
-  const c = ctx,
-    end = (trace.length - 1) / 3 - 0.6,
+  const end = (trace.length - 1) / 3 - 0.6,
     spacing = 0.5;
   // Perf: all bands go into one path, stroked twice.
   const bands = new Path2D();
