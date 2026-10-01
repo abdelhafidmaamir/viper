@@ -128,8 +128,8 @@ events (likes, joins) are aggregated per 10 s.
 
 ## 12. Supporters list in Firestore, last writer wins
 
-**Context.** The streaming machine is a cloud PC that gets replaced, and old builds get deleted.
-The supporters list must outlive both.
+**Context.** The list was a local file. The app is used from several PCs, so each one had its own
+partial copy.
 
 **Decision.** Mirror the list to Firestore over its REST API, without the Firebase SDK and without
 user sign-in. The access configuration is private and not part of the repository. On launch the
