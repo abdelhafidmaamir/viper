@@ -32,15 +32,15 @@ is named; the simulation loop is `src/renderer/scripts/game.ts`.
 
 A collision does not end the round by itself.
 
-| Case                                        | Result                                                              |
-| ------------------------------------------- | ------------------------------------------------------------------- |
-| Shield active                               | No loss                                                             |
-| Wall or own body                            | No loss, 1.5 s of invincibility                                     |
-| Rival's body, head-on, or cornered by rival | Keeps `max(3, floor(length / 2))` segments; the rest become berries |
+| Case                                        | Result                                                                |
+| ------------------------------------------- | --------------------------------------------------------------------- |
+| Shield active                               | No loss                                                               |
+| Wall or own body                            | No loss, 1.5 s of invincibility                                       |
+| Rival's body, head-on, or cornered by rival | Keeps `max(min, floor(length / 2))` segments; the rest become berries |
 
 "Cornered" means the rival has a segment within 2 cells of the head: a wall or self collision in
-that situation is attributed to the rival. A snake that has not yet reached 10 segments keeps at
-least 2 segments and cannot be knocked out.
+that situation is attributed to the rival. `min` is 3 for an adult snake and 2 for one that has not
+yet reached 10 segments; the latter cannot be knocked out.
 
 ## Gifts
 
@@ -90,15 +90,15 @@ Likes are not attributed to a team (`engine/crowd-energy.ts`).
 
 ## Other events
 
-| Event                        | Effect                                           |
-| ---------------------------- | ------------------------------------------------ |
-| `join`                       | Plants one berry and shows an arrival banner     |
-| `follow`, `share`, `comment` | None on the board. Counted in the activity level |
+| Event             | Effect                                         |
+| ----------------- | ---------------------------------------------- |
+| `join`            | Plants one berry and shows an arrival banner   |
+| `follow`, `share` | Banner only. Not counted in the activity level |
 
 ## Activity tiers
 
-`engine/crowd.ts` keeps a count of recent events that decays over 60 s; a gift weighs 3, any other
-event 1. The count selects a tier, and the tier caps the number of berries and stones on the
+`engine/crowd.ts` keeps a count of recent events that decays over 60 s; a gift weighs 3, a like 1;
+joins, follows and shares are not counted. The count selects a tier, and the tier caps the number of berries and stones on the
 board.
 
 | Tier  | From | Max berries | Max stones |
