@@ -72,10 +72,14 @@ The exe isn't signed yet, so SmartScreen will complain the first time.
 
 ```text
 src/main/            Electron main process, local server, windows, diagnostics
-src/renderer/        game.html + control.html, built with Vite
-  engine/            game modules (rules, crowd, hazards, drawing...)
+src/renderer/        one page per window, built with Vite
+  launcher/          first screen, picks the mode
+  game/              Duel page entry
+  engine/            Duel modules (rules, crowd, hazards, drawing...)
   scripts/           simulation core, AI, ambience, TikFinity bridge, fake audience
-  control/           control room
+  control/           Duel control room, and the UI parts both control rooms share
+  feed/              Feed the Snake
+  feed-control/      Feed the Snake control room
 src/shared/          messages between the game and the control room
 tests/               Vitest suites, headless game runs, visual baselines
 scripts/             dev and packaging scripts
