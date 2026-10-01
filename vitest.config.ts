@@ -11,7 +11,7 @@ export default defineConfig({
     hookTimeout: 120_000,
     coverage: {
       provider: 'v8',
-      include: ['src/main/**/*.ts'],
+      include: ['src/**/*.ts'],
       reporter: ['text', 'html'],
     },
   },

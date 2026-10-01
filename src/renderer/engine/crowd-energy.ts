@@ -48,7 +48,7 @@ interface Liker {
   readonly nickname: string;
   readonly avatar: string | undefined;
 }
-let waiting: Liker[] = [];
+const waiting: Liker[] = [];
 let flyers: { age: number; sx: number; bend: number; who: Liker }[] = [];
 
 export function addLikes(n: number, nickname = '', avatar?: string): void {
@@ -72,8 +72,6 @@ export function tempo(): number {
 export function tempoCeiling(): number {
   return cooldown <= 0 && energy > FRENZY_AT - 0.1 ? 1 + TEMPO_MAX + FRENZY_TEMPO : tempo() + 0.02;
 }
-
-export const inFrenzy = (): boolean => frenzy > 0;
 
 /**
  * Advances the bar. Returns 'start' on the frame a frenzy begins, 'drop' when a frenzy berry is
@@ -129,13 +127,6 @@ export function updateEnergy(dt: number, playing: boolean): 'start' | 'drop' | n
     return 'start';
   }
   return null;
-}
-
-/** For tests and a fresh session. */
-export function resetEnergy(): void {
-  pool = energy = frenzy = cooldown = drop = shown = nextFlyer = beat = quiet = 0;
-  waiting = [];
-  flyers = [];
 }
 
 // TikTok's like color, and the welcome green of the frenzy berries.

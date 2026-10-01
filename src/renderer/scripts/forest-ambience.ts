@@ -1629,16 +1629,7 @@ function activeCounts(e: AmbienceFrame): { nl: number; np: number } {
 
 (window.AMBIENCES = window.AMBIENCES ?? []).push({
   id: 'forest',
-  name: 'Rainy forest',
-  intention: 'Pluie lente sur la mousse, feuillages flous hors du jeu',
-  accent: '#b4d4de',
-  scaleName: 'Sol pentatonique majeur',
   scale: [392, 440, 493.88, 587.33, 659.25, 783.99, 880, 987.77, 1174.66, 1318.51],
-  gifts: {
-    help: { name: 'Fruit', effect: 'fruit' },
-    hinder: { name: 'Pierre', effect: 'stone' },
-    world: { name: 'Averse' },
-  },
 
   paintBack(g, e) {
     setFrame(e);

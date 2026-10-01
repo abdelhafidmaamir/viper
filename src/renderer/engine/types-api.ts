@@ -120,20 +120,11 @@ export interface AmbientSoundHandle {
   silence(sec: number): void;
 }
 
-/** A visual and sound ambience registered on window.AMBIENCES (forest-ambience.js). */
+/** A visual and sound ambience registered on window.AMBIENCES (forest-ambience.ts). */
 export interface Ambience {
   readonly id: string;
-  readonly name: string;
-  readonly intention: string;
-  readonly accent: string;
-  readonly scaleName: string;
   /** Note frequencies (Hz) the bite sound walks through. */
   readonly scale: readonly number[];
-  readonly gifts: {
-    readonly help: { readonly name: string; readonly effect: string };
-    readonly hinder: { readonly name: string; readonly effect: string };
-    readonly world: { readonly name: string };
-  };
   paintBack(g: CanvasRenderingContext2D, e: AmbienceFrame): void;
   paintFront(g: CanvasRenderingContext2D, e: AmbienceFrame): void;
   paintSnake(
