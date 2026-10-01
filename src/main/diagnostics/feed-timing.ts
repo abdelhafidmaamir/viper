@@ -10,6 +10,8 @@ import { json, type Diagnostic } from './context.js';
 interface Published {
   readonly phase: string;
   readonly fill: number;
+  /** Frames that threw since the page loaded. */
+  readonly errors: number;
   readonly settings: Readonly<Record<string, unknown>>;
 }
 
@@ -68,9 +70,9 @@ export const feedTiming: Diagnostic = async ({ game, options, write }) => {
           };
         }),
     );
-  const where = async (): Promise<{ phase: string; fill: number }> => {
-    const { phase, fill } = await published();
-    return { phase, fill };
+  const where = async (): Promise<{ phase: string; fill: number; errors: number }> => {
+    const { phase, fill, errors } = await published();
+    return { phase, fill, errors };
   };
 
   const before = (await published()).settings;
