@@ -1,7 +1,7 @@
 {
   "name": "viper",
   "productName": "Viper",
-  "version": "0.1.0",
+  "version": "0.9.0",
   "private": true,
   "description": "Interactive TikTok LIVE snake games (Duel, Feed the Snake): a capturable game window driven by a private control room.",
   "author": "Abdel Maamir",
