@@ -17,8 +17,8 @@ export function forceLength(v: number): void {
   forcedLength = v;
 }
 
-// Cap = TARGET_LENGTH (ring full at 60). Two snakes at 120 on 320 cells self-trapped
-// (measured: 62 deaths / 6 rounds, all trapped; at 60: 30).
+// Cap = TARGET_LENGTH (ring full at 40), whatever the tier: the per-tier maxLength in rules.ts is
+// not applied. Two snakes at 120 on 320 cells self-trapped (measured: 62 deaths / 6 rounds).
 export const maxLength = (): number => forcedLength || TARGET_LENGTH;
 
 export let cadence = 0;
