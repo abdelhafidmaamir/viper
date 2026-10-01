@@ -2,7 +2,7 @@
 
 [![CI](https://github.com/abdelhafidmaamir/viper/actions/workflows/ci.yml/badge.svg)](https://github.com/abdelhafidmaamir/viper/actions/workflows/ci.yml)
 
-Viper is a Windows desktop app (Electron, TypeScript) that renders a snake game for a live
+Viper is a desktop app (Electron, TypeScript) that renders a snake game for a live
 stream. The game takes no local input. Its inputs are audience events from a TikTok live
 (likes, follows, paid gifts), received over a local WebSocket. Its output is a window that
 broadcasting software captures as the video source.
@@ -13,7 +13,7 @@ broadcasting software captures as the video source.
   <img src="docs/images/duel.png" alt="Duel mode" width="280">
 </p>
 
-Status: 0.9.1, in use on real streams. Solo project. Windows only.
+Status: 0.9.1, in use on real streams. Solo project.
 
 ## What was built
 
@@ -168,7 +168,9 @@ holds a full stream without intervention. The exe is not code-signed.
 - The TikFinity message format is not a published contract. The adapter is the only place that
   depends on it.
 - The Duel has no crash recovery.
-- No macOS or Linux build.
+- Releases are packaged for Windows x64 only, because that is where it streams. Nothing in the
+  code is platform-specific and the test suite runs on Linux in CI, but macOS and Linux builds
+  are not packaged and have not been run. Screenshot baselines are Windows captures.
 
 ## Repository layout
 
