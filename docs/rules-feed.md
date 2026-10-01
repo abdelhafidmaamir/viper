@@ -73,15 +73,23 @@ Likes do not affect the board. They are used for:
 
 One card at a time under the board (`alerts.ts`).
 
-| Event  | Duration | Queue priority |
-| ------ | -------- | -------------- |
-| share  | 4.0 s    | 1              |
-| follow | 3.8 s    | 1              |
-| like   | 3.8 s    | 2              |
-| join   | 3.2 s    | 3              |
+| Event                                      | Duration | Priority | Expires while waiting |
+| ------------------------------------------ | -------- | -------- | --------------------- |
+| share (a repost counts as a share)         | 4.0 s    | 1        | never                 |
+| follow                                     | 3.8 s    | 1        | never                 |
+| join of a returning supporter or moderator | 3.2 s    | 1        | never                 |
+| like                                       | 3.8 s    | 2        | after 10 s            |
+| join                                       | 3.2 s    | 3        | after 6 s             |
 
-The queue holds 5 cards. A `join` is dropped when 2 cards are already waiting. Setting `alerts`
-turns the feature off.
+- The queue is ordered by priority and holds 5 cards.
+- A card on screen is cut short when a higher-priority one is waiting, once it has been up for
+  1.2 s. Cards of the same priority never cut each other.
+- More likes from the same viewer extend their card only while nothing waits, and no longer once
+  the card has been up 6 s.
+- With 2 or more cards waiting, the next card stays 70 % of its duration.
+- A plain `join` is dropped when 2 cards are already waiting.
+
+Setting `alerts` turns the feature off.
 
 ## Supporter entrances
 
