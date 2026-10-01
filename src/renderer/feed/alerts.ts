@@ -3,6 +3,11 @@
 // onto the board. Little icons burst around the card and fade there, one icon per kind
 // (alert-fx.ts): hearts for likes (one per like), sparkles for a join, blossoms for a share,
 // butterflies for a follow. The same viewer liking or sharing again keeps their card up.
+//
+// Who goes first: a follow, a share or a returning supporter (they are rare and cost the viewer
+// something), then likes, then plain joins. A card on screen gives way to a more important one
+// once it has been readable for a moment, and a like card only stays past its time when nobody
+// is waiting. Waiting joins and likes expire; follows, shares and supporters never do.
 
 import { ctx } from '../engine/canvas.ts';
 import { tr, type I18nKey } from '../engine/i18n.ts';
@@ -22,8 +27,14 @@ interface Alert {
   /** Likes shown on the card: the viewer's likes while this card is up. */
   likes: number;
   phrase: I18nKey;
-  /** Seconds on screen. */
+  /** Seconds since the card last came up or was refreshed: drives its fade. */
   age: number;
+  /** Seconds on screen in all, refreshes included. */
+  shown: number;
+  /** Seconds spent waiting in the queue. */
+  waited: number;
+  /** How long this card stays: shorter when others wait, or when cut for a more important one. */
+  stay: number;
   /** Icons still to burst out of the card. */
   hearts: number;
   /** For a join: which visit this is, 1 the first time the viewer ever joins. */
@@ -64,6 +75,23 @@ const STAY: Readonly<Record<AlertKind, number>> = {
 /** Icons bursting when a card comes up; likes burst one per like instead. */
 const BURST: Readonly<Record<AlertKind, number>> = { join: 0, like: 0, share: 14, follow: 12 };
 const FADE = 0.35;
+/** A card is readable for at least this long before a more important one may cut it. */
+const MIN_SHOW = 1.2,
+  /** More likes stop extending a like card once it has been up this long. */
+  LIKE_MAX = 6,
+  /** With this many cards waiting, each one stays a shorter time. */
+  BUSY = 2,
+  BUSY_STAY = 0.7;
+/** Seconds a waiting card stays worth showing. Follows, shares and supporters never expire. */
+const EXPIRES: Readonly<Record<number, number>> = { 1: 10, 2: 6 };
+
+/** 0 first: follows, shares and returning supporters, then likes, plain joins last. */
+const rank = (a: Pick<Alert, 'kind' | 'supporter'>): number =>
+  a.kind === 'share' || a.kind === 'follow' || a.supporter !== undefined
+    ? 0
+    : a.kind === 'like'
+      ? 1
+      : 2;
 const ACCENT: Readonly<Record<AlertKind, string>> = {
   like: '255,143,168',
   share: '246,184,196',
@@ -127,8 +155,10 @@ export function alertViewer(
       same.likes += n;
       same.hearts += Math.min(HEARTS_PER_EVENT, n);
       if (avatar) same.avatar = avatar;
-      // Keep the card up while the likes keep coming, without replaying its entrance.
-      if (same === current) same.age = Math.min(same.age, FADE);
+      // Keep the card up while the likes keep coming, without replaying its entrance: only
+      // while nobody waits, and never for ever, or one fast tapper would hold the spot.
+      if (same === current && !queue.length && same.shown < LIKE_MAX)
+        same.age = Math.min(same.age, FADE);
       return;
     }
   }
@@ -144,9 +174,10 @@ export function alertViewer(
     }
   }
   if (kind === 'join') {
-    // Joins come in waves: a busy queue skips them rather than lag behind the live.
-    if (queue.length >= 2 || queue.some((a) => a.nickname === nickname)) return;
-    if (current?.nickname === nickname) return;
+    // Joins come in waves: a busy queue skips them rather than lag behind the live. A returning
+    // supporter is not part of the wave.
+    if (supporter === undefined && queue.length >= BUSY) return;
+    if (queue.some((a) => a.nickname === nickname) || current?.nickname === nickname) return;
   }
   const visit = kind === 'join' ? visitNumber(nickname) : 0;
   const next: Alert = {
@@ -169,11 +200,11 @@ export function alertViewer(
     visit,
     supporter: kind === 'join' ? supporter : undefined,
     age: 0,
+    shown: 0,
+    waited: 0,
+    stay: STAY[kind],
     hearts: kind === 'like' ? Math.min(HEARTS_PER_EVENT, n) : BURST[kind],
   };
-  // Shares and follows first, then likes, joins last.
-  const rank = (a: Alert): number =>
-    a.kind === 'share' || a.kind === 'follow' ? 0 : a.kind === 'like' ? 1 : 2;
   const at = queue.findIndex((a) => rank(a) > rank(next));
   if (at < 0) queue.push(next);
   else queue.splice(at, 0, next);
@@ -201,16 +232,29 @@ function edgePoint(): { x: number; y: number; nx: number; ny: number } {
 /** The next card comes up with its sound. */
 function showNext(): void {
   current = queue.shift() ?? null;
-  if (current) alertSounds.show(current.kind, current.visit === 1);
+  if (!current) return;
+  if (queue.length >= BUSY) current.stay = STAY[current.kind] * BUSY_STAY;
+  alertSounds.show(current.kind, current.visit === 1);
 }
 
 let heartsOut = 0;
 
 export function updateAlerts(dt: number): void {
+  // What waited too long is no longer news.
+  for (const a of queue) a.waited += dt;
+  for (let i = queue.length - 1; i >= 0; i--) {
+    const a = queue[i];
+    if (a && a.waited > (EXPIRES[rank(a)] ?? Infinity)) queue.splice(i, 1);
+  }
   if (!current && queue.length) showNext();
   if (current) {
     current.age += dt;
-    if (current.age > STAY[current.kind]) showNext();
+    current.shown += dt;
+    // A more important card is waiting: this one leaves as soon as it has been readable.
+    const waiting = queue[0];
+    if (waiting && rank(waiting) < rank(current))
+      current.stay = Math.min(current.stay, Math.max(current.age, MIN_SHOW) + FADE);
+    if (current.age > current.stay) showNext();
   }
   // Icons leave the card a few at a time, so twenty likes read as twenty.
   heartClock += dt;
@@ -256,7 +300,7 @@ export function updateAlerts(dt: number): void {
 
 /** How visible a card is: fades in, holds, fades out at the end of its stay. */
 function cardShow(a: Alert): number {
-  return smooth(a.age / FADE) * (1 - smooth((a.age - (STAY[a.kind] - FADE)) / FADE));
+  return smooth(a.age / FADE) * (1 - smooth((a.age - (a.stay - FADE)) / FADE));
 }
 
 const smooth = (v: number): number => {

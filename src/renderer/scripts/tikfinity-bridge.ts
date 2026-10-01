@@ -70,12 +70,13 @@ function process(m: unknown): number | null {
     } as AudienceEvent);
   }
   /* joins, shares, follows: forwarded to the game for the activity banner. TikTok sends follows
-     and shares as a 'social' message whose displayType or label names the action. */
+     and shares as a 'social' message whose displayType or label names the action. A repost
+     counts as a share. */
   const social =
     event === 'social'
       ? /follow/i.test(`${d.displayType ?? ''} ${d.label ?? ''}`)
         ? 'follow'
-        : /share/i.test(`${d.displayType ?? ''} ${d.label ?? ''}`)
+        : /share|repost/i.test(`${d.displayType ?? ''} ${d.label ?? ''}`)
           ? 'share'
           : null
       : null;
