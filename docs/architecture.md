@@ -1,5 +1,9 @@
 # Architecture
 
+How the app is put together. For the vocabulary see [concepts.md](concepts.md), for what the
+games do see [rules-duel.md](rules-duel.md) and [rules-feed.md](rules-feed.md), and for the
+reasons behind the choices below see [decisions.md](decisions.md).
+
 ## Windows
 
 The app opens on `launcher.html`. Picking a mode opens that mode's game window and control room
@@ -88,7 +92,7 @@ Its rules are its own and live in `feed/`:
 | -------------------------- | ------------------------------------------------------- |
 | `main.ts`                  | the frame loop                                          |
 | `state.ts`                 | the rules: one berry per coin, the board fills up       |
-| `loop-path.ts`, `path.ts`  | the closed loop the snake follows, and its shortcuts    |
+| `loop-path.ts`, `path.ts`  | the closed loop the snake follows (shortcuts are off)   |
 | `grid.ts`                  | the 30×30 board                                         |
 | `paint.ts`, `hud.ts`       | snake and berries, then everything around the board     |
 | `flower.ts`                | the flower that blooms on a gift and drips the berries  |
@@ -104,12 +108,46 @@ Its rules are its own and live in `feed/`:
 `feed-control/` is its control room, built from the same components as the duel's. `launcher/`
 is the first screen.
 
-What a viewer paid for must never be lost, so the main process keeps three things for this mode:
+## Persistence and sync (Feed)
 
-- `feed-backup.ts`: the round in progress. After a crash the next launch picks it up by itself.
-- `feed-journal.ts`: a CSV per live and the supporters list.
-- `feed-cloud.ts`: the same list in a Firestore database, so it survives a new build or a new
-  computer. It needs `cloud.local.json` (not committed); without it the list stays local.
+Gifts are payments, so the Feed state that represents them is persisted outside the renderer. The
+renderer holds the state in memory; the main process pulls it on a timer with
+`webContents.executeJavaScript` and owns every write. Pages stay sandboxed with no file or network
+access of their own.
+
+```mermaid
+flowchart LR
+  R[Feed renderer<br>window.__viperFeed] -->|round state, 1 s| B[feed-backup.ts]
+  R -->|journal rows, 1 s| J[feed-journal.ts]
+  R -->|supporters list, 5 s| J
+  B --> F1[(feed-backup.json)]
+  J --> F2[(journal/*.csv)]
+  J --> F3[(feed-supporters.json)]
+  J -->|changed list, at most every 15 s| C[feed-cloud.ts]
+  C <-->|REST| FS[(Firestore)]
+```
+
+| Data              | Store                                    | Written            | Read back                               |
+| ----------------- | ---------------------------------------- | ------------------ | --------------------------------------- |
+| Round in progress | `feed-backup.json`                       | every 1 s, atomic  | on launch, if less than 12 h old        |
+| Supporters list   | `feed-supporters.json`                   | every 5 s, atomic  | on launch                               |
+| Supporters list   | Firestore, `viper/<space>` (+ `shards/`) | at most every 15 s | on launch, if newer than the local copy |
+| Journal           | `journal/Viper Feed <date> <time>.csv`   | appended every 1 s | never by the app                        |
+
+Atomic means: write to `<file>.tmp`, `fsync`, rename over the target (`writeDurably`).
+
+**Firestore.** `feed-cloud.ts` talks to the Firestore REST API with `fetch`; there is no Firebase
+SDK in the app and no user sign-in. The list is stored as one string in the document
+`viper/<space>`. Past 200,000 characters it is split across `viper/<space>/shards/<i>`, written
+before the head document so a reader never follows a head to parts that don't exist yet; a missing
+part on read is treated as no data. Access relies on `<space>` being a secret of at least 40
+characters, read from `cloud.local.json`. That file is not in the repository; packaging copies it
+into the app's `resources/` folder when present. Without it, or offline, the app runs on the local
+copy and pushes once the network is back.
+
+**Conflict rule.** On launch the local and online copies are compared by the `savedAt` timestamp
+inside the list and the newer one replaces the other, whole. This is correct for one machine at a
+time and loses data if two run concurrently. A per-supporter merge is not implemented.
 
 ## Events
 
