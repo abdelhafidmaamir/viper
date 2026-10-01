@@ -1,5 +1,6 @@
 /** Live screen: round, TikFinity, top gifters, and ambience cards. */
 import {
+  DAY_CYCLES,
   ENTRANCE_GAPS,
   FEED_HOURS,
   FEED_WEATHERS,
@@ -48,6 +49,7 @@ const WEATHER_OPTIONS = FEED_WEATHERS.map((w) => ({
       fireflies: 'Fireflies',
       embers: 'Embers',
       mist: 'Mist',
+      sea: 'Sea',
     } as Record<FeedWeather, string>
   )[w],
 }));
@@ -385,13 +387,28 @@ function ambienceCard(dispatch: Dispatch, reason: Reason): FeedView {
       dispatch({ cmd: 'setting', name: 'hour', value });
     },
   });
+  const dayCycle = createSegmented({
+    label: 'Day and night cycle',
+    options: DAY_CYCLES.map((value) => ({
+      value,
+      label: value === 0 ? 'Off' : `${String(value)} min`,
+    })),
+    onSelect: (value) => {
+      dispatch({ cmd: 'setting', name: 'dayCycle', value });
+    },
+  });
   const autoAmbience = createToggle({
     label: 'New ambience each round',
     onToggle: (value) => {
       dispatch({ cmd: 'setting', name: 'autoAmbience', value });
     },
   });
-  const card = createCard({ title: 'Ambience' }, [weather.el, hour.el, autoAmbience.el]);
+  const card = createCard({ title: 'Ambience' }, [
+    weather.el,
+    hour.el,
+    dayCycle.el,
+    autoAmbience.el,
+  ]);
   return {
     el: card.el,
     update(state) {
@@ -403,6 +420,12 @@ function ambienceCard(dispatch: Dispatch, reason: Reason): FeedView {
       const hv = resolvePending(settings?.hour, pending.hour, now);
       const hourVal = typeof hv.value === 'number' ? nearestHourPreset(hv.value) : undefined;
       hour.update({ value: hourVal, status: hv.status, reason: lock });
+      const dc = resolvePending(settings?.dayCycle, pending.dayCycle, now);
+      dayCycle.update({
+        value: typeof dc.value === 'number' ? dc.value : undefined,
+        status: dc.status,
+        reason: lock,
+      });
       const a = resolvePending(settings?.autoAmbience, pending.autoAmbience, now);
       autoAmbience.update({ on: a.value === true, status: a.status, reason: lock });
     },

@@ -274,7 +274,8 @@ export type Weather =
   | 'aurora'
   | 'fireflies'
   | 'embers'
-  | 'mist';
+  | 'mist'
+  | 'sea';
 
 /** The live settings object (game.js), written by the control room and the harnesses. */
 export interface Settings {

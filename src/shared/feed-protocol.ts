@@ -47,6 +47,7 @@ export const FEED_WEATHERS = [
   'fireflies',
   'embers',
   'mist',
+  'sea',
 ] as const;
 export type FeedWeather = (typeof FEED_WEATHERS)[number];
 
@@ -67,9 +68,14 @@ export const START_FILLS = [0, 0.5, 0.75, 0.9, 0.95] as const;
 export const ENTRANCE_GAPS = [0, 5, 15, 30, 9999, -1] as const;
 export const ONCE_PER_LIVE = 9999;
 
+/** Minutes the sky takes to go once round the clock, night to night: 0 keeps the hour still. */
+export const DAY_CYCLES = [0, 10, 20, 30, 60] as const;
+
 export interface FeedSettings {
   readonly weather: FeedWeather;
   readonly hour: number;
+  /** The hour moves on by itself, a full day every so many minutes (DAY_CYCLES). */
+  readonly dayCycle: number;
   /** Each round draws a new weather and hour. */
   readonly autoAmbience: boolean;
   readonly language: 'en' | 'fr';
@@ -196,6 +202,8 @@ export function sanitizeSetting<K extends FeedSettingName>(
       return FEED_WEATHERS.includes(value as FeedWeather) ? ok(value) : undefined;
     case 'hour':
       return typeof value === 'number' && value >= 0 && value < 1 ? ok(value) : undefined;
+    case 'dayCycle':
+      return DAY_CYCLES.includes(value as (typeof DAY_CYCLES)[number]) ? ok(value) : undefined;
     case 'autoAmbience':
       return typeof value === 'boolean' ? ok(value) : undefined;
     case 'language':

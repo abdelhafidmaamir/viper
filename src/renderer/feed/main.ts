@@ -10,6 +10,7 @@ import '../game/game.css';
 import { bindCanvas, ctx } from '../engine/canvas.ts';
 import { CELL, H, OX, W, WF } from '../engine/layout.ts';
 import { paintAlerts, updateAlerts } from './alerts.ts';
+import { paintCrabs } from './crabs.ts';
 import { paintFlower } from './flower.ts';
 import { FCELL, FCOLS, FROWS, FX0, FY0, K } from './grid.ts';
 import type { AmbienceFrame } from '../engine/types-api.ts';
@@ -146,6 +147,8 @@ function frame(head: { x: number; y: number }, dt: number): AmbienceFrame {
 
 /** Eases the hour toward the chosen one along the short way round the clock. */
 function easeHour(dt: number): void {
+  // The day running by itself: the chosen hour moves on, and the sky follows it as usual.
+  if (settings.dayCycle > 0) settings.hour = (settings.hour + dt / (settings.dayCycle * 60)) % 1;
   if (snap) {
     hour = settings.hour;
     return;
@@ -214,6 +217,7 @@ function step(dt: number): void {
     paintHead(head, t);
     paintBites();
     a.paintFront(c, e);
+    if (settings.weather === 'sea') paintCrabs(t, e.subStep, e.reduced);
     paintFlower(t);
     paintFull();
     paintReady();
