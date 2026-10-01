@@ -533,30 +533,17 @@ const GROUNDS: Record<string, GroundSpec> = {
       }
     },
   },
-  // The seashore: dunes held by marram grass at the back, the beach in front, shells and a starfish
-  // left by the tide. The sea itself lies behind, painted with the front layers (paintSea).
+  // The seashore: bare dunes at the back, the beach in front, shells and a starfish left by the
+  // tide. The sea itself lies behind, painted with the front layers (paintSea).
   sea: {
     tones: [
-      ['#57543f', '#302e23'],
-      ['#9c8662', '#57493a'],
-      ['#d2b886', '#8a714f'],
+      ['#a8946c', '#6d5d45'],
+      ['#c4aa7c', '#8a7352'],
+      ['#e6cf9c', '#ad9066'],
     ],
     rim: '255,248,226',
     rimAlpha: 0.9,
     wind: 0.09,
-    before(g, ridge, k) {
-      if (k === 2) return;
-      paintBlades(
-        g,
-        ridge,
-        k,
-        ['#3e452a', '#4c5530'][k] ?? '#000',
-        ['#8f9a5c', '#aab46c'][k] ?? '#000',
-        k === 0 ? 34 : 46,
-        k === 0 ? 9 : 12,
-        901 + k * 5,
-      );
-    },
     after(g, ridge, k) {
       if (k !== 2) return;
       // Pebbles, shells and one or two starfish, half sunk in the wet sand.
@@ -859,7 +846,7 @@ function paintSea(
   A: AmbienceState,
   P: number,
 ): void {
-  const horizon = GY1 + 70,
+  const horizon = GY1 + 140,
     bottom = H - 120,
     // 0 at midnight, 1 at noon: the water keeps the sky's colour, blue only as the light allows.
     day = Math.sin(Math.PI * ((((e.hour || 0) % 1) + 1) % 1));
@@ -872,26 +859,76 @@ function paintSea(
       0.2 + 1.2 * A.glowAlpha * (1 - 0.5 * day),
     );
   // A soft haze first, so the water does not start on a hard line under the board.
-  const haze = g.createLinearGradient(0, horizon - 70, 0, horizon);
+  // It starts at the foot of the board and thickens slowly, until it is the water's own colour.
+  const hazeH = 150,
+    haze = g.createLinearGradient(0, horizon - hazeH, 0, horizon);
   haze.addColorStop(0, rgba(far, 0));
-  haze.addColorStop(1, rgba(far, 0.6));
+  haze.addColorStop(0.35, rgba(far, 0.08));
+  haze.addColorStop(0.7, rgba(far, 0.34));
+  haze.addColorStop(0.92, rgba(far, 0.8));
+  haze.addColorStop(1, rgba(far, 1));
   g.fillStyle = haze;
-  g.fillRect(0, horizon - 70, W, 70);
+  g.fillRect(0, horizon - hazeH, W, hazeH);
   const water = g.createLinearGradient(0, horizon, 0, bottom);
   water.addColorStop(0, rgb(far));
   water.addColorStop(1, rgb(deep));
   g.fillStyle = water;
   g.fillRect(0, horizon, W, bottom - horizon);
-  // The horizon: a thin line of light where the sky meets the water.
-  g.fillStyle = rgba(lerpColor(A.glow, [255, 255, 255], 0.4), 0.55);
-  g.fillRect(0, horizon - 1, W, 2);
-  // The light's glow low on the water: warm at dawn and dusk, pale under the moon.
+  // The sun, or the moon once the light is gone, standing on the horizon on the light's side of the
+  // sky: low and half sunk at dawn and dusk, clear of the water around noon.
+  const sun = Math.min(1, Math.max(0, (day - 0.25) / 0.2)),
+    discX = W * A.glowX,
+    paintDisc = (r: number, lift: number, core: RGB, a: number): void => {
+      if (a < 0.01) return;
+      const y = horizon - lift,
+        aura = g.createRadialGradient(discX, y, r * 0.6, discX, y, r * 3.2);
+      aura.addColorStop(0, rgba(core, 0.4 * a));
+      aura.addColorStop(1, rgba(core, 0));
+      g.fillStyle = aura;
+      g.fillRect(discX - r * 3.2, y - r * 3.2, r * 6.4, r * 6.4);
+      g.fillStyle = rgba(core, a);
+      g.beginPath();
+      g.arc(discX, y, r, 0, Math.PI * 2);
+      g.fill();
+    };
+  g.save();
+  g.beginPath();
+  g.rect(0, 0, W, horizon);
+  g.clip();
+  paintDisc(
+    30,
+    4 + 30 * Math.max(0, (day - 0.64) / 0.36),
+    lerpColor(A.glow, [255, 244, 214], 0.6),
+    sun,
+  );
+  paintDisc(24, 30, [228, 236, 242], 1 - sun);
+  if (sun < 0.99) {
+    // The moon's seas, three soft grey patches.
+    g.fillStyle = rgba([150, 164, 178], 0.35 * (1 - sun));
+    for (const [dx, dy, r] of [
+      [-8, -6, 6],
+      [7, 3, 8],
+      [-4, 10, 4],
+    ] as const) {
+      g.beginPath();
+      g.arc(discX + dx, horizon - 30 + dy, r, 0, Math.PI * 2);
+      g.fill();
+    }
+  }
+  g.restore();
+  // The light's glow low on the water: warm at dawn and dusk, pale under the moon. A flat ellipse,
+  // so it dies out on every side instead of being cut off above the horizon.
   const cx0 = W * A.glowX,
-    halo = g.createRadialGradient(cx0, horizon, 10, cx0, horizon, W * 0.55);
+    haloR = W * 0.55,
+    halo = g.createRadialGradient(0, 0, 10, 0, 0, haloR);
   halo.addColorStop(0, rgba(A.glow, 0.5 * Math.min(1, A.glowAlpha * 3.5)));
   halo.addColorStop(1, rgba(A.glow, 0));
+  g.save();
+  g.translate(cx0, horizon);
+  g.scale(1, 0.42);
   g.fillStyle = halo;
-  g.fillRect(0, horizon - 60, W, bottom - horizon + 60);
+  g.fillRect(-haloR, -haloR, haloR * 2, haloR * 2);
+  g.restore();
   // Swells: lighter lines, flat and close far away, wider and slower near the shore.
   g.globalCompositeOperation = 'lighter';
   for (let row = 0; row < 11; row++) {
