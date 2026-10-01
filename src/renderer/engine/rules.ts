@@ -88,8 +88,9 @@ export const TIERS: Tier[] = [
 ];
 
 // Economy modelled on a real live: the rose gift plays AGAINST the snake.
-// Likes, comments and shares have no game effect; the speed boost via likes was removed.
-// The only speed boost is the boost gift (BOOST_FACTOR for BOOST_DURATION s).
+// Shares and follows have no game effect. Likes speed BOTH snakes through the shared pool in
+// crowd-energy.ts. The only speed boost for one team is the boost gift (BOOST_FACTOR for
+// BOOST_DURATION s).
 // Tuned down from 1.5.
 export const BOOST_FACTOR = 1.2;
 

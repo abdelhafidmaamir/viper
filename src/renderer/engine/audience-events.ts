@@ -99,7 +99,8 @@ export function receiveEvent(ev: AudienceEvent | null | undefined): number {
             ? 0
             : 1;
   countEvents(ev_.type === 'gift' ? n * 3 : n);
-  // Likes no longer grant a speed boost. They still count toward cadence (above), nothing else.
+  // Likes give no team a boost here. They count toward cadence (above) and feed the shared pool
+  // (addLikes, crowd-energy.ts), nothing else.
   if (ev_.type === 'like') return 0;
   if (ev_.type === 'gift') {
     recordGift(i, ev_.value ?? 0, ev_.nickname, n, ev_.avatar);
