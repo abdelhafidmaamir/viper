@@ -344,8 +344,6 @@ export interface GameMetrics {
   readonly deathLengths: readonly number[];
   readonly giftsSpawned: number;
   readonly giftsEaten: number;
-  readonly stonesPlaced: number;
-  readonly hits: number;
   readonly berries: number;
 }
 
@@ -384,7 +382,6 @@ export interface InternalBody {
 /** Board internals for probes and harnesses (Viper.internal). */
 export interface InternalSnapshot {
   readonly snake: readonly Cell[];
-  readonly fruit: null;
   readonly dir: Direction;
   readonly stones: readonly { readonly x: number; readonly y: number; readonly t: number }[];
   readonly brambles: readonly {
