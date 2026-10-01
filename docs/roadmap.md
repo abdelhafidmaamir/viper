@@ -27,7 +27,6 @@ stay on `wip/*`.
 ## Maybe next
 
 - send tier and format in the game state so the control room can show them
-- dead code left from the migration (fruit, stones)
 - code signing for releases
 
 ## Notes

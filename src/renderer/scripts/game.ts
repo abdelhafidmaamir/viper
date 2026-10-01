@@ -127,7 +127,6 @@ export let snake: Cell[] = [],
   positionHistory: Cell[] = [],
   dir: Direction = { x: 1, y: 0 },
   nextDir: Direction = { x: 1, y: 0 };
-export const fruit = null;
 export let subStep = 0,
   grew = false,
   aiMemory: AiMemory = {},
@@ -166,8 +165,6 @@ export let t = 0,
   turns = 0,
   staircases = 0,
   avoidable = 0;
-export const stonesPlaced = 0,
-  hits = 0;
 export const deathLengths: number[] = [];
 export const dirs: Direction[] = [];
 // Single mode: gold vs shadow duel.
@@ -1502,8 +1499,6 @@ const viperPublic = {
     deathLengths: deathLengths,
     giftsSpawned: gifted,
     giftsEaten: giftsEaten,
-    stonesPlaced: stonesPlaced,
-    hits: hits,
     berries: berries.length + seeds.length,
   }),
   duel: () => {
@@ -1589,7 +1584,6 @@ const viperPublic = {
   plantBramble: () => plantBramble('probe'),
   internal: () => ({
     snake: snake,
-    fruit,
     dir,
     stones: stones.map((r) => ({ x: r.x, y: r.y, t: r.t })),
     brambles: brambles.map((bramble) => ({
