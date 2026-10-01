@@ -28,8 +28,8 @@ is named.
 The last cell stays free, which is why the round ends at 899. The opening exists to skip the
 period where the board is almost empty.
 
-Setting `startFill` (0, 0.5, 0.75, 0.9, 0.95) starts the snake at that share of the board and
-skips the opening.
+Setting `startFill` to 0.5, 0.75, 0.9 or 0.95 starts the snake at that share of the board and
+skips the opening. The default, 0, is the normal start described above.
 
 ## Gifts
 

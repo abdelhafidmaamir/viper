@@ -14,7 +14,6 @@ All input comes from a TikTok live through TikFinity. The adapter
 | `like`    | A viewer taps the screen   | no   | Highest volume; arrives batched with a count             |
 | `follow`  | A viewer follows           | no   | Can arrive twice in two formats; deduplicated over 5 s   |
 | `share`   | A viewer shares the stream | no   | Same as `follow`                                         |
-| `comment` | A chat message             | no   | Content is not used                                      |
 | `gift`    | A viewer sends a gift      | yes  | Carries a gift name, a value in coins and a repeat count |
 | `viewers` | Periodic audience size     | no   | Sampled, not an action                                   |
 
