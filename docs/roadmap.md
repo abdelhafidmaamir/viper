@@ -18,6 +18,9 @@ step by step without breaking it, one PR at a time, with `npm run check` green e
 - [x] Whole renderer in strict TypeScript
 - [x] Control room redone: tabs, status bar, event log, shortcuts, confirmations
 - [x] Pixel diff test (`npm run visual`), runs on CI too
+- [x] Game text in English or French
+- [x] Second mode, Feed the Snake, with a launcher to pick the mode
+- [x] Feed: round saved every second, live journal, supporters list kept online
 
 ## Branches
 

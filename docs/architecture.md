@@ -43,9 +43,11 @@ Some things that look odd but are on purpose:
 - Settings still live under the old `Viper Duel` user data folder, so the rename to Viper didn't
   reset anything.
 
-## Engine
+## Duel engine
 
-`scripts/game.ts` is the simulation loop and public API. The rest is split in `engine/`:
+Paths below are under `src/renderer/`. `scripts/game.ts` is the simulation loop and public API,
+`game/` is the page entry (control room link, seeded mode for the tests). The rest is split in
+`engine/`:
 
 | Module               | What's in it                                    |
 | -------------------- | ----------------------------------------------- |
@@ -63,15 +65,51 @@ Some things that look odd but are on purpose:
 | `scoreboard.ts`      | score bar and clock                             |
 | `gift-panel.ts`      | gift legend and scrolling columns               |
 | `gift-feedback.ts`   | last donor per gift line                        |
+| `fan-rings.ts`       | donor photos that fly onto their team's snake   |
+| `crowd-energy.ts`    | likes fill one shared orb that speeds both up   |
+| `like-milestones.ts` | confetti every 1,000 likes                      |
 | `end-screen.ts`      | winner screen and donor ranking                 |
 | `announcements.ts`   | on-stream banner                                |
 | `debug-overlay.ts`   | AI debug layers (operator only)                 |
 | `audio.ts`           | sound, starts on first click or key             |
 | `canvas.ts`          | drawing surface                                 |
 | `palette.ts`         | colours                                         |
+| `i18n.ts`            | on-stream text, English and French              |
 
 Rule I keep: a module is the only one writing its own state. Others read it or call its
 functions.
+
+## Feed the Snake
+
+The second mode shares the canvas, the layout, the forest and the TikFinity bridge with the duel.
+Its rules are its own and live in `feed/`:
+
+| Module                     | What's in it                                            |
+| -------------------------- | ------------------------------------------------------- |
+| `main.ts`                  | the frame loop                                          |
+| `state.ts`                 | the rules: one berry per coin, the board fills up       |
+| `loop-path.ts`, `path.ts`  | the closed loop the snake follows, and its shortcuts    |
+| `grid.ts`                  | the 30×30 board                                         |
+| `paint.ts`, `hud.ts`       | snake and berries, then everything around the board     |
+| `flower.ts`                | the flower that blooms on a gift and drips the berries  |
+| `alerts.ts`, `alert-fx.ts` | join, follow, share and like cards under the board      |
+| `welcome.ts`, `vip.ts`     | the welcome on a join, the entrance of a past supporter |
+| `crabs.ts`                 | Sea ambience: one crab per viewer who likes             |
+| `leaderboard.ts`           | end of round: this round, then the all-time supporters  |
+| `supporters.ts`            | who gave what, across lives, by TikTok id               |
+| `journal.ts`               | one row per thing that happened, for reading back later |
+| `sound.ts`                 | synthesised sound                                       |
+| `control-link.ts`          | settings, commands, state published twice a second      |
+
+`feed-control/` is its control room, built from the same components as the duel's. `launcher/`
+is the first screen.
+
+What a viewer paid for must never be lost, so the main process keeps three things for this mode:
+
+- `feed-backup.ts`: the round in progress. After a crash the next launch picks it up by itself.
+- `feed-journal.ts`: a CSV per live and the supporters list.
+- `feed-cloud.ts`: the same list in a Firestore database, so it survives a new build or a new
+  computer. It needs `cloud.local.json` (not committed); without it the list stays local.
 
 ## Events
 
