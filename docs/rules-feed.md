@@ -23,7 +23,7 @@ is named.
 | Countdown  | 3.6 s                 | No berry falls                                                                                                       |
 | Opening    | Until 360 cells       | Starts at 3 cells. 12 berries placed on the route carry hidden extra growth up to 40 % of the board. Head speed x5.2 |
 | Play       | Until 899 cells       | Gifts add berries, the snake eats and grows                                                                          |
-| End screen | 8 s                   | Rankings, then the next round starts automatically                                                                   |
+| End screen | 10 s (`roundHold`)    | Rankings, then the next round starts automatically                                                                   |
 
 The last cell stays free, which is why the round ends at 899. The opening exists to skip the
 period where the board is almost empty.
@@ -108,6 +108,29 @@ Setting `entranceGap` limits how often one viewer gets the entrance: `0` every a
 viewer gets a highlighted alert instead. A top-3 change is always shown. The operator can skip the
 current entrance.
 
+## Gift thanks
+
+Every gift that feeds the snake is thanked on the canvas, whether it comes from the stream, the
+simulated audience or a test button. The text only thanks, it never asks for anything.
+
+A viewer's first gift ever gets an entrance over the board (`FIRST GIFT`, 5 s), whatever
+`entranceGap` says. A streak that continues adds to the entrance already on screen.
+
+Gifts from someone who has given before follow the `giftThanks` setting:
+
+| Value                                                      | Where the thanks is drawn                                                                                              |
+| ---------------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------- |
+| `flower` (default)                                         | Two cards around the flower: name and title on the left, the count on the right, with rays and particles (`flower.ts`) |
+| `tray`                                                     | A row in the board's lower left corner, up to 3 rows, 5 s each (`gift-tray.ts`)                                        |
+| `tray-arc`, `tray-comet`, `tray-rings`, `tray-butterflies` | Same row, the photo first travels down from the flower                                                                 |
+| `classic`                                                  | An entrance over the board (3.4 s, at most 9 s for a streak)                                                           |
+
+The flower's cards scale with the gift: 5, 10, 30 and 100 berries each add rays and particles, gold
+from 30. Particles are capped at 260 and nothing is drawn while no gift is pouring. `giftTitles`
+adds the title of the day to the tray rows.
+
+A gift that moves its giver into the top 3 gets that entrance instead of the thanks.
+
 ## Rankings
 
 The end screen (`leaderboard.ts`) has three sections:
@@ -142,10 +165,13 @@ available.
 
 `FeedSettings` (`src/shared/feed-protocol.ts`), stored in `localStorage`:
 
-| Setting        | Default | Setting       | Default |
-| -------------- | ------- | ------------- | ------- |
-| `weather`      | `rain`  | `startFill`   | `0`     |
-| `hour`         | `0.06`  | `alerts`      | `true`  |
-| `dayCycle`     | `20`    | `entranceGap` | `0`     |
-| `autoAmbience` | `true`  | `mods`        | empty   |
-| `language`     | `en`    |               |         |
+| Setting        | Default  | Setting       | Default |
+| -------------- | -------- | ------------- | ------- |
+| `weather`      | `rain`   | `startFill`   | `0`     |
+| `hour`         | `0.06`   | `alerts`      | `true`  |
+| `dayCycle`     | `20`     | `entranceGap` | `0`     |
+| `autoAmbience` | `true`   | `mods`        | empty   |
+| `language`     | `en`     | `roundHold`   | `10`    |
+| `giftThanks`   | `flower` | `giftTitles`  | `false` |
+
+`roundHold` is the end screen's duration in seconds: 5 to 30 in steps of 5.

@@ -40,6 +40,9 @@ function makeGameState(overrides?: Partial<FeedState>): FeedState {
       alerts: true,
       entranceGap: 0,
       mods: '',
+      roundHold: 10,
+      giftThanks: 'flower',
+      giftTitles: false,
     },
     fps: 60,
     slowFrames: 0,
@@ -194,6 +197,9 @@ describe('cleanPending', () => {
         alerts: true,
         entranceGap: 0,
         mods: '',
+        roundHold: 10,
+        giftThanks: 'flower',
+        giftTitles: false,
       },
     });
     const pending = { weather: { value: 'snow', sentAt: 0 } };

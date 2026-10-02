@@ -65,8 +65,27 @@ export const START_FILLS = [0, 0.5, 0.75, 0.9, 0.95] as const;
  * How often the same supporter gets their big entrance, in minutes: 0 at every arrival, 9999 once
  * per live, -1 never (the gold alert at the bottom only).
  */
+/** Seconds the round's end screen stays up before the next round starts. */
+export const ROUND_HOLDS = [5, 10, 15, 20, 25, 30] as const;
+
 export const ENTRANCE_GAPS = [0, 5, 15, 30, 9999, -1] as const;
 export const ONCE_PER_LIVE = 9999;
+
+/**
+ * How a gift from someone who has given before is thanked: around the flower that pours it, on a
+ * tray in the board's corner (the row sliding in, or its photo coming down from the flower one
+ * of four ways), or with an entrance over the board. A first gift ever always gets the entrance.
+ */
+export const GIFT_THANKS = [
+  'flower',
+  'tray',
+  'tray-arc',
+  'tray-comet',
+  'tray-rings',
+  'tray-butterflies',
+  'classic',
+] as const;
+export type GiftThanksSetting = (typeof GIFT_THANKS)[number];
 
 /** Minutes the sky takes to go once round the clock, night to night: 0 keeps the hour still. */
 export const DAY_CYCLES = [0, 10, 20, 30, 60] as const;
@@ -87,6 +106,12 @@ export interface FeedSettings {
   readonly entranceGap: number;
   /** Moderators' TikTok @handles, comma separated, for when TikTok does not say so itself. */
   readonly mods: string;
+  /** Seconds the end screen and its leaderboard stay up (ROUND_HOLDS). */
+  readonly roundHold: number;
+  /** How a gift is thanked (GIFT_THANKS). */
+  readonly giftThanks: GiftThanksSetting;
+  /** The tray's rows show the giver's title of the day. */
+  readonly giftTitles: boolean;
 }
 
 export type FeedSettingName = keyof FeedSettings;
@@ -119,8 +144,16 @@ export type FeedCommand =
     }
   /** Ends the supporter entrance on screen now. */
   | { readonly cmd: 'skip-entrance' }
-  /** Rehearsal: a made-up supporter arrives (a gifter, a top 3 place, or a moderator). */
-  | { readonly cmd: 'test-entrance'; readonly rank?: number; readonly mod?: boolean }
+  /**
+   * Rehearsal: a made-up supporter arrives (a gifter, a top 3 place, or a moderator), or sends
+   * their first gift.
+   */
+  | {
+      readonly cmd: 'test-entrance';
+      readonly rank?: number;
+      readonly mod?: boolean;
+      readonly first?: boolean;
+    }
   | { readonly cmd: 'setting'; readonly name: FeedSettingName; readonly value: unknown };
 
 export interface FeedLeader {
@@ -218,6 +251,12 @@ export function sanitizeSetting<K extends FeedSettingName>(
         : undefined;
     case 'mods':
       return typeof value === 'string' ? ok(value.slice(0, 600)) : undefined;
+    case 'roundHold':
+      return ROUND_HOLDS.includes(value as (typeof ROUND_HOLDS)[number]) ? ok(value) : undefined;
+    case 'giftThanks':
+      return GIFT_THANKS.includes(value as GiftThanksSetting) ? ok(value) : undefined;
+    case 'giftTitles':
+      return typeof value === 'boolean' ? ok(value) : undefined;
   }
   return undefined;
 }

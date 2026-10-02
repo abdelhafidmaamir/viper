@@ -14,5 +14,5 @@ export const FX0 = (W - BOARD_W) / 2,
 export const K = FCELL / CELL;
 
 /** The berry flower above the board, and the point its berries drip from. */
-export const FLOWER = { x: W / 2, y: 150 };
-export const MOUTH = { x: W / 2, y: 190 };
+export const FLOWER = { x: W / 2, y: 168 };
+export const MOUTH = { x: W / 2, y: 208 };

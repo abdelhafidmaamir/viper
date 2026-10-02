@@ -27,7 +27,12 @@ const HOUSE_GAP = 30; // loop cells between two start-up berries
 const START_SPRINT = 5.2; // pace multiplier while the snake eats the start-up berries
 const DROP_EVERY = 0.045; // seconds between two berries leaving the dispenser
 export const FALL_TIME = 0.5;
-export const FULL_HOLD = 8; // seconds of celebration before the next round
+/** Seconds of celebration before the next round; the control room sets it. */
+let fullHold = 10;
+export const roundHold = (): number => fullHold;
+export function setRoundHold(seconds: number): void {
+  fullHold = seconds;
+}
 /** Only a guard against a garbled event: a real gift always drops all its berries. */
 const MAX_PER_GIFT = 100000;
 const GULP_SPEED = 26; // cells per second, the swallow travels faster than the snake
@@ -189,6 +194,9 @@ export const fanOf = (nickname: string): Fan | undefined => game.fans.get(nickna
 /** The round's leaderboard, best first. */
 export const leaders = (n = 5): Fan[] =>
   [...game.fans.values()].sort((a, b) => b.coins - a.coins).slice(0, n);
+
+/** What a viewer gave today, all rounds together. */
+export const todayOf = (nickname: string): number => today.get(nickname) ?? 0;
 
 export function titleFor(coins: number): string {
   const min = TITLES.find((m) => coins >= m);
@@ -572,7 +580,7 @@ export function advance(dt: number, rand: () => number = Math.random): boolean {
   game.bite += dt;
   if (game.full >= 0) {
     game.full += dt;
-    if (game.full > FULL_HOLD) newRound(rand);
+    if (game.full > fullHold) newRound(rand);
     return false;
   }
   // GET READY: the forest lays its own line of berries (no giver, no card) up to WARM_LEN while

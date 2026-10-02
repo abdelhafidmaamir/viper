@@ -160,6 +160,88 @@ alertSounds.show = (kind, first) => {
   }
 };
 
+// A gift's thanks, on a thumb piano: a soft pop, then a short tune. The tune is never the same
+// twice in a row (several shapes, several keys), so a busy live does not loop one jingle. A first
+// gift ever plays a longer run that lands on a chord.
+const PENTA = [0, 2, 4, 7, 9, 12, 14, 16, 19, 21];
+const TUNES: readonly (readonly number[])[] = [
+  [0, 2, 4],
+  [2, 4, 5],
+  [4, 2, 5],
+  [0, 3, 5],
+  [1, 3, 6],
+  [3, 5, 7],
+];
+const KEYS = [392, 440, 493.88, 523.25];
+let lastTune = -1,
+  lastKey = -1;
+
+/** One thumb-piano note: a round body, a short bright overtone, a tiny knock. */
+function pluck(freq: number, at: number, gain: number, dur = 0.55): void {
+  tone(freq, at, dur, gain, 'sine', 1.02);
+  tone(freq * 3, at, dur * 0.25, gain * 0.28, 'sine');
+  tick(at, 2400, 0.02, gain * 0.5);
+}
+
+/** Any index but the last one used. */
+function another(n: number, last: number): number {
+  const i = Math.floor(Math.random() * (n - 1));
+  return i >= last && last >= 0 ? i + 1 : i;
+}
+
+/** Steps of the streak being played, and when the last one sounded. */
+let combo = 0,
+  comboAt = -9;
+
+alertSounds.thanks = (first) => {
+  if (!ac) return;
+  const now = ac.currentTime;
+  // A gift soon after the last one is the next step of a streak: one note, a step higher each
+  // time, so a streak is heard climbing. The key holds for the whole streak.
+  if (!first && now - comboAt < 1.4) {
+    combo++;
+    comboAt = now;
+    const key = KEYS[lastKey] ?? 440,
+      step = Math.min(PENTA.length - 1, combo),
+      f = key * 2 ** ((PENTA[step] ?? 0) / 12);
+    pluck(f, now, 0.05 + Math.min(0.02, combo * 0.002), 0.5);
+    // Its octave rings very softly over it; every fifth step gets a sparkle on top.
+    tone(f * 2, now + 0.01, 0.35, 0.012, 'sine');
+    if (combo % 5 === 0) {
+      tick(now + 0.02, 6200, 0.09, 0.03);
+      tone(f * 4, now + 0.03, 0.5, 0.012, 'sine');
+    }
+    return;
+  }
+  combo = 0;
+  comboAt = now;
+  lastTune = another(TUNES.length, lastTune);
+  lastKey = another(KEYS.length, lastKey);
+  const key = KEYS[lastKey] ?? 440,
+    note = (step: number): number => key * 2 ** ((PENTA[step] ?? 0) / 12);
+  // The opening: a soft low drop, a breath of air, then three notes that bloom into a chord
+  // left ringing, with a shimmer on top.
+  tone(key / 2, now, 0.26, 0.065, 'sine', 2.2);
+  tick(now, 900, 0.16, 0.02);
+  if (!first) {
+    const tune = TUNES[lastTune] ?? [0, 2, 4];
+    tune.forEach((step, i) => {
+      pluck(note(step), now + 0.05 + i * 0.075, 0.05, 0.9);
+    });
+    const top = tune[tune.length - 1] ?? 4;
+    tone(note(top) * 2, now + 0.24, 1.1, 0.014, 'sine');
+    tone(note(top) * 2 * 1.004, now + 0.24, 1.1, 0.012, 'sine');
+    for (let i = 0; i < 3; i++) tick(now + 0.22 + i * 0.06, 5200 + i * 1400, 0.07, 0.018);
+    return;
+  }
+  [0, 1, 2, 3, 4, 5, 7].forEach((step, i) => {
+    pluck(note(step), now + 0.06 + i * 0.07, 0.045);
+  });
+  // Landing: an open chord that rings.
+  for (const step of [2, 4, 7, 9]) pluck(note(step), now + 0.62, 0.035, 1.5);
+  for (let i = 0; i < 5; i++) tick(now + 0.62 + i * 0.05, 5000 + i * 900, 0.08, 0.02);
+};
+
 alertSounds.heart = () => {
   if (!ac) return;
   tick(ac.currentTime, 1800 + Math.random() * 900, 0.04, 0.035);

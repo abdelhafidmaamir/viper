@@ -326,16 +326,17 @@ function entrancesCard(dispatch: Dispatch, reason: Reason, rehearsal: Reason): F
   });
   const tests = (
     [
-      ['Test gifter', 0, false],
-      ['Test #1', 1, false],
-      ['Test mod', 0, true],
+      ['Test gifter', 0, false, false],
+      ['Test #1', 1, false, false],
+      ['Test mod', 0, true, false],
+      ['Test first', 0, false, true],
     ] as const
-  ).map(([label, rank, mod]) =>
+  ).map(([label, rank, mod, first]) =>
     createButton({
       label,
       variant: 'secondary',
       onPress: () => {
-        dispatch({ cmd: 'test-entrance', rank, mod });
+        dispatch({ cmd: 'test-entrance', rank, mod, first });
       },
     }),
   );

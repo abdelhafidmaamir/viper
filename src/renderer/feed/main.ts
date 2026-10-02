@@ -39,7 +39,7 @@ import {
 } from './control-link.ts';
 import { COLUMNS, drainJournal, note } from './journal.ts';
 import { armSound } from './sound.ts';
-import { paintSupporters, updateSupporters } from './vip.ts';
+import { paintSupporters, thankGift, updateSupporters } from './vip.ts';
 import { restoreSupporters, settingsIn, supportersText } from './supporters.ts';
 import { TOTAL, advance, game, gift, hooks, like, newRound } from './state.ts';
 
@@ -115,6 +115,7 @@ function simulate(dt: number): void {
   const nickname = someone(),
     n = berries * (1 + Math.floor(Math.random() * 3));
   gift(nickname, undefined, n);
+  thankGift(nickname, undefined, n);
   note({ event: 'gift', source: 'simulated', nickname, berries: n });
 }
 

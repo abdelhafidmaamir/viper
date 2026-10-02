@@ -8,7 +8,7 @@ import { H, W } from '../engine/layout.ts';
 import { GOLD } from '../engine/palette.ts';
 import { burstSprite } from './alert-fx.ts';
 import { FONT, berrySprite, crown, paintFace } from './paint.ts';
-import { FULL_HOLD, game } from './state.ts';
+import { game, roundHold } from './state.ts';
 import { topSupporters } from './supporters.ts';
 import { paintBloom } from './welcome.ts';
 import { TIER, medal } from './vip.ts';
@@ -211,7 +211,7 @@ export function paintRoundEnd(t: number, carried: number): void {
   const c = ctx,
     a = game.full;
   if (a < 0) return;
-  const fade = Math.min(1, a / 0.4) * Math.min(1, (FULL_HOLD - a) / 0.5);
+  const fade = Math.min(1, a / 0.4) * Math.min(1, (roundHold() - a) / 0.5);
   c.save();
   c.globalAlpha = Math.max(0, fade);
   c.fillStyle = 'rgba(5,9,7,0.82)';
@@ -233,7 +233,7 @@ export function paintRoundEnd(t: number, carried: number): void {
   c.fillStyle = 'rgba(255,255,255,0.85)';
   c.font = `700 26px ${FONT}`;
   c.fillText(
-    tr('feed.next', { n: game.eaten, q: String(Math.max(0, Math.ceil(FULL_HOLD - a))) }),
+    tr('feed.next', { n: game.eaten, q: String(Math.max(0, Math.ceil(roundHold() - a))) }),
     W / 2,
     298,
   );
