@@ -10,7 +10,7 @@ import '../game/game.css';
 import { bindCanvas, ctx } from '../engine/canvas.ts';
 import { CELL, H, OX, W, WF } from '../engine/layout.ts';
 import { paintAlerts, updateAlerts } from './alerts.ts';
-import { paintCrabs } from './crabs.ts';
+import { crabLike, paintCrabs } from './crabs.ts';
 import { paintFlower } from './flower.ts';
 import { FCELL, FCOLS, FROWS, FX0, FY0, K } from './grid.ts';
 import type { Ambience, AmbienceFrame } from '../engine/types-api.ts';
@@ -105,7 +105,10 @@ function simulate(dt: number): void {
   likeTimer -= dt;
   if (likeTimer <= 0) {
     likeTimer = (0.3 + Math.random()) / crowd;
-    like(someone(), undefined, 1 + Math.floor(Math.random() * 15));
+    const who = someone(),
+      n = 1 + Math.floor(Math.random() * 15);
+    like(who, undefined, n);
+    crabLike(who, undefined, n);
   }
   if (simTimer > 0) return;
   const [lo, hi] = GIFT_GAP[crowd];
@@ -260,7 +263,7 @@ function step(dt: number): void {
     paintHead(head, t);
     paintBites();
     a.paintFront(c, e);
-    if (settings.weather === 'sea') paintCrabs(t, e.subStep, e.reduced);
+    paintCrabs(t, e.subStep, e.reduced, settings.weather);
     paintFlower(t);
     paintFull();
     paintReady();

@@ -98,7 +98,8 @@ Its rules are its own and live in `feed/`:
 | `flower.ts`                | the flower that blooms on a gift and drips the berries  |
 | `alerts.ts`, `alert-fx.ts` | join, follow, share and like cards under the board      |
 | `welcome.ts`, `vip.ts`     | the welcome on a join, the entrance of a past supporter |
-| `crabs.ts`                 | Sea ambience: one crab per viewer who likes             |
+| `crabs.ts`                 | One animal per viewer who likes, five places            |
+| `critter-art.ts`           | The animal each ambience gets, as drawings              |
 | `leaderboard.ts`           | end of round: this round, then the all-time supporters  |
 | `supporters.ts`            | who gave what, across lives, by TikTok id               |
 | `journal.ts`               | one row per thing that happened, for reading back later |
