@@ -1,5 +1,11 @@
 /** Rehearsal and Setup screens for the Feed the Snake control room. */
-import { CROWD_LEVELS, type FeedCommand } from '../../shared/feed-protocol.ts';
+import {
+  CROWD_LEVELS,
+  GIFT_THANKS,
+  ROUND_HOLDS,
+  type FeedCommand,
+  type GiftThanksSetting,
+} from '../../shared/feed-protocol.ts';
 import { createButton } from '../control/ui/components/button.ts';
 import { createCard, createLockBanner } from '../control/ui/components/card.ts';
 import { createSegmented } from '../control/ui/components/segmented.ts';
@@ -19,6 +25,16 @@ const CROWD_LABELS: Record<0 | 1 | 2 | 3, string> = {
   2: 'Medium',
   3: 'Busy',
 };
+const THANKS_LABELS: Record<GiftThanksSetting, string> = {
+  flower: 'Around the flower',
+  tray: 'Tray',
+  'tray-arc': 'Tray, arc',
+  'tray-comet': 'Tray, comet',
+  'tray-rings': 'Tray, rings',
+  'tray-butterflies': 'Tray, butterflies',
+  classic: 'Entrance',
+};
+const HOLD_OPTIONS = ROUND_HOLDS.map((value) => ({ value, label: `${String(value)} s` }));
 const CROWD_OPTIONS = CROWD_LEVELS.map((level) => ({
   value: level,
   label: CROWD_LABELS[level],
@@ -192,6 +208,31 @@ export function createSetupScreen(dispatch: Dispatch, reason: Reason): FeedView 
       text: 'Joins, likes, shares and follows, each with its own little animation and sound.',
     }),
   ]);
+  const thanks = createSegmented({
+    label: 'A gift is thanked',
+    options: GIFT_THANKS.map((value) => ({ value, label: THANKS_LABELS[value] })),
+    caption:
+      'For someone who has given before. A first gift ever always gets the big entrance over the board.',
+    onSelect: (value) => {
+      dispatch({ cmd: 'setting', name: 'giftThanks', value });
+    },
+  });
+  const thanksTitles = createToggle({
+    label: 'Tray rows show the title of the day',
+    onToggle: (value) => {
+      dispatch({ cmd: 'setting', name: 'giftTitles', value });
+    },
+  });
+  const thanksCard = createCard({ title: 'Gift thanks' }, [thanks.el, thanksTitles.el]);
+  const hold = createSegmented({
+    label: 'End screen stays',
+    options: HOLD_OPTIONS,
+    caption: 'How long the leaderboard shows before the next round starts.',
+    onSelect: (value) => {
+      dispatch({ cmd: 'setting', name: 'roundHold', value });
+    },
+  });
+  const holdCard = createCard({ title: 'Round end' }, [hold.el]);
   const journal = createButton({
     label: 'Open journal folder',
     variant: 'secondary',
@@ -270,6 +311,8 @@ export function createSetupScreen(dispatch: Dispatch, reason: Reason): FeedView 
     el: h('div', { class: 'screen screen--grid' }, [
       langCard.el,
       alertsCard.el,
+      thanksCard.el,
+      holdCard.el,
       modsCard.el,
       pastCard.el,
       journalCard.el,
@@ -289,6 +332,32 @@ export function createSetupScreen(dispatch: Dispatch, reason: Reason): FeedView 
       });
       const al = resolvePending(state.gameState?.settings.alerts, state.pending.alerts, state.now);
       alerts.update({ on: al.value !== false, status: al.status, reason: r });
+      const th = resolvePending(
+        state.gameState?.settings.giftThanks,
+        state.pending.giftThanks,
+        state.now,
+      );
+      thanks.update({
+        value: typeof th.value === 'string' ? th.value : undefined,
+        status: th.status,
+        reason: r,
+      });
+      const tt = resolvePending(
+        state.gameState?.settings.giftTitles,
+        state.pending.giftTitles,
+        state.now,
+      );
+      thanksTitles.update({ on: tt.value === true, status: tt.status, reason: r });
+      const ho = resolvePending(
+        state.gameState?.settings.roundHold,
+        state.pending.roundHold,
+        state.now,
+      );
+      hold.update({
+        value: typeof ho.value === 'number' ? ho.value : undefined,
+        status: ho.status,
+        reason: r,
+      });
       saveMods.update({ reason: r });
       importPast.update({ reason: r });
       // Fill the field once with what the game remembers, then leave it to the operator.

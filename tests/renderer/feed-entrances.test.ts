@@ -8,7 +8,8 @@ import {
   type FeedLinkDeps,
 } from '../../src/renderer/feed/control-link.ts';
 import { roundRanking } from '../../src/renderer/feed/leaderboard.ts';
-import { advance, like, gift, newRound } from '../../src/renderer/feed/state.ts';
+import { trayState } from '../../src/renderer/feed/gift-tray.ts';
+import { advance, game, like, gift, newRound } from '../../src/renderer/feed/state.ts';
 import {
   lifetimeRank,
   resetSupporters,
@@ -37,7 +38,10 @@ const deps: FeedLinkDeps = {
   crowd: () => 0,
   someone: () => 'tester',
 };
-const setting = (name: 'entranceGap' | 'mods', value: unknown): void => {
+const setting = (
+  name: 'entranceGap' | 'mods' | 'giftThanks' | 'roundHold',
+  value: unknown,
+): void => {
   applyFeedCommand({ cmd: 'setting', name, value }, deps);
 };
 const join = (nickname: string, id: string, mod = false): void => {
@@ -50,6 +54,8 @@ beforeEach(() => {
   resetAlerts();
   setting('entranceGap', 0);
   setting('mods', '');
+  setting('giftThanks', 'flower');
+  setting('roundHold', 10);
   newRound();
 });
 
@@ -137,7 +143,121 @@ describe('supporter entrances', () => {
   });
 });
 
+describe('thanking a gift', () => {
+  const rose = (nickname: string, id: string, n = 1): void => {
+    receiveFeedEvent({ type: 'gift', name: 'Rose', value: 1, n, nickname, id });
+  };
+
+  it('thanks a first gift ever over the board, grander than the others', () => {
+    rose('Zoe', 'zoe');
+    expect(entranceState().waiting).toMatchObject([{ nickname: 'Zoe', first: true, berries: 1 }]);
+    expect(alertsState().queued).toBe(0);
+    updateSupporters(0.5);
+    expect(entranceState().current?.first).toBe(true);
+  });
+
+  it('follows the streak that opened with the first gift', () => {
+    rose('Zoe', 'zoe');
+    rose('Zoe', 'zoe');
+    updateSupporters(0.1);
+    rose('Zoe', 'zoe', 3);
+    expect(entranceState().current?.berries).toBe(5);
+    expect(entranceState().waiting).toHaveLength(0);
+    expect(alertsState().queued).toBe(0);
+  });
+
+  it('shows the first gift whatever the entrance setting says', () => {
+    setting('entranceGap', -1);
+    rose('Zoe', 'zoe');
+    expect(entranceState().waiting).toHaveLength(1);
+  });
+
+  it('leaves a gift from someone who already gave to the flower that pours it', () => {
+    supporterGift('moe', 'Moe', 20);
+    rose('Moe', 'moe');
+    expect(entranceState().waiting).toHaveLength(0);
+    expect(trayState()).toHaveLength(0);
+    expect(alertsState().queued).toBe(0);
+  });
+
+  it('thanks on the tray when asked to, one row for a streak, three rows at most', () => {
+    setting('giftThanks', 'tray');
+    supporterGift('moe', 'Moe', 20);
+    rose('Moe', 'moe');
+    rose('Moe', 'moe', 4);
+    expect(trayState()).toMatchObject([{ nickname: 'Moe', berries: 5 }]);
+    expect(entranceState().waiting).toHaveLength(0);
+    for (const who of ['Ana', 'Bo', 'Cy']) {
+      supporterGift(who, who, 20);
+      rose(who, who);
+    }
+    expect(trayState().map((row) => row.nickname)).toEqual(['Ana', 'Bo', 'Cy']);
+    updateSupporters(6);
+    expect(trayState()).toHaveLength(0);
+  });
+
+  it('still gives a first gift its entrance when the tray thanks the others', () => {
+    setting('giftThanks', 'tray-comet');
+    rose('Zoe', 'zoe');
+    expect(entranceState().waiting).toMatchObject([{ nickname: 'Zoe', first: true }]);
+    expect(trayState()).toHaveLength(0);
+  });
+
+  it('thanks someone who already gave over the board when asked to, one thanks for a streak', () => {
+    setting('giftThanks', 'classic');
+    supporterGift('moe', 'Moe', 20);
+    rose('Moe', 'moe');
+    rose('Moe', 'moe', 4);
+    expect(entranceState().waiting).toMatchObject([{ nickname: 'Moe', thanks: true, berries: 5 }]);
+    expect(alertsState().queued).toBe(0);
+  });
+
+  it('a thanks kept up by a streak still ends', () => {
+    setting('giftThanks', 'classic');
+    supporterGift('moe', 'Moe', 20);
+    rose('Moe', 'moe');
+    let up = 0;
+    for (let t = 0; t < 14; t += 0.25) {
+      rose('Moe', 'moe');
+      updateSupporters(0.25);
+      if (entranceState().current) up += 0.25;
+      else break;
+    }
+    expect(up).toBeLessThan(10);
+  });
+
+  it('does not thank a gift that feeds nothing, nor twice when it is a pass', () => {
+    receiveFeedEvent({ type: 'gift', name: 'Lion', value: 29999, nickname: 'Zoe', id: 'zoe' });
+    expect(entranceState().waiting).toHaveLength(0);
+    supporterGift('a', 'Ana', 50);
+    supporterGift('b', 'Bo', 30);
+    supporterGift('c', 'Cy', 10);
+    rose('Dee', 'dee', 40);
+    expect(entranceState().waiting).toMatchObject([
+      { nickname: 'Dee', passed: { nickname: 'Bo' } },
+    ]);
+    expect(alertsState().queued).toBe(0);
+  });
+});
+
 describe('end of round', () => {
+  it('keeps the end screen up as long as the control room says', () => {
+    const held = (): number => {
+      game.full = 0;
+      let t = 0;
+      while (game.full >= 0 && t < 60) {
+        advance(0.25);
+        t += 0.25;
+      }
+      return t;
+    };
+    expect(held()).toBeCloseTo(10.25);
+    setting('roundHold', 30);
+    expect(held()).toBeCloseTo(30.25);
+    setting('roundHold', 5);
+    expect(held()).toBeCloseTo(5.25);
+  });
+
   it('ranks this round by berries first, then likes', () => {
     // Past the countdown: gifts sent during it wait for the round.
     for (let i = 0; i < 80; i++) advance(0.1);
@@ -159,6 +279,11 @@ describe('protocol', () => {
   it('accepts only the offered gaps and a bounded moderators list', () => {
     expect(sanitizeSetting('entranceGap', 15)).toBe(15);
     expect(sanitizeSetting('entranceGap', 7)).toBeUndefined();
+    expect(sanitizeSetting('giftThanks', 'tray-rings')).toBe('tray-rings');
+    expect(sanitizeSetting('giftThanks', 'ribbon')).toBeUndefined();
+    expect(sanitizeSetting('roundHold', 25)).toBe(25);
+    expect(sanitizeSetting('roundHold', 12)).toBeUndefined();
+    expect(sanitizeSetting('roundHold', 35)).toBeUndefined();
     expect(sanitizeSetting('mods', 'x'.repeat(900))).toHaveLength(600);
     expect(isFeedCommand({ cmd: 'skip-entrance' })).toBe(true);
     expect(isFeedCommand({ cmd: 'test-entrance', rank: 1 })).toBe(true);

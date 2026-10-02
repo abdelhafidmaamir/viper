@@ -3,13 +3,20 @@
 // gifter gets the entrance; the three biggest get their own, grander one (a crown for the first,
 // rays in their medal's colour, a longer stay). One entrance at a time, a few seconds, then the
 // snake is back in full view.
+//
+// Every gift is thanked the same way, on the spot: the giver's photo in the flower, their name and
+// what they gave, for a few seconds. Someone's very first gift gets the grander version (rays, a
+// longer stay): it is the gift that turns a viewer into a supporter. It only thanks; nothing on
+// it asks for anything.
 
 import { ctx } from '../engine/canvas.ts';
 import { W } from '../engine/layout.ts';
 import { GOLD } from '../engine/palette.ts';
 import { burstSprite } from './alert-fx.ts';
+import { alertSounds } from './alerts.ts';
 import { BOARD_H, BOARD_W, FX0, FY0 } from './grid.ts';
 import { FONT, berrySprite, crown, paintFace } from './paint.ts';
+import { paintTray, resetTray, trayGift, updateTray } from './gift-tray.ts';
 import { LOTUS, paintBloom } from './welcome.ts';
 
 export interface Entrance {
@@ -19,6 +26,10 @@ export interface Entrance {
   readonly rank: number;
   /** Berries they have given, over every live. */
   readonly berries: number;
+  /** Their first gift ever, just sent: thanked now instead of welcomed back. */
+  readonly first?: boolean;
+  /** A gift just sent by someone who gave before; `berries` is then what this gift brings. */
+  readonly thanks?: boolean;
   /**
    * Set when a gift just lifted them past this supporter in the top three: instead of arriving,
    * they knock the one they passed off the spot.
@@ -53,7 +64,8 @@ const CX = W / 2,
   IMPACT = 0.8;
 
 /** Seconds on screen: the top three stay longer, a pass longer still. */
-const stay = (e: Entrance): number => (e.passed ? 6.6 : e.rank > 0 ? 5.6 : e.mod ? 4.8 : 4.2);
+const stay = (e: Entrance): number =>
+  e.passed ? 6.6 : e.thanks ? 3.4 : e.rank > 0 ? 5.6 : e.first ? 5 : e.mod ? 4.8 : 4.2;
 /** Seconds before the entrance proper starts: a pass first plays the knock. */
 const lead = (e: Entrance): number => (e.passed ? IMPACT : 0);
 
@@ -85,22 +97,84 @@ const welcomed = new Map<string, number>();
 /** What became of an entrance: waiting its turn, or not now (the caller shows the gold alert). */
 export type EntranceOutcome = 'queued' | 'not now';
 
-const order = (q: Entrance): number => (q.passed ? 0 : q.rank || (q.mod ? 5 : 9));
+const order = (q: Entrance): number =>
+  q.passed ? 0 : q.first ? 4 : q.thanks ? 6 : q.rank || (q.mod ? 5 : 9);
 
 export function welcomeSupporter(e: Entrance, now = Date.now()): EntranceOutcome {
   const key = e.nickname.toLowerCase();
-  if (!e.passed) {
+  if (e.first || e.thanks) {
+    // Shown whatever the setting says: like a pass, it cost a gift.
+    if (e.first) welcomed.set(key, now);
+  } else if (!e.passed) {
     if (welcomeEvery < 0 || now - (welcomed.get(key) ?? -Infinity) < welcomeEvery) return 'not now';
     // Already waiting: arriving twice in a row is one arrival.
     if (queue.some((q) => !q.passed && q.nickname === e.nickname)) return 'queued';
     welcomed.set(key, now);
   }
-  // A pass goes first, then the top three, the moderators, every other gifter. Nobody is skipped:
-  // when several wait, each plays shorter.
+  // A pass goes first, then the top three, first gifts, the moderators, gifts, every other
+  // gifter arriving. Nobody is skipped: when several wait, each plays shorter.
   const at = queue.findIndex((q) => order(q) > order(e));
   if (at < 0) queue.push(e);
   else queue.splice(at, 0, e);
   return 'queued';
+}
+
+/** A thanks kept up by more gifts from its giver never stays longer than this in all. */
+const THANKS_MAX = 9;
+
+/**
+ * More berries from someone whose thanks is on screen or waiting (a streak arrives one step at a
+ * time): the count goes up and the thanks stays a moment longer. False when they have none.
+ */
+export function growGift(nickname: string, berries: number): boolean {
+  const mine = (q: Entrance): boolean => (!!q.first || !!q.thanks) && q.nickname === nickname;
+  if (current && mine(current)) {
+    current = {
+      ...current,
+      berries: current.berries + berries,
+      length: Math.min(THANKS_MAX, Math.max(current.length, current.age + 1.6)),
+    };
+    return true;
+  }
+  const at = queue.findIndex(mine);
+  const waiting = queue[at];
+  if (!waiting) return false;
+  queue[at] = { ...waiting, berries: waiting.berries + berries };
+  return true;
+}
+
+/** Where a gift from someone who gave before is thanked: by the flower, on the tray, or here. */
+export type GiftThanks = 'flower' | 'tray' | 'classic';
+let giftThanks: GiftThanks = 'flower';
+export function setGiftThanks(mode: GiftThanks): void {
+  giftThanks = mode;
+}
+
+/**
+ * Every gift is thanked, wherever it comes from: the live, the control room, the rehearsal
+ * audience. A first gift ever always gets its entrance over the board. The others are thanked
+ * where the control room says: by the flower itself, on the tray, or with an entrance too.
+ */
+export function thankGift(
+  nickname: string,
+  avatar: string | undefined,
+  berries: number,
+  first = false,
+): void {
+  if (!nickname || berries <= 0 || growGift(nickname, berries)) return;
+  if (first || giftThanks === 'classic') {
+    welcomeSupporter({
+      nickname,
+      avatar: avatar === '' ? undefined : avatar,
+      rank: 0,
+      berries,
+      ...(first ? { first: true } : { thanks: true }),
+    });
+    return;
+  }
+  if (giftThanks === 'tray') trayGift(nickname, avatar, berries);
+  // The flower shows it; this is its sound.
+  else alertSounds.thanks(false);
 }
 
 /** The control room's Skip: the entrance on screen leaves now. */
@@ -134,7 +208,7 @@ function burst(s: Showing, n: number): void {
       life: 1.4 + Math.random() * 1.6,
       size: 10 + Math.random() * 14,
       spin: (Math.random() - 0.5) * 6,
-      berry: s.rank > 0 && Math.random() < 0.45,
+      berry: (s.rank > 0 || !!s.first) && Math.random() < 0.45,
     });
   }
 }
@@ -149,8 +223,11 @@ export function updateSupporters(dt: number, hold = false): void {
         age: 0,
         length: queue.length ? Math.max(next.passed ? 3.8 : 2.6, stay(next) * 0.6) : stay(next),
       };
+    // A thanks has its own sound, played when it shows, not when the gift arrived.
+    if (next && (next.first || next.thanks)) alertSounds.thanks(!!next.first);
   }
   if (current) play(current, dt);
+  updateTray(dt);
   for (const p of sparks) {
     p.age += dt;
     p.vx *= Math.exp(-dt * 2.2);
@@ -167,7 +244,7 @@ function play(s: Showing, dt: number): void {
   s.age += dt;
   const now = s.age - l;
   // The burst lands with the photo (or the knock), a second wave for the top three.
-  if (was < 0.28 && now >= 0.28) burst(s, s.passed ? 110 : s.rank > 0 ? 70 : 34);
+  if (was < 0.28 && now >= 0.28) burst(s, s.passed ? 110 : s.rank > 0 || s.first ? 70 : 34);
   if (s.rank > 0 && was < 1.3 && now >= 1.3) burst(s, 40);
   if (s.age >= s.length) current = null;
 }
@@ -272,12 +349,16 @@ function spaced(text: string, x: number, y: number, gap: number): void {
   c.letterSpacing = '0px';
 }
 
+const firstText = (n: number): string =>
+  `+${n.toLocaleString('en-US').replace(/,/g, ' ')} ${n === 1 ? 'berry' : 'berries'} · thank you!`;
+
 const berriesText = (n: number): string =>
   `${n.toLocaleString('en-US').replace(/,/g, ' ')} ${n === 1 ? 'berry' : 'berries'} given`;
 
 export function paintSupporters(t: number): void {
   const c = ctx,
     s = current;
+  paintTray(t);
   if (s) {
     const show = shown(s),
       // A moderator who is not in the top three wears the moderators' colour.
@@ -297,7 +378,7 @@ export function paintSupporters(t: number): void {
       c.fillStyle = veil;
       c.fillRect(FX0, FY0, BOARD_W, BOARD_H);
       c.globalAlpha = show;
-      if (top || guard) rays(tier.glow, 0.3, t);
+      if (top || guard || s.first) rays(tier.glow, 0.3, t);
       const halo = c.createRadialGradient(CX, CY, 20, CX, CY, top ? 330 : 250);
       halo.addColorStop(0, `rgba(${tier.glow},0.55)`);
       halo.addColorStop(1, `rgba(${tier.glow},0)`);
@@ -340,7 +421,13 @@ export function paintSupporters(t: number): void {
       c.fillStyle = tier.main;
       c.font = `${s.passed ? '900 40px' : '800 26px'} ${FONT}`;
       spaced(
-        s.passed ? `NEW #${String(s.rank)}!` : 'WELCOME BACK',
+        s.passed
+          ? `NEW #${String(s.rank)}!`
+          : s.first
+            ? 'FIRST GIFT'
+            : s.thanks
+              ? 'THANK YOU'
+              : 'WELCOME BACK',
         CX,
         y0 + (1 - k) * 16,
         s.passed ? 9 : 7,
@@ -369,9 +456,13 @@ export function paintSupporters(t: number): void {
         ? `passes ${s.passed.nickname}`
         : top
           ? `Top supporter #${String(s.rank)} · ${berriesText(s.berries)}`
-          : s.mod
-            ? 'Moderator · keeping the live safe'
-            : berriesText(s.berries);
+          : s.first
+            ? 'Thank you!'
+            : s.thanks
+              ? firstText(s.berries)
+              : s.mod
+                ? 'Moderator · keeping the live safe'
+                : berriesText(s.berries);
       size = 32;
       c.font = `600 ${String(size)}px ${FONT}`;
       while (size > 20 && c.measureText(detail).width > BOARD_W - 80)
@@ -406,6 +497,7 @@ export function resetSupporterEntrances(): void {
   current = null;
   sparks = [];
   welcomed.clear();
+  resetTray();
 }
 
 /** For tests: the entrance on screen and those waiting. */

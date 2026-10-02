@@ -113,9 +113,12 @@ const PHRASES: Readonly<Record<AlertKind, readonly I18nKey[]>> = {
 export const alertSounds: {
   show: (kind: AlertKind, first?: boolean) => void;
   heart: () => void;
+  /** A gift's thanks comes up over the board; `first` for someone's first gift ever. */
+  thanks: (first: boolean) => void;
 } = {
   show: () => undefined,
   heart: () => undefined,
+  thanks: () => undefined,
 };
 
 const queue: Alert[] = [];

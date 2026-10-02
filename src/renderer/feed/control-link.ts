@@ -22,6 +22,8 @@ import {
 import { setLanguage } from '../engine/i18n.ts';
 import { alertSounds, alertViewer, setAlertsOn } from './alerts.ts';
 import { crabLike } from './crabs.ts';
+import { setFlowerSides } from './flower.ts';
+import { setTray, type TrayFly } from './gift-tray.ts';
 import { note, noteJoin, noteLikes, noteViewers } from './journal.ts';
 import {
   claimSeed,
@@ -37,7 +39,14 @@ import {
   supporterSocial,
   topSupporters,
 } from './supporters.ts';
-import { setEntranceGap, skipEntrance, welcomeSupporter, type Entrance } from './vip.ts';
+import {
+  setGiftThanks,
+  thankGift,
+  setEntranceGap,
+  skipEntrance,
+  welcomeSupporter,
+  type Entrance,
+} from './vip.ts';
 import type { AudienceEvent } from '../engine/types.ts';
 import {
   PATTERNS,
@@ -58,6 +67,7 @@ import {
   setStartFill,
   unpaid,
   waiting,
+  setRoundHold,
 } from './state.ts';
 
 const STORAGE_KEY = 'viper-feed-settings';
@@ -95,7 +105,27 @@ export const settings: { -readonly [K in FeedSettingName]: FeedSettings[K] } = {
   alerts: true,
   entranceGap: 0,
   mods: '',
+  roundHold: 10,
+  giftThanks: 'flower',
+  giftTitles: false,
 };
+
+/** How each tray setting brings a row's photo down from the flower. */
+const TRAY_FLY: Readonly<Record<string, TrayFly>> = {
+  'tray-arc': 'arc',
+  'tray-comet': 'comet',
+  'tray-rings': 'portal',
+  'tray-butterflies': 'carry',
+};
+
+/** Tells the flower, the tray and the entrances which of them thanks a gift. */
+function showGiftThanks(): void {
+  const mode = settings.giftThanks,
+    tray = mode.startsWith('tray');
+  setGiftThanks(tray ? 'tray' : mode === 'classic' ? 'classic' : 'flower');
+  setTray(TRAY_FLY[mode] ?? '', settings.giftTitles);
+  setFlowerSides(mode === 'flower' ? 'cards' : mode === 'classic' ? 'text' : 'none');
+}
 
 /** The moderators named in the control room, by TikTok @handle. */
 let modList = new Set<string>();
@@ -153,6 +183,8 @@ function apply(name: FeedSettingName, value: unknown): boolean {
   if (name === 'language') setLanguage(settings.language);
   if (name === 'startFill') setStartFill(settings.startFill);
   if (name === 'alerts') setAlertsOn(settings.alerts);
+  if (name === 'giftThanks' || name === 'giftTitles') showGiftThanks();
+  if (name === 'roundHold') setRoundHold(settings.roundHold);
   if (name === 'entranceGap') {
     const gap = settings.entranceGap;
     setEntranceGap(gap < 0 ? -1 : gap >= ONCE_PER_LIVE ? Infinity : gap * 60_000);
@@ -174,6 +206,9 @@ const SHARED: readonly FeedSettingName[] = [
   'alerts',
   'entranceGap',
   'mods',
+  'roundHold',
+  'giftThanks',
+  'giftTitles',
   'autoAmbience',
   'dayCycle',
 ];
@@ -269,10 +304,12 @@ export function receiveFeedEvent(ev: AudienceEvent | null | undefined): number {
     count: n,
     berries: berries * n,
   });
-  const before = topSupporters(3).map((s) => s.id);
+  const before = topSupporters(3).map((s) => s.id),
+    first = supporterKey(id) !== '' && !supporter(id)?.berries;
   supporterGift(id, who, berries * n);
   supporterPhoto(id, ev.avatar);
-  if (berries > 0) announcePass(id, who, ev.avatar, before);
+  if (berries > 0 && !announcePass(id, who, ev.avatar, before))
+    thank(id, who, ev.avatar, berries * n, first);
   giftLog.unshift({
     at: Date.now(),
     nickname: ev.nickname ?? 'viewer',
@@ -325,15 +362,40 @@ function welcome(ev: AudienceEvent, id: string, who: string): void {
   alertViewer('join', who, ev.avatar, 1, mod && !rank ? -1 : rank);
 }
 
-/** A gift lifted its giver past someone in the all-time top three: they knock them off the spot. */
-function announcePass(id: string, who: string, avatar: string | undefined, before: string[]): void {
+/**
+ * A gift is thanked by name over the board, a first gift ever more grandly. A streak arrives one
+ * step at a time: it is one thanks, its count going up.
+ */
+function thank(
+  id: string,
+  who: string,
+  avatar: string | undefined,
+  berries: number,
+  first: boolean,
+): void {
+  if (!who) return;
+  thankGift(who, avatar, berries, first);
+  if (!first) return;
+  note({ event: 'first gift', source: 'tiktok', nickname: who, id });
+}
+
+/**
+ * A gift lifted its giver past someone in the all-time top three: they knock them off the spot.
+ * True when it did.
+ */
+function announcePass(
+  id: string,
+  who: string,
+  avatar: string | undefined,
+  before: string[],
+): boolean {
   const k = supporterKey(id);
-  if (!k) return;
+  if (!k) return false;
   const now = topSupporters(3).findIndex((s) => s.id === k) + 1,
     was = before.indexOf(k) + 1 || 99;
-  if (now <= 0 || now >= was) return;
+  if (now <= 0 || now >= was) return false;
   const passedId = before[now - 1];
-  if (!passedId || passedId === k) return;
+  if (!passedId || passedId === k) return false;
   const passed = supporter(passedId)?.nickname ?? passedId;
   welcomeSupporter({
     nickname: who,
@@ -350,6 +412,7 @@ function announcePass(id: string, who: string, avatar: string | undefined, befor
     id,
     detail: `#${String(now)}, passes ${passed}`,
   });
+  return true;
 }
 
 let tests = 0;
@@ -415,6 +478,7 @@ export function applyFeedCommand(command: FeedCommand, deps: FeedLinkDeps): void
         const nickname = command.nickname ?? deps.someone(),
           berries = FEED_GIFTS[command.gift] * count(command.count);
         gift(nickname, undefined, berries);
+        thankGift(nickname, undefined, berries);
         note({
           event: 'gift',
           source: 'manual',
@@ -453,6 +517,7 @@ export function applyFeedCommand(command: FeedCommand, deps: FeedLinkDeps): void
         n = Math.max(1, Math.min(10000, Math.round(command.count) || 0));
       if (!nickname) return;
       gift(nickname, photoOf(nickname), n, true);
+      thankGift(nickname, photoOf(nickname), n);
       giftLog.unshift({ at: Date.now(), nickname, name: 'Given by hand', count: 1, berries: n });
       note({ event: 'given back', source: 'manual', nickname, berries: n });
       if (giftLog.length > GIFT_LOG) giftLog.length = GIFT_LOG;
@@ -490,6 +555,7 @@ export function applyFeedCommand(command: FeedCommand, deps: FeedLinkDeps): void
           rank,
           berries: rank ? ([0, 4820, 2310, 1175][rank] ?? 42) : 42,
           mod: command.mod === true,
+          ...(command.first === true ? { first: true } : {}),
         });
       if (outcome === 'queued') alertSounds.show('join', false);
       return;
