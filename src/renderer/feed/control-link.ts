@@ -278,7 +278,7 @@ export function receiveFeedEvent(ev: AudienceEvent | null | undefined): number {
   if (ev?.type === 'like') {
     like(ev.nickname ?? 'viewer', ev.avatar, n);
     alertViewer('like', ev.nickname ?? '', ev.avatar, n);
-    crabLike(ev.nickname ?? '', ev.avatar);
+    crabLike(ev.nickname ?? '', ev.avatar, n);
     noteLikes(id || who, n);
     supporterLikes(id, who, n);
   }
@@ -492,7 +492,7 @@ export function applyFeedCommand(command: FeedCommand, deps: FeedLinkDeps): void
     case 'likes': {
       const who = command.nickname ?? deps.someone();
       like(who, undefined, count(command.count));
-      crabLike(who, undefined);
+      crabLike(who, undefined, count(command.count));
       return;
     }
     case 'bridge-start':

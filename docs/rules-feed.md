@@ -66,8 +66,26 @@ Likes do not affect the board. They are used for:
 
 - the per-round like ranking shown on the end screen;
 - an alert under the board;
-- in the `sea` ambience, one crab per liking viewer (`crabs.ts`): 5 slots, a crab hops on each
-  new like from its viewer, and when the slots are full the crab with the oldest hop is replaced.
+- one animal per liking viewer, at the bottom of the screen (`crabs.ts`, drawings in
+  `critter-art.ts`). See below.
+
+### Likers' animals
+
+Each ambience has its animal: frog (rain), penguin (snow), squirrel (autumn), bee (summer), rabbit
+(spring), hedgehog (storm), cat (stars), arctic fox (aurora), firefly (fireflies), salamander
+(embers), owl (mist), crab (sea). The animal holds its viewer's picture.
+
+- 5 places. A viewer who likes without having one takes the place of the viewer whose last like
+  is the oldest. Nothing protects a place, whatever its holder's count.
+- A like event carries a count. Each like sends up a heart (12 per event at most), and the animal
+  hops 1, 2, 3 or 4 times for 1, 2 to 4, 5 to 14, 15 or more likes.
+- A badge on the picture shows the viewer's likes since they got the place. Losing the place
+  resets it.
+- The viewer with the highest count, from 10 likes, wears a crown.
+- At 500 likes the animal gets an ornament (only the squirrel has one so far), at 2000 the picture's
+  ring and the badge turn gold.
+- Poses are drawn once and replayed from a cache, emptied when the ambience changes: an idle cycle
+  of 3.2 s at 10 frames a second and 18 frames for a hop.
 
 ## Alerts
 
