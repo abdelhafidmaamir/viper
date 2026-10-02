@@ -201,12 +201,19 @@ export function createSetupScreen(dispatch: Dispatch, reason: Reason): FeedView 
       dispatch({ cmd: 'setting', name: 'alerts', value });
     },
   });
+  const likeCount = createToggle({
+    label: "Like count on the likers' animals",
+    onToggle: (value) => {
+      dispatch({ cmd: 'setting', name: 'likeCount', value });
+    },
+  });
   const alertsCard = createCard({ title: 'Alerts' }, [
     alerts.el,
     h('p', {
       class: 'field__caption',
       text: 'Joins, likes, shares and follows, each with its own little animation and sound.',
     }),
+    likeCount.el,
   ]);
   const thanks = createSegmented({
     label: 'A gift is thanked',
@@ -348,6 +355,12 @@ export function createSetupScreen(dispatch: Dispatch, reason: Reason): FeedView 
         state.now,
       );
       thanksTitles.update({ on: tt.value === true, status: tt.status, reason: r });
+      const lc = resolvePending(
+        state.gameState?.settings.likeCount,
+        state.pending.likeCount,
+        state.now,
+      );
+      likeCount.update({ on: lc.value !== false, status: lc.status, reason: r });
       const ho = resolvePending(
         state.gameState?.settings.roundHold,
         state.pending.roundHold,

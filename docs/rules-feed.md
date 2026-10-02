@@ -80,7 +80,7 @@ Each ambience has its animal: frog (rain), penguin (snow), squirrel (autumn), be
 - A like event carries a count. Each like sends up a heart (12 per event at most), and the animal
   hops 1, 2, 3 or 4 times for 1, 2 to 4, 5 to 14, 15 or more likes.
 - A badge on the picture shows the viewer's likes since they got the place. Losing the place
-  resets it.
+  resets it. Setting `likeCount` (default `true`) hides the badge; crown and tiers stay.
 - The viewer with the highest count, from 10 likes, wears a crown.
 - At 500 likes the animal gets an ornament (only the squirrel has one so far), at 2000 the picture's
   ring and the badge turn gold.

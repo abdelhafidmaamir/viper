@@ -112,6 +112,8 @@ export interface FeedSettings {
   readonly giftThanks: GiftThanksSetting;
   /** The tray's rows show the giver's title of the day. */
   readonly giftTitles: boolean;
+  /** The likers' animals show their like count on the picture. */
+  readonly likeCount: boolean;
 }
 
 export type FeedSettingName = keyof FeedSettings;
@@ -255,6 +257,7 @@ export function sanitizeSetting<K extends FeedSettingName>(
       return ROUND_HOLDS.includes(value as (typeof ROUND_HOLDS)[number]) ? ok(value) : undefined;
     case 'giftThanks':
       return GIFT_THANKS.includes(value as GiftThanksSetting) ? ok(value) : undefined;
+    case 'likeCount':
     case 'giftTitles':
       return typeof value === 'boolean' ? ok(value) : undefined;
   }
