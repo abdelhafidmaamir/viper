@@ -100,6 +100,12 @@ export function crabLike(nickname: string, avatar: string | undefined, n = 1): v
   }
 }
 
+let likeCount = true;
+/** The control room's choice: whether the animals show their like count on the picture. */
+export function setLikeCount(on: boolean): void {
+  likeCount = on;
+}
+
 export function clearCrabs(): void {
   crabs.length = 0;
 }
@@ -351,16 +357,18 @@ export function paintCrabs(t: number, rise: number, reduced: boolean, weather: W
     // The picture follows the arms without being squashed with them.
     const fy = 12 + (-54 - kind.lift) * tall;
     g.drawImage(face(crab), -FACE / 2, fy - FACE / 2, FACE, FACE);
-    // The badge pops at each burst.
-    const tag = badge(crab),
-      pop = 0.42 * (1 + 0.4 * Math.max(0, 1 - (t - crab.spreeAt) / 0.25));
-    g.drawImage(
-      tag,
-      20 - (tag.width * pop) / 2,
-      fy + 21 - (tag.height * pop) / 2,
-      tag.width * pop,
-      tag.height * pop,
-    );
+    if (likeCount) {
+      // The badge pops at each burst.
+      const tag = badge(crab),
+        pop = 0.42 * (1 + 0.4 * Math.max(0, 1 - (t - crab.spreeAt) / 0.25));
+      g.drawImage(
+        tag,
+        20 - (tag.width * pop) / 2,
+        fy + 21 - (tag.height * pop) / 2,
+        tag.width * pop,
+        tag.height * pop,
+      );
+    }
     // The crown goes to whoever of the five has liked the most.
     if (crab === leader) crown(0, fy - 35 + Math.sin(t * 3) * 1.2, 0.95);
     g.restore();

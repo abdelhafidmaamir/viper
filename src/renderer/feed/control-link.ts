@@ -21,7 +21,7 @@ import {
 } from '../../shared/feed-protocol.ts';
 import { setLanguage } from '../engine/i18n.ts';
 import { alertSounds, alertViewer, setAlertsOn } from './alerts.ts';
-import { crabLike } from './crabs.ts';
+import { crabLike, setLikeCount } from './crabs.ts';
 import { setFlowerSides } from './flower.ts';
 import { setTray, type TrayFly } from './gift-tray.ts';
 import { note, noteJoin, noteLikes, noteViewers } from './journal.ts';
@@ -108,6 +108,7 @@ export const settings: { -readonly [K in FeedSettingName]: FeedSettings[K] } = {
   roundHold: 10,
   giftThanks: 'flower',
   giftTitles: false,
+  likeCount: true,
 };
 
 /** How each tray setting brings a row's photo down from the flower. */
@@ -184,6 +185,7 @@ function apply(name: FeedSettingName, value: unknown): boolean {
   if (name === 'startFill') setStartFill(settings.startFill);
   if (name === 'alerts') setAlertsOn(settings.alerts);
   if (name === 'giftThanks' || name === 'giftTitles') showGiftThanks();
+  if (name === 'likeCount') setLikeCount(settings.likeCount);
   if (name === 'roundHold') setRoundHold(settings.roundHold);
   if (name === 'entranceGap') {
     const gap = settings.entranceGap;
@@ -209,6 +211,7 @@ const SHARED: readonly FeedSettingName[] = [
   'roundHold',
   'giftThanks',
   'giftTitles',
+  'likeCount',
   'autoAmbience',
   'dayCycle',
 ];
