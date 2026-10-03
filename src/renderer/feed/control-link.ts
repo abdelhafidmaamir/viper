@@ -22,7 +22,7 @@ import { berriesForCoins, DEFAULT_PRICING, giftCoins } from '../../shared/feed-p
 import { setLanguage } from '../engine/i18n.ts';
 import { alertSounds, alertViewer, setAlertsOn } from './alerts.ts';
 import { crabLike, setLikeCount } from './crabs.ts';
-import { setCrownStyle, setSnakeSkin } from './paint.ts';
+import { setCrownStyle, setSnakeColour, setSnakeSkin } from './paint.ts';
 import { setFlowerSides } from './flower.ts';
 import { setTray, type TrayFly } from './gift-tray.ts';
 import { note, noteJoin, noteLikes, noteViewers } from './journal.ts';
@@ -121,6 +121,7 @@ export const settings: { -readonly [K in FeedSettingName]: FeedSettings[K] } = {
   likeCount: true,
   crownStyle: 'classic',
   snakeSkin: 'classic',
+  snakeColour: 'sand',
   rankedWelcome: 0,
   pricing: DEFAULT_PRICING,
   otherGifts: false,
@@ -203,6 +204,7 @@ function apply(name: FeedSettingName, value: unknown): boolean {
   if (name === 'likeCount') setLikeCount(settings.likeCount);
   if (name === 'crownStyle') setCrownStyle(settings.crownStyle);
   if (name === 'snakeSkin') setSnakeSkin(settings.snakeSkin);
+  if (name === 'snakeColour') setSnakeColour(settings.snakeColour);
   if (name === 'roundHold') setRoundHold(settings.roundHold);
   if (name === 'entranceGap') {
     const gap = settings.entranceGap;
@@ -231,6 +233,7 @@ const SHARED: readonly FeedSettingName[] = [
   'likeCount',
   'crownStyle',
   'snakeSkin',
+  'snakeColour',
   'rankedWelcome',
   'pricing',
   'otherGifts',

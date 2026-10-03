@@ -285,6 +285,8 @@ describe('protocol', () => {
     expect(sanitizeSetting('crownStyle', 'tiara')).toBeUndefined();
     expect(sanitizeSetting('snakeSkin', 'dark-back')).toBe('dark-back');
     expect(sanitizeSetting('snakeSkin', 'stripes')).toBeUndefined();
+    expect(sanitizeSetting('snakeColour', 'leaf')).toBe('leaf');
+    expect(sanitizeSetting('snakeColour', '#7CC45A')).toBeUndefined();
     expect(sanitizeSetting('rankedWelcome', 20)).toBe(20);
     expect(sanitizeSetting('rankedWelcome', 15)).toBeUndefined();
     expect(sanitizeSetting('roundHold', 25)).toBe(25);
