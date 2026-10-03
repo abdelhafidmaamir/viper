@@ -91,6 +91,12 @@ export type GiftThanksSetting = (typeof GIFT_THANKS)[number];
 export const CROWN_STYLES = ['classic', 'laurel', 'diadem', 'star', 'lotus'] as const;
 export type CrownStyle = (typeof CROWN_STYLES)[number];
 
+/**
+ * Gifter level across TikTok from which a viewer who has not given here gets the ranked welcome
+ * (a gold edge on their arrival card, a little more time on screen); 0 turns it off.
+ */
+export const RANKED_WELCOME_LEVELS = [0, 10, 20, 30, 40] as const;
+
 /** The snake's skin: the classic bands and chevrons, or chevrons on a darker back. */
 export const SNAKE_SKINS = ['classic', 'dark-back'] as const;
 export type SnakeSkin = (typeof SNAKE_SKINS)[number];
@@ -126,6 +132,8 @@ export interface FeedSettings {
   readonly crownStyle: CrownStyle;
   /** The snake's skin (SNAKE_SKINS). */
   readonly snakeSkin: SnakeSkin;
+  /** Ranked welcome threshold (RANKED_WELCOME_LEVELS). */
+  readonly rankedWelcome: number;
 }
 
 export type FeedSettingName = keyof FeedSettings;
@@ -269,6 +277,10 @@ export function sanitizeSetting<K extends FeedSettingName>(
       return ROUND_HOLDS.includes(value as (typeof ROUND_HOLDS)[number]) ? ok(value) : undefined;
     case 'giftThanks':
       return GIFT_THANKS.includes(value as GiftThanksSetting) ? ok(value) : undefined;
+    case 'rankedWelcome':
+      return RANKED_WELCOME_LEVELS.includes(value as (typeof RANKED_WELCOME_LEVELS)[number])
+        ? ok(value)
+        : undefined;
     case 'snakeSkin':
       return SNAKE_SKINS.includes(value as SnakeSkin) ? ok(value) : undefined;
     case 'crownStyle':

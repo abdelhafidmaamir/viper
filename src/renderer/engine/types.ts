@@ -547,6 +547,8 @@ export interface AudienceEvent {
   /** The viewer moderates the live, as TikTok reports it. */
   readonly mod?: boolean;
   readonly avatar?: string;
+  /** The viewer's gifter level across all of TikTok, as TikFinity reports it (0 when none). */
+  readonly gifterLevel?: number;
   /** Viewer count ('viewers' events). */
   readonly total?: number;
 }

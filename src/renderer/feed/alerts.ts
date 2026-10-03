@@ -44,6 +44,8 @@ interface Alert {
    * a gifter, 1 to 3 for the top three, -1 for a moderator. Undefined for everyone else.
    */
   supporter: number | undefined;
+  /** A join by someone with a high gifter level on TikTok who has not given here: the gold edge. */
+  ranked: boolean;
 }
 
 interface Heart {
@@ -82,14 +84,17 @@ const MIN_SHOW = 1.2,
   /** With this many cards waiting, each one stays a shorter time. */
   BUSY = 2,
   BUSY_STAY = 0.7;
+/** Extra seconds on screen for a ranked join. */
+const RANKED_EXTRA = 1.5;
+
 /** Seconds a waiting card stays worth showing. Follows, shares and supporters never expire. */
 const EXPIRES: Readonly<Record<number, number>> = { 1: 10, 2: 6 };
 
-/** 0 first: follows, shares and returning supporters, then likes, plain joins last. */
-const rank = (a: Pick<Alert, 'kind' | 'supporter'>): number =>
+/** 0 first: follows, shares and returning supporters, then likes and ranked joins, plain joins last. */
+const rank = (a: Pick<Alert, 'kind' | 'supporter' | 'ranked'>): number =>
   a.kind === 'share' || a.kind === 'follow' || a.supporter !== undefined
     ? 0
-    : a.kind === 'like'
+    : a.kind === 'like' || a.ranked
       ? 1
       : 2;
 const ACCENT: Readonly<Record<AlertKind, string>> = {
@@ -150,6 +155,7 @@ export function alertViewer(
   avatar: string | undefined,
   n = 1,
   supporter?: number,
+  ranked = false,
 ): void {
   if (!nickname || !alertsOn) return;
   if (kind === 'like') {
@@ -179,7 +185,7 @@ export function alertViewer(
   if (kind === 'join') {
     // Joins come in waves: a busy queue skips them rather than lag behind the live. A returning
     // supporter is not part of the wave.
-    if (supporter === undefined && queue.length >= BUSY) return;
+    if (supporter === undefined && !ranked && queue.length >= BUSY) return;
     if (queue.some((a) => a.nickname === nickname) || current?.nickname === nickname) return;
   }
   const visit = kind === 'join' ? visitNumber(nickname) : 0;
@@ -202,10 +208,11 @@ export function alertViewer(
             : 'welcome.back',
     visit,
     supporter: kind === 'join' ? supporter : undefined,
+    ranked: kind === 'join' && supporter === undefined && ranked,
     age: 0,
     shown: 0,
     waited: 0,
-    stay: STAY[kind],
+    stay: STAY[kind] + (ranked ? RANKED_EXTRA : 0),
     hearts: kind === 'like' ? Math.min(HEARTS_PER_EVENT, n) : BURST[kind],
   };
   const at = queue.findIndex((a) => rank(a) > rank(next));
@@ -351,12 +358,18 @@ export function paintAlerts(): void {
       c.lineWidth = 1.5;
       c.strokeStyle = `rgba(${accent},0.45)`;
       c.stroke();
+      // A ranked join: a thin gold edge, nothing more. The full gold card stays the supporters'.
+      if (a.ranked) {
+        c.lineWidth = 2.6;
+        c.strokeStyle = 'rgba(242,197,124,0.9)';
+        c.stroke();
+      }
       const ax = x + 18 + AVATAR / 2;
       // A join is the viewer's first impression: the flower's petals open around their photo.
       // A moderator's welcome opens their blue lotus instead of the berry flower.
       const flower = a.supporter !== undefined && a.supporter < 0 ? LOTUS : undefined;
       if (a.kind === 'join') paintBloom(ax, 0, AVATAR / 2, a.age, a.age, flower);
-      paintFace(a, ax, 0, AVATAR / 2, `rgb(${accent})`);
+      paintFace(a, ax, 0, AVATAR / 2, a.ranked ? 'rgb(242,197,124)' : `rgb(${accent})`);
       if (a.supporter === 1) crown(ax, -AVATAR / 2 - 6, 1.1, { x: ax, y: 0, r: AVATAR / 2 });
       // Text: regular words in light, the name bold in gold, shrunk to fit one line.
       const [before, name, after] = sentence(a),

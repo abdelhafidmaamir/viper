@@ -104,6 +104,7 @@ function process(m: unknown): number | null {
       id: d.uniqueId ?? '',
       mod: isModerator(d),
       avatar: d.profilePictureUrl ?? '',
+      gifterLevel: Math.max(0, parseInt(String(d.gifterLevel ?? '')) || 0),
     } as AudienceEvent);
   }
   /* viewer count: tier milestones acknowledged by the banner */

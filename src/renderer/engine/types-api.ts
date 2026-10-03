@@ -235,6 +235,8 @@ export interface TikFinityPayload {
   readonly isModerator?: boolean;
   /** TikTok-Live-Connector: the badges shown next to the name; a moderator's names itself. */
   readonly userBadges?: readonly { readonly type?: string; readonly name?: string }[];
+  /** TikTok-Live-Connector: the viewer's gifter level across all of TikTok. */
+  readonly gifterLevel?: number | string;
   readonly nickname?: string;
   readonly profilePictureUrl?: string;
   readonly likeCount?: number | string;
