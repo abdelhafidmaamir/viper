@@ -281,6 +281,8 @@ describe('protocol', () => {
     expect(sanitizeSetting('entranceGap', 7)).toBeUndefined();
     expect(sanitizeSetting('giftThanks', 'tray-rings')).toBe('tray-rings');
     expect(sanitizeSetting('giftThanks', 'ribbon')).toBeUndefined();
+    expect(sanitizeSetting('crownStyle', 'laurel')).toBe('laurel');
+    expect(sanitizeSetting('crownStyle', 'tiara')).toBeUndefined();
     expect(sanitizeSetting('roundHold', 25)).toBe(25);
     expect(sanitizeSetting('roundHold', 12)).toBeUndefined();
     expect(sanitizeSetting('roundHold', 35)).toBeUndefined();

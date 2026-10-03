@@ -402,7 +402,8 @@ export function paintSupporters(t: number): void {
         paintFace(s, CX, CY, s.passed ? R * (0.85 + 0.15 * pop) : r, tier.main);
         c.shadowBlur = 0;
       }
-      if (s.rank === 1 && a > 0) crown(CX, CY - r - 26 + Math.sin(t * 3) * 3, 2.6 * pop);
+      if (s.rank === 1 && a > 0)
+        crown(CX, CY - r - 26 + Math.sin(t * 3) * 3, 2.6 * pop, { x: CX, y: CY, r });
       if (top && a > 0) {
         // The medal on the photo's corner: #1, #2, #3.
         medal(CX + r * 0.74, CY + r * 0.74, 30 * pop, s.rank, tier.main);

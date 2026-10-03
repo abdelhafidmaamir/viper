@@ -1,8 +1,10 @@
 /** Rehearsal and Setup screens for the Feed the Snake control room. */
 import {
   CROWD_LEVELS,
+  CROWN_STYLES,
   GIFT_THANKS,
   ROUND_HOLDS,
+  type CrownStyle,
   type FeedCommand,
   type GiftThanksSetting,
 } from '../../shared/feed-protocol.ts';
@@ -33,6 +35,13 @@ const THANKS_LABELS: Record<GiftThanksSetting, string> = {
   'tray-rings': 'Tray, rings',
   'tray-butterflies': 'Tray, butterflies',
   classic: 'Entrance',
+};
+const CROWN_LABELS: Record<CrownStyle, string> = {
+  classic: 'Crown',
+  laurel: 'Laurel wreath',
+  diadem: 'Leaf tiara',
+  star: 'Star',
+  lotus: 'Gold lotus',
 };
 const HOLD_OPTIONS = ROUND_HOLDS.map((value) => ({ value, label: `${String(value)} s` }));
 const CROWD_OPTIONS = CROWD_LEVELS.map((level) => ({
@@ -240,6 +249,15 @@ export function createSetupScreen(dispatch: Dispatch, reason: Reason): FeedView 
     },
   });
   const holdCard = createCard({ title: 'Round end' }, [hold.el]);
+  const crownStyle = createSegmented({
+    label: 'Top giver wears',
+    options: CROWN_STYLES.map((value) => ({ value, label: CROWN_LABELS[value] })),
+    caption: 'Over their photo on the snake, the podium, the entrances and the likers.',
+    onSelect: (value) => {
+      dispatch({ cmd: 'setting', name: 'crownStyle', value });
+    },
+  });
+  const crownCard = createCard({ title: 'Crown' }, [crownStyle.el]);
   const journal = createButton({
     label: 'Open journal folder',
     variant: 'secondary',
@@ -320,6 +338,7 @@ export function createSetupScreen(dispatch: Dispatch, reason: Reason): FeedView 
       alertsCard.el,
       thanksCard.el,
       holdCard.el,
+      crownCard.el,
       modsCard.el,
       pastCard.el,
       journalCard.el,
@@ -369,6 +388,16 @@ export function createSetupScreen(dispatch: Dispatch, reason: Reason): FeedView 
       hold.update({
         value: typeof ho.value === 'number' ? ho.value : undefined,
         status: ho.status,
+        reason: r,
+      });
+      const cs = resolvePending(
+        state.gameState?.settings.crownStyle,
+        state.pending.crownStyle,
+        state.now,
+      );
+      crownStyle.update({
+        value: typeof cs.value === 'string' ? cs.value : undefined,
+        status: cs.status,
         reason: r,
       });
       saveMods.update({ reason: r });

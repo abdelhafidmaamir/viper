@@ -87,6 +87,10 @@ export const GIFT_THANKS = [
 ] as const;
 export type GiftThanksSetting = (typeof GIFT_THANKS)[number];
 
+/** What the round's top giver wears over their photo: the classic crown or one of the others. */
+export const CROWN_STYLES = ['classic', 'laurel', 'diadem', 'star', 'lotus'] as const;
+export type CrownStyle = (typeof CROWN_STYLES)[number];
+
 /** Minutes the sky takes to go once round the clock, night to night: 0 keeps the hour still. */
 export const DAY_CYCLES = [0, 10, 20, 30, 60] as const;
 
@@ -114,6 +118,8 @@ export interface FeedSettings {
   readonly giftTitles: boolean;
   /** The likers' animals show their like count on the picture. */
   readonly likeCount: boolean;
+  /** What the round's top giver wears (CROWN_STYLES). */
+  readonly crownStyle: CrownStyle;
 }
 
 export type FeedSettingName = keyof FeedSettings;
@@ -257,6 +263,8 @@ export function sanitizeSetting<K extends FeedSettingName>(
       return ROUND_HOLDS.includes(value as (typeof ROUND_HOLDS)[number]) ? ok(value) : undefined;
     case 'giftThanks':
       return GIFT_THANKS.includes(value as GiftThanksSetting) ? ok(value) : undefined;
+    case 'crownStyle':
+      return CROWN_STYLES.includes(value as CrownStyle) ? ok(value) : undefined;
     case 'likeCount':
     case 'giftTitles':
       return typeof value === 'boolean' ? ok(value) : undefined;

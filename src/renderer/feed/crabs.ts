@@ -370,7 +370,8 @@ export function paintCrabs(t: number, rise: number, reduced: boolean, weather: W
       );
     }
     // The crown goes to whoever of the five has liked the most.
-    if (crab === leader) crown(0, fy - 35 + Math.sin(t * 3) * 1.2, 0.95);
+    if (crab === leader)
+      crown(0, fy - 35 + Math.sin(t * 3) * 1.2, 0.95, { x: 0, y: fy, r: FACE / 2 });
     g.restore();
     // One heart per like, drifting up from the picture and fading: a like spree is a stream of them.
     crab.hearts = crab.hearts.filter((born) => t - born < HEART);
