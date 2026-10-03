@@ -8,7 +8,7 @@ import { GOLD, berryGlow, berryTint } from '../engine/palette.ts';
 import type { Point } from '../engine/types.ts';
 import { FALL_TIME, cellAt, game, leaders } from './state.ts';
 import { paintCrownStyle, type Face } from './crowns.ts';
-import type { CrownStyle, SnakeSkin } from '../../shared/feed-protocol.ts';
+import type { CrownStyle, SnakeColour, SnakeSkin } from '../../shared/feed-protocol.ts';
 
 export const px = (gx: number, gy: number): Point => ({
   x: FX0 + gx * FCELL + FCELL / 2,
@@ -16,7 +16,6 @@ export const px = (gx: number, gy: number): Point => ({
 });
 
 export const FONT = 'system-ui, sans-serif';
-export const TINT = '#F2C57C';
 const DROP_FROM = MOUTH;
 
 // ---- faces ---------------------------------------------------------------------------------
@@ -169,6 +168,59 @@ export function setSnakeSkin(skin: SnakeSkin): void {
 }
 export const currentSnakeSkin = (): SnakeSkin => snakeSkin;
 
+const COLOURS: Record<SnakeColour, string> = {
+  sand: '#F2C57C',
+  leaf: '#7CC45A',
+  coral: '#F2937A',
+  seafoam: '#7FD3B6',
+  lagoon: '#6EC1D9',
+  lavender: '#B39CE6',
+  rose: '#F2A6BC',
+  pearl: '#E6ECF2',
+};
+/** The sand's own browns; other colours get the same shades worked out in their hue. */
+const SAND_TONES = { dark: '122,78,26', mid: '150,108,48', light: '255,236,190' };
+
+/** 'r,g,b' for a hue (degrees), saturation and lightness (0..1). */
+function hslTriplet(h: number, s: number, l: number): string {
+  const a = s * Math.min(l, 1 - l);
+  const f = (n: number): number => {
+    const k = (n + h / 30) % 12;
+    return Math.round(255 * (l - a * Math.max(-1, Math.min(k - 3, 9 - k, 1))));
+  };
+  return [f(0), f(8), f(4)].join(',');
+}
+
+function tonesFor(hex: string): typeof SAND_TONES {
+  const [r = 0, g = 0, b = 0] = [1, 3, 5].map((i) => parseInt(hex.slice(i, i + 2), 16) / 255);
+  const max = Math.max(r, g, b),
+    min = Math.min(r, g, b),
+    d = max - min,
+    l = (max + min) / 2,
+    s = d === 0 ? 0 : d / (1 - Math.abs(2 * l - 1));
+  let h = 0;
+  if (d > 0) h = max === r ? ((g - b) / d) % 6 : max === g ? (b - r) / d + 2 : (r - g) / d + 4;
+  h = (h * 60 + 360) % 360;
+  return {
+    dark: hslTriplet(h, s * 0.75, 0.29),
+    mid: hslTriplet(h, s * 0.6, 0.39),
+    light: hslTriplet(h, Math.min(1, s * 1.1), 0.88),
+  };
+}
+
+/** The snake's colour (control room, "Snake colour"). */
+let snakeColour: SnakeColour = 'sand',
+  tones = SAND_TONES;
+export function setSnakeColour(colour: SnakeColour): void {
+  if (colour === snakeColour) return;
+  snakeColour = colour;
+  tones = colour === 'sand' ? SAND_TONES : tonesFor(COLOURS[colour]);
+  scaleCanvas = null; // the chevron sprite was drawn in the old shade
+}
+export const currentSnakeColour = (): SnakeColour => snakeColour;
+/** The body's colour, as the ambience's snake painter takes it. */
+export const snakeTint = (): string => COLOURS[snakeColour];
+
 /** Cells between two bands, and the length of one band. */
 const BAND_EVERY = 5,
   BAND_LEN = 1.6;
@@ -204,10 +256,10 @@ function paintDarkBack(trace: Point[], c: CanvasRenderingContext2D): void {
   c.save();
   c.lineCap = 'round';
   c.lineJoin = 'round';
-  c.strokeStyle = 'rgba(122,78,26,0.34)';
+  c.strokeStyle = `rgba(${tones.dark},0.34)`;
   c.lineWidth = 11;
   c.stroke(back);
-  c.strokeStyle = 'rgba(255,236,190,0.4)';
+  c.strokeStyle = `rgba(${tones.light},0.4)`;
   c.lineWidth = 2.4;
   c.stroke(back);
   c.restore();
@@ -230,10 +282,10 @@ function paintBands(trace: Point[], end: number, c: CanvasRenderingContext2D): v
   c.save();
   c.lineCap = 'round';
   c.lineJoin = 'round';
-  c.strokeStyle = 'rgba(122,78,26,0.42)';
+  c.strokeStyle = `rgba(${tones.dark},0.42)`;
   c.lineWidth = 20;
   c.stroke(bands);
-  c.strokeStyle = 'rgba(255,236,190,0.22)';
+  c.strokeStyle = `rgba(${tones.light},0.22)`;
   c.lineWidth = 6;
   c.stroke(bands);
   c.restore();
@@ -296,7 +348,7 @@ function scaleSprite(): HTMLCanvasElement {
       d = 5;
     g.lineCap = 'round';
     g.lineJoin = 'round';
-    g.strokeStyle = 'rgba(150,108,48,0.55)';
+    g.strokeStyle = `rgba(${tones.mid},0.55)`;
     g.lineWidth = 2.6;
     g.beginPath();
     g.moveTo(-d, w);

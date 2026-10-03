@@ -3,10 +3,12 @@ import {
   CROWD_LEVELS,
   CROWN_STYLES,
   RANKED_WELCOME_LEVELS,
+  SNAKE_COLOURS,
   SNAKE_SKINS,
   GIFT_THANKS,
   ROUND_HOLDS,
   type CrownStyle,
+  type SnakeColour,
   type SnakeSkin,
   type FeedCommand,
   type GiftThanksSetting,
@@ -49,6 +51,16 @@ const CROWN_LABELS: Record<CrownStyle, string> = {
 const SKIN_LABELS: Record<SnakeSkin, string> = {
   classic: 'Bands',
   'dark-back': 'Dark back',
+};
+const COLOUR_LABELS: Record<SnakeColour, string> = {
+  sand: 'Sand',
+  leaf: 'Leaf green',
+  coral: 'Coral',
+  seafoam: 'Seafoam',
+  lagoon: 'Lagoon',
+  lavender: 'Lavender',
+  rose: 'Rose',
+  pearl: 'Pearl',
 };
 const HOLD_OPTIONS = ROUND_HOLDS.map((value) => ({ value, label: `${String(value)} s` }));
 const CROWD_OPTIONS = CROWD_LEVELS.map((level) => ({
@@ -285,7 +297,15 @@ export function createSetupScreen(dispatch: Dispatch, reason: Reason): FeedView 
       dispatch({ cmd: 'setting', name: 'snakeSkin', value });
     },
   });
-  const crownCard = createCard({ title: 'Look' }, [snakeSkin.el, crownStyle.el]);
+  const snakeColour = createSegmented({
+    label: 'Snake colour',
+    options: SNAKE_COLOURS.map((value) => ({ value, label: COLOUR_LABELS[value] })),
+    caption: 'The skin keeps its marks, in a darker shade of the colour.',
+    onSelect: (value) => {
+      dispatch({ cmd: 'setting', name: 'snakeColour', value });
+    },
+  });
+  const crownCard = createCard({ title: 'Look' }, [snakeColour.el, snakeSkin.el, crownStyle.el]);
   const journal = createButton({
     label: 'Open journal folder',
     variant: 'secondary',
@@ -436,6 +456,16 @@ export function createSetupScreen(dispatch: Dispatch, reason: Reason): FeedView 
       snakeSkin.update({
         value: typeof sk.value === 'string' ? sk.value : undefined,
         status: sk.status,
+        reason: r,
+      });
+      const sc = resolvePending(
+        state.gameState?.settings.snakeColour,
+        state.pending.snakeColour,
+        state.now,
+      );
+      snakeColour.update({
+        value: typeof sc.value === 'string' ? sc.value : undefined,
+        status: sc.status,
         reason: r,
       });
       const rw = resolvePending(

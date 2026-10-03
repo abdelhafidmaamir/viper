@@ -16,8 +16,9 @@ import { FCELL, FCOLS, FROWS, FX0, FY0, K } from './grid.ts';
 import type { Ambience, AmbienceFrame } from '../engine/types-api.ts';
 import { paintFull, paintReady, paintRing } from './hud.ts';
 import {
-  TINT,
+  snakeTint,
   currentSnakeSkin,
+  currentSnakeColour,
   paintBerries,
   paintBites,
   paintGulps,
@@ -205,7 +206,7 @@ function paintBody(g: CanvasRenderingContext2D, a: Ambience, trace: Trace, e: Am
     g,
     trace.map((p) => ({ x: p.x / fat, y: p.y / fat })),
     CELL,
-    { ...e, tint: TINT },
+    { ...e, tint: snakeTint() },
   );
   g.restore();
   paintScales(trace, g);
@@ -233,6 +234,7 @@ function paintStillBody(
       game.head,
       game.full >= 0,
       currentSnakeSkin(),
+      currentSnakeColour(),
     ].join();
   still ??= document.createElement('canvas');
   if (key !== stillKey) {
