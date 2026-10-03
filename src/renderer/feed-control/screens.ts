@@ -3,11 +3,13 @@ import {
   CROWD_LEVELS,
   CROWN_STYLES,
   RANKED_WELCOME_LEVELS,
+  RAIN_SOUNDS,
   SNAKE_COLOURS,
   SNAKE_SKINS,
   GIFT_THANKS,
   ROUND_HOLDS,
   type CrownStyle,
+  type RainSound,
   type SnakeColour,
   type SnakeSkin,
   type FeedCommand,
@@ -61,6 +63,14 @@ const COLOUR_LABELS: Record<SnakeColour, string> = {
   lavender: 'Lavender',
   rose: 'Rose',
   pearl: 'Pearl',
+};
+const RAIN_LABELS: Record<RainSound, string> = {
+  off: 'Off',
+  leaves: 'Leaves',
+  window: 'Window',
+  tent: 'Tent',
+  pond: 'Pond',
+  pad: 'Rain and pad',
 };
 const HOLD_OPTIONS = ROUND_HOLDS.map((value) => ({ value, label: `${String(value)} s` }));
 const CROWD_OPTIONS = CROWD_LEVELS.map((level) => ({
@@ -305,6 +315,16 @@ export function createSetupScreen(dispatch: Dispatch, reason: Reason): FeedView 
       dispatch({ cmd: 'setting', name: 'snakeColour', value });
     },
   });
+  const rainSound = createSegmented({
+    label: 'Rain',
+    options: RAIN_SOUNDS.map((value) => ({ value, label: RAIN_LABELS[value] })),
+    caption:
+      'Plays while the weather is rain, under the game: it dips for every bite, gift and alert.',
+    onSelect: (value) => {
+      dispatch({ cmd: 'setting', name: 'rainSound', value });
+    },
+  });
+  const ambienceSoundCard = createCard({ title: 'Ambience sound' }, [rainSound.el]);
   const crownCard = createCard({ title: 'Look' }, [snakeColour.el, snakeSkin.el, crownStyle.el]);
   const journal = createButton({
     label: 'Open journal folder',
@@ -387,6 +407,7 @@ export function createSetupScreen(dispatch: Dispatch, reason: Reason): FeedView 
       thanksCard.el,
       holdCard.el,
       crownCard.el,
+      ambienceSoundCard.el,
       modsCard.el,
       pastCard.el,
       journalCard.el,
@@ -456,6 +477,16 @@ export function createSetupScreen(dispatch: Dispatch, reason: Reason): FeedView 
       snakeSkin.update({
         value: typeof sk.value === 'string' ? sk.value : undefined,
         status: sk.status,
+        reason: r,
+      });
+      const rs = resolvePending(
+        state.gameState?.settings.rainSound,
+        state.pending.rainSound,
+        state.now,
+      );
+      rainSound.update({
+        value: typeof rs.value === 'string' ? rs.value : undefined,
+        status: rs.status,
         reason: r,
       });
       const sc = resolvePending(

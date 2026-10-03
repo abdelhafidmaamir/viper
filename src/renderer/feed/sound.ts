@@ -8,7 +8,23 @@ import { hooks } from './state.ts';
 
 let ac: AudioContext | null = null,
   out: GainNode | null = null,
-  noise: AudioBuffer | null = null;
+  noise: AudioBuffer | null = null,
+  // The rain's bus (rain-sound.ts): dipped under every game sound so the game stays on top.
+  bed: GainNode | null = null;
+
+export const audioContext = (): AudioContext | null => ac;
+export const bedInput = (): GainNode | null => bed;
+
+/** Lowers the rain for a moment under a game sound, then lets it back up. */
+function duck(depth = 0.4, hold = 0.35): void {
+  if (!ac || !bed) return;
+  const t = ac.currentTime,
+    g = bed.gain;
+  g.cancelScheduledValues(t);
+  g.setValueAtTime(g.value, t);
+  g.setTargetAtTime(Math.min(depth, g.value), t, 0.015);
+  g.setTargetAtTime(1, t + hold, 0.3);
+}
 
 const SCALE = [523.25, 587.33, 659.25, 783.99, 880, 1046.5, 1174.66, 1318.51, 1567.98, 1760];
 
@@ -37,6 +53,8 @@ export function armSound(): void {
   out.gain.value = 0.7;
   out.connect(comp).connect(ac.destination);
   noise = noiseBuffer(ac);
+  bed = ac.createGain();
+  bed.connect(out);
 }
 
 function tone(
@@ -89,6 +107,7 @@ hooks.lead = lag;
 
 hooks.eat = (combo) => {
   if (!ac) return;
+  duck();
   const now = ac.currentTime,
     f = SCALE[combo % SCALE.length] ?? 523.25;
   tone(f, now, 0.26, 0.13, 'sine', 1.35);
@@ -101,6 +120,8 @@ hooks.land = (delay) => {
   const now = ac.currentTime,
     at = now + Math.max(0, delay - lag()),
     lift = 620 + Math.random() * 160;
+  // A lighter, shorter dip than a bite: berries can fall several times a second.
+  duck(0.6, 0.15);
   // Leaving the flower: a small rising bubble.
   plip(now, lift);
   // Touching the board: a soft low knock with a hint of texture.
@@ -125,6 +146,7 @@ function plip(at: number, freq: number): void {
 
 hooks.gift = (n) => {
   if (!ac) return;
+  duck();
   const now = ac.currentTime,
     notes = n >= 30 ? [1318.51, 1567.98, 1975.53, 2637.02] : [1318.51, 1567.98, 1975.53];
   notes.forEach((f, i) => {
@@ -134,6 +156,7 @@ hooks.gift = (n) => {
 
 hooks.full = () => {
   if (!ac) return;
+  duck();
   const now = ac.currentTime;
   [523.25, 659.25, 783.99, 1046.5, 1318.51].forEach((f, i) => {
     tone(f, now + i * 0.09, 2.2, 0.07);
@@ -144,6 +167,7 @@ hooks.full = () => {
 // up for a follow or a share, tiny pops under the hearts of a like.
 alertSounds.show = (kind, first) => {
   if (!ac) return;
+  duck();
   const now = ac.currentTime;
   if (kind === 'join') {
     // A soft bloom: three notes rising, a fourth one for a first visit.
@@ -195,6 +219,7 @@ let combo = 0,
 
 alertSounds.thanks = (first) => {
   if (!ac) return;
+  duck();
   const now = ac.currentTime;
   // A gift soon after the last one is the next step of a streak: one note, a step higher each
   // time, so a streak is heard climbing. The key holds for the whole streak.
