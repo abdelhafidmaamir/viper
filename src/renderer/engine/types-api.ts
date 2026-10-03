@@ -273,6 +273,8 @@ export interface TikFinityBridgeApi {
   process(message: unknown): number | null;
   /** Count each step of a streak at once (Feed) instead of waiting for the final message. */
   liveStreaks(on: boolean): void;
+  /** The first message of each kind, as received, for the journal; each is handed over once. */
+  takeSamples?(): string[];
   state(): TikFinityState & { readonly raw: string };
   /** Change listener (accessor pair). */
   surChangement: ((state: TikFinityState) => void) | null;

@@ -56,6 +56,10 @@ function process(m: unknown): number | null {
   state.events++;
   /* raw trace: last message as received, for diagnosing what TikFinity actually sends */
   state.raw = `${event} ${JSON.stringify(d).slice(0, 300)}`;
+  if (!sampled.has(event)) {
+    sampled.add(event);
+    fresh.push(`${event} ${sample(d)}`);
+  }
   if (event === 'like') {
     const nl = Math.max(1, parseInt(String(d.likeCount ?? '')) || 1);
     state.last = `like x${String(nl)}${d.uniqueId ? ` @${d.uniqueId}` : ''}`;
@@ -141,6 +145,24 @@ function process(m: unknown): number | null {
     return null;
   }
   return forwardGift(d, Math.max(1, parseInt(String(d.repeatCount ?? '')) || 1));
+}
+
+/** The kinds of message already sampled, and the samples the journal has not taken yet. */
+const sampled = new Set<string>();
+let fresh: string[] = [];
+const SAMPLE_MAX = 4000,
+  SAMPLE_STRING_MAX = 60;
+
+/**
+ * One message as TikFinity sent it, short enough for a journal cell: long strings (picture links
+ * mostly) are cut, since it is the field names and the small values we want to read back.
+ */
+function sample(d: TikFinityPayload): string {
+  return JSON.stringify(d, (_key, value: unknown) =>
+    typeof value === 'string' && value.length > SAMPLE_STRING_MAX
+      ? `${value.slice(0, SAMPLE_STRING_MAX)}...`
+      : value,
+  ).slice(0, SAMPLE_MAX);
 }
 
 /** Whether TikTok says the viewer moderates this live: the flag, or a moderator badge. */
@@ -267,6 +289,12 @@ const bridge = {
   liveStreaks(on: boolean): void {
     liveStreaks = on;
     streaks.clear();
+  },
+  /** The first message of each kind since the app started, handed over once. */
+  takeSamples(): string[] {
+    const taken = fresh;
+    fresh = [];
+    return taken;
   },
   state(): TikFinityState & { readonly raw: string } {
     return {

@@ -326,7 +326,13 @@ function start(): void {
     snapshot: backupText,
     restore: restoreBackup,
     // The live's journal and the lifetime supporters, saved by the app (src/main/feed-journal.ts).
-    journal: () => drainJournal(isLive(window.TikFinityBridge)),
+    journal: () => {
+      // What TikFinity really sends, one row per kind of message: the fields differ between
+      // versions, and the journal is where we check before reading a new one.
+      for (const detail of window.TikFinityBridge.takeSamples?.() ?? [])
+        note({ event: 'raw sample', source: 'tiktok', detail });
+      return drainJournal(isLive(window.TikFinityBridge));
+    },
     journalHeader: () => COLUMNS.join(';'),
     supporters: supportersText,
     // Supporters from before, shipped with the build as JSON: added once, ever.
