@@ -109,6 +109,19 @@ export const RANKED_WELCOME_LEVELS = [0, 10, 20, 30, 40] as const;
 export const SNAKE_SKINS = ['classic', 'dark-back'] as const;
 export type SnakeSkin = (typeof SNAKE_SKINS)[number];
 
+/** The snake's colour; its bands, back line and chevrons take a darker shade of it. */
+export const SNAKE_COLOURS = [
+  'sand',
+  'leaf',
+  'coral',
+  'seafoam',
+  'lagoon',
+  'lavender',
+  'rose',
+  'pearl',
+] as const;
+export type SnakeColour = (typeof SNAKE_COLOURS)[number];
+
 /** Minutes the sky takes to go once round the clock, night to night: 0 keeps the hour still. */
 export const DAY_CYCLES = [0, 10, 20, 30, 60] as const;
 
@@ -140,6 +153,8 @@ export interface FeedSettings {
   readonly crownStyle: CrownStyle;
   /** The snake's skin (SNAKE_SKINS). */
   readonly snakeSkin: SnakeSkin;
+  /** The snake's colour (SNAKE_COLOURS). */
+  readonly snakeColour: SnakeColour;
   /** Ranked welcome threshold (RANKED_WELCOME_LEVELS). */
   readonly rankedWelcome: number;
   /** The price list: gift price in coins to berries, "1:5,10:55" (feed-pricing.ts). */
@@ -299,6 +314,8 @@ export function sanitizeSetting<K extends FeedSettingName>(
         : undefined;
     case 'snakeSkin':
       return SNAKE_SKINS.includes(value as SnakeSkin) ? ok(value) : undefined;
+    case 'snakeColour':
+      return SNAKE_COLOURS.includes(value as SnakeColour) ? ok(value) : undefined;
     case 'crownStyle':
       return CROWN_STYLES.includes(value as CrownStyle) ? ok(value) : undefined;
     case 'pricing':
