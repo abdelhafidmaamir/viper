@@ -7,6 +7,8 @@ import { FCELL, FX0, FY0, K, MOUTH } from './grid.ts';
 import { GOLD, berryGlow, berryTint } from '../engine/palette.ts';
 import type { Point } from '../engine/types.ts';
 import { FALL_TIME, cellAt, game, leaders } from './state.ts';
+import { paintCrownStyle, type Face } from './crowns.ts';
+import type { CrownStyle, SnakeSkin } from '../../shared/feed-protocol.ts';
 
 export const px = (gx: number, gy: number): Point => ({
   x: FX0 + gx * FCELL + FCELL / 2,
@@ -74,8 +76,22 @@ export function paintFace(
   c.restore();
 }
 
-export function crown(x: number, y: number, s: number): void {
+/** Which crown the round's top giver wears (control room, "Crown"). */
+let crownStyle: CrownStyle = 'classic';
+export function setCrownStyle(style: CrownStyle): void {
+  crownStyle = style;
+}
+
+/**
+ * The classic crown sits at (x, y) at scale s. The others are drawn around the photo they crown,
+ * so callers pass that photo too.
+ */
+export function crown(x: number, y: number, s: number, face: Face): void {
   const c = ctx;
+  if (crownStyle !== 'classic') {
+    paintCrownStyle(c, crownStyle, face);
+    return;
+  }
   c.save();
   c.translate(x, y);
   c.scale(s, s);
@@ -146,6 +162,13 @@ export function snakeTrace(): Point[] {
   return pts;
 }
 
+/** The snake's skin (control room, "Snake skin"). */
+let snakeSkin: SnakeSkin = 'classic';
+export function setSnakeSkin(skin: SnakeSkin): void {
+  snakeSkin = skin;
+}
+export const currentSnakeSkin = (): SnakeSkin => snakeSkin;
+
 /** Cells between two bands, and the length of one band. */
 const BAND_EVERY = 5,
   BAND_LEN = 1.6;
@@ -160,6 +183,37 @@ export function paintScales(trace: Point[], c: CanvasRenderingContext2D = ctx): 
   if (trace.length < 3) return;
   const end = (trace.length - 1) / 3 - 0.6,
     spacing = 0.5;
+  if (snakeSkin === 'dark-back') paintDarkBack(trace, c);
+  else paintBands(trace, end, c);
+  paintChevrons(trace, end, spacing, c);
+}
+
+/**
+ * A darker line down the back with a thin light in its middle, in place of the bands. On a full
+ * board the bands line up row after row into a chessboard; a line along each row does not.
+ */
+function paintDarkBack(trace: Point[], c: CanvasRenderingContext2D): void {
+  const first = trace[3];
+  if (!first) return;
+  const back = new Path2D();
+  back.moveTo(first.x, first.y);
+  for (let i = 4; i < trace.length; i++) {
+    const pt = trace[i];
+    if (pt) back.lineTo(pt.x, pt.y);
+  }
+  c.save();
+  c.lineCap = 'round';
+  c.lineJoin = 'round';
+  c.strokeStyle = 'rgba(122,78,26,0.34)';
+  c.lineWidth = 11;
+  c.stroke(back);
+  c.strokeStyle = 'rgba(255,236,190,0.4)';
+  c.lineWidth = 2.4;
+  c.stroke(back);
+  c.restore();
+}
+
+function paintBands(trace: Point[], end: number, c: CanvasRenderingContext2D): void {
   // Perf: all bands go into one path, stroked twice.
   const bands = new Path2D();
   for (let q = 1.2; q < end; q += BAND_EVERY) {
@@ -183,6 +237,14 @@ export function paintScales(trace: Point[], c: CanvasRenderingContext2D = ctx): 
   c.lineWidth = 6;
   c.stroke(bands);
   c.restore();
+}
+
+function paintChevrons(
+  trace: Point[],
+  end: number,
+  spacing: number,
+  c: CanvasRenderingContext2D,
+): void {
   // Perf: one chevron sprite, stamped and turned along the body. Stroking ~1800 small shapes as
   // one path cost the GPU a third of the frame on a full board; stamping costs almost nothing.
   const sprite = scaleSprite(),
@@ -282,7 +344,7 @@ export function paintHead(head: Point, t: number): void {
   const b = game.bite,
     squash = b < 0.25 ? 1 + 0.22 * Math.sin((b / 0.25) * Math.PI) * (1 - b / 0.25) : 1;
   if (!king) {
-    crown(head.x, head.y - 24 + Math.sin(t * 4) * 2, 0.8);
+    crown(head.x, head.y - 24 + Math.sin(t * 4) * 2, 0.8, { x: head.x, y: head.y, r: 16 });
     return;
   }
   const r = 40 * squash,
@@ -303,7 +365,7 @@ export function paintHead(head: Point, t: number): void {
   c.fill();
   c.restore();
   paintFace(king, fx, fy, r);
-  crown(fx, fy - r - 12, 1.2);
+  crown(fx, fy - r - 12, 1.2, { x: fx, y: fy, r });
 }
 
 // ---- berries -------------------------------------------------------------------------------

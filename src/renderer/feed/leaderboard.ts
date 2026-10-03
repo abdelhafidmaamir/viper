@@ -155,7 +155,7 @@ function podium(
   c.shadowBlur = 22;
   paintFace(line, x, y, r, tier.main);
   c.shadowBlur = 0;
-  if (rank === 1) crown(x, y - r - 18 + Math.sin(t * 3) * 2, (R / 40) * pop);
+  if (rank === 1) crown(x, y - r - 18 + Math.sin(t * 3) * 2, (R / 40) * pop, { x, y, r });
   medal(x + r * 0.72, y + r * 0.72, Math.max(0.5, R * 0.34 * pop), rank, tier.main);
   const k = smooth((age - 0.25) / 0.35);
   c.globalAlpha *= k;

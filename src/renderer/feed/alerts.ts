@@ -357,7 +357,7 @@ export function paintAlerts(): void {
       const flower = a.supporter !== undefined && a.supporter < 0 ? LOTUS : undefined;
       if (a.kind === 'join') paintBloom(ax, 0, AVATAR / 2, a.age, a.age, flower);
       paintFace(a, ax, 0, AVATAR / 2, `rgb(${accent})`);
-      if (a.supporter === 1) crown(ax, -AVATAR / 2 - 6, 1.1);
+      if (a.supporter === 1) crown(ax, -AVATAR / 2 - 6, 1.1, { x: ax, y: 0, r: AVATAR / 2 });
       // Text: regular words in light, the name bold in gold, shrunk to fit one line.
       const [before, name, after] = sentence(a),
         // The bloom reaches past the photo: the welcome's text starts a little further right.
