@@ -1383,3 +1383,32 @@ select {
     transition: none !important;
   }
 }
+
+/* Money screen: the price list and the advisor side by side, one column when narrow */
+.screen--money {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+  gap: var(--gap);
+  align-items: start;
+}
+
+.tier {
+  display: grid;
+  grid-template-columns: 6em auto 6em auto auto;
+  gap: 6px;
+  align-items: center;
+}
+
+.tier__info {
+  grid-column: 1 / -1;
+}
+
+.advice__item + .advice__item {
+  margin-top: 10px;
+}
+
+@media (max-width: 900px) {
+  .screen--money {
+    grid-template-columns: minmax(0, 1fr);
+  }
+}

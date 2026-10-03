@@ -66,9 +66,9 @@ function bindShortcuts(
     if (event.repeat) return;
     if (isTextField(event.target)) return;
 
-    // Tab shortcuts: Alt+1/2/3 always work regardless of game link state
+    // Tab shortcuts: Alt+1 to 4 always work regardless of game link state
     if (event.altKey) {
-      const tabs = ['live', 'rehearsal', 'setup'] as const;
+      const tabs = ['live', 'rehearsal', 'setup', 'money'] as const;
       const idx = Number(event.key) - 1;
       if (idx >= 0 && idx < tabs.length) {
         event.preventDefault();

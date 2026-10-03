@@ -98,7 +98,7 @@ export function createRehearsalScreen(dispatch: Dispatch): FeedView {
   const giftsCard = createCard(
     {
       title: 'Test gifts',
-      help: 'Only Rose (1 berry) and Rosa (10 berries) feed the snake.',
+      help: 'A Rose is a 1-coin gift, a Rosa a 10-coin gift, priced as in the Money tab.',
     },
     [
       lock.el,

@@ -195,7 +195,7 @@ function giftLeadersCard(): FeedView {
       rows.forEach((row, i) => {
         const leader = leaders[i];
         if (leader) {
-          setText(row, `${String(i + 1)}. ${leader.nickname}: ${String(leader.coins)} coins`);
+          setText(row, `${String(i + 1)}. ${leader.nickname}: ${String(leader.coins)} berries`);
           setHidden(row, false);
         } else if (i === 0 && leaders.length === 0) {
           setText(row, 'Nobody yet');
@@ -215,7 +215,7 @@ function giftsCard(): FeedView {
   const card = createCard({ title: 'Gifts received' }, [
     h('p', {
       class: 'field__caption',
-      text: 'Each live gift and the berries it gave. Only Rose and Rosa feed the snake.',
+      text: 'Each live gift and the berries it gave, at the prices set in the Money tab.',
     }),
     ...rows,
   ]);

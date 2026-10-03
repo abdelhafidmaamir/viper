@@ -4,24 +4,30 @@
  * the other.
  */
 
+import type { PerfSegment } from './feed-perf.ts';
+import { berriesForCoins, DEFAULT_PRICING, giftCoins, normalizePricing } from './feed-pricing.ts';
+
 export const FEED_CHANNEL = 'viper-feed';
 
 /** How often the game publishes its state to the control room. */
 export const FEED_STATE_INTERVAL_MS = 500;
 
-/** The two gifts that feed the snake, and the berries one of each drops. Nothing else counts. */
+/** The control room's test gifts, and their price in coins. */
 export const FEED_GIFTS = { rose: 1, rosa: 10 } as const;
 export type FeedGift = keyof typeof FEED_GIFTS;
 
 /**
- * Berries one of a TikTok gift is worth in this mode: one per coin, for the Rose (1) and the Rosa
- * (10) only; any other gift is worth 0. The coin value TikFinity reports wins over the name's
- * usual price, so what a viewer paid is exactly what drops.
+ * Berries one TikTok gift is worth in this mode, under the operator's price list (see
+ * feed-pricing.ts). The coin value TikFinity reports wins over the name's usual price, so the
+ * gift is priced at what the viewer paid.
  */
-export function berriesPerGift(name: string | undefined, coins?: number): number {
-  const key = (name ?? '').trim().toLowerCase();
-  if (key !== 'rose' && key !== 'rosa') return 0;
-  return coins !== undefined && coins >= 1 && coins <= 100 ? Math.round(coins) : FEED_GIFTS[key];
+export function berriesPerGift(
+  name: string | undefined,
+  coins?: number,
+  pricing: string = DEFAULT_PRICING,
+  others = false,
+): number {
+  return berriesForCoins(giftCoins(name, coins), pricing, others);
 }
 
 /** One gift as the game received it, for the control room's proof list. */
@@ -32,6 +38,8 @@ export interface FeedGiftLine {
   readonly count: number;
   /** Berries it gave; 0 for a gift that does not feed the snake. */
   readonly berries: number;
+  /** Coins the viewer paid for it, all of the streak; absent for berries given by hand. */
+  readonly coins?: number;
 }
 
 /** Forest weathers, the same set the duel offers. */
@@ -134,6 +142,10 @@ export interface FeedSettings {
   readonly snakeSkin: SnakeSkin;
   /** Ranked welcome threshold (RANKED_WELCOME_LEVELS). */
   readonly rankedWelcome: number;
+  /** The price list: gift price in coins to berries, "1:5,10:55" (feed-pricing.ts). */
+  readonly pricing: string;
+  /** Gifts at a price the list does not name drop berries at the closest lower line's rate. */
+  readonly otherGifts: boolean;
 }
 
 export type FeedSettingName = keyof FeedSettings;
@@ -145,6 +157,8 @@ export type FeedCommand =
       readonly gift: FeedGift;
       readonly count: number;
       readonly nickname?: string;
+      /** A test gift at another price, to try a line of the price list. */
+      readonly coins?: number;
     }
   | { readonly cmd: 'likes'; readonly count: number; readonly nickname?: string }
   | { readonly cmd: 'bridge-start'; readonly url?: string }
@@ -203,6 +217,8 @@ export interface FeedState {
   readonly gifts: readonly FeedGiftLine[];
   readonly crowd: CrowdLevel;
   readonly settings: FeedSettings;
+  /** What the lives earned, segment by segment, for the advisor (feed-perf.ts). */
+  readonly perf?: readonly PerfSegment[];
   /** Frames per second over the last second, as the game window renders them. */
   readonly fps: number;
   /** Frames slower than 20 ms over the last second. */
@@ -285,8 +301,11 @@ export function sanitizeSetting<K extends FeedSettingName>(
       return SNAKE_SKINS.includes(value as SnakeSkin) ? ok(value) : undefined;
     case 'crownStyle':
       return CROWN_STYLES.includes(value as CrownStyle) ? ok(value) : undefined;
+    case 'pricing':
+      return normalizePricing(value) as FeedSettings[K] | undefined;
     case 'likeCount':
     case 'giftTitles':
+    case 'otherGifts':
       return typeof value === 'boolean' ? ok(value) : undefined;
   }
   return undefined;

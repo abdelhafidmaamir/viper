@@ -33,13 +33,24 @@ skips the opening. The default, 0, is the normal start described above.
 
 ## Gifts
 
-| Gift | Coins | Berries |
-| ---- | ----- | ------- |
-| Rose | 1     | 1       |
-| Rosa | 10    | 10      |
+Gifts are priced from a list set in the control room's Money tab (`pricing`, `src/shared/feed-pricing.ts`).
+Each line is a gift price in coins and the berries one such gift drops, up to 4 lines. It is read on
+every gift, so a new list applies to the next one, live or not.
 
-Defined in `src/shared/feed-protocol.ts`. When the event carries a coin value between 1 and 100,
-that value is used instead of the name. Any other gift yields 0.
+| Preset           | List                       | Pairs with                                  |
+| ---------------- | -------------------------- | ------------------------------------------- |
+| 1 coin = 1 berry | `1:1,10:10` (default)      | The original rule                           |
+| Small audience   | `1:5,10:55,30:175`         | 95% start: a Rosa ends the round            |
+| Big audience     | `1:5,10:55,100:600`        | Normal or 50% start: the 100 ends the round |
+| Flat x5          | `1:5,10:50,30:150,100:500` | 90% start and up                            |
+
+A gift is matched by its coin price, as TikFinity reports it, not by its name: every 1-coin gift is
+worth the 1-coin line. When the event carries no price, Rose counts as 1 coin and Rosa as 10. A gift
+at a price the list does not name drops nothing, unless `otherGifts` is on: it then drops berries at
+the rate of the closest lower line. The Money tab warns when a bigger gift gives fewer berries per
+coin than a smaller one.
+
+Every gift row in the journal carries the coins it cost (`coins` column).
 
 A streak is counted in full with no cap. In this mode the adapter counts each step of the
 cumulative counter as it arrives, so berries are credited during the streak, not at its end.
@@ -193,3 +204,24 @@ available.
 | `giftThanks`   | `flower` | `giftTitles`  | `false` |
 
 `roundHold` is the end screen's duration in seconds: 5 to 30 in steps of 5.
+
+## Money advisor
+
+The game cuts its time on air into segments (`src/renderer/feed/perf.ts`): a segment runs while
+TikFinity is connected and `pricing`, `startFill` and `otherGifts` stay the same. Each segment sums
+coins, gifts, giving moments (one viewer's gifts less than a minute apart count once), viewer-minutes,
+joins, likes, rounds filled and gifts by price. Segments are kept in the window's storage, 400 at
+most.
+
+The Money tab's advisor (`src/shared/feed-advisor.ts`) reads them and suggests, each with its
+figures and a one-click Apply:
+
+| Check           | Rule                                                                                      |
+| --------------- | ----------------------------------------------------------------------------------------- |
+| Start length    | The start whose round ends closest to 15 minutes at the pace of the last 6 live hours     |
+| Price list fit  | Cheapest gift 2 to 15% of a round, one gift that ends it, no bigger gift worse per coin   |
+| Unpaid gifts    | Gifts at prices missing from the list, with `otherGifts` off                              |
+| Bigger gift     | Top line sent 3 times by 2 viewers in 10 hours: add the next usual price at a better rate |
+| Set-up compared | Giving moments per viewer-hour, exact rate test, a set-up called better only when p < 0.1 |
+| One giver       | Over half the coins from one viewer                                                       |
+| Audience        | Under 30 coins an hour, the advisor says the audience limits earnings more than prices    |

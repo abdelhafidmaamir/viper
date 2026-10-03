@@ -14,6 +14,7 @@ import {
   type FeedControlState,
   type FeedControlStore,
 } from './store.ts';
+import { createMoneyScreen } from './money.ts';
 import { createLiveScreen, createRehearsalScreen, createSetupScreen } from './screens.ts';
 
 export interface FeedView {
@@ -107,12 +108,13 @@ function createStatusBar(dispatch: Dispatch, pressArm: PressArm): FeedView {
   };
 }
 
-type TabId = 'live' | 'rehearsal' | 'setup';
+type TabId = 'live' | 'money' | 'rehearsal' | 'setup';
 
 const FEED_TABS: readonly { readonly id: TabId; readonly label: string; readonly key: string }[] = [
   { id: 'live', label: 'Live', key: '1' },
   { id: 'rehearsal', label: 'Rehearsal', key: '2' },
   { id: 'setup', label: 'Setup', key: '3' },
+  { id: 'money', label: 'Money', key: '4' },
 ];
 
 export function mountFeedApp(
@@ -126,6 +128,7 @@ export function mountFeedApp(
 
   const screens: Record<TabId, FeedView> = {
     live: createLiveScreen(store, dispatch, pressArm),
+    money: createMoneyScreen(store, dispatch),
     rehearsal: createRehearsalScreen(dispatch),
     setup: createSetupScreen(dispatch, reason),
   };
