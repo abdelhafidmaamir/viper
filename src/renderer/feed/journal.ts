@@ -19,6 +19,8 @@ export interface Row {
   readonly berries?: number;
   readonly viewers?: number;
   readonly detail?: string;
+  /** Coins a gift cost the viewer, for reading what a live earned. */
+  readonly coins?: number;
 }
 
 export const COLUMNS = [
@@ -35,6 +37,7 @@ export const COLUMNS = [
   'berries',
   'viewers',
   'detail',
+  'coins',
 ] as const;
 
 const LIKES_EVERY_MS = 10_000,
@@ -94,6 +97,7 @@ export function note(row: Row, at = Date.now()): void {
       row.berries,
       row.viewers,
       row.detail,
+      row.coins,
     ]
       .map(cell)
       .join(';'),

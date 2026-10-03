@@ -7,7 +7,7 @@ import { decodeBridge } from '../control/decode.ts';
 import type { SlotStatus } from '../control/pending.ts';
 import type { Tone } from '../control/view-models/status.ts';
 
-export type FeedTab = 'live' | 'rehearsal' | 'setup';
+export type FeedTab = 'live' | 'money' | 'rehearsal' | 'setup';
 export type ArmKey = 'round' | 'mode';
 
 const STALE_MS = 2000;
@@ -116,7 +116,7 @@ export function createStore(initial: FeedControlState): FeedControlStore {
 function savedTab(): FeedTab {
   try {
     const raw = localStorage.getItem(STORAGE_TAB_KEY);
-    if (raw === 'live' || raw === 'rehearsal' || raw === 'setup') return raw;
+    if (raw === 'live' || raw === 'money' || raw === 'rehearsal' || raw === 'setup') return raw;
   } catch {
     /* storage may be unavailable */
   }

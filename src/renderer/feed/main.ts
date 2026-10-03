@@ -114,8 +114,13 @@ function simulate(dt: number): void {
   if (simTimer > 0) return;
   const [lo, hi] = GIFT_GAP[crowd];
   simTimer = lo + Math.random() * (hi - lo);
-  // The rule: a Rose drops 1 berry, a Rosa drops 10, times the streak.
-  const berries = Math.random() < 0.8 ? berriesPerGift('Rose') : berriesPerGift('Rosa');
+  // Mostly Roses, some Rosas, priced like real ones, times the streak.
+  const berries = berriesPerGift(
+    Math.random() < 0.8 ? 'Rose' : 'Rosa',
+    undefined,
+    settings.pricing,
+    settings.otherGifts,
+  );
   const nickname = someone(),
     n = berries * (1 + Math.floor(Math.random() * 3));
   gift(nickname, undefined, n);

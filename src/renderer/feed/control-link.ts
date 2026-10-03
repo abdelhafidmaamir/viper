@@ -2,7 +2,6 @@
 // from the last session, commands applied, and the round published twice a second.
 
 import {
-  berriesPerGift,
   CROWD_LEVELS,
   ONCE_PER_LIVE,
   FEED_CHANNEL,
@@ -19,6 +18,7 @@ import {
   type FeedState,
   type FeedStateMessage,
 } from '../../shared/feed-protocol.ts';
+import { berriesForCoins, DEFAULT_PRICING, giftCoins } from '../../shared/feed-pricing.ts';
 import { setLanguage } from '../engine/i18n.ts';
 import { alertSounds, alertViewer, setAlertsOn } from './alerts.ts';
 import { crabLike, setLikeCount } from './crabs.ts';
@@ -26,6 +26,15 @@ import { setCrownStyle, setSnakeSkin } from './paint.ts';
 import { setFlowerSides } from './flower.ts';
 import { setTray, type TrayFly } from './gift-tray.ts';
 import { note, noteJoin, noteLikes, noteViewers } from './journal.ts';
+import {
+  perfGift,
+  perfJoin,
+  perfLikes,
+  perfSegments,
+  perfTick,
+  perfViewers,
+  restorePerf,
+} from './perf.ts';
 import {
   claimSeed,
   lifetimeRank,
@@ -113,6 +122,8 @@ export const settings: { -readonly [K in FeedSettingName]: FeedSettings[K] } = {
   crownStyle: 'classic',
   snakeSkin: 'classic',
   rankedWelcome: 0,
+  pricing: DEFAULT_PRICING,
+  otherGifts: false,
 };
 
 /** How each tray setting brings a row's photo down from the flower. */
@@ -221,6 +232,8 @@ const SHARED: readonly FeedSettingName[] = [
   'crownStyle',
   'snakeSkin',
   'rankedWelcome',
+  'pricing',
+  'otherGifts',
   'autoAmbience',
   'dayCycle',
 ];
@@ -272,9 +285,13 @@ export function rollAmbience(rand: () => number = Math.random): void {
 const GIFT_LOG = 12;
 const giftLog: FeedGiftLine[] = [];
 
+/** Berries one gift of `coins` drops under the price list set in the control room. */
+const priced = (coins: number): number =>
+  berriesForCoins(coins, settings.pricing, settings.otherGifts);
+
 /**
- * Live events from the bridge: only the Rose (1 berry) and the Rosa (10 berries) feed the snake,
- * likes rank. Every other gift and event does nothing in this mode. Returns the gifts counted.
+ * Live events from the bridge: gifts feed the snake at the control room's prices, likes rank.
+ * Every other event does nothing in this mode. Returns the gifts counted.
  */
 export function receiveFeedEvent(ev: AudienceEvent | null | undefined): number {
   // A streak counts whole: Rose x500 drops 500 berries.
@@ -286,16 +303,21 @@ export function receiveFeedEvent(ev: AudienceEvent | null | undefined): number {
     who = ev?.nickname ?? '';
   // A supporter imported from before, seen for the first time: their berries become theirs.
   if (id && who) claimSeed(id, who);
-  if (ev?.type === 'viewers') noteViewers(Math.max(0, Number(ev.total) || 0));
+  if (ev?.type === 'viewers') {
+    noteViewers(Math.max(0, Number(ev.total) || 0));
+    perfViewers(Math.max(0, Number(ev.total) || 0));
+  }
   if (ev?.type === 'like') {
     like(ev.nickname ?? 'viewer', ev.avatar, n);
     alertViewer('like', ev.nickname ?? '', ev.avatar, n);
     crabLike(ev.nickname ?? '', ev.avatar, n);
     noteLikes(id || who, n);
+    perfLikes(n);
     supporterLikes(id, who, n);
   }
   if (ev?.type === 'join') {
     noteJoin(supporterJoin(id, who));
+    perfJoin();
     welcome(ev, id, who);
   }
   if (ev?.type === 'share' || ev?.type === 'follow') {
@@ -306,7 +328,8 @@ export function receiveFeedEvent(ev: AudienceEvent | null | undefined): number {
   // Their latest photo, kept with them for the Hall of Fame.
   if (id) supporterPhoto(id, ev?.avatar);
   if (ev?.type !== 'gift') return 0;
-  const berries = berriesPerGift(ev.name ?? ev.gift, ev.value);
+  const coins = giftCoins(ev.name ?? ev.gift, ev.value),
+    berries = priced(coins);
   note({
     event: 'gift',
     source: 'tiktok',
@@ -315,9 +338,11 @@ export function receiveFeedEvent(ev: AudienceEvent | null | undefined): number {
     gift: ev.name ?? ev.gift ?? '?',
     count: n,
     berries: berries * n,
+    coins: coins * n,
   });
   const before = topSupporters(3).map((s) => s.id),
     first = supporterKey(id) !== '' && !supporter(id)?.berries;
+  perfGift(id || who, coins * n, berries * n, n, first, coins);
   supporterGift(id, who, berries * n);
   supporterPhoto(id, ev.avatar);
   if (berries > 0 && !announcePass(id, who, ev.avatar, before))
@@ -328,6 +353,7 @@ export function receiveFeedEvent(ev: AudienceEvent | null | undefined): number {
     name: ev.name ?? ev.gift ?? '?',
     count: n,
     berries: berries * n,
+    coins: coins * n,
   });
   if (giftLog.length > GIFT_LOG) giftLog.length = GIFT_LOG;
   if (!berries) return 0;
@@ -500,7 +526,9 @@ export function applyFeedCommand(command: FeedCommand, deps: FeedLinkDeps): void
       if (!(command.gift in FEED_GIFTS)) return;
       {
         const nickname = command.nickname ?? deps.someone(),
-          berries = FEED_GIFTS[command.gift] * count(command.count);
+          coins = giftCoins(undefined, command.coins) || FEED_GIFTS[command.gift],
+          berries = priced(coins) * count(command.count);
+        if (!berries) return;
         gift(nickname, undefined, berries);
         thankGift(nickname, undefined, berries);
         note({
@@ -619,6 +647,7 @@ export function feedSnapshot(deps: FeedLinkDeps): FeedState {
     gifts: [...giftLog],
     crowd: deps.crowd(),
     settings: { ...settings },
+    perf: perfSegments(),
     fps: m.fps,
     slowFrames: m.slowFrames,
     errors: m.errors,
@@ -640,6 +669,7 @@ export function linkFeedControl(
   channel: FeedChannel = new BroadcastChannel(FEED_CHANNEL),
 ): () => void {
   restoreSettings(deps.storage);
+  restorePerf(deps.storage);
   channel.addEventListener('message', ({ data }) => {
     if (!isFeedCommand(data)) return;
     try {
@@ -650,6 +680,7 @@ export function linkFeedControl(
     }
   });
   const timer = setInterval(() => {
+    perfTick(Date.now(), isLive(deps.bridge), settings, game.full >= 0, deps.storage);
     channel.postMessage({ feed: feedSnapshot(deps) });
   }, FEED_STATE_INTERVAL_MS);
   return () => {
