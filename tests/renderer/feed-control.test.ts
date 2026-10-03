@@ -45,6 +45,7 @@ function makeGameState(overrides?: Partial<FeedState>): FeedState {
       giftTitles: false,
       likeCount: true,
       crownStyle: 'classic',
+      snakeSkin: 'classic',
     },
     fps: 60,
     slowFrames: 0,
@@ -204,6 +205,7 @@ describe('cleanPending', () => {
         giftTitles: false,
         likeCount: true,
         crownStyle: 'classic',
+        snakeSkin: 'classic',
       },
     });
     const pending = { weather: { value: 'snow', sentAt: 0 } };

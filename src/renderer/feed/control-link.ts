@@ -22,7 +22,7 @@ import {
 import { setLanguage } from '../engine/i18n.ts';
 import { alertSounds, alertViewer, setAlertsOn } from './alerts.ts';
 import { crabLike, setLikeCount } from './crabs.ts';
-import { setCrownStyle } from './paint.ts';
+import { setCrownStyle, setSnakeSkin } from './paint.ts';
 import { setFlowerSides } from './flower.ts';
 import { setTray, type TrayFly } from './gift-tray.ts';
 import { note, noteJoin, noteLikes, noteViewers } from './journal.ts';
@@ -111,6 +111,7 @@ export const settings: { -readonly [K in FeedSettingName]: FeedSettings[K] } = {
   giftTitles: false,
   likeCount: true,
   crownStyle: 'classic',
+  snakeSkin: 'classic',
 };
 
 /** How each tray setting brings a row's photo down from the flower. */
@@ -189,6 +190,7 @@ function apply(name: FeedSettingName, value: unknown): boolean {
   if (name === 'giftThanks' || name === 'giftTitles') showGiftThanks();
   if (name === 'likeCount') setLikeCount(settings.likeCount);
   if (name === 'crownStyle') setCrownStyle(settings.crownStyle);
+  if (name === 'snakeSkin') setSnakeSkin(settings.snakeSkin);
   if (name === 'roundHold') setRoundHold(settings.roundHold);
   if (name === 'entranceGap') {
     const gap = settings.entranceGap;
@@ -216,6 +218,7 @@ const SHARED: readonly FeedSettingName[] = [
   'giftTitles',
   'likeCount',
   'crownStyle',
+  'snakeSkin',
   'autoAmbience',
   'dayCycle',
 ];

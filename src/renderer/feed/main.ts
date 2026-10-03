@@ -17,6 +17,7 @@ import type { Ambience, AmbienceFrame } from '../engine/types-api.ts';
 import { paintFull, paintReady, paintRing } from './hud.ts';
 import {
   TINT,
+  currentSnakeSkin,
   paintBerries,
   paintBites,
   paintGulps,
@@ -219,7 +220,15 @@ function paintStillBody(
   e: AmbienceFrame,
 ): void {
   const { width, height } = c.canvas,
-    key = [width, height, game.round, game.len, game.head, game.full >= 0].join();
+    key = [
+      width,
+      height,
+      game.round,
+      game.len,
+      game.head,
+      game.full >= 0,
+      currentSnakeSkin(),
+    ].join();
   still ??= document.createElement('canvas');
   if (key !== stillKey) {
     const g = still.getContext('2d');

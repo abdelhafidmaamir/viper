@@ -2,9 +2,11 @@
 import {
   CROWD_LEVELS,
   CROWN_STYLES,
+  SNAKE_SKINS,
   GIFT_THANKS,
   ROUND_HOLDS,
   type CrownStyle,
+  type SnakeSkin,
   type FeedCommand,
   type GiftThanksSetting,
 } from '../../shared/feed-protocol.ts';
@@ -42,6 +44,10 @@ const CROWN_LABELS: Record<CrownStyle, string> = {
   diadem: 'Leaf tiara',
   star: 'Star',
   lotus: 'Gold lotus',
+};
+const SKIN_LABELS: Record<SnakeSkin, string> = {
+  classic: 'Bands',
+  'dark-back': 'Dark back',
 };
 const HOLD_OPTIONS = ROUND_HOLDS.map((value) => ({ value, label: `${String(value)} s` }));
 const CROWD_OPTIONS = CROWD_LEVELS.map((level) => ({
@@ -257,7 +263,15 @@ export function createSetupScreen(dispatch: Dispatch, reason: Reason): FeedView 
       dispatch({ cmd: 'setting', name: 'crownStyle', value });
     },
   });
-  const crownCard = createCard({ title: 'Crown' }, [crownStyle.el]);
+  const snakeSkin = createSegmented({
+    label: 'Snake skin',
+    options: SNAKE_SKINS.map((value) => ({ value, label: SKIN_LABELS[value] })),
+    caption: 'Both keep the chevrons. Dark back trades the bands for a line down the back.',
+    onSelect: (value) => {
+      dispatch({ cmd: 'setting', name: 'snakeSkin', value });
+    },
+  });
+  const crownCard = createCard({ title: 'Look' }, [snakeSkin.el, crownStyle.el]);
   const journal = createButton({
     label: 'Open journal folder',
     variant: 'secondary',
@@ -398,6 +412,16 @@ export function createSetupScreen(dispatch: Dispatch, reason: Reason): FeedView 
       crownStyle.update({
         value: typeof cs.value === 'string' ? cs.value : undefined,
         status: cs.status,
+        reason: r,
+      });
+      const sk = resolvePending(
+        state.gameState?.settings.snakeSkin,
+        state.pending.snakeSkin,
+        state.now,
+      );
+      snakeSkin.update({
+        value: typeof sk.value === 'string' ? sk.value : undefined,
+        status: sk.status,
         reason: r,
       });
       saveMods.update({ reason: r });
