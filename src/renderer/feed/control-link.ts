@@ -112,6 +112,7 @@ export const settings: { -readonly [K in FeedSettingName]: FeedSettings[K] } = {
   likeCount: true,
   crownStyle: 'classic',
   snakeSkin: 'classic',
+  rankedWelcome: 0,
 };
 
 /** How each tray setting brings a row's photo down from the flower. */
@@ -219,6 +220,7 @@ const SHARED: readonly FeedSettingName[] = [
   'likeCount',
   'crownStyle',
   'snakeSkin',
+  'rankedWelcome',
   'autoAmbience',
   'dayCycle',
 ];
@@ -345,7 +347,19 @@ function welcome(ev: AudienceEvent, id: string, who: string): void {
       ev.mod === true ||
       (modList.size > 0 && (modList.has(supporterKey(id)) || modList.has(supporterKey(who))));
   if (!gave && !mod) {
-    alertViewer('join', who, ev.avatar);
+    // Someone who has given elsewhere on TikTok but not here yet: noticed, never rewarded. The
+    // card stays well below anything a gift brings.
+    const level = ev.gifterLevel ?? 0,
+      ranked = settings.rankedWelcome > 0 && level >= settings.rankedWelcome;
+    if (level > 0)
+      note({
+        event: 'gifter join',
+        source: 'tiktok',
+        nickname: who,
+        id,
+        detail: `level ${String(level)}`,
+      });
+    alertViewer('join', who, ev.avatar, 1, undefined, ranked);
     return;
   }
   const rank = gave ? lifetimeRank(id) : 0,

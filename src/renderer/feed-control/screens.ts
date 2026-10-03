@@ -2,6 +2,7 @@
 import {
   CROWD_LEVELS,
   CROWN_STYLES,
+  RANKED_WELCOME_LEVELS,
   SNAKE_SKINS,
   GIFT_THANKS,
   ROUND_HOLDS,
@@ -222,6 +223,18 @@ export function createSetupScreen(dispatch: Dispatch, reason: Reason): FeedView 
       dispatch({ cmd: 'setting', name: 'likeCount', value });
     },
   });
+  const rankedWelcome = createSegmented({
+    label: 'Welcome TikTok gifters',
+    options: RANKED_WELCOME_LEVELS.map((value) => ({
+      value,
+      label: value === 0 ? 'Off' : `Level ${String(value)}+`,
+    })),
+    caption:
+      'For a viewer who has not given here yet: a thin gold edge on their arrival card and a little more time on screen. The level itself never shows.',
+    onSelect: (value) => {
+      dispatch({ cmd: 'setting', name: 'rankedWelcome', value });
+    },
+  });
   const alertsCard = createCard({ title: 'Alerts' }, [
     alerts.el,
     h('p', {
@@ -229,6 +242,7 @@ export function createSetupScreen(dispatch: Dispatch, reason: Reason): FeedView 
       text: 'Joins, likes, shares and follows, each with its own little animation and sound.',
     }),
     likeCount.el,
+    rankedWelcome.el,
   ]);
   const thanks = createSegmented({
     label: 'A gift is thanked',
@@ -422,6 +436,16 @@ export function createSetupScreen(dispatch: Dispatch, reason: Reason): FeedView 
       snakeSkin.update({
         value: typeof sk.value === 'string' ? sk.value : undefined,
         status: sk.status,
+        reason: r,
+      });
+      const rw = resolvePending(
+        state.gameState?.settings.rankedWelcome,
+        state.pending.rankedWelcome,
+        state.now,
+      );
+      rankedWelcome.update({
+        value: typeof rw.value === 'number' ? rw.value : undefined,
+        status: rw.status,
         reason: r,
       });
       saveMods.update({ reason: r });
