@@ -76,6 +76,7 @@ interface TikFinityBridge {
   stop(): void;
   process(message: unknown): void;
   liveStreaks?(on: boolean): void;
+  comments?(on: boolean): void;
   /** The first message of each kind, as received, for the journal; each is handed over once. */
   takeSamples?(): string[];
   state(): unknown;

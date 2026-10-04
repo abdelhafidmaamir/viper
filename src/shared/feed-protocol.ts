@@ -125,6 +125,8 @@ export type SnakeColour = (typeof SNAKE_COLOURS)[number];
 /** The rain's own sound, heard only while the weather is rain. */
 export const RAIN_SOUNDS = ['off', 'leaves', 'window', 'tent', 'pond', 'pad'] as const;
 export type RainSound = (typeof RAIN_SOUNDS)[number];
+/** Sleeping crabs on the right of the beach (Sea), each showing a viewer who has not liked yet. */
+export const SLEEPER_COUNTS = [1, 2] as const;
 
 /** Minutes the sky takes to go once round the clock, night to night: 0 keeps the hour still. */
 export const DAY_CYCLES = [0, 10, 20, 30, 60] as const;
@@ -153,6 +155,8 @@ export interface FeedSettings {
   readonly giftTitles: boolean;
   /** The likers' animals show their like count on the picture. */
   readonly likeCount: boolean;
+  /** Sleeping crabs on the beach (SLEEPER_COUNTS). */
+  readonly sleepers: number;
   /** What the round's top giver wears (CROWN_STYLES). */
   readonly crownStyle: CrownStyle;
   /** The snake's skin (SNAKE_SKINS). */
@@ -316,6 +320,10 @@ export function sanitizeSetting<K extends FeedSettingName>(
       return GIFT_THANKS.includes(value as GiftThanksSetting) ? ok(value) : undefined;
     case 'rankedWelcome':
       return RANKED_WELCOME_LEVELS.includes(value as (typeof RANKED_WELCOME_LEVELS)[number])
+        ? ok(value)
+        : undefined;
+    case 'sleepers':
+      return SLEEPER_COUNTS.includes(value as (typeof SLEEPER_COUNTS)[number])
         ? ok(value)
         : undefined;
     case 'snakeSkin':
