@@ -127,6 +127,20 @@ export const RAIN_SOUNDS = ['off', 'leaves', 'window', 'tent', 'pond', 'pad'] as
 export type RainSound = (typeof RAIN_SOUNDS)[number];
 /** Sleeping crabs on the right of the beach (Sea), each showing a viewer who has not liked yet. */
 export const SLEEPER_COUNTS = [1, 2] as const;
+/**
+ * How a sleeping crab looks: the face in colour on a grey crab, the face and crab in colour sunk
+ * in the sand, the crab under a night-blue tint, or all grey.
+ */
+export const SLEEPER_LOOKS = [
+  'colorFaceGreyCrab',
+  'colorFaceAsleepCrab',
+  'nightTint',
+  'allGrey',
+] as const;
+export type SleeperLook = (typeof SLEEPER_LOOKS)[number];
+/** What a sleeping crab does now and then: shuffles, breathes, twitches in a dream, or nothing. */
+export const SLEEPER_LIVES = ['shuffle', 'breathe', 'twitch', 'none'] as const;
+export type SleeperLife = (typeof SLEEPER_LIVES)[number];
 
 /** Minutes the sky takes to go once round the clock, night to night: 0 keeps the hour still. */
 export const DAY_CYCLES = [0, 10, 20, 30, 60] as const;
@@ -157,6 +171,10 @@ export interface FeedSettings {
   readonly likeCount: boolean;
   /** Sleeping crabs on the beach (SLEEPER_COUNTS). */
   readonly sleepers: number;
+  /** How the sleeping crabs look (SLEEPER_LOOKS). */
+  readonly sleeperLook: SleeperLook;
+  /** How the sleeping crabs move in their sleep (SLEEPER_LIVES). */
+  readonly sleeperLife: SleeperLife;
   /** What the round's top giver wears (CROWN_STYLES). */
   readonly crownStyle: CrownStyle;
   /** The snake's skin (SNAKE_SKINS). */
@@ -326,6 +344,10 @@ export function sanitizeSetting<K extends FeedSettingName>(
       return SLEEPER_COUNTS.includes(value as (typeof SLEEPER_COUNTS)[number])
         ? ok(value)
         : undefined;
+    case 'sleeperLook':
+      return SLEEPER_LOOKS.includes(value as SleeperLook) ? ok(value) : undefined;
+    case 'sleeperLife':
+      return SLEEPER_LIVES.includes(value as SleeperLife) ? ok(value) : undefined;
     case 'snakeSkin':
       return SNAKE_SKINS.includes(value as SnakeSkin) ? ok(value) : undefined;
     case 'snakeColour':

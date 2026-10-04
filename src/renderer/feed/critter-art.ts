@@ -25,6 +25,30 @@ export interface Pose {
   tier: number;
   /** Eyes shut: a sleeping crab on the beach. */
   asleep?: boolean;
+  /** A sleeping crab stirring in its sleep. */
+  stir?: Stir | undefined;
+}
+
+/**
+ * How a sleeping crab stirs: its body shifts sideways, leans and swells, all pivoting on the line
+ * of its feet, which never move; each claw shifts and opens on its own ([left, right]).
+ */
+export interface Stir {
+  bx: number;
+  brot: number;
+  bs: number;
+  cdx: [number, number];
+  cdy: [number, number];
+  copen: [number, number];
+}
+/** Where the feet stand, in the animal's units: what a stir pivots on. */
+export const FOOT_Y = 11;
+/** Where a point of the body goes when the crab stirs. */
+export function stirred(st: Stir, x: number, y: number): [number, number] {
+  const cs = Math.cos(st.brot) * st.bs,
+    sn = Math.sin(st.brot) * st.bs,
+    dy = y - FOOT_Y;
+  return [st.bx + x * cs - dy * sn, FOOT_Y + x * sn + dy * cs];
 }
 type G = CanvasRenderingContext2D;
 type Painter = (g: G, p: Pose) => void;
@@ -153,15 +177,26 @@ const crab: Painter = (g, p) => {
         x0 = side * (11 + l * 2),
         x1 = side * (22 + l * 3);
       g.beginPath();
-      g.moveTo(x0, 2 + l * 2);
-      g.lineTo(x1, -3 + l * 3 - lift);
+      if (p.stir) {
+        // Stirring: the hip follows the body, the knee half way, the foot stays put.
+        const ky = -3 + l * 3 - lift,
+          hip = stirred(p.stir, x0, 2 + l * 2),
+          knee = stirred(p.stir, x1, ky);
+        g.moveTo(hip[0], hip[1]);
+        g.lineTo((x1 + knee[0]) / 2, (ky + knee[1]) / 2);
+      } else {
+        g.moveTo(x0, 2 + l * 2);
+        g.lineTo(x1, -3 + l * 3 - lift);
+      }
       g.lineTo(x1 + side * 4, 11 - Math.max(0, lift) - Math.min(4, p.jump * 0.3));
       g.stroke();
     }
+    if (p.stir) stirBody(g, p.stir);
     // The claws, held up on either side of the picture; they snap during a hop.
-    const cx = side * 34,
-      cy = -34,
-      open = 0.15 + 0.45 * Math.abs(Math.sin(p.t * 11 * W)) * p.flick;
+    const k = side < 0 ? 0 : 1,
+      cx = side * 34 + (p.stir?.cdx[k] ?? 0),
+      cy = -34 + (p.stir?.cdy[k] ?? 0),
+      open = 0.15 + 0.45 * Math.abs(Math.sin(p.t * 11 * W)) * p.flick + (p.stir?.copen[k] ?? 0);
     g.strokeStyle = '#a83c26';
     g.lineWidth = 4;
     g.beginPath();
@@ -175,7 +210,9 @@ const crab: Painter = (g, p) => {
     g.arc(cx, cy, 8, -Math.PI / 2 - open, -Math.PI / 2 + open);
     g.closePath();
     g.fill();
+    if (p.stir) g.restore();
   }
+  if (p.stir) stirBody(g, p.stir);
   // The shell, with a lighter back.
   blob(g, 0, 0, 17, 11.5, '#d8573a', '#8c2f1d');
   g.fillStyle = 'rgba(255,190,150,0.5)';
@@ -190,7 +227,17 @@ const crab: Painter = (g, p) => {
       g.arc(side * 6, 1.2, 2.2, 0.15 * Math.PI, 0.85 * Math.PI);
       g.stroke();
     } else dot(g, side * 6, 2, 1.9, '#1c1410');
+  if (p.stir) g.restore();
 };
+
+/** Moves what follows with the stirring body, until the matching restore. */
+function stirBody(g: G, st: Stir): void {
+  g.save();
+  g.translate(st.bx, FOOT_Y);
+  g.rotate(st.brot);
+  g.scale(st.bs, st.bs);
+  g.translate(0, -FOOT_Y);
+}
 
 /**
  * Rain: a frog. It breathes, its throat pulses, it blinks and looks about. It travels by little

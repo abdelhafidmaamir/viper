@@ -6,9 +6,10 @@
 import { ctx, setCtx } from '../engine/canvas.ts';
 import { H, W } from '../engine/layout.ts';
 import type { Weather } from '../engine/types.ts';
-import { CRITTERS, LOOP } from './critter-art.ts';
+import type { SleeperLife, SleeperLook } from '../../shared/feed-protocol.ts';
+import { CRITTERS, LOOP, stirred, type Stir } from './critter-art.ts';
 import { bigHeart } from './alert-fx.ts';
-import { FONT, crown, paintFace } from './paint.ts';
+import { FONT, crown, paintFace, photo, photoImage } from './paint.ts';
 
 interface Crab {
   nickname: string;
@@ -131,6 +132,8 @@ export function clearCrabs(): void {
   sleepers.length = 0;
   sparks.length = 0;
   sleepFaces.clear();
+  audience = 0;
+  now = 0;
 }
 
 /** For tests: who holds each place, with their likes, the hearts on their way and the hops owed. */
@@ -424,29 +427,47 @@ export function paintCrabs(t: number, rise: number, reduced: boolean, weather: W
 
 // ---- the sleeping crabs ------------------------------------------------------------------------
 // On the beach (Sea), one or two crabs sleep on the right, grey, eyes shut, an empty heart over
-// them. Each shows in turn a viewer who is here but has no crab out: who just joined first, then
-// whoever has been seen on the live. When that viewer likes, the heart flies in from the corner
+// them. Each shows in turn a viewer who is still here but has no crab out: who just joined first,
+// then the others still watching. When that viewer likes, the heart flies in from the corner
 // TikTok's own hearts rise from, fills, and their crab comes out like any other. The likers' crabs
 // keep to the places on the left, clear of the sleepers.
+//
+// TikTok never says who left. A viewer counts as here while seen lately (a join, a comment, a like,
+// a follow, a share, a gift), and no more of them than TikTok's viewer count, the ones seen last
+// kept. Only a viewer whose picture has loaded is shown, never initials or a blank face: with
+// nobody left to show, the sleeper is not drawn at all.
+//
+// How they look and how they stir in their sleep are the control room's picks. They never leave
+// the ground when they stir: a hop means a like.
 
 interface Viewer {
   avatar: string | undefined;
-  /** Order of their latest join, 0 if never seen joining; fresh until shown once. */
+  /** Order of their latest join, 0 if never seen joining, and its clock time; fresh until shown. */
   joined: number;
+  arrived: number;
   fresh: boolean;
   /** Clock times of their latest like and of the latest time a sleeper showed them. */
   liked: number;
   shown: number;
+  /** Clock time they were last seen on the live, and when their picture was first asked for. */
+  at: number;
+  asked: number;
 }
 
 interface Sleeper {
   x: number;
   who: string | undefined;
-  /** The face before, while the new one fades in over it from `swap`. */
+  /** The face before, while the new one fades in over it from `swap`, and both pictures. */
   prev: string | undefined;
+  face: string | undefined;
+  prevFace: string | undefined;
   swap: number;
   /** When the face moves on to the next viewer. */
   next: number;
+  /** When it last stirred in its sleep and when it will next, and the side it stirred to. */
+  lifeAt: number;
+  lifeNext: number;
+  lifeSide: number;
   /** Likes on their way to the heart, since `at`. */
   flight?: { at: number; n: number; avatar: string | undefined } | undefined;
   filled: number;
@@ -456,6 +477,17 @@ const ROTATE = 2.5,
   FADE = 0.4,
   /** A viewer who liked this recently is not shown asleep. */
   IDLE = 10,
+  /**
+   * Seconds a viewer counts as here after the last sign of them. Visits are short: on the
+   * journals of the October lives, the average viewer count over the join rate puts the average
+   * visit between 20 s and 110 s.
+   */
+  PRESENT = 120,
+  /** A join this recent puts the viewer first in line. */
+  ARRIVED = 30,
+  /** Pictures loaded ahead of their turn, and how long a turn waits for one still on its way. */
+  AHEAD = 3,
+  LOAD_WAIT = 2,
   FLY = 0.85,
   FILL = 0.7,
   HEART_SIZE = 96,
@@ -464,7 +496,24 @@ const ROTATE = 2.5,
   /** One sleeper lies clear of the fourth place's whole sway, two clear of the third's. */
   SLEEPER_X: Readonly<Record<number, readonly number[]>> = { 1: [940], 2: [800, 960] },
   SLEEP_ALPHA = 0.75,
-  SLEEP_FILTER = 'grayscale(0.9) brightness(0.85)';
+  SLEEP_FILTER = 'grayscale(0.9) brightness(0.85)',
+  SLEEP_SCALE = 1.4,
+  /** The ring round a sleeper's picture in colour, and the tint of the night look. */
+  SLEEP_RING = 'rgba(210,210,210,0.7)',
+  NIGHT_TINT = 'rgba(22,36,92,0.48)',
+  /** How far the crab in colour sinks in the sand, and where the sand cuts it, below its feet. */
+  SINK = 9,
+  SAND_CUT = 19,
+  /** The little z's rising over a sleeper: seconds each takes, and how many at once. */
+  Z_PERIOD = 3,
+  Z_COUNT = 3,
+  /** Seconds between two stirs, at least and at most, for each way of sleeping. */
+  LIFE_GAPS: Readonly<Record<SleeperLife, readonly [number, number] | null>> = {
+    shuffle: [4, 7],
+    breathe: [7.5, 8.5],
+    twitch: [3, 6],
+    none: null,
+  };
 
 interface Spark {
   from: Sleeper;
@@ -479,7 +528,11 @@ const viewers = new Map<string, Viewer>(),
   sleepers: Sleeper[] = [],
   sparks: Spark[] = [];
 let joins = 0,
+  /** TikTok's latest viewer count, 0 while unknown. */
+  audience = 0,
   sleeperCount = 1,
+  look: SleeperLook = 'colorFaceGreyCrab',
+  life: SleeperLife = 'shuffle',
   /** The sleepers are out: the ambience is the sea. */
   beach = false,
   reducedNow = false;
@@ -497,11 +550,18 @@ function seen(nickname: string, avatar: string | undefined): Viewer {
   const v = viewers.get(nickname) ?? {
     avatar,
     joined: 0,
+    arrived: -Infinity,
     fresh: false,
     liked: -Infinity,
     shown: -Infinity,
+    at: now,
+    asked: Infinity,
   };
-  if (avatar) v.avatar = avatar;
+  if (avatar && avatar !== v.avatar) {
+    v.avatar = avatar;
+    v.asked = Infinity;
+  }
+  v.at = now;
   viewers.delete(nickname);
   viewers.set(nickname, v);
   for (const old of viewers.keys()) {
@@ -511,13 +571,64 @@ function seen(nickname: string, avatar: string | undefined): Viewer {
   return v;
 }
 
-/** Someone joined or commented: a sleeper may show them. A join puts them first in line. */
+/**
+ * A sign of a viewer on the live (a join, a comment, a follow, a share, a gift): they are here,
+ * and a sleeper may show them. A join puts them first in line.
+ */
 export function crabSeen(nickname: string, avatar: string | undefined, joined: boolean): void {
   if (!nickname) return;
   const v = seen(nickname, avatar);
   if (!joined) return;
   v.joined = ++joins;
+  v.arrived = now;
   v.fresh = true;
+}
+
+/**
+ * TikTok's viewer count, and the viewers it lists at the top of the room: those are here, and
+ * when the list holds as many as the count, nobody else is.
+ */
+export function crabViewers(
+  total: number,
+  top: readonly { nickname: string; avatar?: string | undefined }[] = [],
+): void {
+  // A count of 0 comes with messages that carry none: it says nothing.
+  if (total > 0) audience = Math.floor(total);
+  const listed = new Set<string>();
+  for (const u of top) {
+    if (!u.nickname) continue;
+    seen(u.nickname, u.avatar === '' ? undefined : u.avatar);
+    listed.add(u.nickname);
+  }
+  if (audience > 0 && listed.size >= audience && listed.size > 0)
+    for (const [name, v] of viewers) if (!listed.has(name)) v.at = -Infinity;
+}
+
+/**
+ * The viewers still here: seen lately, and no more of them than TikTok counts, the ones seen
+ * last kept.
+ */
+function here(): Set<string> {
+  const out = new Set<string>(),
+    names = [...viewers.keys()];
+  for (let k = names.length - 1; k >= 0; k--) {
+    if (audience > 0 && out.size >= audience) break;
+    const name = names[k] ?? '',
+      v = viewers.get(name);
+    if (v && now - v.at < PRESENT) out.add(name);
+  }
+  return out;
+}
+
+/** Not liking lately and without a crab out: may sleep. */
+function sleepy(name: string, v: Viewer): boolean {
+  return now - v.liked >= IDLE && !hasCrab(name);
+}
+
+/** Whether the viewer a sleeper shows may stay on it. */
+function stays(name: string): boolean {
+  const v = viewers.get(name);
+  return v !== undefined && sleepy(name, v) && here().has(name);
 }
 
 /** The control room's choice: one sleeping crab or two. */
@@ -528,35 +639,76 @@ export function setSleepers(n: number): void {
   buildSleepers();
 }
 
-/** Who may be shown next: fresh joins, the latest first, then the others, the least shown first. */
+/** The control room's choice: how the sleeping crabs look. */
+export function setSleeperLook(l: SleeperLook): void {
+  look = l;
+}
+
+/** The control room's choice: how they stir in their sleep. */
+export function setSleeperLife(l: SleeperLife): void {
+  if (l === life) return;
+  life = l;
+  for (const s of sleepers) s.lifeNext = now + lifeGap();
+}
+
+function lifeGap(): number {
+  const gap = LIFE_GAPS[life];
+  return gap ? gap[0] + (gap[1] - gap[0]) * Math.random() : Infinity;
+}
+
+/**
+ * Who may be shown next, among the viewers still here with a picture: who joined just now, the
+ * latest first, then the others, the least shown first and the latest seen next.
+ */
 function candidates(): string[] {
   const busy = new Set(sleepers.map((s) => s.who)),
     fresh: [string, Viewer][] = [],
     rest: [string, Viewer][] = [];
-  for (const [name, v] of viewers) {
-    if (now - v.liked < IDLE || busy.has(name) || hasCrab(name)) continue;
-    (v.fresh ? fresh : rest).push([name, v]);
+  for (const name of here()) {
+    const v = viewers.get(name);
+    if (!v || busy.has(name) || !sleepy(name, v) || photo(v.avatar, false) === 'failed') continue;
+    (v.fresh && now - v.arrived < ARRIVED ? fresh : rest).push([name, v]);
   }
   fresh.sort((a, b) => b[1].joined - a[1].joined);
-  rest.sort((a, b) => a[1].shown - b[1].shown);
+  rest.sort((a, b) => a[1].shown - b[1].shown || b[1].at - a[1].at);
   return [...fresh, ...rest].map(([name]) => name);
 }
 
-/** The sleeper moves on to the next viewer, or keeps its own if nobody else is left. */
-function rotate(s: Sleeper): void {
-  const next = candidates()[0],
-    cur = s.who === undefined ? undefined : viewers.get(s.who),
-    keep = s.who !== undefined && cur !== undefined && now - cur.liked >= IDLE && !hasCrab(s.who),
-    who = next ?? (keep ? s.who : undefined);
-  const v = next === undefined ? undefined : viewers.get(next);
+/**
+ * The sleeper moves on to the next viewer whose picture has loaded, or keeps its own while they
+ * are still here, or shows nobody. The next few pictures load meanwhile; while the next one is
+ * still on its way the turn waits for it, a moment at most, and this returns false.
+ */
+function rotate(s: Sleeper): boolean {
+  let next: string | undefined,
+    waiting = false;
+  for (const name of candidates().slice(0, AHEAD)) {
+    const v = viewers.get(name);
+    if (!v) continue;
+    v.asked = Math.min(v.asked, now);
+    const state = photo(v.avatar);
+    if (next !== undefined || waiting) continue;
+    if (state === 'ready') next = name;
+    else if (state === 'loading' && now - v.asked < LOAD_WAIT) waiting = true;
+  }
+  const keep = s.who !== undefined && stays(s.who),
+    who = next ?? (keep ? s.who : undefined),
+    v = next === undefined ? undefined : viewers.get(next);
   if (v) {
     v.fresh = false;
     v.shown = now;
   }
-  if (who === s.who) return;
-  s.prev = s.who;
-  s.who = who;
-  s.swap = now;
+  if (who !== s.who) {
+    // Back from nobody before the last face is gone: that face fades into the new one.
+    if (s.who !== undefined || now - s.swap >= FADE) {
+      s.prev = s.who;
+      s.prevFace = s.face;
+    }
+    s.who = who;
+    s.face = v?.avatar;
+    s.swap = now;
+  }
+  return next !== undefined || !waiting;
 }
 
 function buildSleepers(): void {
@@ -569,9 +721,14 @@ function buildSleepers(): void {
       x,
       who: undefined,
       prev: undefined,
+      face: undefined,
+      prevFace: undefined,
       swap: -Infinity,
       // The second one turns half a beat after the first, so they never change together.
       next: now + ROTATE * (1 + i / 2),
+      lifeAt: -Infinity,
+      lifeNext: now + lifeGap(),
+      lifeSide: 1,
       filled: -Infinity,
     });
   for (const s of sleepers) rotate(s);
@@ -583,6 +740,11 @@ export function stepSleepers(t: number, weather: Weather): void {
   beach = weather === 'sea';
   if (sleepers.length !== sleeperCount) buildSleepers();
   for (const s of sleepers) {
+    if (now >= s.lifeNext) {
+      s.lifeAt = now;
+      s.lifeSide = Math.random() < 0.5 ? -1 : 1;
+      s.lifeNext = now + lifeGap();
+    }
     if (s.flight && (!beach || now - s.flight.at >= FLY)) {
       const { n, avatar } = s.flight;
       s.flight = undefined;
@@ -597,13 +759,14 @@ export function stepSleepers(t: number, weather: Weather): void {
     }
     if (s.flight) continue;
     if (now >= s.next) {
-      s.next = Math.max(s.next + ROTATE, now + ROTATE / 2);
-      rotate(s);
-    } else if (s.who === undefined) rotate(s);
+      if (rotate(s)) s.next = Math.max(s.next + ROTATE, now + ROTATE / 2);
+    } else if (s.who === undefined || !stays(s.who)) rotate(s);
   }
   if (beach) keepLeft();
-  for (const name of sleepFaces.keys())
-    if (!sleepers.some((s) => s.who === name || s.prev === name)) sleepFaces.delete(name);
+  for (const key of sleepFaces.keys()) {
+    const url = key.slice(key.indexOf('|') + 1);
+    if (!sleepers.some((s) => s.face === url || s.prevFace === url)) sleepFaces.delete(key);
+  }
 }
 
 /** A crab standing where the sleepers lie moves to a free place on the left, or the quietest goes. */
@@ -671,11 +834,74 @@ function greyed(src: HTMLCanvasElement, into?: HTMLCanvasElement): HTMLCanvasEle
   return cv;
 }
 
-let sleepArt: HTMLCanvasElement | null = null;
-/** The crab asleep: standing still, eyes shut, in grey. Drawn once. */
-function sleepingCrab(): HTMLCanvasElement {
-  if (sleepArt) return sleepArt;
-  const cv = document.createElement('canvas');
+/** How a sleeper stirs right now, and how far its picture tilts. Nothing under reduced motion. */
+function stirOf(s: Sleeper, t: number): { stir: Stir | undefined; tilt: number } {
+  const still = { stir: undefined, tilt: 0 };
+  if (reducedNow || life === 'none') return still;
+  const e = t - s.lifeAt;
+  if (life === 'shuffle') {
+    // A little wiggle from side to side, the claws a beat behind.
+    const u = e / 0.6;
+    if (u < 0 || u >= 1) return still;
+    const env = Math.sin(u * Math.PI),
+      w = Math.sin(u * Math.PI * 4),
+      lag = 2 * Math.sin(u * Math.PI * 4 - 0.8) * env;
+    return {
+      stir: {
+        bx: 2.6 * w * env,
+        brot: 0.05 * w * env,
+        bs: 1,
+        cdx: [lag, lag],
+        cdy: [0, 0],
+        copen: [0, 0],
+      },
+      tilt: 0,
+    };
+  }
+  if (life === 'breathe') {
+    // Swelling a little on a slow breath, and now and then a stretch of both claws.
+    const u = e / 1.4,
+      env = u >= 0 && u < 1 ? Math.sin(u * Math.PI) ** 2 : 0;
+    return {
+      stir: {
+        bx: 0,
+        brot: 0,
+        bs: 1 + 0.015 * (1 - Math.cos((Math.PI * 2 * t) / 3 + s.x * 0.01)),
+        cdx: [-4 * env, 4 * env],
+        cdy: [-4 * env, -4 * env],
+        copen: [0.35 * env, 0.35 * env],
+      },
+      tilt: 0,
+    };
+  }
+  // A dream: one claw twitches, the picture tilts and comes back.
+  const u = e / 0.4,
+    v = e / 0.9,
+    k = s.lifeSide > 0 ? 1 : 0,
+    tilt = v >= 0 && v < 1 ? s.lifeSide * ((4 * Math.PI) / 180) * Math.sin(v * Math.PI) : 0;
+  if (u < 0 || u >= 1) return { stir: undefined, tilt };
+  const cdy: [number, number] = [0, 0],
+    copen: [number, number] = [0, 0];
+  cdy[k] = -3 * Math.sin(u * Math.PI * 3) * (1 - u);
+  copen[k] = 0.4 * Math.abs(Math.sin(u * Math.PI * 3)) * (1 - u);
+  return { stir: { bx: 0, brot: 0, bs: 1, cdx: [0, 0], cdy, copen }, tilt };
+}
+
+/** The crab's own look: grey, in colour sunk in the sand, or under the night's tint. */
+type Body = 'grey' | 'sunk' | 'night';
+const bodyOf = (l: SleeperLook): Body =>
+  l === 'colorFaceAsleepCrab' ? 'sunk' : l === 'nightTint' ? 'night' : 'grey';
+
+/** The crab asleep, eyes shut, drawn once for each look while still and afresh while it stirs. */
+const restingBodies = new Map<Body, HTMLCanvasElement>();
+let stirRaw: HTMLCanvasElement | null = null,
+  stirGrey: HTMLCanvasElement | null = null;
+function sleepingCrab(body: Body, stir: Stir | undefined): HTMLCanvasElement {
+  const kept = stir ? undefined : restingBodies.get(body);
+  if (kept) return kept;
+  const cv = stir
+    ? (stirRaw ??= document.createElement('canvas'))
+    : document.createElement('canvas');
   cv.width = ART_W * ART_SCALE;
   cv.height = ART_H * ART_SCALE;
   const c = cv.getContext('2d');
@@ -695,38 +921,42 @@ function sleepingCrab(): HTMLCanvasElement {
       bounce: 0,
       tier: 0,
       asleep: true,
+      stir,
     });
+    // Sunk: what is under the sand line is not drawn.
+    if (body === 'sunk')
+      c.clearRect(-ART_X, 13 + (SAND_CUT - 18 - SINK) / SLEEP_SCALE, ART_W, ART_H);
+    if (body === 'night') {
+      c.setTransform(1, 0, 0, 1, 0, 0);
+      c.globalCompositeOperation = 'source-atop';
+      c.fillStyle = NIGHT_TINT;
+      c.fillRect(0, 0, cv.width, cv.height);
+      c.globalCompositeOperation = 'source-over';
+    }
   }
-  sleepArt = greyed(cv);
-  return sleepArt;
+  const out =
+    body === 'grey'
+      ? greyed(cv, stir ? (stirGrey ??= document.createElement('canvas')) : undefined)
+      : cv;
+  if (!stir) restingBodies.set(body, out);
+  return out;
 }
 
-/** The pictures the sleepers show, in grey, redrawn now and then (a photo may still load). */
-const sleepFaces = new Map<string, { cv: HTMLCanvasElement; fresh: number }>();
-let faceScratch: HTMLCanvasElement | null = null;
-function sleepFace(name: string | undefined): HTMLCanvasElement {
-  if (name === undefined) return nobody();
-  const kept = sleepFaces.get(name);
-  if (kept && kept.fresh-- > 0) return kept.cv;
-  faceScratch ??= document.createElement('canvas');
-  const raw = faceScratch;
-  raw.width = raw.height = FACE * FACE_SCALE;
-  const c = raw.getContext('2d');
-  if (c) {
-    c.setTransform(FACE_SCALE, 0, 0, FACE_SCALE, raw.width / 2, raw.height / 2);
-    const main = setCtx(c);
-    paintFace({ nickname: name, avatar: viewers.get(name)?.avatar }, 0, 0, 28, '#d2d2d2');
-    setCtx(main);
-  }
-  const cv = greyed(raw, kept?.cv);
-  sleepFaces.set(name, { cv, fresh: 45 });
-  return cv;
-}
+/** How a sleeper's picture is drawn: grey, in colour, or in colour with a thin white ring. */
+type FaceKind = 'grey' | 'colour' | 'night';
+const faceKindOf = (l: SleeperLook): FaceKind =>
+  l === 'allGrey' ? 'grey' : l === 'nightTint' ? 'night' : 'colour';
 
-let nobodyImg: HTMLCanvasElement | null = null;
-/** Nobody to show: a grey silhouette. */
-function nobody(): HTMLCanvasElement {
-  if (nobodyImg) return nobodyImg;
+/** The pictures the sleepers show, by look and picture, drawn once each it has loaded. */
+const sleepFaces = new Map<string, HTMLCanvasElement>();
+function sleepFace(url: string | undefined, kind: FaceKind): HTMLCanvasElement | null {
+  if (url === undefined) return null;
+  const key = `${kind}|${url}`,
+    kept = sleepFaces.get(key);
+  if (kept) return kept;
+  // Never a placeholder: a picture not there yet is not drawn.
+  const img = photoImage(url);
+  if (!img) return null;
   const cv = document.createElement('canvas');
   cv.width = cv.height = FACE * FACE_SCALE;
   const c = cv.getContext('2d');
@@ -734,62 +964,111 @@ function nobody(): HTMLCanvasElement {
     c.setTransform(FACE_SCALE, 0, 0, FACE_SCALE, cv.width / 2, cv.height / 2);
     c.beginPath();
     c.arc(0, 0, 28, 0, Math.PI * 2);
-    c.fillStyle = '#4c5154';
+    c.fillStyle = '#1b2a1f';
     c.fill();
     c.save();
     c.clip();
-    c.fillStyle = '#7d8387';
-    c.beginPath();
-    c.arc(0, -6, 10, 0, Math.PI * 2);
-    c.fill();
-    c.beginPath();
-    c.ellipse(0, 22, 19, 15, 0, 0, Math.PI * 2);
-    c.fill();
+    c.drawImage(img, -28, -28, 56, 56);
     c.restore();
-    c.lineWidth = 28 * 0.13;
-    c.strokeStyle = 'rgba(210,210,210,0.7)';
-    c.beginPath();
-    c.arc(0, 0, 28, 0, Math.PI * 2);
+    c.lineWidth = kind === 'night' ? 1.8 : 28 * 0.13;
+    c.strokeStyle = kind === 'grey' ? '#d2d2d2' : kind === 'night' ? '#fff' : SLEEP_RING;
     c.stroke();
   }
-  nobodyImg = cv;
-  return cv;
+  const out = kind === 'grey' ? greyed(cv) : cv;
+  sleepFaces.set(key, out);
+  return out;
+}
+
+/** The z's of sleep, drifting up beside the picture and fading; under reduced motion they only fade. */
+function paintZs(s: Sleeper, fx: number, fy: number, t: number, alpha: number): void {
+  const g = ctx,
+    r = 28 * SLEEP_SCALE;
+  g.save();
+  g.textAlign = 'center';
+  g.textBaseline = 'middle';
+  g.lineJoin = 'round';
+  g.lineWidth = 3;
+  g.strokeStyle = 'rgba(30,40,56,0.45)';
+  g.fillStyle = '#e4e8ee';
+  for (let k = 0; k < Z_COUNT; k++) {
+    const u = ((((t + s.x * 0.0037) / Z_PERIOD + k / Z_COUNT) % 1) + 1) % 1,
+      a = u < 0.2 ? u / 0.2 : (1 - u) / 0.8,
+      x = reducedNow ? fx + r + 14 + k * 14 : fx + r + 14 + u * 28 + Math.sin(u * 6 + k * 2) * 3,
+      y = reducedNow ? fy - 16 - k * 24 : fy - 14 - u * 72,
+      size = reducedNow ? 20 + k * 6 : 20 + u * 16;
+    g.globalAlpha = alpha * 0.9 * Math.max(0, Math.min(1, a));
+    g.font = `700 ${String(Math.round(size))}px ${FONT}`;
+    g.strokeText('z', x, y);
+    g.fillText('z', x, y);
+  }
+  g.restore();
 }
 
 function paintSleepers(t: number, low: number, reduced: boolean): void {
-  const g = ctx;
+  const g = ctx,
+    body = bodyOf(look),
+    kind = faceKindOf(look),
+    dy = body === 'sunk' ? SINK : 0,
+    // Grey parts keep the dimmed look of the sleepers; parts in colour are drawn whole.
+    bodyAlpha = body === 'grey' ? SLEEP_ALPHA : 1,
+    faceAlpha = kind === 'grey' ? SLEEP_ALPHA : 1;
   reducedNow = reduced;
   for (const s of sleepers) {
-    const y = sleeperY(s.x, low);
-    g.globalAlpha = SLEEP_ALPHA;
+    const u = Math.min(1, Math.max(0, (t - s.swap) / FADE)),
+      // With nobody to show the sleeper fades away, and back in with the next face.
+      shown =
+        s.who !== undefined ? (s.prev !== undefined ? 1 : u) : s.prev !== undefined ? 1 - u : 0;
+    if (shown <= 0.01) continue;
+    const y = sleeperY(s.x, low),
+      { stir, tilt } = stirOf(s, t);
+    g.globalAlpha = SLEEP_ALPHA * shown;
     g.fillStyle = 'rgba(60,40,20,0.28)';
     g.beginPath();
     g.ellipse(s.x, y + 18, 34, 7, 0, 0, Math.PI * 2);
     g.fill();
     g.save();
-    g.translate(s.x, y + 18);
-    g.scale(1.4, 1.4);
+    g.translate(s.x, y + 18 + dy);
+    g.scale(SLEEP_SCALE, SLEEP_SCALE);
     g.translate(0, -13);
-    g.drawImage(sleepingCrab(), -ART_X, -ART_Y, ART_W, ART_H);
-    // The new face fades in over the one before.
-    const u = Math.min(1, Math.max(0, (t - s.swap) / FADE)),
-      fy = -42 - FACE / 2;
-    if (u < 1) g.drawImage(sleepFace(s.prev), -FACE / 2, fy, FACE, FACE);
-    g.globalAlpha = SLEEP_ALPHA * u;
-    g.drawImage(sleepFace(s.who), -FACE / 2, fy, FACE, FACE);
+    g.globalAlpha = bodyAlpha * shown;
+    g.drawImage(sleepingCrab(body, stir), -ART_X, -ART_Y, ART_W, ART_H);
+    // The picture moves with the claws holding it; the new face fades in over the one before.
+    const [fx, fy] = stir ? stirred(stir, 0, -42) : [0, -42];
+    g.translate(fx, fy);
+    if (tilt) g.rotate(tilt);
+    const before = u < 1 ? sleepFace(s.prevFace, kind) : null,
+      current = s.who === undefined ? null : sleepFace(s.face, kind);
+    if (before) {
+      g.globalAlpha = faceAlpha * (s.who === undefined ? shown : 1);
+      g.drawImage(before, -FACE / 2, -FACE / 2, FACE, FACE);
+    }
+    if (current) {
+      g.globalAlpha = faceAlpha * u;
+      g.drawImage(current, -FACE / 2, -FACE / 2, FACE, FACE);
+    }
     g.restore();
-    g.globalAlpha = 1;
+    if (body === 'sunk') {
+      // A soft lip of sand where it sinks in.
+      g.globalAlpha = shown;
+      g.fillStyle = 'rgba(208,176,124,0.5)';
+      g.beginPath();
+      g.ellipse(s.x, y + SAND_CUT + 1, 40, 5, 0, 0, Math.PI * 2);
+      g.fill();
+    }
+    if (look === 'colorFaceGreyCrab' || look === 'colorFaceAsleepCrab')
+      paintZs(s, s.x, y + 18 + dy - 55 * SLEEP_SCALE, t, shown);
     // The heart is never greyed: empty and breathing, full for a moment once a like lands in it.
     const hy = heartY(y),
       fu = (t - s.filled) / FILL;
     let size = HEART_SIZE * (reduced ? 1 : 1 + 0.08 * Math.sin(t * 2.5 + s.x * 0.01));
     if (fu >= 0 && fu < 1) {
       if (!reduced) size = HEART_SIZE * (1 + 0.35 * Math.sin(Math.min(1, fu * 2) * Math.PI));
-      g.globalAlpha = fu < 0.7 ? 1 : (1 - fu) / 0.3;
+      g.globalAlpha = shown * (fu < 0.7 ? 1 : (1 - fu) / 0.3);
       g.drawImage(bigHeart(true), s.x - size / 2, hy - size / 2, size, size);
-      g.globalAlpha = 1;
     }
+    g.globalAlpha = shown;
     g.drawImage(bigHeart(false), s.x - size / 2, hy - size / 2, size, size);
+    g.globalAlpha = 1;
   }
 }
 

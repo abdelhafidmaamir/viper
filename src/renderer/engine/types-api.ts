@@ -241,6 +241,14 @@ export interface TikFinityPayload {
   readonly profilePictureUrl?: string;
   readonly likeCount?: number | string;
   readonly viewerCount?: number | string;
+  /** 'roomUser': the viewers listed at the top of the room, all of them here now. */
+  readonly topViewers?: readonly ({
+    readonly user?: {
+      readonly uniqueId?: string;
+      readonly nickname?: string;
+      readonly profilePictureUrl?: string;
+    };
+  } | null)[];
   readonly giftType?: number;
   readonly giftName?: string;
   readonly repeatEnd?: boolean;

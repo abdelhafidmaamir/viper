@@ -33,6 +33,23 @@ function avatarImage(url: string | undefined): HTMLImageElement | null {
   return img.complete && img.naturalWidth > 0 ? img : null;
 }
 
+/**
+ * Where a viewer's picture stands: loaded, still on its way, or broken. Asking starts the
+ * download, unless `load` is false.
+ */
+export function photo(url: string | undefined, load = true): 'ready' | 'loading' | 'failed' {
+  if (!url) return 'failed';
+  if (!load && !avatars.has(url)) return 'loading';
+  if (avatarImage(url)) return 'ready';
+  // A broken picture is complete too, with nothing in it.
+  return avatars.get(url)?.complete ? 'failed' : 'loading';
+}
+
+/** A viewer's picture once it has loaded, null until then. */
+export function photoImage(url: string | undefined): HTMLImageElement | null {
+  return avatarImage(url);
+}
+
 // Stable colour per name, so a viewer without a picture is still recognisable.
 function hue(name: string): number {
   let h = 0;

@@ -5,12 +5,16 @@ import {
   RANKED_WELCOME_LEVELS,
   RAIN_SOUNDS,
   SLEEPER_COUNTS,
+  SLEEPER_LIVES,
+  SLEEPER_LOOKS,
   SNAKE_COLOURS,
   SNAKE_SKINS,
   GIFT_THANKS,
   ROUND_HOLDS,
   type CrownStyle,
   type RainSound,
+  type SleeperLife,
+  type SleeperLook,
   type SnakeColour,
   type SnakeSkin,
   type FeedCommand,
@@ -72,6 +76,18 @@ const RAIN_LABELS: Record<RainSound, string> = {
   tent: 'Tent',
   pond: 'Pond',
   pad: 'Rain and pad',
+};
+const LOOK_LABELS: Record<SleeperLook, string> = {
+  colorFaceGreyCrab: 'Face in colour, grey crab',
+  colorFaceAsleepCrab: 'In colour, sunk in sand',
+  nightTint: 'Night tint',
+  allGrey: 'All grey',
+};
+const LIFE_LABELS: Record<SleeperLife, string> = {
+  shuffle: 'Shuffle',
+  breathe: 'Breathe',
+  twitch: 'Dream twitch',
+  none: 'Still',
 };
 const HOLD_OPTIONS = ROUND_HOLDS.map((value) => ({ value, label: `${String(value)} s` }));
 const CROWD_OPTIONS = CROWD_LEVELS.map((level) => ({
@@ -255,6 +271,21 @@ export function createSetupScreen(dispatch: Dispatch, reason: Reason): FeedView 
       dispatch({ cmd: 'setting', name: 'sleepers', value });
     },
   });
+  const sleeperLook = createSegmented({
+    label: 'Sleeping crabs look',
+    options: SLEEPER_LOOKS.map((value) => ({ value, label: LOOK_LABELS[value] })),
+    onSelect: (value) => {
+      dispatch({ cmd: 'setting', name: 'sleeperLook', value });
+    },
+  });
+  const sleeperLife = createSegmented({
+    label: 'In their sleep',
+    options: SLEEPER_LIVES.map((value) => ({ value, label: LIFE_LABELS[value] })),
+    caption: 'Now and then, never a hop: a hop means a like.',
+    onSelect: (value) => {
+      dispatch({ cmd: 'setting', name: 'sleeperLife', value });
+    },
+  });
   const rankedWelcome = createSegmented({
     label: 'Welcome TikTok gifters',
     options: RANKED_WELCOME_LEVELS.map((value) => ({
@@ -275,6 +306,8 @@ export function createSetupScreen(dispatch: Dispatch, reason: Reason): FeedView 
     }),
     likeCount.el,
     sleepers.el,
+    sleeperLook.el,
+    sleeperLife.el,
     rankedWelcome.el,
   ]);
   const thanks = createSegmented({
@@ -468,6 +501,26 @@ export function createSetupScreen(dispatch: Dispatch, reason: Reason): FeedView 
       sleepers.update({
         value: typeof sl.value === 'number' ? sl.value : undefined,
         status: sl.status,
+        reason: r,
+      });
+      const lk = resolvePending(
+        state.gameState?.settings.sleeperLook,
+        state.pending.sleeperLook,
+        state.now,
+      );
+      sleeperLook.update({
+        value: typeof lk.value === 'string' ? lk.value : undefined,
+        status: lk.status,
+        reason: r,
+      });
+      const lf = resolvePending(
+        state.gameState?.settings.sleeperLife,
+        state.pending.sleeperLife,
+        state.now,
+      );
+      sleeperLife.update({
+        value: typeof lf.value === 'string' ? lf.value : undefined,
+        status: lf.status,
         reason: r,
       });
       const ho = resolvePending(
