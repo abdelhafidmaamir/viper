@@ -3,6 +3,7 @@ import {
   CROWD_LEVELS,
   CROWN_STYLES,
   RANKED_WELCOME_LEVELS,
+  SLEEPER_COUNTS,
   SNAKE_COLOURS,
   SNAKE_SKINS,
   GIFT_THANKS,
@@ -235,6 +236,15 @@ export function createSetupScreen(dispatch: Dispatch, reason: Reason): FeedView 
       dispatch({ cmd: 'setting', name: 'likeCount', value });
     },
   });
+  const sleepers = createSegmented({
+    label: 'Sleeping crabs',
+    options: SLEEPER_COUNTS.map((value) => ({ value, label: String(value) })),
+    caption:
+      'Sea only. Asleep on the right of the beach, each shows a viewer who has not liked yet; their like wakes them up.',
+    onSelect: (value) => {
+      dispatch({ cmd: 'setting', name: 'sleepers', value });
+    },
+  });
   const rankedWelcome = createSegmented({
     label: 'Welcome TikTok gifters',
     options: RANKED_WELCOME_LEVELS.map((value) => ({
@@ -254,6 +264,7 @@ export function createSetupScreen(dispatch: Dispatch, reason: Reason): FeedView 
       text: 'Joins, likes, shares and follows, each with its own little animation and sound.',
     }),
     likeCount.el,
+    sleepers.el,
     rankedWelcome.el,
   ]);
   const thanks = createSegmented({
@@ -428,6 +439,16 @@ export function createSetupScreen(dispatch: Dispatch, reason: Reason): FeedView 
         state.now,
       );
       likeCount.update({ on: lc.value !== false, status: lc.status, reason: r });
+      const sl = resolvePending(
+        state.gameState?.settings.sleepers,
+        state.pending.sleepers,
+        state.now,
+      );
+      sleepers.update({
+        value: typeof sl.value === 'number' ? sl.value : undefined,
+        status: sl.status,
+        reason: r,
+      });
       const ho = resolvePending(
         state.gameState?.settings.roundHold,
         state.pending.roundHold,

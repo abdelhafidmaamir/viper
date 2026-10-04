@@ -93,6 +93,12 @@ Each ambience has its animal: frog (rain), penguin (snow), squirrel (autumn), be
 - A badge on the picture shows the viewer's likes since they got the place. Losing the place
   resets it. Setting `likeCount` (default `true`) hides the badge; crown and tiers stay.
 - The viewer with the highest count, from 10 likes, wears a crown.
+- Sea only: one or two crabs sleep on the right of the beach (setting `sleepers`, 1 or 2, default
+  1), grey with an empty heart over them. Each shows a viewer for 2.5 s in turn: the latest joins
+  first, then viewers seen joining, commenting or liking who have no crab out and have not liked
+  in the last 10 s. When that viewer likes, the heart flies in from the bottom right corner, fills,
+  and their crab comes out as usual. While the sleepers are out the likers' crabs keep to the 4
+  (or 3) places on the left.
 - At 500 likes the animal gets an ornament (only the squirrel has one so far), at 2000 the picture's
   ring and the badge turn gold.
 - Poses are drawn once and replayed from a cache, emptied when the ambience changes: an idle cycle
