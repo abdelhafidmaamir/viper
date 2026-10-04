@@ -21,7 +21,7 @@ import {
 import { berriesForCoins, DEFAULT_PRICING, giftCoins } from '../../shared/feed-pricing.ts';
 import { setLanguage } from '../engine/i18n.ts';
 import { alertSounds, alertViewer, setAlertsOn } from './alerts.ts';
-import { crabLike, setLikeCount } from './crabs.ts';
+import { crabLike, crabSeen, setLikeCount, setSleepers } from './crabs.ts';
 import { setCrownStyle, setSnakeColour, setSnakeSkin } from './paint.ts';
 import { setFlowerSides } from './flower.ts';
 import { setTray, type TrayFly } from './gift-tray.ts';
@@ -119,6 +119,7 @@ export const settings: { -readonly [K in FeedSettingName]: FeedSettings[K] } = {
   giftThanks: 'flower',
   giftTitles: false,
   likeCount: true,
+  sleepers: 1,
   crownStyle: 'classic',
   snakeSkin: 'classic',
   snakeColour: 'sand',
@@ -202,6 +203,7 @@ function apply(name: FeedSettingName, value: unknown): boolean {
   if (name === 'alerts') setAlertsOn(settings.alerts);
   if (name === 'giftThanks' || name === 'giftTitles') showGiftThanks();
   if (name === 'likeCount') setLikeCount(settings.likeCount);
+  if (name === 'sleepers') setSleepers(settings.sleepers);
   if (name === 'crownStyle') setCrownStyle(settings.crownStyle);
   if (name === 'snakeSkin') setSnakeSkin(settings.snakeSkin);
   if (name === 'snakeColour') setSnakeColour(settings.snakeColour);
@@ -231,6 +233,7 @@ const SHARED: readonly FeedSettingName[] = [
   'giftThanks',
   'giftTitles',
   'likeCount',
+  'sleepers',
   'crownStyle',
   'snakeSkin',
   'snakeColour',
@@ -322,7 +325,10 @@ export function receiveFeedEvent(ev: AudienceEvent | null | undefined): number {
     noteJoin(supporterJoin(id, who));
     perfJoin();
     welcome(ev, id, who);
+    crabSeen(who, ev.avatar === '' ? undefined : ev.avatar, true);
   }
+  // A comment only tells us the viewer is here: one of the sleeping crabs may show them.
+  if (ev?.type === 'comment') crabSeen(who, ev.avatar === '' ? undefined : ev.avatar, false);
   if (ev?.type === 'share' || ev?.type === 'follow') {
     note({ event: ev.type, source: 'tiktok', nickname: who, id });
     supporterSocial(ev.type, id, who);

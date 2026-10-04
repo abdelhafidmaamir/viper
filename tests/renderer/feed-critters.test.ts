@@ -1,6 +1,13 @@
 import { beforeEach, describe, expect, it } from 'vitest';
 
-import { clearCrabs, crabLike, crabsState } from '../../src/renderer/feed/crabs.ts';
+import {
+  clearCrabs,
+  crabLike,
+  crabSeen,
+  crabsState,
+  sleepersState,
+  stepSleepers,
+} from '../../src/renderer/feed/crabs.ts';
 
 beforeEach(clearCrabs);
 
@@ -45,5 +52,34 @@ describe('the animals of the viewers who like', () => {
     crabLike('', undefined, 5);
     crabLike('Lina', undefined, 0);
     expect(crabsState()).toHaveLength(0);
+  });
+});
+
+describe('the sleeping crabs on the beach', () => {
+  it('shows the latest join first and never a viewer whose crab is out', () => {
+    crabSeen('old', undefined, true);
+    crabSeen('new', undefined, true);
+    crabLike('liker', undefined, 1);
+    stepSleepers(20, 'sea');
+    expect(sleepersState()).toEqual([{ who: 'new', flying: 0 }]);
+    stepSleepers(23, 'sea');
+    expect(sleepersState()[0]?.who).toBe('old');
+  });
+
+  it('wakes the viewer it shows only once their heart has landed', () => {
+    crabSeen('Lina', undefined, true);
+    stepSleepers(1, 'sea');
+    crabLike('Lina', undefined, 5);
+    expect(crabsState()).toHaveLength(0);
+    expect(sleepersState()[0]?.flying).toBe(5);
+    stepSleepers(2, 'sea');
+    expect(crabsState()).toMatchObject([{ nickname: 'Lina', total: 5 }]);
+    expect(sleepersState()[0]?.who).toBeUndefined();
+  });
+
+  it('keeps the likers clear of the sleepers', () => {
+    stepSleepers(1, 'sea');
+    for (const who of ['a', 'b', 'c', 'd', 'e']) crabLike(who, undefined, 1);
+    expect(crabsState()).toHaveLength(4);
   });
 });

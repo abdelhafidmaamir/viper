@@ -7,14 +7,14 @@ import type { AlertKind } from './alerts.ts';
 const RES = 64;
 const sprites: Partial<Record<AlertKind, HTMLCanvasElement>> = {};
 
-function make(draw: (g: CanvasRenderingContext2D) => void): HTMLCanvasElement {
+function make(draw: (g: CanvasRenderingContext2D) => void, res = RES): HTMLCanvasElement {
   const cv = document.createElement('canvas');
-  cv.width = cv.height = RES;
+  cv.width = cv.height = res;
   const g = cv.getContext('2d');
   if (g) {
     // Drawn on a 32 x 32 grid centred on the sprite.
-    g.translate(RES / 2, RES / 2);
-    g.scale(RES / 32, RES / 32);
+    g.translate(res / 2, res / 2);
+    g.scale(res / 32, res / 32);
     g.lineJoin = 'round';
     g.lineCap = 'round';
     draw(g);
@@ -29,12 +29,16 @@ function shine(g: CanvasRenderingContext2D, x: number, y: number): void {
   g.fill();
 }
 
-function heart(g: CanvasRenderingContext2D): void {
+function heartPath(g: CanvasRenderingContext2D): void {
   g.translate(0, 1);
   g.beginPath();
   g.moveTo(0, 12);
   g.bezierCurveTo(-18, 0, -14, -15, 0, -7);
   g.bezierCurveTo(14, -15, 18, 0, 0, 12);
+}
+
+function heart(g: CanvasRenderingContext2D): void {
+  heartPath(g);
   const fill = g.createLinearGradient(0, -14, 0, 12);
   fill.addColorStop(0, '#ffb3c6');
   fill.addColorStop(1, '#ff4d78');
@@ -134,4 +138,19 @@ const DRAW: Readonly<Record<AlertKind, (g: CanvasRenderingContext2D) => void>> =
 
 export function burstSprite(kind: AlertKind): HTMLCanvasElement {
   return (sprites[kind] ??= make(DRAW[kind]));
+}
+
+/** The like heart drawn larger, for where it is shown big: filled, or its rim alone (empty). */
+let bigHearts: { full: HTMLCanvasElement; rim: HTMLCanvasElement } | null = null;
+export function bigHeart(full: boolean): HTMLCanvasElement {
+  bigHearts ??= {
+    full: make(heart, 128),
+    rim: make((g) => {
+      heartPath(g);
+      g.lineWidth = 2.6;
+      g.strokeStyle = 'rgba(255,245,248,0.95)';
+      g.stroke();
+    }, 128),
+  };
+  return full ? bigHearts.full : bigHearts.rim;
 }

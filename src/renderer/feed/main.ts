@@ -366,6 +366,7 @@ function start(): void {
   // A burst pays as it happens: each step of a streak drops its berries at once.
   try {
     window.TikFinityBridge.liveStreaks?.(true);
+    window.TikFinityBridge.comments?.(true);
     window.TikFinityBridge.start();
   } catch {
     /* no bridge: the control room's test gifts and the simulated audience still work */

@@ -114,6 +114,17 @@ function process(m: unknown): number | null {
     notify();
     return window.receiveEvent({ type: 'viewers', total: vc } as AudienceEvent);
   }
+  /* comments (Feed only): who wrote, never what; the duel does not take them */
+  if (event === 'chat' && comments) {
+    notify();
+    return window.receiveEvent({
+      type: 'comment',
+      n: 1,
+      nickname: d.nickname ?? d.uniqueId ?? '',
+      id: d.uniqueId ?? '',
+      avatar: d.profilePictureUrl ?? '',
+    } as AudienceEvent);
+  }
   if (event !== 'gift') {
     notify();
     return null;
@@ -187,6 +198,7 @@ const SOCIAL_DEDUPE_MS = 5000;
 const streaks = new Map<string, { count: number; at: number }>();
 const STREAK_IDLE_MS = 60_000;
 let liveStreaks = false;
+let comments = false;
 
 function forwardGift(d: TikFinityPayload, n: number): number | null {
   const value = parseInt(String(d.diamondCount ?? '')) || 0;
@@ -290,6 +302,10 @@ const bridge = {
   liveStreaks(on: boolean): void {
     liveStreaks = on;
     streaks.clear();
+  },
+  /** Feed: pass comments on as 'comment' events, without their text. */
+  comments(on: boolean): void {
+    comments = on;
   },
   /** The first message of each kind since the app started, handed over once. */
   takeSamples(): string[] {

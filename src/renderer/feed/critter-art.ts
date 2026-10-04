@@ -23,6 +23,8 @@ export interface Pose {
   bounce: number;
   /** 0, then 1 once its likes have earned it its ornament. */
   tier: number;
+  /** Eyes shut: a sleeping crab on the beach. */
+  asleep?: boolean;
 }
 type G = CanvasRenderingContext2D;
 type Painter = (g: G, p: Pose) => void;
@@ -180,7 +182,14 @@ const crab: Painter = (g, p) => {
   g.beginPath();
   g.ellipse(-3, -4, 9, 4, -0.2, 0, TAU);
   g.fill();
-  for (const side of [-1, 1]) dot(g, side * 6, 2, 1.9, '#1c1410');
+  for (const side of [-1, 1])
+    if (p.asleep) {
+      g.strokeStyle = '#1c1410';
+      g.lineWidth = 1.4;
+      g.beginPath();
+      g.arc(side * 6, 1.2, 2.2, 0.15 * Math.PI, 0.85 * Math.PI);
+      g.stroke();
+    } else dot(g, side * 6, 2, 1.9, '#1c1410');
 };
 
 /**
