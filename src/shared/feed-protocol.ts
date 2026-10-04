@@ -122,6 +122,9 @@ export const SNAKE_COLOURS = [
 ] as const;
 export type SnakeColour = (typeof SNAKE_COLOURS)[number];
 
+/** The rain's own sound, heard only while the weather is rain. */
+export const RAIN_SOUNDS = ['off', 'leaves', 'window', 'tent', 'pond', 'pad'] as const;
+export type RainSound = (typeof RAIN_SOUNDS)[number];
 /** Sleeping crabs on the right of the beach (Sea), each showing a viewer who has not liked yet. */
 export const SLEEPER_COUNTS = [1, 2] as const;
 
@@ -160,6 +163,8 @@ export interface FeedSettings {
   readonly snakeSkin: SnakeSkin;
   /** The snake's colour (SNAKE_COLOURS). */
   readonly snakeColour: SnakeColour;
+  /** The rain's sound (RAIN_SOUNDS). */
+  readonly rainSound: RainSound;
   /** Ranked welcome threshold (RANKED_WELCOME_LEVELS). */
   readonly rankedWelcome: number;
   /** The price list: gift price in coins to berries, "1:5,10:55" (feed-pricing.ts). */
@@ -325,6 +330,8 @@ export function sanitizeSetting<K extends FeedSettingName>(
       return SNAKE_SKINS.includes(value as SnakeSkin) ? ok(value) : undefined;
     case 'snakeColour':
       return SNAKE_COLOURS.includes(value as SnakeColour) ? ok(value) : undefined;
+    case 'rainSound':
+      return RAIN_SOUNDS.includes(value as RainSound) ? ok(value) : undefined;
     case 'crownStyle':
       return CROWN_STYLES.includes(value as CrownStyle) ? ok(value) : undefined;
     case 'pricing':

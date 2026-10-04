@@ -26,6 +26,7 @@ import {
   paintScales,
   snakeTrace,
 } from './paint.ts';
+import { updateRainBed } from './rain-sound.ts';
 import { berriesPerGift, type CrowdLevel } from '../../shared/feed-protocol.ts';
 import {
   isLive,
@@ -187,6 +188,7 @@ function loop(ms: number): void {
   last = now;
   measure(ms, dt);
   try {
+    updateRainBed(settings.weather === 'rain' ? settings.rainSound : 'off');
     step(dt);
   } catch (error) {
     errors++;
