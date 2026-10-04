@@ -551,4 +551,6 @@ export interface AudienceEvent {
   readonly gifterLevel?: number;
   /** Viewer count ('viewers' events). */
   readonly total?: number;
+  /** The viewers TikTok lists at the top of the room ('viewers' events). */
+  readonly top?: readonly { readonly nickname: string; readonly avatar?: string }[];
 }

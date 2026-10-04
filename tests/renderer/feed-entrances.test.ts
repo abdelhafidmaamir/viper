@@ -291,6 +291,10 @@ describe('protocol', () => {
     expect(sanitizeSetting('rainSound', 'storm')).toBeUndefined();
     expect(sanitizeSetting('sleepers', 2)).toBe(2);
     expect(sanitizeSetting('sleepers', 3)).toBeUndefined();
+    expect(sanitizeSetting('sleeperLook', 'nightTint')).toBe('nightTint');
+    expect(sanitizeSetting('sleeperLook', 'grey')).toBeUndefined();
+    expect(sanitizeSetting('sleeperLife', 'twitch')).toBe('twitch');
+    expect(sanitizeSetting('sleeperLife', 'hop')).toBeUndefined();
     expect(sanitizeSetting('rankedWelcome', 20)).toBe(20);
     expect(sanitizeSetting('rankedWelcome', 15)).toBeUndefined();
     expect(sanitizeSetting('roundHold', 25)).toBe(25);

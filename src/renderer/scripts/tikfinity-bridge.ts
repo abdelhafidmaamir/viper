@@ -112,7 +112,16 @@ function process(m: unknown): number | null {
     const vc = parseInt(String(d.viewerCount ?? '')) || 0;
     state.last = `viewers ${String(vc)}`;
     notify();
-    return window.receiveEvent({ type: 'viewers', total: vc } as AudienceEvent);
+    // The viewers listed at the top of the room, with their pictures: all of them are here now.
+    const listed: NonNullable<TikFinityPayload['topViewers']> = Array.isArray(d.topViewers)
+        ? d.topViewers
+        : [],
+      top = listed.flatMap((v) => {
+        const u = v?.user,
+          name = u?.nickname ?? u?.uniqueId ?? '';
+        return name ? [{ nickname: name, avatar: u?.profilePictureUrl ?? '' }] : [];
+      });
+    return window.receiveEvent({ type: 'viewers', total: vc, top } as AudienceEvent);
   }
   /* comments (Feed only): who wrote, never what; the duel does not take them */
   if (event === 'chat' && comments) {
