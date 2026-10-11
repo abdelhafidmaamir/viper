@@ -35,9 +35,10 @@ describe('arena protocol', () => {
     expect(sanitizeArenaSetting('plainEvery', 25)).toBe(25);
     expect(sanitizeArenaSetting('queueIdle', 5)).toBe(5);
     expect(sanitizeArenaSetting('lifePrice', 30)).toBe(30);
+    expect(sanitizeArenaSetting('lifePrice', 0)).toBeUndefined();
     expect(sanitizeArenaSetting('lifeKeep', 0.6)).toBeUndefined();
     expect(sanitizeArenaSetting('backing', 'strong')).toBe('strong');
-    for (const name of ['giftEntry', 'likeBoost', 'pilot', 'superAI'] as const) {
+    for (const name of ['giftEntry', 'lifeOn', 'likeBoost', 'pilot', 'superAI'] as const) {
       expect(sanitizeArenaSetting(name, true)).toBe(true);
       expect(sanitizeArenaSetting(name, 'yes')).toBeUndefined();
     }
@@ -53,7 +54,8 @@ describe('arena protocol', () => {
       plainEvery: 25,
       plainAmount: 1,
       queueIdle: 5,
-      lifePrice: 0,
+      lifeOn: false,
+      lifePrice: 30,
       backing: 'off',
       superAI: true,
       pilot: false,

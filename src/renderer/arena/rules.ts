@@ -42,8 +42,9 @@ export const TUNING = {
   foodMax: 160,
   /** Where a gift's berries land: this close to the giver's head, in cells. */
   dropRadius: 3,
-  /** The extra-life gift: its price in coins (0: none), most lives held, length kept on a life. */
-  lifePrice: 0,
+  /** The extra-life gift: on or off, its price in coins, most lives held, length kept on a life. */
+  lifeOn: false,
+  lifePrice: 30,
   maxLives: 3,
   lifeKeep: 0.5,
   /** A gift of at least this many berries gives a shield for shieldSeconds (0: never). */

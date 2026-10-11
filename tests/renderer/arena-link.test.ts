@@ -121,8 +121,10 @@ describe('arena link', () => {
     expect(snakeOf('eve')).toBeDefined();
   });
 
-  it('a gift at the life price gives a life, not berries, whatever the price list says', () => {
-    setArenaSettings({ ...ARENA_DEFAULTS, pilot: false, wildSnakes: 0, lifePrice: 30 });
+  it('a gift at the life price gives a life, not berries, only with the life gift on', () => {
+    receiveFeedEvent({ type: 'gift', name: 'Hat', value: 30, nickname: 'off' });
+    expect(snakeOf('off')?.lives ?? 0).toBe(0);
+    setArenaSettings({ ...ARENA_DEFAULTS, pilot: false, wildSnakes: 0, lifeOn: true });
     receiveFeedEvent({ type: 'gift', name: 'Hat', value: 30, nickname: 'liv' });
     expect(snakeOf('liv')?.lives).toBe(1);
     expect(game.queue.some((q) => q.nickname === 'liv')).toBe(false);

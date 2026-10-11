@@ -53,9 +53,9 @@ less, likes-only ones look less far.
 - `giftBerries`: `owner` (default), only the giver's snake eats them; `shared`, any snake can.
 - `giftEntry` (default on): a gift from a viewer without a snake brings it in at once.
 - `shieldGift`: one gift worth this many berries gives 10 s of shield (default 0, never).
-- `lifePrice` (default 0, none): a gift at this price in coins gives a life instead of berries, up to
-  `maxLives`. A snake with a life that dies comes back from an egg in the same colour with `lifeKeep`
-  of its length, and a heart breaks.
+- The extra-life gift, set on the control room's Money tab (`lifeOn`, off by default): a gift at
+  `lifePrice` coins gives a life instead of berries, up to `maxLives`. A snake with a life that
+  dies comes back from an egg in the same colour with `lifeKeep` of its length, and a heart breaks.
 - A dead snake's own berries fade off the board and go back to the flower in the giver's name; they
   pour again when the viewer's next snake is out.
 
@@ -78,22 +78,30 @@ supporters entry. Off, its crab and snake go at once.
 
 ## Settings
 
-`ArenaSettings`, set in the Arena card on the Setup tab, stored under `viper-arena-game`. The Feed
-settings the arena uses are stored apart, under `viper-arena-settings`, and do not travel with the
-supporters list.
+`ArenaSettings`, stored under `viper-arena-game`. The Feed settings the arena uses are stored
+apart, under `viper-arena-settings`, and do not travel with the supporters list.
 
-| Setting      | Values                 | Default | Setting       | Values             | Default |
-| ------------ | ---------------------- | ------- | ------------- | ------------------ | ------- |
-| `places`     | 4, 6, 8                | 6       | `roundLength` | 60 to 300 s        | 180     |
-| `entryLikes` | 25, 50, 100, 150, 200  | 100     | `giftBerries` | `owner`, `shared`  | `owner` |
-| `giftEntry`  | on, off                | on      | `wildSnakes`  | 0, 2, 4, 6         | 4       |
-| `likeBoost`  | on, off                | on      | `speed`       | 5 to 9 cells/s     | 7       |
-| `boostCap`   | 3, 6, 10 s             | 6       | `plainEvery`  | 15, 25, 40, 60 s   | 25      |
-| `shieldGift` | 0, 10, 30, 100 berries | 0       | `plainAmount` | 1, 2, 3, 5         | 1       |
-| `queueIdle`  | 3, 5, 10, 15 s         | 5       | `lifePrice`   | 0, 10 to 199 coins | 0       |
-| `maxLives`   | 1, 2, 3, 5             | 3       | `lifeKeep`    | 25% to 100%        | 50%     |
-| `backing`    | off, light, strong     | off     | `superAI`     | on, off            | on      |
-| `pilot`      | on, off                | off     |               |                    |         |
+Arena card, Setup tab:
+
+| Setting      | Values                 | Default | Setting       | Values            | Default |
+| ------------ | ---------------------- | ------- | ------------- | ----------------- | ------- |
+| `places`     | 4, 6, 8                | 6       | `roundLength` | 60 to 300 s       | 180     |
+| `entryLikes` | 25, 50, 100, 150, 200  | 100     | `giftBerries` | `owner`, `shared` | `owner` |
+| `giftEntry`  | on, off                | on      | `wildSnakes`  | 0, 2, 4, 6        | 4       |
+| `likeBoost`  | on, off                | on      | `speed`       | 5 to 9 cells/s    | 7       |
+| `boostCap`   | 3, 6, 10 s             | 6       | `plainEvery`  | 15, 25, 40, 60 s  | 25      |
+| `shieldGift` | 0, 10, 30, 100 berries | 0       | `plainAmount` | 1, 2, 3, 5        | 1       |
+| `queueIdle`  | 3, 5, 10, 15 s         | 5       | `superAI`     | on, off           | on      |
+| `backing`    | off, light, strong     | off     | `pilot`       | on, off           | off     |
+
+Extra life card, Money tab (next to the gift prices, which it leaves alone):
+
+| Setting     | Values                    | Default |
+| ----------- | ------------------------- | ------- |
+| `lifeOn`    | on, off                   | off     |
+| `lifePrice` | 10, 20, 30, 99, 199 coins | 30      |
+| `maxLives`  | 1, 2, 3, 5                | 3       |
+| `lifeKeep`  | 25%, 50%, 75%, 100%       | 50%     |
 
 The simulated audience (Rehearsal tab) is 10, 100 or 700 made-up viewers liking and giving at
 rates that scale with the room, each with a made-up picture.

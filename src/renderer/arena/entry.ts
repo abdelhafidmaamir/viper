@@ -182,8 +182,7 @@ export function arenaGift(nickname: string, avatar: string | undefined, berries:
 }
 
 /** The extra-life gift, if `coins` is its price. */
-export const isLifeGift = (coins: number): boolean =>
-  TUNING.lifePrice > 0 && coins === TUNING.lifePrice;
+export const isLifeGift = (coins: number): boolean => TUNING.lifeOn && coins === TUNING.lifePrice;
 
 /**
  * Extra-life gifts, `n` of them: one more life each for the giver's snake, up to the most a snake

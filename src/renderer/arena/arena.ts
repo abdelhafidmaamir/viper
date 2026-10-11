@@ -39,6 +39,7 @@ export function setArenaSettings(next: ArenaSettings): void {
   TUNING.speed = next.speed;
   TUNING.boostCap = next.boostCap;
   TUNING.shieldGift = next.shieldGift;
+  TUNING.lifeOn = next.lifeOn;
   TUNING.lifePrice = next.lifePrice;
   TUNING.maxLives = next.maxLives;
   TUNING.lifeKeep = next.lifeKeep;

@@ -28,8 +28,8 @@ export const ARENA_SPEEDS = [5, 6, 7, 8, 9] as const;
 export const ARENA_PLAIN_EVERY = [15, 25, 40, 60] as const;
 /** Most plain berries in one drip (each drip drops 1 up to this many). */
 export const ARENA_PLAIN_AMOUNTS = [1, 2, 3, 5] as const;
-/** Coins of the one gift that gives an extra life instead of berries; 0 is none. */
-export const ARENA_LIFE_PRICES = [0, 10, 20, 30, 99, 199] as const;
+/** Coins of the one gift that gives an extra life instead of berries, when the life gift is on. */
+export const ARENA_LIFE_PRICES = [10, 20, 30, 99, 199] as const;
 /** Most lives a snake can hold. */
 export const ARENA_MAX_LIVES = [1, 2, 3, 5] as const;
 /** Share of its length a snake keeps when a life brings it back. */
@@ -69,6 +69,8 @@ export interface ArenaSettings {
   readonly backing: ArenaBacking;
   /** Seconds without a like before a queue animal walks away (ARENA_QUEUE_IDLES). */
   readonly queueIdle: number;
+  /** The extra-life gift is on (control room, Money tab). */
+  readonly lifeOn: boolean;
   /** The extra-life gift's price in coins (ARENA_LIFE_PRICES). */
   readonly lifePrice: number;
   /** Most lives a snake holds (ARENA_MAX_LIVES). */
@@ -98,7 +100,8 @@ export const ARENA_DEFAULTS: ArenaSettings = {
   plainAmount: 1,
   backing: 'off',
   queueIdle: 5,
-  lifePrice: 0,
+  lifeOn: false,
+  lifePrice: 30,
   maxLives: 3,
   lifeKeep: 0.5,
   pilot: false,
@@ -198,6 +201,7 @@ export function sanitizeArenaSetting<K extends ArenaSettingName>(
     case 'plainAmount':
       return listed(ARENA_PLAIN_AMOUNTS, value) ? ok(value) : undefined;
     case 'giftEntry':
+    case 'lifeOn':
     case 'likeBoost':
     case 'pilot':
     case 'superAI':

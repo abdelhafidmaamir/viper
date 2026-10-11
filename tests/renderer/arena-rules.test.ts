@@ -290,7 +290,7 @@ describe('snake arena', () => {
   });
 
   it('a life gift saves the snake once: it comes back from an egg, same colour, half as long', () => {
-    fresh({ lifePrice: 30 });
+    fresh({ lifeOn: true, lifePrice: 30 });
     const s = place('liv', row(5, 22, 3)),
       colour = s.colour;
     arenaLife('liv', undefined, 1);

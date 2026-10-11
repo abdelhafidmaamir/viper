@@ -254,28 +254,6 @@ function arenaCard(arena: ArenaSide, reason: Reason): FeedView {
     ),
     tuning(
       arena,
-      'lifePrice',
-      'Extra-life gift, at',
-      ARENA_LIFE_PRICES.map((value) => ({
-        value,
-        label: value === 0 ? 'Off' : `${String(value)} coins`,
-      })),
-      'A gift at this price gives a life instead of berries.',
-    ),
-    tuning(
-      arena,
-      'maxLives',
-      'Lives a snake can hold',
-      ARENA_MAX_LIVES.map((value) => ({ value, label: String(value) })),
-    ),
-    tuning(
-      arena,
-      'lifeKeep',
-      'Length kept on a life',
-      ARENA_LIFE_KEEPS.map((value) => ({ value, label: `${String(Math.round(value * 100))}%` })),
-    ),
-    tuning(
-      arena,
       'backing',
       'Gifts make a snake smarter and safer',
       ARENA_BACKING.map((value) => ({ value, label: BACKING_LABELS[value] })),
@@ -329,6 +307,45 @@ function arenaCard(arena: ArenaSide, reason: Reason): FeedView {
           ? `On the board: ${String(snakes.viewers)} viewers, ${String(snakes.wild)} wild${snakes.pilot ? ', the pilot' : ''} · ${String(board.trapped ?? 0)} boxed in by their own body this round`
           : '',
       );
+    },
+  };
+}
+
+/**
+ * The extra-life gift, next to the gift prices: a gift at its price gives the giver's snake a life
+ * instead of berries. Off until switched on.
+ */
+function lifeCard(arena: ArenaSide, reason: Reason): FeedView {
+  const rows: Tuning[] = [
+    tuning(
+      arena,
+      'lifePrice',
+      'Gift that gives a life',
+      ARENA_LIFE_PRICES.map((value) => ({ value, label: `${String(value)} coins` })),
+      'That gift gives a life instead of berries, whatever the price list says.',
+    ),
+    tuning(
+      arena,
+      'maxLives',
+      'Lives a snake can hold',
+      ARENA_MAX_LIVES.map((value) => ({ value, label: String(value) })),
+    ),
+    tuning(
+      arena,
+      'lifeKeep',
+      'Length kept on a life',
+      ARENA_LIFE_KEEPS.map((value) => ({ value, label: `${String(Math.round(value * 100))}%` })),
+    ),
+  ];
+  const switches: Switch[] = [toggle(arena, 'lifeOn', 'Extra-life gift')];
+  const card = createCard({ title: 'Extra life' }, [
+    ...switches.map((w) => w.view.el),
+    ...rows.map((r) => r.view.el),
+  ]);
+  return {
+    el: card.el,
+    update(state) {
+      updateTuning(state, arena, reason(), rows, switches);
     },
   };
 }
@@ -389,7 +406,8 @@ export function arenaRoom(
   pressArm: PressArm,
   arena: ArenaSide,
 ): FeedRoom {
-  const pricing = pricingCard(store, dispatch);
+  const pricing = pricingCard(store, dispatch),
+    life = lifeCard(arena, () => controlsReason(store.get()));
   return {
     title: 'Viper Arena',
     screens: {
@@ -402,9 +420,10 @@ export function arenaRoom(
         true,
       ),
       money: {
-        el: h('div', { class: 'screen screen--money' }, [pricing.el]),
+        el: h('div', { class: 'screen screen--money' }, [pricing.el, life.el]),
         update: (state) => {
           pricing.update(state);
+          life.update(state);
         },
       },
     },
