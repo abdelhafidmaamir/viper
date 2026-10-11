@@ -66,7 +66,8 @@ less, likes-only ones look less far.
   `lifePrice` coins gives a life instead of berries, up to `maxLives`. The flower opens on the
   giver's picture as for any gift, a heart in place of the berry, and drops one prod heart per
   life to the giver's snake's picture (or their crab while they wait), where it joins their hearts.
-- Lives show as prod hearts, 32 px, in a row beside the snake's picture on the board.
+- Lives show as prod hearts, 32 px, in a row beside the snake's picture on the board, and the
+  same count under its crab's picture on the beach.
 - A snake with a life that dies pops as at a death (its berries go back to the flower), its last
   heart drops and fades, and its picture flies from where it died to a new egg at a safe place; it
   hatches in the same colour with `lifeKeep` of its length.

@@ -21,7 +21,7 @@ export { layOutBeach };
 
 export { paintArenaTime };
 import { paintFood, paintSnakes } from './board-paint.ts';
-import { paintFlyingHearts } from './lives.ts';
+import { paintBeachHearts, paintFlyingHearts } from './lives.ts';
 import { ENTRY, QUEUE, isPilot, setPilot } from './entry.ts';
 import { arenaRound, carriedOver, stepArena } from './round.ts';
 
@@ -81,10 +81,11 @@ export function paintArena(
 /** The ring round the board: the round's clock. */
 export const paintArenaClock = paintArenaRing;
 
-/** On the beach, over the animals: their entry rings and the pictures flying up. */
+/** On the beach, over the animals: their entry rings, their lives and the pictures flying up. */
 export function paintArenaBeach(t: number): void {
   paintFlags(t);
   paintBeachRings(t);
+  paintBeachHearts();
   paintLikeHearts();
   paintFlights();
 }
