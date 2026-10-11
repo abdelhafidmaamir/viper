@@ -147,6 +147,12 @@ export function updateMode(
 }
 
 /**
+ * The cell just behind the head, -1 for a snake one cell long. A snake goes straight on or turns
+ * left or right, never back the way it came: whatever the brain, this cell is never its next.
+ */
+export const neckOf = (me: Snake): number => (me.cells.length > 1 ? (me.cells[1] ?? -1) : -1);
+
+/**
  * The snake's own tail cell is free to step into when the tail leaves it on that same step: no
  * growth owed and the body at its full length. A coiled snake's way out is often just that.
  */
@@ -180,6 +186,7 @@ export function chooseNext(me: Snake, s: Sight, rand: () => number): number {
   const level = brainFor(me.backing);
   if (level >= 2) return superNext(me, s, rand);
   const head = me.cells[0] ?? 0,
+    neck = neckOf(me),
     len = me.len,
     mine = me.id + 1;
   danger.fill(0);
@@ -239,7 +246,7 @@ export function chooseNext(me: Snake, s: Sight, rand: () => number): number {
     }
   }
   const free = (c: number): boolean => {
-    if ((s.occ[c] ?? 0) !== 0 && !tailMoves(me, c)) return false;
+    if (c === neck || ((s.occ[c] ?? 0) !== 0 && !tailMoves(me, c))) return false;
     const r = s.reserved[c] ?? 0;
     if (r === 0 || r === mine) return true;
     const o = s.snakes.find((x) => x.id === r - 1);
@@ -282,7 +289,7 @@ export function chooseNext(me: Snake, s: Sight, rand: () => number): number {
     // Boxed in: the only hope is a tail about to move on (the Duel's AI follows tails too).
     moves = neighbours(head).filter((k) => {
       const o = s.snakes.find(
-        (x) => x.alive && x.id !== me.id && x.cells[x.cells.length - 1] === k,
+        (x) => k !== neck && x.alive && x.id !== me.id && x.cells[x.cells.length - 1] === k,
       );
       return !!o && o.grow < 1 && o.cells.length > 2;
     });
@@ -481,13 +488,14 @@ function heading(o: Snake, steps: number): number[] {
  */
 export function superNext(me: Snake, s: Sight, rand: () => number): number {
   const head = me.cells[0] ?? 0,
+    neck = neckOf(me),
     len = me.len,
     mine = me.id + 1,
     need = roomNeeded(len + me.grow),
     limit = need * 2,
     depth = depthFor(me.backing);
   const free = (c: number): boolean => {
-    if ((s.occ[c] ?? 0) !== 0 && !tailMoves(me, c)) return false;
+    if (c === neck || ((s.occ[c] ?? 0) !== 0 && !tailMoves(me, c))) return false;
     const r = s.reserved[c] ?? 0;
     if (r === 0 || r === mine) return true;
     const o = s.snakes.find((x) => x.id === r - 1);
@@ -513,7 +521,7 @@ export function superNext(me: Snake, s: Sight, rand: () => number): number {
   if (!moves.length) {
     const tails = neighbours(head).filter((k) => {
       const o = s.snakes.find(
-        (x) => x.alive && x.id !== me.id && x.cells[x.cells.length - 1] === k,
+        (x) => k !== neck && x.alive && x.id !== me.id && x.cells[x.cells.length - 1] === k,
       );
       return !!o && o.grow < 1 && o.cells.length > 2;
     });

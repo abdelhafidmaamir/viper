@@ -8,7 +8,7 @@
 import { FCOLS, FROWS } from '../feed/grid.ts';
 import { stepInto } from '../feed/path.ts';
 import { FALL_TIME, READY_TIME, game, hooks, newRound, repay, roundHold } from '../feed/state.ts';
-import { backingOf, chooseNext, updateMode, type Sight } from './ai.ts';
+import { backingOf, chooseNext, neckOf, updateMode, type Sight } from './ai.ts';
 import { fullRingWaiting, isPilot, stepQueue, updateFlights, updatePilot } from './entry.ts';
 import { lifePour, stepLives } from './lives.ts';
 import {
@@ -300,13 +300,14 @@ function eatFood(s: Snake, f: Food): void {
 }
 
 /**
- * Picks the cell the head slides into next. A snake never dies by its own body: with no other
- * way out it passes over itself for that step (the brains avoid it, so it almost never shows).
- * Boxed in by the others alone, it is done; an unbeatable one waits a step instead.
+ * Picks the cell the head slides into next: straight on, left or right, never back onto its neck.
+ * A snake never dies by its own body: boxed in on those three cells, it passes over the least bad
+ * of them for that step (the brains avoid it, so it almost never shows). With only walls and eggs
+ * left, it is done; an unbeatable one waits a step instead.
  */
 function replan(s: Snake, sight: Sight): void {
   let n = chooseNext(s, sight, arena.rand);
-  if (n < 0) n = overOwnBody(s, sight);
+  if (n < 0) n = boxedWay(s, sight);
   if (n < 0 && s.immune) {
     s.next = s.cells[0] ?? s.next;
     s.sub = 0;
@@ -320,20 +321,33 @@ function replan(s: Snake, sight: Sight): void {
   if (onBoard(s.next)) sight.reserved[s.next] = s.id + 1;
 }
 
-/** A cell next to the head under the snake's own body, nearest its tail: its way over itself. */
-function overOwnBody(s: Snake, sight: Sight): number {
+/** The cell a boxed-in head passes over on its next step, with whoever lies there (boxedWay). */
+const passing = new WeakMap<Snake, number>();
+
+/**
+ * Boxed in straight ahead and on both sides, the least bad of those three cells, never back onto
+ * its neck: its own body, nearest its tail, passed over; else another snake's body, passed over
+ * the same way, nobody hurt; else a cell another head is about to take. -1 when only walls and
+ * eggs are left.
+ */
+function boxedWay(s: Snake, sight: Sight): number {
   const mine = s.id + 1,
-    head = s.cells[0] ?? -1;
+    head = s.cells[0] ?? -1,
+    neck = neckOf(s);
   let best = -1,
-    at = -1;
+    rank = 0;
   for (const k of [head - 1, head + 1, head - FCOLS, head + FCOLS]) {
-    if (!onBoard(k) || Math.abs(cellX(k) - cellX(head)) > 1 || sight.occ[k] !== mine) continue;
-    const i = s.cells.indexOf(k);
-    if (i > at) {
-      at = i;
+    if (!onBoard(k) || Math.abs(cellX(k) - cellX(head)) > 1 || k === neck) continue;
+    const o = sight.occ[k] ?? 0,
+      other = o && o !== mine ? arena.snakes.find((x) => x.id === o - 1) : undefined,
+      egg = !!other?.egg && !other.egg.hatched,
+      r = o === mine ? 3 + s.cells.indexOf(k) / s.cells.length : egg ? 0 : o ? 2 : 1;
+    if (r > rank) {
+      rank = r;
       best = k;
     }
   }
+  if (best >= 0 && rank < 3) passing.set(s, best);
   return best;
 }
 
@@ -382,8 +396,11 @@ const stillAlive = (s: Snake): boolean => s.alive;
 function stepCell(s: Snake, sight: Sight): void {
   const target = s.next;
   if (onBoard(target)) {
+    // A boxed-in head passing over another snake's body (boxedWay) meets nobody there.
     const o = sight.occ[target] ?? 0,
-      other = o && o !== s.id + 1 ? arena.snakes.find((x) => x.id === o - 1) : undefined;
+      over = passing.get(s) === target,
+      other = o && o !== s.id + 1 && !over ? arena.snakes.find((x) => x.id === o - 1) : undefined;
+    passing.delete(s);
     if (other?.alive) {
       if (other.cells[0] === target) {
         // Head on head: the bigger survives; a shield, a newborn's grace or immunity spares either.
