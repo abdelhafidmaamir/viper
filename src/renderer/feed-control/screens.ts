@@ -215,15 +215,19 @@ const LANGUAGE_OPTIONS = [
   { value: 'fr' as const, label: 'Francais' },
 ];
 
-const SHORTCUTS_TEXT = [
-  'N  New round (two-step confirm)',
-  '1  Rose x1 | 2  Rose x5',
-  '3  Rosa x1 | 4  Rosa x5',
-  'L  Likes x25',
-  'S  Cycle audience  Off / Small / Medium / Busy',
-  'F  Jump near full board',
-  'Alt+1/2/3  Switch tab (Live / Rehearsal / Setup)',
-].join('\n');
+function shortcutsText(nearFullBoard: boolean, tabCount: 3 | 4): string {
+  return [
+    'N  New round (two-step confirm)',
+    '1  Rose x1 | 2  Rose x5',
+    '3  Rosa x1 | 4  Rosa x5',
+    'L  Likes x25',
+    'S  Cycle audience  Off / Small / Medium / Busy',
+    ...(nearFullBoard ? ['F  Jump near full board'] : []),
+    tabCount === 4
+      ? 'Alt+1/2/3/4  Switch tab (Live / Rehearsal / Setup / Money)'
+      : 'Alt+1/2/3  Switch tab (Live / Rehearsal / Setup)',
+  ].join('\n');
+}
 
 /**
  * "name ; coins" per line, optionally "; @handle" (a tab or a comma works too); lines that do not
@@ -248,7 +252,15 @@ export function parsePastSupporters(
 export function createSetupScreen(
   dispatch: Dispatch,
   reason: Reason,
-  { nearFullBoard = true }: { readonly nearFullBoard?: boolean } = {},
+  {
+    nearFullBoard = true,
+    snakeAppearance = true,
+    tabCount = 3,
+  }: {
+    readonly nearFullBoard?: boolean;
+    readonly snakeAppearance?: boolean;
+    readonly tabCount?: 3 | 4;
+  } = {},
 ): FeedView {
   const language = createSegmented({
     label: 'Game language',
@@ -378,7 +390,10 @@ export function createSetupScreen(
     },
   });
   const ambienceSoundCard = createCard({ title: 'Ambience sound' }, [rainSound.el]);
-  const crownCard = createCard({ title: 'Look' }, [snakeColour.el, snakeSkin.el, crownStyle.el]);
+  const crownCard = createCard(
+    { title: 'Look' },
+    snakeAppearance ? [snakeColour.el, snakeSkin.el, crownStyle.el] : [crownStyle.el],
+  );
   const journal = createButton({
     label: 'Open journal folder',
     variant: 'secondary',
@@ -452,7 +467,7 @@ export function createSetupScreen(
   ]);
   const shortcutText = h('pre', {
     class: 'card__line',
-    text: nearFullBoard ? SHORTCUTS_TEXT : SHORTCUTS_TEXT.replace('\nF  Jump near full board', ''),
+    text: shortcutsText(nearFullBoard, tabCount),
   });
   const helpCard = createCard({ title: 'Keyboard shortcuts' }, [shortcutText]);
 
@@ -555,16 +570,28 @@ export function createSetupScreen(
         status: cs.status,
         reason: r,
       });
-      const sk = resolvePending(
-        state.gameState?.settings.snakeSkin,
-        state.pending.snakeSkin,
-        state.now,
-      );
-      snakeSkin.update({
-        value: typeof sk.value === 'string' ? sk.value : undefined,
-        status: sk.status,
-        reason: r,
-      });
+      if (snakeAppearance) {
+        const sk = resolvePending(
+          state.gameState?.settings.snakeSkin,
+          state.pending.snakeSkin,
+          state.now,
+        );
+        snakeSkin.update({
+          value: typeof sk.value === 'string' ? sk.value : undefined,
+          status: sk.status,
+          reason: r,
+        });
+        const sc = resolvePending(
+          state.gameState?.settings.snakeColour,
+          state.pending.snakeColour,
+          state.now,
+        );
+        snakeColour.update({
+          value: typeof sc.value === 'string' ? sc.value : undefined,
+          status: sc.status,
+          reason: r,
+        });
+      }
       const rs = resolvePending(
         state.gameState?.settings.rainSound,
         state.pending.rainSound,
@@ -573,16 +600,6 @@ export function createSetupScreen(
       rainSound.update({
         value: typeof rs.value === 'string' ? rs.value : undefined,
         status: rs.status,
-        reason: r,
-      });
-      const sc = resolvePending(
-        state.gameState?.settings.snakeColour,
-        state.pending.snakeColour,
-        state.now,
-      );
-      snakeColour.update({
-        value: typeof sc.value === 'string' ? sc.value : undefined,
-        status: sc.status,
         reason: r,
       });
       const rw = resolvePending(

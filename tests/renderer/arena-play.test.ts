@@ -5,6 +5,7 @@ import { chooseNext } from '../../src/renderer/arena/ai.ts';
 import { advanceArena, newArenaRound, setArenaSettings } from '../../src/renderer/arena/arena.ts';
 import { flights, likeHearts, queue, rings } from '../../src/renderer/arena/entry.ts';
 import { countOnArena } from '../../src/renderer/arena/link.ts';
+import { moveInto } from '../../src/renderer/arena/round.ts';
 import {
   alive,
   arena,
@@ -154,5 +155,43 @@ describe('snake arena: a snake goes for its own berries', () => {
     berry(cellId(26, 10), 'ana');
     me.immune = true;
     expect(next(me)).toBe(cellId(13, 10));
+  });
+});
+
+describe('snake arena: a snake never turns back onto its neck', () => {
+  it('with no growth owed, its tail is not a way back when it is also its neck', () => {
+    for (const superAI of [true, false]) {
+      fresh({ superAI, backing: 'off' });
+      const me = place('ana', [cellId(0, 0), cellId(1, 0)]);
+      // The only other way, down, is another snake's body.
+      place(null, [...col(0, 1, 6).reverse(), cellId(1, 1), cellId(2, 1)]);
+      expect(next(me)).not.toBe(cellId(1, 0));
+    }
+  });
+
+  it('boxed in ahead and on both sides, it passes over the least bad cell, never back', () => {
+    fresh();
+    const me = place('ana', [cellId(1, 0), cellId(2, 0)]);
+    const other = place(null, [...col(0, 1, 6).reverse(), cellId(1, 1), cellId(2, 1)]);
+    // Into the corner: the wall twice and another body; its neck is behind.
+    moveInto(me, cellId(0, 0));
+    expect(me.alive).toBe(true);
+    expect(me.next).not.toBe(cellId(1, 0));
+    expect(me.next).toBe(cellId(0, 1));
+    moveInto(me, me.next);
+    expect(me.alive && other.alive).toBe(true);
+  });
+
+  it('never reverses in a busy round, whatever the brain', () => {
+    for (const superAI of [true, false]) {
+      fresh({ superAI, places: 8, wildSnakes: 8 }, 5);
+      let reversed = 0;
+      for (let i = 0; i < 60 * 30; i++) {
+        advanceArena(STEP);
+        for (const s of alive())
+          if (s.in && s.cells.length > 1 && s.next === s.cells[1]) reversed++;
+      }
+      expect(reversed).toBe(0);
+    }
   });
 });

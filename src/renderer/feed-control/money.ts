@@ -71,7 +71,11 @@ function tierRow(dispatch: Dispatch): {
   return { el, coins, berries, info, test };
 }
 
-export function pricingCard(store: FeedControlStore, dispatch: Dispatch): FeedView {
+export function pricingCard(
+  store: FeedControlStore,
+  dispatch: Dispatch,
+  { roundInfo = true }: { readonly roundInfo?: boolean } = {},
+): FeedView {
   const rows = Array.from({ length: PRICE_TIERS_MAX }, () => tierRow(dispatch));
   /** The operator is typing: the fields stop following the game until applied or reset. */
   let editing = false;
@@ -192,7 +196,9 @@ export function pricingCard(store: FeedControlStore, dispatch: Dispatch): FeedVi
         setText(
           r.info,
           t && !editing
-            ? `${(t.berries / t.coins).toFixed(1)}/coin · ${pct(t.berries / toFill)} · panel: “${panelText(t.berries)}”`
+            ? roundInfo
+              ? `${(t.berries / t.coins).toFixed(1)}/coin · ${pct(t.berries / toFill)} · panel: “${panelText(t.berries)}”`
+              : `${(t.berries / t.coins).toFixed(1)}/coin · panel: “${panelText(t.berries)}”`
             : '',
         );
       });
@@ -204,7 +210,9 @@ export function pricingCard(store: FeedControlStore, dispatch: Dispatch): FeedVi
             ? 'The game did not take it.'
             : editing
               ? 'Edited, not applied yet.'
-              : `In use: ${live || '…'} · a round needs ${String(toFill)} berries at this start length.`,
+              : roundInfo
+                ? `In use: ${live || '…'} · a round needs ${String(toFill)} berries at this start length.`
+                : `In use: ${live || '…'}`,
       );
       const w = pricingWarnings(tiers);
       setText(warnings, w.join(' '));

@@ -406,7 +406,7 @@ export function arenaRoom(
   pressArm: PressArm,
   arena: ArenaSide,
 ): FeedRoom {
-  const pricing = pricingCard(store, dispatch),
+  const pricing = pricingCard(store, dispatch, { roundInfo: false }),
     life = lifeCard(arena, () => controlsReason(store.get()));
   return {
     title: 'Viper Arena',
@@ -415,7 +415,11 @@ export function arenaRoom(
       rehearsal: createRehearsalScreen(dispatch, { nearFullBoard: false }),
       // The game's own settings first, then Feed's.
       setup: withCard(
-        createSetupScreen(dispatch, () => controlsReason(store.get()), { nearFullBoard: false }),
+        createSetupScreen(dispatch, () => controlsReason(store.get()), {
+          nearFullBoard: false,
+          snakeAppearance: false,
+          tabCount: 4,
+        }),
         arenaCard(arena, () => controlsReason(store.get())),
         true,
       ),
