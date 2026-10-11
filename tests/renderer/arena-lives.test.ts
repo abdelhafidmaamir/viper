@@ -1,4 +1,4 @@
-import { afterEach, beforeAll, describe, expect, it, vi } from 'vitest';
+import { beforeAll, describe, expect, it, vi } from 'vitest';
 
 import { ARENA_DEFAULTS, type ArenaSettings } from '../../src/shared/arena-protocol.ts';
 import { setCtx } from '../../src/renderer/engine/canvas.ts';
@@ -16,11 +16,8 @@ import {
 import { countOnArena } from '../../src/renderer/arena/link.ts';
 import {
   HEART,
-  LIFE_SHOW,
   beachHeart,
   boardHeart,
-  clearLives,
-  lifeHearts,
   paintCrabHearts,
   paintSnakeHearts,
   shownLives,
@@ -56,7 +53,6 @@ function fresh(extra: Partial<ArenaSettings> = {}, seed = 7): void {
   gifters.length = 0;
   flights.length = 0;
   likeHearts.length = 0;
-  clearLives();
   game.queue = [];
   newRound();
   run(4);
@@ -116,25 +112,15 @@ describe('snake arena: lives shown on the snake and its crab', () => {
       createElement: () => ({ width: 0, height: 0, getContext: () => null }),
     });
   });
-  afterEach(() => {
-    clearLives();
-  });
 
-  it('a life gift opens the flower on its giver and drops a heart that joins their hearts', () => {
+  it('a life gift adds its heart by the picture at once, the flower stays out of it', () => {
     fresh();
     const s = place('liv', row(5, 22, 3));
     arenaLife('liv', undefined, 1);
     expect(s.lives).toBe(1);
+    expect(shownLives('liv')).toBe(1);
     run(STEP * 2);
-    expect(game.pour?.nickname).toBe('liv');
-    expect(game.pour?.life).toBe(true);
-    // The heart is still in the flower, then on its way: not shown yet.
-    expect(shownLives('liv')).toBe(0);
-    run(0.6);
-    expect(lifeHearts.length).toBeGreaterThan(0);
-    expect(shownLives('liv')).toBe(0);
-    run(LIFE_SHOW);
-    expect(lifeHearts).toHaveLength(0);
+    expect(game.pour?.nickname).not.toBe('liv');
     expect(shownLives('liv')).toBe(1);
   });
 
@@ -142,7 +128,7 @@ describe('snake arena: lives shown on the snake and its crab', () => {
     fresh();
     const s = place('liv', row(5, 22, 3));
     arenaLife('liv', undefined, 2);
-    run(LIFE_SHOW + 1.5);
+    run(1.5);
     expect(shownLives('liv')).toBe(2);
     kill(s, null, 'headon');
     // The body pops as at a death.
@@ -209,7 +195,7 @@ describe('snake arena: lives shown on the snake and its crab', () => {
     fresh({ places: 4 });
     for (let k = 0; k < 4; k++) place(`p${String(k)}`, row(3 + 6 * k, 20, 6)).immune = true;
     arenaLife('wai', undefined, 2);
-    run(LIFE_SHOW + 1.5);
+    run(1.5);
     expect(snakeOf('wai')).toBeUndefined();
     expect(arena.viewers.get('wai')?.lives).toBe(2);
     expect(

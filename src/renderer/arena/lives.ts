@@ -1,16 +1,12 @@
-// Snake Arena: extra lives on screen. A life gift opens the flower on the giver's picture, as any
-// gift does, and a prod heart drops from it to the giver's snake's picture, or to their animal on
-// the beach while they wait, where it joins their hearts. The hearts stand by the picture on the
-// board and by the animal's picture on the beach, the same count in both places. A life used
-// breaks one of them: it drops and fades where it stood.
+// Snake Arena: extra lives on screen. The hearts stand by the picture on the board and by the
+// animal's picture on the beach, the same count in both places. A life gift adds its heart there
+// at once. A life used breaks one of them: it drops and fades where it stood.
 
 import { ctx } from '../engine/canvas.ts';
 import { W } from '../engine/layout.ts';
 import { bigHeart } from '../feed/alert-fx.ts';
 import { crabFaces } from '../feed/crabs.ts';
-import { MOUTH } from '../feed/grid.ts';
-import { game, type Pour } from '../feed/state.ts';
-import { TUNING, arena, snakeOf, toPx, type Snake } from './rules.ts';
+import { TUNING, arena, snakeOf, type Snake } from './rules.ts';
 
 interface Point {
   x: number;
@@ -22,55 +18,6 @@ interface Face extends Point {
 
 /** A heart's size, in game units: by a snake's picture on the board, by an animal's on the beach. */
 export const HEART = { board: 32, beach: 30 };
-/** Seconds the flower shows a life gift; its heart leaves once it is open, and its flight. */
-export const LIFE_SHOW = 1.4;
-const HEART_OUT = 0.45,
-  HEART_FLIGHT = 0.9,
-  HEART_GAP = 0.15;
-
-/** Life gifts waiting for the flower, the first one on show. */
-const shows: { pour: Pour; t: number; hearts: number }[] = [];
-/** Hearts on their way from the flower to a picture. */
-export const lifeHearts: { nickname: string; t: number }[] = [];
-
-/**
- * A life gift: the flower opens on the giver's picture, the count of gifts on its card, and drops
- * one heart for each life it gave (none once the most a snake holds is reached).
- */
-export function lifeGift(
-  nickname: string,
-  avatar: string | undefined,
-  n: number,
-  added: number,
-): void {
-  shows.push({
-    pour: { id: ++game.pours, nickname, n: 0, total: n, title: '', avatar, life: true },
-    t: 0,
-    hearts: added,
-  });
-}
-
-/** The life gift the flower shows now, if any (round.ts gives it the flower meanwhile). */
-export const lifePour = (): Pour | null => shows[0]?.pour ?? null;
-
-export function stepLives(dt: number): void {
-  for (let i = lifeHearts.length - 1; i >= 0; i--) {
-    const h = lifeHearts[i];
-    if (!h) continue;
-    h.t += dt;
-    if (h.t >= HEART_FLIGHT) lifeHearts.splice(i, 1);
-  }
-  const show = shows[0];
-  if (!show) return;
-  const was = show.t;
-  show.t += dt;
-  if (was < HEART_OUT && show.t >= HEART_OUT) {
-    for (let k = 0; k < show.hearts; k++)
-      lifeHearts.push({ nickname: show.pour.nickname, t: -k * HEART_GAP });
-    show.hearts = 0;
-  }
-  if (show.t >= LIFE_SHOW) shows.shift();
-}
 
 /** Lives the viewer holds, on their snake or kept for the next one. */
 function livesOf(nickname: string): number {
@@ -78,17 +25,8 @@ function livesOf(nickname: string): number {
   return s ? s.lives : (arena.viewers.get(nickname)?.lives ?? 0);
 }
 
-/** Hearts not yet with this viewer: still in the flower, or in the air. */
-function flying(nickname: string): number {
-  let n = 0;
-  for (const show of shows) if (show.pour.nickname === nickname) n += show.hearts;
-  for (const h of lifeHearts) if (h.nickname === nickname) n++;
-  return n;
-}
-
-/** Hearts shown by a viewer's pictures: their lives, less those still on their way. */
-export const shownLives = (nickname: string): number =>
-  Math.max(0, livesOf(nickname) - flying(nickname));
+/** Hearts shown by a viewer's pictures: their lives. */
+export const shownLives = (nickname: string): number => livesOf(nickname);
 
 /**
  * Where the i-th heart stands by a snake's picture on the board (x, y its centre, r its radius):
@@ -111,15 +49,6 @@ export function paintHearts(n: number, size: number, at: (i: number) => Point): 
     const p = at(i);
     c.drawImage(heart, p.x - size / 2, p.y - size / 2, size, size);
   }
-}
-
-/** A snake's picture over its head, where board-paint.ts draws it (without its bob). */
-function photoOf(s: Snake): Point {
-  const head = toPx(s.x, s.y);
-  return {
-    x: Math.min(W - 60, Math.max(60, head.x)),
-    y: Math.max(TUNING.photoR + 70, head.y - 64),
-  };
 }
 
 /** An animal's picture is drawn at 28 of its 32 half-size units (crabs.ts paints it so). */
@@ -155,21 +84,6 @@ export function paintBeachHearts(): void {
   for (const [nickname, f] of crabFaces()) paintCrabHearts(nickname, f);
 }
 
-/**
- * Where the i-th heart of a viewer stands now, and its size: by their snake's picture on the board
- * once the snake is out, else by their animal's picture on the beach. Null when neither shows.
- */
-export function heartTarget(nickname: string, i: number): (Point & { size: number }) | null {
-  const s = snakeOf(nickname),
-    n = livesOf(nickname);
-  if (s?.in) {
-    const p = photoOf(s);
-    return { ...boardHeart(p.x, p.y, TUNING.photoR, i, n), size: HEART.board };
-  }
-  const f = crabFaces().get(nickname);
-  return f ? { ...beachHeart(f, i, n), size: beachSize(f.r) } : null;
-}
-
 /** The hearts by a snake's picture on the board. */
 export function paintSnakeHearts(s: Snake, x: number, y: number, r: number): void {
   paintHearts(shownLives(s.nickname), HEART.board, (i) => boardHeart(x, y, r, i, s.lives));
@@ -188,42 +102,4 @@ export function paintBrokenHeart(s: Snake, from: Point, u: number): void {
   c.globalAlpha = Math.max(0, 1 - u);
   c.drawImage(bigHeart(true), p.x - size / 2, p.y + 60 * u * u - size / 2, size, size);
   c.restore();
-}
-
-/**
- * The hearts on their way from the flower: each arcs to the place it takes in its viewer's row, by
- * their snake's picture on the board or their animal's on the beach, and joins it on landing. A
- * heart with nowhere to go fades under the flower.
- */
-export function paintFlyingHearts(): void {
-  const c = ctx,
-    heart = bigHeart(true),
-    landed = new Map<string, number>();
-  for (const h of lifeHearts) {
-    if (h.t < 0) continue;
-    // Hearts still flying to the same viewer take the next places in the row, in order.
-    const k = landed.get(h.nickname) ?? 0;
-    landed.set(h.nickname, k + 1);
-    const to = heartTarget(h.nickname, shownLives(h.nickname) + k),
-      u = Math.min(1, h.t / HEART_FLIGHT),
-      e = u * u * (3 - 2 * u);
-    c.save();
-    if (!to) {
-      c.globalAlpha = 1 - u;
-      c.drawImage(heart, MOUTH.x - 22, MOUTH.y - 22 + 40 * u, 44, 44);
-      c.restore();
-      continue;
-    }
-    const x = MOUTH.x + (to.x - MOUTH.x) * e,
-      y = MOUTH.y + (to.y - MOUTH.y) * e - Math.sin(u * Math.PI) * 90,
-      size = 44 + (to.size - 44) * e;
-    c.drawImage(heart, x - size / 2, y - size / 2, size, size);
-    c.restore();
-  }
-}
-
-/** A new round: nothing left on its way. */
-export function clearLives(): void {
-  shows.length = 0;
-  lifeHearts.length = 0;
 }

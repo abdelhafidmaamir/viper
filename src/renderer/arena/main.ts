@@ -47,7 +47,6 @@ import {
   paintArena,
   paintArenaBeach,
   paintArenaClock,
-  paintArenaLives,
   paintArenaTime,
 } from './arena.ts';
 import { AUDIENCE, setAudience, tickAudience } from './audience.ts';
@@ -208,7 +207,6 @@ function step(dt: number): void {
     paintCrabs(t, e.subStep, e.reduced, settings.weather);
     paintArenaBeach(t);
     paintFlower(t);
-    paintArenaLives();
     paintArenaTime();
     if (game.full >= 0) paintRoundEnd(performance.now() / 1000, carriedOver(), arenaHeadline());
     paintReady();

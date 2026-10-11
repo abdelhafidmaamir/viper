@@ -63,9 +63,8 @@ less, likes-only ones look less far.
   flower, as a death does: no paid berry lies on the board without its giver's snake.
 - `shieldGift`: one gift worth this many berries gives 10 s of shield (default 0, never).
 - The extra-life gift, set on the control room's Money tab (`lifeOn`, off by default): a gift at
-  `lifePrice` coins gives a life instead of berries, up to `maxLives`. The flower opens on the
-  giver's picture as for any gift, a heart in place of the berry, and drops one prod heart per
-  life to the giver's snake's picture (or their crab while they wait), where it joins their hearts.
+  `lifePrice` coins gives a life instead of berries, up to `maxLives`. Its heart shows at once
+  by the giver's snake's picture (or under their crab while they wait). The flower stays out of it.
 - Lives show as prod hearts, 32 px, in a row beside the snake's picture on the board, and the
   same count under its crab's picture on the beach.
 - A snake with a life that dies pops as at a death (its berries go back to the flower), its last

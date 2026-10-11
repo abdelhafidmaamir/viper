@@ -72,8 +72,6 @@ export interface Pour {
   /** Berries owed from the round before: the flower says so. */
   carried?: boolean;
   avatar?: string | undefined;
-  /** Snake Arena's extra-life gift: the flower shows a heart, not a berry. Feed never sets it. */
-  life?: boolean;
 }
 
 export interface Spark {

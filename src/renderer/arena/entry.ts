@@ -30,7 +30,6 @@ import {
   type Snake,
   type Viewer,
 } from './rules.ts';
-import { lifeGift } from './lives.ts';
 
 export const ENTRY = {
   /** Likes that fill an animal's ring (control room, "Likes to fill the entry ring"). */
@@ -218,13 +217,9 @@ export const isLifeGift = (coins: number): boolean => TUNING.lifeOn && coins ===
  */
 export function arenaLife(nickname: string, avatar: string | undefined, n: number): void {
   if (!nickname || n <= 0 || nickname === PILOT.key) return;
-  const v = viewer(nickname, avatar),
-    held = (): number => snakeOf(nickname)?.lives ?? v.lives,
-    was = held();
+  const v = viewer(nickname, avatar);
   v.acts.push(arena.clock);
   addLives(v, n);
-  // The flower shows the gift and drops a heart for each life it gave.
-  lifeGift(nickname, v.avatar, n, held() - was);
   if (v.state !== 'in') giftIn(v);
   const s = snakeOf(nickname);
   if (s) s.idle = 0;
