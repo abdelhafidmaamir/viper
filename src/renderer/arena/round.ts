@@ -256,7 +256,8 @@ function flower(dt: number): void {
   game.closeT = q ? 0 : game.closeT + dt;
   const every = q ? 1 / Math.min(10, 3 + q.n / 12) : 0.045;
   arena.dropT += dt;
-  while (q && arena.dropT >= every) {
+  // Nothing leaves the flower before the countdown is over: gifts wait in it and pour after GO.
+  while (q && arena.dropT >= every && game.ready < 0) {
     const s = snakeOf(q.nickname);
     if (!s?.in) break;
     arena.dropT -= every;
@@ -269,7 +270,8 @@ function flower(dt: number): void {
 /** The flower's own berries, for everyone: a few, now and then. */
 function house(dt: number): void {
   arena.houseT -= dt;
-  if (arena.houseT > 0) return;
+  // Not before the countdown is over: a drip due during it falls at GO.
+  if (arena.houseT > 0 || game.ready >= 0) return;
   const r = arena.rand;
   arena.houseT = TUNING.houseEvery * (0.8 + 0.4 * r());
   let out = 0;

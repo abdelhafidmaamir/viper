@@ -242,3 +242,23 @@ describe('snake arena: a berry stays on the board half a second', () => {
       }
   });
 });
+
+describe('snake arena: berries wait for the countdown', () => {
+  it('no berry on the board before the countdown ends, then they pour', () => {
+    fresh({ plainEvery: 2 });
+    // A paid berry left on the board goes back to the flower for the next round.
+    place('lia', row(12, 10, 3));
+    berry(cellId(20, 20), 'lia');
+    newRound();
+    expect(game.ready).toBe(0);
+    board.gift('gina', undefined, 10, true);
+    let most = 0;
+    while (game.ready >= 0) {
+      advanceArena(STEP);
+      if (game.ready >= 0) most = Math.max(most, arena.food.length);
+    }
+    expect(most).toBe(0);
+    run(3);
+    expect(waitingFor('gina')).toBeLessThan(10);
+  });
+});
