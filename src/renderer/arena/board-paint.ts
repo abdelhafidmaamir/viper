@@ -56,6 +56,8 @@ const BERRY_R = 44,
   RED = '#ff3b5c',
   /** Feed's fat snake: the duel's body drawn 30% thicker than the grid alone would give. */
   FAT = K * 1.3;
+/** A player's name under their picture, in game units. */
+const NAME_SIZE = 34;
 
 /** Each colour's hex, read from paint.ts itself. */
 export const COLOURS = ((): Record<SnakeColour, string> => {
@@ -270,7 +272,8 @@ function paintHead(s: Snake, t: number): void {
   paintSnakeHearts(s, fx, fy, r);
   const full = shownName(s),
     name = full.length > 16 ? full.slice(0, 15) + '…' : full;
-  c.font = `800 22px ${FONT}`;
+  // Read on a phone: TikTok shows the stream about 390 px wide, a third of a unit per pixel.
+  c.font = `800 ${String(NAME_SIZE)}px ${FONT}`;
   c.textAlign = 'center';
   c.textBaseline = 'top';
   c.lineJoin = 'round';

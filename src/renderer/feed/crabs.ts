@@ -83,6 +83,8 @@ export interface CrabWalks {
   readonly ground?: (x: number) => number;
 }
 let managed: ({ spots: readonly CrabSpot[] } & CrabWalks) | null = null;
+/** A spot's tag text size, in game units: read on a phone, where the stream is 390 px wide. */
+const TAG_SIZE = 30;
 export function setCrabSpots(spots: readonly CrabSpot[] | null, walks?: CrabWalks): void {
   managed = spots ? { spots, scale: 1, lane: 0, step: 0, ...walks } : null;
 }
@@ -667,15 +669,16 @@ export function paintCrabs(t: number, rise: number, reduced: boolean, weather: W
     noteFace(crab.nickname, fy);
     const tag = spot?.tag;
     if (tag) {
-      // A small descriptive tag over the picture ("NEXT").
-      g.font = `900 15px ${FONT}`;
+      // A descriptive tag over the picture ("NEXT"), TAG_SIZE game units high at any animal size.
+      const u = TAG_SIZE / (15 * 1.4 * (managed?.scale ?? 1));
+      g.font = `900 ${String(15 * u)}px ${FONT}`;
       g.textAlign = 'center';
       g.textBaseline = 'middle';
-      const tw = g.measureText(tag).width + 14,
-        ty = fy - FACE / 2 - 14;
+      const tw = g.measureText(tag).width + 14 * u,
+        ty = fy - FACE / 2 - 14 * u;
       g.fillStyle = 'rgba(12,20,15,0.82)';
       g.beginPath();
-      g.roundRect(-tw / 2, ty - 11, tw, 22, 11);
+      g.roundRect(-tw / 2, ty - 11 * u, tw, 22 * u, 11 * u);
       g.fill();
       g.fillStyle = '#fff';
       g.fillText(tag, 0, ty + 1);
