@@ -34,14 +34,9 @@ interface Crab {
   spot?: {
     x: number;
     to: number;
-    /** Height above its row on the sand, now and where it goes: rows and the walking lane. */
-    dy: number;
-    toDy: number;
     leaving: boolean;
     /** When it began to bury itself in the sand, leaving. */
     goneAt: number;
-    /** When its spot last moved along the line: those moving right wait for the others to step back. */
-    movedAt: number;
     crown: boolean;
     ring: string | undefined;
     tag: string | undefined;
@@ -56,8 +51,6 @@ export interface CrabSpot {
   readonly nickname: string;
   readonly avatar?: string | undefined;
   readonly x: number;
-  /** Pixels up from where the sand would have it: a second row behind the first. */
-  readonly dy?: number;
   /** It wears the crown: on a laid-out beach the arena says who leads. */
   readonly crown?: boolean;
   readonly ring?: string | undefined;
@@ -68,22 +61,21 @@ export interface CrabSpot {
  * Snake Arena lays the beach out itself (null: Feed's own beach, the default). A crab comes up out
  * of the sand at its spot as Feed's do, once any crab still burying there is gone, and buries
  * itself again when it leaves or changes group. When its spot moves along the line it walks there
- * sideways, all of them at once: one moving left steps back a little first, the others wait for
- * that, so no two pictures ever cross. A like makes its crab hop as usual but never brings one.
+ * sideways on one line in the sand, never leaving it: all of them at once and at one pace, and two
+ * that trade places pass each other, the one moving up the line in front. A like makes its crab
+ * hop as usual but never brings one.
  */
 export interface CrabWalks {
   /** Size of the animals. */
   readonly scale: number;
   /** How far up a crab walks when it comes, goes or crosses the beach: no picture is there. */
   readonly lane: number;
-  /** Space between two spots: a move of about one is a short walk, not through the lane. */
+  /** Space between two spots: a walk of one place takes PLACE_WALK seconds. */
   readonly step: number;
-  /** How far up a crab steps to pass another one on a short walk forward. */
-  readonly lift: number;
 }
 let managed: ({ spots: readonly CrabSpot[] } & CrabWalks) | null = null;
 export function setCrabSpots(spots: readonly CrabSpot[] | null, walks?: CrabWalks): void {
-  managed = spots ? { spots, scale: 1, lane: 0, step: 0, lift: 0, ...walks } : null;
+  managed = spots ? { spots, scale: 1, lane: 0, step: 0, ...walks } : null;
 }
 
 /** Where the sleeping crabs begin on the right of the beach (W when there are none). */
@@ -91,8 +83,11 @@ export function sleepersFrom(): number {
   if (!beach || !sleeperCount) return W;
   return Math.min(...(SLEEPER_X[sleeperCount] ?? [940])) - 60;
 }
-/** Pixels a second a crab walks to its spot, and the clock of the last frame it walked at. */
-const WALK = 260;
+/**
+ * Seconds a crab takes to walk one place along the line, whatever the spacing: quick, and long
+ * enough to see who passes whom. The clock of the last frame it walked at.
+ */
+const PLACE_WALK = 0.5;
 let walkedAt = -1;
 
 /** How long a crab takes to bury itself, the reverse of coming out of the sand. */
@@ -101,7 +96,9 @@ const BURY = 0.5;
 /** The crabs follow the spots: newcomers come up at their spot, those gone bury themselves. */
 function followSpots(t: number): void {
   if (!managed) return;
-  const dt = walkedAt < 0 ? 0 : Math.min(0.1, Math.max(0, t - walkedAt));
+  const dt = walkedAt < 0 ? 0 : Math.min(0.1, Math.max(0, t - walkedAt)),
+    // Pixels a second: one place in PLACE_WALK seconds.
+    pace = (managed.step || 120) / PLACE_WALK;
   walkedAt = t;
   // The beach's clock, which the sleepers keep on Feed's beach.
   now = t;
@@ -151,15 +148,11 @@ function followSpots(t: number): void {
       if (crab.face) crab.face.fresh = 0;
     }
     if (crab.spot?.ring !== s.ring && crab.face) crab.face.fresh = 0;
-    const moved = crab.spot !== undefined && Math.abs(crab.spot.to - s.x) > 2;
     crab.spot = {
       x: crab.spot?.x ?? s.x,
       to: s.x,
-      dy: crab.spot?.dy ?? s.dy ?? 0,
-      toDy: s.dy ?? 0,
       leaving: false,
       goneAt: 0,
-      movedAt: moved ? now : (crab.spot?.movedAt ?? -Infinity),
       crown: s.crown === true,
       ring: s.ring,
       tag: s.tag,
@@ -172,11 +165,8 @@ function followSpots(t: number): void {
       crab.spot = {
         x,
         to: x,
-        dy: crab.spot?.dy ?? 0,
-        toDy: crab.spot?.dy ?? 0,
         leaving: true,
         goneAt: now,
-        movedAt: -Infinity,
         crown: false,
         ring: crab.spot?.ring,
         tag: undefined,
@@ -190,16 +180,10 @@ function followSpots(t: number): void {
       if (now - spot.goneAt >= BURY) crabs[i] = undefined;
       return;
     }
-    // Sideways along the sand. One moving left steps back first and walks behind; one moving
-    // right waits for that, then walks on the line; both settle on the line once there.
-    const d = spot.to - spot.x,
-      lift = managed?.lift ?? 0,
-      stepBack = lift / (WALK * 0.6),
-      back = d < -0.5 ? spot.toDy + lift : spot.toDy,
-      up = back - spot.dy;
-    if (Math.abs(up) > 0.5) spot.dy += Math.sign(up) * Math.min(Math.abs(up), WALK * 0.6 * dt);
-    else if (d < -0.5 || (d > 0.5 && now - spot.movedAt >= stepBack))
-      spot.x += Math.sign(d) * Math.min(Math.abs(d), WALK * dt);
+    // Straight along its line in the sand, every crab at once and at the same pace: only its x
+    // ever changes (paintCrabs keeps its feet on one line wherever it stands).
+    const d = spot.to - spot.x;
+    if (Math.abs(d) > 0.5) spot.x += Math.sign(d) * Math.min(Math.abs(d), pace * dt);
   });
 }
 
@@ -361,6 +345,8 @@ function rand(i: number, d: number): number {
 // The crest of the front dune, the same curve the ambience draws its sand with.
 const dune = (x: number): number =>
   112 + 28 * Math.sin(x * 0.0046 + 4.1) + 10 * Math.sin(x * 0.02 + 1.0);
+/** The lowest that crest ever comes: a line there is on the sand all along the beach. */
+const LOWEST_DUNE = 112 - 28 - 10;
 
 // Hearts and counts are drawn once to small images and stamped: a like spree puts dozens of
 // hearts up at once, and stroking each of them every frame is what would cost.
@@ -536,7 +522,7 @@ export function paintCrabs(t: number, rise: number, reduced: boolean, weather: W
   let leader: Crab | undefined;
   for (const c of crabs)
     if (ranks && c && c.total >= CROWN_FROM && c.total > (leader?.total ?? 0)) leader = c;
-  crabs.forEach((crab, i) => {
+  const paintOne = (crab: Crab | undefined, i: number): void => {
     if (!crab) return;
     if (crab.owed > 0 && t - crab.hop > HOP) {
       crab.hop = t;
@@ -555,8 +541,11 @@ export function paintCrabs(t: number, rise: number, reduced: boolean, weather: W
       x = spot
         ? spot.x + 4 * Math.sin(t * w * still + ph)
         : W * (0.12 + 0.19 * i) + 60 * Math.sin(t * w * still + ph),
-      // Never so low that the frame cuts its feet or its shadow.
-      y = Math.min(H + low - dune(x) + 12 + rand(i, 961) * 12, feetMax()) - (spot?.dy ?? 0),
+      // Never so low that the frame cuts its feet or its shadow. On a laid-out beach its feet keep
+      // one line wherever it stands, the dune's lowest, so walking never takes it up or down.
+      y = Math.min(H + low - (spot ? LOWEST_DUNE : dune(x)) + 12 + rand(i, 961) * 12, feetMax()),
+      // Its steps bob it a little, except on a laid-out beach.
+      gait = spot ? 0 : 1,
       step = t * 13 + i * 2,
       out =
         Math.max(0, Math.min(1, (t - crab.born) / 0.5)) *
@@ -585,9 +574,9 @@ export function paintCrabs(t: number, rise: number, reduced: boolean, weather: W
       x,
       y +
         18 -
-        Math.abs(Math.sin(step)) * 1.5 * pace -
+        Math.abs(Math.sin(step)) * 1.5 * pace * gait -
         jump -
-        bounce * (kind.bound?.[0] ?? 0) -
+        bounce * (kind.bound?.[0] ?? 0) * gait -
         (kind.hover ? kind.hover + 5 * Math.sin(t * 2.3 + i) : 0),
     );
     g.scale(1.4 * out, 1.4 * out);
@@ -658,7 +647,18 @@ export function paintCrabs(t: number, rise: number, reduced: boolean, weather: W
       g.drawImage(heart(), hx - w / 2, hy - w / 2, w, w);
     });
     g.globalAlpha = 1;
-  });
+  };
+  if (managed) {
+    // Two crabs trading places pass each other on the same line: the one walking up the line, to
+    // the left, goes in front.
+    const ahead = (c: Crab | undefined): number => (c?.spot && c.spot.to < c.spot.x - 0.5 ? 1 : 0);
+    crabs
+      .map((_, i) => i)
+      .sort((p, q) => ahead(crabs[p]) - ahead(crabs[q]))
+      .forEach((i) => {
+        paintOne(crabs[i], i);
+      });
+  } else crabs.forEach(paintOne);
   if (beach) paintFlights(t, low);
   g.restore();
 }
@@ -915,9 +915,11 @@ function candidates(): string[] {
 /**
  * The sleeper moves on to the next viewer whose picture has loaded, or keeps its own while they
  * are still here, or shows nobody. The next few pictures load meanwhile; while the next one is
- * still on its way the turn waits for it, a moment at most, and this returns false.
+ * still on its way the turn waits for it, a moment at most, and this returns false. On a beach
+ * Snake Arena lays out a sleeper never goes: with nobody asleep left to show it keeps its face,
+ * and at a turn, or with no face yet, it shows another viewer seen on this live (spare).
  */
-function rotate(s: Sleeper): boolean {
+function rotate(s: Sleeper, turn = false): boolean {
   let next: string | undefined,
     waiting = false;
   for (const name of candidates().slice(0, AHEAD)) {
@@ -929,7 +931,9 @@ function rotate(s: Sleeper): boolean {
     if (state === 'ready') next = name;
     else if (state === 'loading' && now - v.asked < LOAD_WAIT) waiting = true;
   }
-  const keep = s.who !== undefined && stays(s.who),
+  if (managed && next === undefined && !waiting && (s.who === undefined || (turn && !stays(s.who))))
+    next = spare();
+  const keep = s.who !== undefined && (stays(s.who) || managed !== null),
     who = next ?? (keep ? s.who : undefined),
     v = next === undefined ? undefined : viewers.get(next);
   if (v) {
@@ -947,6 +951,24 @@ function rotate(s: Sleeper): boolean {
     s.swap = now;
   }
   return next !== undefined || !waiting;
+}
+
+/**
+ * For a sleeper on a beach Snake Arena lays out, with nobody asleep left to show: a viewer seen on
+ * this live whose picture has loaded, those without an animal out first, then the least shown and
+ * the latest seen. The next few pictures load meanwhile.
+ */
+function spare(): string | undefined {
+  const busy = new Set(sleepers.map((o) => o.who)),
+    out = new Set(crabs.flatMap((c) => (c ? [c.nickname] : []))),
+    pool = [...viewers].filter(
+      ([name, v]) => !busy.has(name) && photo(v.avatar, false) !== 'failed',
+    );
+  pool.sort(
+    ([a, p], [b, q]) => Number(out.has(a)) - Number(out.has(b)) || p.shown - q.shown || q.at - p.at,
+  );
+  for (const [name, v] of pool.slice(0, AHEAD)) if (photo(v.avatar) === 'ready') return name;
+  return undefined;
 }
 
 function buildSleepers(): void {
@@ -991,13 +1013,13 @@ export function stepSleepers(t: number, weather: Weather): void {
         burst(s);
         wake(s.who, avatar, n);
       }
-      rotate(s);
+      rotate(s, true);
       // A face just come stays up a moment before the next turn.
       if (s.next - now < 1) s.next += ROTATE;
     }
     if (s.flight) continue;
     if (now >= s.next) {
-      if (rotate(s)) s.next = Math.max(s.next + ROTATE, now + ROTATE / 2);
+      if (rotate(s, true)) s.next = Math.max(s.next + ROTATE, now + ROTATE / 2);
     } else if (s.who === undefined || !stays(s.who)) rotate(s);
   }
   // A beach Snake Arena lays out keeps every crab it placed.
@@ -1254,9 +1276,17 @@ function paintSleepers(t: number, low: number, reduced: boolean): void {
   reducedNow = reduced;
   for (const s of sleepers) {
     const u = Math.min(1, Math.max(0, (t - s.swap) / FADE)),
-      // With nobody to show the sleeper fades away, and back in with the next face.
-      shown =
-        s.who !== undefined ? (s.prev !== undefined ? 1 : u) : s.prev !== undefined ? 1 - u : 0;
+      // With nobody to show the sleeper fades away, and back in with the next face. On a beach
+      // Snake Arena lays out it is always there, its first face fading in over it.
+      shown = managed
+        ? 1
+        : s.who !== undefined
+          ? s.prev !== undefined
+            ? 1
+            : u
+          : s.prev !== undefined
+            ? 1 - u
+            : 0;
     if (shown <= 0.01) continue;
     const y = sleeperY(s.x, low),
       { stir, tilt } = stirOf(s, t);

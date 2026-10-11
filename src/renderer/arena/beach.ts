@@ -135,9 +135,9 @@ export function layOutBeach(): void {
         tag: i === 0 ? 'NEXT' : undefined,
       });
     });
-  // Every animal on Feed's own ground line, walking along it as Feed's do.
-  // Ranking changes walk along the sand, the one moving forward a picture's height behind.
-  setCrabSpots(spots, { scale, lane: 0, step: unit, lift: 2 * PHOTO * scale + 4 });
+  // Every animal on one line in the sand: a ranking change, or a move in the queue, is a walk
+  // sideways along it, the one moving up passing in front of the other.
+  setCrabSpots(spots, { scale, lane: 0, step: unit });
 }
 
 /** A player's flag: a small pennant in their snake's colour, held up beside the picture. */
@@ -171,13 +171,18 @@ export function paintFlags(t: number): void {
 /** An animal's picture is drawn at 28 of its 32 half-size units (crabs.ts paints it so). */
 const CRAB_PHOTO = 28 / 32;
 
-/** The red ring on each animal's picture outline, where crabs.ts drew the picture this frame. */
+/**
+ * The red ring on each waiting animal's picture outline, where crabs.ts drew the picture this
+ * frame. On the beach a red ring only ever means likes filling the way in: a player's animal wears
+ * none, its likes fill the speed ring on its snake's picture on the board.
+ */
 export function paintBeachRings(t: number): void {
   const need = ENTRY.likesNeeded,
     leader = queueOrder()[0],
     c = ctx;
   for (const [nickname, f] of crabFaces()) {
-    if (nickname === leader && !snakeOf(nickname)) {
+    if (snakeOf(nickname)) continue;
+    if (nickname === leader) {
       // The one going in next: its ring glows a little, softly breathing.
       const r = f.r * CRAB_PHOTO;
       c.save();
@@ -189,9 +194,7 @@ export function paintBeachRings(t: number): void {
       c.stroke();
       c.restore();
     }
-    // A player's animal shows its snake's speed gauge; a waiting one its entry ring.
-    const s = snakeOf(nickname),
-      fill = s ? s.boost / TUNING.boostCap : (rings.get(nickname) ?? 0) / need;
+    const fill = (rings.get(nickname) ?? 0) / need;
     if (fill > 0.01) likesRing(f.x, f.y, f.r * CRAB_PHOTO, Math.min(1, fill));
   }
 }
