@@ -1,8 +1,9 @@
 # Architecture
 
 How the app is put together. For the vocabulary see [concepts.md](concepts.md), for what the
-games do see [rules-duel.md](rules-duel.md) and [rules-feed.md](rules-feed.md), and for the
-reasons behind the choices below see [decisions.md](decisions.md).
+games do see [rules-duel.md](rules-duel.md), [rules-feed.md](rules-feed.md) and
+[rules-arena.md](rules-arena.md), and for the reasons behind the choices below see
+[decisions.md](decisions.md).
 
 ## Windows
 
@@ -17,6 +18,7 @@ and closes the launcher; "Change mode" in a control room does the reverse.
       +---------v---------+   BroadcastChannel   +-----v-------------+
       |   game.html       |<---- 'viper-duel' ---+  control.html     |
       |   feed.html       |<---- 'viper-feed' ---+  feed-control.html|
+      |   arena.html      |<--- 'viper-arena' ---+ arena-control.html|
       |   (on stream)     |  commands in,        |  (private)        |
       |                   |  state out (2 Hz)    |                   |
       +---------+---------+                      +-------------------+
@@ -28,7 +30,8 @@ and closes the launcher; "Change mode" in a control room does the reverse.
 
 Only one mode runs at a time. Each has its own channel and protocol
 (`src/shared/control-protocol.ts`, `src/shared/feed-protocol.ts`), so a change to one can't
-break the other. Pages ask the main process for a window change by navigating to a reserved
+break the other. Snake Arena is the exception: it plays inside Feed's scene, so it speaks Feed's
+protocol on its own channel and adds what only the arena has (`src/shared/arena-protocol.ts`). Pages ask the main process for a window change by navigating to a reserved
 path (`/__viper/open?mode=feed`, `/__viper/launcher`) that it intercepts, so no page needs a
 preload bridge.
 
@@ -43,7 +46,8 @@ Some things that look odd but are on purpose:
 - Background throttling is off: the game window is captured, not looked at, and Chromium drops
   hidden windows to about 1 fps.
 - All windows are sandboxed, can't navigate away, and keep their titles (capture tools pick
-  windows by title: `Viper Duel`, `Viper Feed`). A second launch just focuses the open ones.
+  windows by title: `Viper Duel`, `Viper Feed`, `Viper Arena`). A second launch just focuses the
+  open ones.
 - Settings still live under the old `Viper Duel` user data folder, so the rename to Viper didn't
   reset anything.
 
@@ -109,7 +113,29 @@ Its rules are its own and live in `feed/`:
 `feed-control/` is its control room, built from the same components as the duel's. `launcher/`
 is the first screen.
 
+## Snake Arena
+
+The third mode, one snake per viewer, plays its own board inside Feed's scene. Everything around
+the board (forest, ring, flower, animals, alerts, entrances, end screen, journal, supporters) is
+imported from `feed/` as it is. `arena/` holds the rest:
+
+| Module     | What's in it                                                                  |
+| ---------- | ----------------------------------------------------------------------------- |
+| `main.ts`  | the frame loop: Feed's scene around the board, the round on the arena's clock |
+| `arena.ts` | the board, and the only file that knows how it plays (a placeholder for now)  |
+| `link.ts`  | Feed's link on the arena's channel and storage, plus the game's tuning values |
+
+Feed's link hands every like and gift it counts to a `board` object; Feed points it at its round,
+the arena at its round and its board. Feed's settings are saved under `viper-arena-...` keys in the
+arena, so neither mode changes what the other reads back.
+
+`arena-control/` is its control room: Feed's control room shell and cards (`feed-control/`) on
+the arena's channel, with the arena's round card and an Arena card for the tuning values.
+
 ## Persistence and sync (Feed)
+
+Snake Arena writes its journal and the same supporters list the same way. It has no round backup
+yet.
 
 Gifts are payments, so the Feed state that represents them is persisted outside the renderer. The
 renderer holds the state in memory; the main process pulls it on a timer with
