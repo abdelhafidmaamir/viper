@@ -162,6 +162,9 @@ export function tailMoves(me: Snake, c: number): boolean {
 /** A move's score for leaving room enough: above anything the other terms can add up to. */
 const SAFE = 100_000;
 
+/** The strong brain's cost of a cell next to a bigger head: a head-on lost. */
+const HEAD_ON = 5000;
+
 /** Room a step must leave: the whole body and a little more, so the snake never boxes itself in. */
 export const roomNeeded = (len: number): number => Math.ceil(len) + 2;
 
@@ -187,9 +190,11 @@ export function chooseNext(me: Snake, s: Sight, rand: () => number): number {
   const chased =
       me.mode === 'chase' && !ownWaiting ? s.snakes.find((o) => o.id === me.target) : undefined,
     near2 = (o: Snake): boolean => Math.hypot(o.x - me.x, o.y - me.y) <= 2.5,
+    // With its own berries waiting, only a head right there is fled, and never by a snake that
+    // cannot die.
     threat =
       me.mode === 'defend'
-        ? s.snakes.find((o) => o.id === me.target && (!ownWaiting || near2(o)))
+        ? s.snakes.find((o) => o.id === me.target && (!ownWaiting || (near2(o) && !me.immune)))
         : undefined;
   for (const o of s.snakes) {
     if (o.id === me.id || !o.alive) continue;
@@ -241,8 +246,10 @@ export function chooseNext(me: Snake, s: Sight, rand: () => number): number {
     return !!o && o.len * 1.05 < len;
   };
   // Three passes: the calm road first (no crowd, no heads), then only heads kept clear, then anything.
+  // With its own berries waiting, a crowd is no reason for a detour or for other food: the calm
+  // road is skipped, heads are still kept clear.
   let best = -1;
-  for (const pass of [2, 1, 0]) {
+  for (const pass of ownWaiting ? [1, 0] : [2, 1, 0]) {
     dist.fill(-1);
     dist[head] = 0;
     parent[head] = -1;
@@ -494,7 +501,7 @@ export function superNext(me: Snake, s: Sight, rand: () => number): number {
     if (o.id === me.id || !o.alive || !o.in || !onBoard(o.cells[0] ?? -1)) continue;
     if (o.len * 1.05 >= len) {
       // Next to a bigger head is a head-on lost: worse than any berry is worth.
-      for (const k of neighbours(o.cells[0] ?? 0)) risky.set(k, 5000);
+      for (const k of neighbours(o.cells[0] ?? 0)) risky.set(k, HEAD_ON);
       heading(o, 3).forEach((c, i) => {
         risky.set(c, Math.max(risky.get(c) ?? 0, 300 - i * 90));
         for (const k of neighbours(c)) risky.set(k, Math.max(risky.get(k) ?? 0, 150 - i * 50));
@@ -569,8 +576,11 @@ export function superNext(me: Snake, s: Sight, rand: () => number): number {
     let score = holds([k], me, s, need, limit, depth)
       ? SAFE
       : Math.min(roomAfter([k], me, s, limit), need) * 20;
-    // An unbeatable snake fears nothing; the others keep clear of bigger heads.
-    if (!me.immune) score -= risky.get(k) ?? 0;
+    // An unbeatable snake fears nothing; the others keep clear of bigger heads. On the way to its
+    // own berries, only a head-on it would lose turns a snake away, not where a bigger head may
+    // go next.
+    const risk = risky.get(k) ?? 0;
+    if (!me.immune && (!ownGoal || risk >= HEAD_ON)) score -= risk;
     // Straight to the goal: the move that shortens the way to it, the more for its own berries.
     if (me.goal >= 0) {
       const d = reach[me.goal] ?? -1;
@@ -584,9 +594,9 @@ export function superNext(me: Snake, s: Sight, rand: () => number): number {
         if (mineTo >= 0 && mineTo <= i + 1) score += 900 / (1 + mineTo);
       });
     // Escape: away from where each bigger head is heading; with its own berries waiting, only
-    // from a head right there.
+    // from a head right there, and never by a snake that cannot die.
     for (const o of hunters) {
-      if (ownGoal && Math.hypot(o.x - me.x, o.y - me.y) > 3) continue;
+      if (ownGoal && (me.immune || Math.hypot(o.x - me.x, o.y - me.y) > 3)) continue;
       const way = heading(o, 2),
         far = Math.min(
           ...way.map((c) => Math.abs(cellX(k) - cellX(c)) + Math.abs(cellY(k) - cellY(c))),
