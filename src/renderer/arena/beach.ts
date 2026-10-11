@@ -6,9 +6,8 @@
 
 import { ctx } from '../engine/canvas.ts';
 import { tr } from '../engine/i18n.ts';
-import { GOLD } from '../engine/palette.ts';
-import { paintRing } from '../feed/hud.ts';
-import { BOARD_W, FX0, FY0 } from '../feed/grid.ts';
+import { GOLD, berryTint } from '../engine/palette.ts';
+import { BOARD_H, BOARD_W, FX0, FY0 } from '../feed/grid.ts';
 import { FONT, crown, paintFace } from '../feed/paint.ts';
 import {
   beachLine,
@@ -20,7 +19,15 @@ import {
   type CrabSpot,
 } from '../feed/crabs.ts';
 import { W } from '../engine/layout.ts';
-import { COLOURS, crownColour, likesRing, speedStreaks } from './board-paint.ts';
+import {
+  BOLT,
+  COLOURS,
+  crownColour,
+  likesRing,
+  paintBolt,
+  paintBoostBolt,
+  speedStreaks,
+} from './board-paint.ts';
 import {
   BOOST,
   FLIGHT,
@@ -58,22 +65,68 @@ function clockNow(): { left: number; length: number; urgent: boolean } | null {
   return { left, length: TUNING.roundTime, urgent: left <= 20 && arena.phase === 'play' };
 }
 
-/** Feed's ring as the clock: full when the step starts, empty at 0:00. */
-export function paintArenaRing(t: number): void {
-  const clock = clockNow();
-  paintRing(
-    t,
-    clock ? clock.left / clock.length : 0,
-    clock?.urgent ?? false,
-    qualifying() ? undefined : (crownColour() ?? undefined),
-    // Twice Feed's width: on a phone Feed's rail is barely more than a pixel.
-    2,
-  );
+/**
+ * The rounded frame round the board as one path that starts at its top centre and runs
+ * clockwise back to it, so a dash from 0 covers exactly the share asked, from the top centre.
+ * (Feed's paintRing traces the prod roundRect, which starts at the top left corner: offset to the
+ * top centre, its dash never covers the stretch from that corner to the centre, and the clock
+ * looked stuck for the first eighth of every step.)
+ */
+function frame(x: number, y: number, w: number, h: number, r: number): void {
+  const c = ctx;
+  c.beginPath();
+  c.moveTo(x + w / 2, y);
+  c.arcTo(x + w, y, x + w, y + h, r);
+  c.arcTo(x + w, y + h, x, y + h, r);
+  c.arcTo(x, y + h, x, y, r);
+  c.arcTo(x, y, x + w, y, r);
+  c.closePath();
 }
 
 /**
+ * Feed's ring as the clock, in its colours, twice its width (read on a phone): full when the
+ * step starts, emptying clockwise from the top centre to 0:00, full again at once at the next.
+ */
+export function paintArenaRing(t: number): void {
+  const clock = clockNow(),
+    fill = clock ? Math.max(0, Math.min(1, clock.left / clock.length)) : 0,
+    urgent = clock?.urgent ?? false,
+    tint = qualifying() ? undefined : (crownColour() ?? undefined),
+    c = ctx,
+    x = FX0 - 26,
+    y = FY0 - 26,
+    w = BOARD_W + 52,
+    h = BOARD_H + 52,
+    r = 30,
+    perim = 2 * (w + h) - 8 * r + 2 * Math.PI * r;
+  c.save();
+  c.lineWidth = 14;
+  c.lineCap = 'round';
+  c.strokeStyle = 'rgba(255,255,255,0.1)';
+  frame(x, y, w, h, r);
+  c.stroke();
+  if (fill > 0.001) {
+    const glow = urgent ? 0.6 + 0.4 * Math.sin(t * 7) : 0.9;
+    c.setLineDash([perim * fill, perim * 2]);
+    c.lineDashOffset = 0;
+    const g = c.createLinearGradient(x, y + h, x, y);
+    g.addColorStop(0, RING_GREEN);
+    g.addColorStop(1, GOLD);
+    c.strokeStyle = urgent ? `rgba(242,197,124,${String(0.25 * glow)})` : 'rgba(155,226,138,0.18)';
+    c.lineWidth = 34;
+    frame(x, y, w, h, r);
+    c.stroke();
+    c.strokeStyle = tint ?? g;
+    c.lineWidth = 14;
+    c.stroke();
+  }
+  c.restore();
+}
+const RING_GREEN = berryTint(null);
+
+/**
  * The time left in a pill at the ring's top centre, painted after the flower, which reaches over
- * it. In the qualifying it reads "QUALIFYING  0:24", a little larger, and beats once a second in
+ * it. In the qualifying it reads "QUALIFYING  0:24", at the same size, and beats once a second in
  * gold through the last five: the only word on the qualifying's screen.
  */
 export function paintArenaTime(): void {
@@ -87,8 +140,9 @@ export function paintArenaTime(): void {
     word = q ? tr('arena.qualifying') : '',
     beat = q && clock.urgent && clock.left > 0 ? 1 - (clock.left % 1) : 0,
     pop = 1 + 0.14 * Math.max(0, 1 - beat * 4),
-    size = q ? 44 : 40,
-    h = q ? 60 : 52;
+    // One pill for both steps: the battle's size, the word in the same weight.
+    size = 40,
+    h = 52;
   c.save();
   c.translate(x, y);
   if (beat > 0) c.scale(pop, pop);
@@ -228,18 +282,13 @@ export function paintPodium(rise: number): void {
 }
 
 /**
- * The sleeping crab lies above the board, top right beside the flower, on a small patch of the
- * beach's sand so it never floats on the sky: `x` its middle, `y` the line its shadow lies on.
+ * The sleeping crab lies above the board, top right beside the flower, centred on the flower's
+ * band, at a size where its face reads on a phone (photo radius 41): `x` its middle, `y` the line
+ * its shadow lies on, `scale` its size there. Measured on a frame: the closed flower stands from
+ * 113 to 211 units (98 tall); the sleeper with its picture and heart is 182 units tall at full
+ * size, its photo radius 39, so it cannot be both as tall as the flower and readable.
  */
-export const SLEEPER_SPOT = { x: 958, y: 256 };
-export function paintSleeperSand(): void {
-  const { x, y } = SLEEPER_SPOT,
-    half = 96;
-  paintSand(x - half, x + half, y + 4, (px) => {
-    const v = Math.abs(px - x) / half;
-    return v < 1 ? 16 * (0.5 + 0.5 * Math.cos(Math.PI * v)) + 6 * (1 - v) : 0;
-  });
-}
+export const SLEEPER_SPOT = { x: 966, y: 263, scale: 1.05 };
 
 /**
  * The beach on Feed's ground line, laid out each frame, clear of the sleeping crabs on the right.
@@ -268,17 +317,19 @@ export function layOutBeach(): void {
   );
   const walks = { ease: MOVE, ground: podiumHeight };
   if (qualifying()) {
-    const unit = width / QUEUE.spots,
-      scale = Math.max(0.55, Math.min(1, (unit - 10) / (2 * PHOTO)));
-    queueOrder()
-      .filter((n) => !seatOf(n) && !challengers.includes(n))
-      .forEach((nickname, i) => {
-        spots.push({
-          nickname,
-          avatar: arena.viewers.get(nickname)?.avatar,
-          x: margin + unit / 2 + i * unit,
-        });
+    // One compact group, evenly spaced (a picture's width between two), centred on the beach;
+    // as animals come and go the others ease together, no gap left open.
+    const unit = Math.min(width / QUEUE.spots, 3 * PHOTO),
+      scale = Math.max(0.55, Math.min(1, unit / (3 * PHOTO))),
+      names = queueOrder().filter((n) => !seatOf(n) && !challengers.includes(n)),
+      from = (margin + right) / 2 - ((names.length - 1) * unit) / 2;
+    names.forEach((nickname, i) => {
+      spots.push({
+        nickname,
+        avatar: arena.viewers.get(nickname)?.avatar,
+        x: from + i * unit,
       });
+    });
     setCrabSpots(spots, { scale, lane: 0, step: unit, ...walks });
     return;
   }
@@ -373,8 +424,9 @@ const CRAB_PHOTO = 28 / 32,
 /**
  * In the battle, the red ring round each player's animal: their likes toward the next speed
  * boost. When it fills, it flashes, the animal runs on the spot with speed streaks in its snake's
- * colour, and the ring starts again from what was left over. The sleepers' hearts carry the same
- * streaks: a like is speed.
+ * colour, a bolt shows over it as long as the boost lasts (the same as on the snake's photo), and
+ * the ring starts again from what was left over. The sleeping crab's heart holds a bolt: a like
+ * is speed.
  */
 export function paintBeachRings(t: number): void {
   if (qualifying()) return;
@@ -399,8 +451,11 @@ export function paintBeachRings(t: number): void {
       c.restore();
       speedStreaks(f.x - r * 0.9, f.y + r * 0.6, 0, COLOURS[s.colour], 1 - u, t, r * 0.7);
     }
+    // The same bolt as on the snake's photo, above the animal, for as long as the boost lasts.
+    paintBoostBolt(s, f.x + r * 0.75, f.y - r * 1.3, BOLT * 0.9, t);
   }
-  for (const h of sleeperHearts()) speedStreaks(h.x - 42, h.y, 0, '#ffffff', 0.55, t, 26);
+  // The sleeping crab's heart holds a bolt, breathing with it: a like is speed.
+  for (const h of sleeperHearts()) paintBolt(h.x, h.y + h.size * 0.02, h.size * 0.5);
 }
 
 /**

@@ -12,7 +12,6 @@ import {
   SLEEPER_SPOT,
   layOutBeach,
   paintPodium,
-  paintSleeperSand,
   paintArenaRing,
   paintArenaTime,
   paintBeachRings,
@@ -29,7 +28,7 @@ import { qualifying } from './qualify.ts';
 import { arenaRound, stepArena } from './round.ts';
 import { TUNING, alive, arena, options, toPx } from './rules.ts';
 
-export { SLEEPER_SPOT, layOutBeach, paintArenaTime, paintPodium, paintSleeperSand, qualifying };
+export { SLEEPER_SPOT, layOutBeach, paintArenaTime, paintPodium, qualifying };
 export { arenaGift, arenaLike } from './entry.ts';
 
 let settings: ArenaSettings | null = null;

@@ -96,11 +96,11 @@ export function sleepersFrom(): number {
 }
 
 /**
- * Snake Arena lays its sleeper elsewhere than on the beach (above its board, on a patch of sand it
- * paints): `x` its middle, `y` the line its shadow lies on. Null: on the beach, as on Feed.
+ * Snake Arena lays its sleeper elsewhere than on the beach (above its board): `x` its middle, `y`
+ * the line its shadow lies on, `scale` its size there. Null: on the beach, as on Feed.
  */
-let sleeperSpot: { x: number; y: number } | null = null;
-export function setSleeperSpot(spot: { x: number; y: number } | null): void {
+let sleeperSpot: { x: number; y: number; scale: number } | null = null;
+export function setSleeperSpot(spot: { x: number; y: number; scale: number } | null): void {
   sleeperSpot = spot;
   buildSleepers();
 }
@@ -112,17 +112,17 @@ const sleeperXs = (): number[] =>
     : [...(SLEEPER_X[sleeperCount] ?? [940])];
 
 /**
- * Snake Arena's battle: the sleepers show only these viewers (its players), each while they have
- * not liked for a while, whether or not their animal is out. Null: anyone here, as on Feed.
+ * Snake Arena's battle: the sleepers show these viewers (its players) and only them, each in
+ * turn, whether or not their animal is out. Null: anyone here, as on Feed.
  */
 let sleeperPool: ReadonlySet<string> | null = null;
 export function setSleeperPool(names: Iterable<string> | null): void {
   sleeperPool = names ? new Set(names) : null;
 }
 
-/** Where each sleeper's heart was drawn last frame. */
-const heartSpots: { x: number; y: number }[] = [];
-export const sleeperHearts = (): readonly { x: number; y: number }[] => heartSpots;
+/** Where each sleeper's heart was drawn last frame, and its size then (it breathes). */
+const heartSpots: { x: number; y: number; size: number }[] = [];
+export const sleeperHearts = (): readonly { x: number; y: number; size: number }[] => heartSpots;
 
 /** A laid-out beach's crab runs on the spot a moment (Snake Arena: a like landing as speed). */
 export function crabRun(nickname: string, seconds = 0.45): void {
@@ -937,7 +937,7 @@ function sleepy(name: string, v: Viewer): boolean {
 /** Whether the viewer a sleeper shows may stay on it. */
 function stays(name: string): boolean {
   const v = viewers.get(name);
-  if (sleeperPool) return v !== undefined && sleeperPool.has(name) && now - v.liked >= IDLE;
+  if (sleeperPool) return v !== undefined && sleeperPool.has(name);
   return v !== undefined && sleepy(name, v) && here().has(name);
 }
 
@@ -976,7 +976,7 @@ function candidates(): string[] {
     rest: [string, Viewer][] = [];
   for (const name of sleeperPool ?? here()) {
     const v = viewers.get(name),
-      idle = v && (sleeperPool ? now - v.liked >= IDLE : sleepy(name, v));
+      idle = v && (sleeperPool ? true : sleepy(name, v));
     if (!v || busy.has(name) || !idle || photo(v.avatar, false) === 'failed') continue;
     (v.fresh && now - v.arrived < ARRIVED ? fresh : rest).push([name, v]);
   }
@@ -1344,6 +1344,26 @@ function paintZs(s: Sleeper, fx: number, fy: number, t: number, alpha: number): 
 
 function paintSleepers(t: number, low: number, reduced: boolean): void {
   heartSpots.length = 0;
+  // Laid elsewhere by Snake Arena, at its own size round its spot.
+  const spot = sleeperSpot;
+  if (spot) {
+    ctx.save();
+    ctx.translate(spot.x, spot.y);
+    ctx.scale(spot.scale, spot.scale);
+    ctx.translate(-spot.x, -spot.y);
+  }
+  paintSleepersHere(t, low, reduced);
+  if (spot) {
+    ctx.restore();
+    for (const h of heartSpots) {
+      h.x = spot.x + (h.x - spot.x) * spot.scale;
+      h.y = spot.y + (h.y - spot.y) * spot.scale;
+      h.size *= spot.scale;
+    }
+  }
+}
+
+function paintSleepersHere(t: number, low: number, reduced: boolean): void {
   const g = ctx,
     body = bodyOf(look),
     kind = faceKindOf(look),
@@ -1407,7 +1427,6 @@ function paintSleepers(t: number, low: number, reduced: boolean): void {
       paintZs(s, s.x, y + 18 + dy - 55 * SLEEP_SCALE, t, shown);
     // The heart is never greyed: empty and breathing, full for a moment once a like lands in it.
     const hy = heartY(y);
-    heartSpots.push({ x: s.x, y: hy });
     const fu = (t - s.filled) / FILL;
     let size = HEART_SIZE * (reduced ? 1 : 1 + 0.08 * Math.sin(t * 2.5 + s.x * 0.01));
     if (fu >= 0 && fu < 1) {
@@ -1418,6 +1437,7 @@ function paintSleepers(t: number, low: number, reduced: boolean): void {
     g.globalAlpha = shown;
     g.drawImage(bigHeart(false), s.x - size / 2, hy - size / 2, size, size);
     g.globalAlpha = 1;
+    heartSpots.push({ x: s.x, y: hy, size });
   }
 }
 

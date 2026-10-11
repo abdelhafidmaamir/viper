@@ -49,7 +49,6 @@ import {
   paintArenaClock,
   paintArenaTime,
   paintPodium,
-  paintSleeperSand,
   qualifying,
   SLEEPER_SPOT,
 } from './arena.ts';
@@ -217,7 +216,6 @@ function step(dt: number): void {
     a.paintFront(c, e);
     layOutBeach();
     paintPodium(e.subStep);
-    paintSleeperSand();
     paintCrabs(t, e.subStep, e.reduced, settings.weather);
     paintArenaBeach(t);
     paintFlower(t);
@@ -260,7 +258,7 @@ function start(): void {
   setLikeCount(false);
   // The beach has no likes ranking here: the only crown is on the biggest snake.
   setCrabRanks(false);
-  // The sleeping crab lies above the board, top right, on its own patch of sand.
+  // The sleeping crab lies above the board, top right, a little smaller.
   setSleeperSpot(SLEEPER_SPOT);
   // The gift thanks at the top keeps its cards and photo, without the particles thrown around it.
   setFlowerMotes(false);

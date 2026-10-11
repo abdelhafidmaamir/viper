@@ -34,7 +34,7 @@ import {
   tintedBerrySprite,
 } from '../feed/paint.ts';
 import { FALL_TIME, game } from '../feed/state.ts';
-import { bumps, faceOf, shownName } from './entry.ts';
+import { bumps, faceOf, fired, shownName } from './entry.ts';
 import { FADE_OUT } from './round.ts';
 import { paintBrokenHeart, paintSnakeHearts } from './lives.ts';
 import {
@@ -58,9 +58,8 @@ const BERRY_R = 44,
   FAT = K * 1.3;
 /** A player's name under their picture, in game units. */
 const NAME_SIZE = 34;
-/** The crown holder's picture radius, and its crown's size: the stake, the largest on the board. */
-const CROWN_R = 60,
-  CROWN_SIZE = 1.8;
+/** The crown's size over the biggest snake's picture: every picture is the same size. */
+const CROWN_SIZE = 1.2;
 /** The stem from the head to the picture, in the snake's colour. */
 const STEM = 6;
 /** The arena board's shade over the ambience's surface. */
@@ -267,13 +266,13 @@ function paintHead(s: Snake, t: number): void {
     return;
   }
   const crowned = arena.crown === s.id,
-    size = faceR(s),
-    r = size * squash,
+    r = TUNING.photoR * squash,
     colour = COLOURS[s.colour],
     bob = Math.sin(t * 3) * 3,
     fx = Math.min(W - 60, Math.max(60, head.x)),
-    // A bigger picture rises by what it gains, so it stands as far above the head.
-    fy = Math.max(r + 70, head.y - 64 - (size - TUNING.photoR) + bob);
+    // Under the clock's pill at the board's top, the picture stays below it: the pill is read.
+    clear = Math.abs(fx - (FX0 + BOARD_W / 2)) < PILL_HALF + r ? FY0 + r + 10 : r + 70,
+    fy = Math.max(clear, head.y - 64 + bob);
   c.save();
   if (s.safe > 0) c.globalAlpha = 0.5 + 0.5 * Math.abs(Math.sin(s.born * 11));
   c.strokeStyle = colour;
@@ -292,6 +291,8 @@ function paintHead(s: Snake, t: number): void {
   c.restore();
   paintFace(s, fx, fy, r, colour);
   if (crowned) crown(fx, fy - r - 17, CROWN_SIZE, { x: fx, y: fy, r });
+  // Boosted: the bolt at the photo's top right, as on the player's animal on the beach.
+  paintBoostBolt(s, fx + r * 0.82, fy - r * 0.82, BOLT, t);
   // Lives: prod hearts in a row by the photo.
   paintSnakeHearts(s, fx, fy, r);
   const full = shownName(s),
@@ -309,8 +310,8 @@ function paintHead(s: Snake, t: number): void {
   c.restore();
 }
 
-/** A viewer's picture radius on the board: the crown holder's is the largest. */
-const faceR = (s: Snake): number => (arena.crown === s.id ? CROWN_R : TUNING.photoR);
+/** Half the widest clock pill (beach.ts paintArenaTime): pictures keep clear of it. */
+const PILL_HALF = 190;
 
 /**
  * The likes ring, on a picture's outline itself: same radius and width as the ring
@@ -328,6 +329,61 @@ export function likesRing(x: number, y: number, r: number, fill: number): void {
   c.arc(x, y, r, -Math.PI / 2, -Math.PI / 2 + Math.PI * 2 * Math.min(1, fill));
   c.stroke();
   c.restore();
+}
+
+/** The speed bolt's size, in game units. */
+export const BOLT = 44;
+
+/**
+ * The speed bolt, in the prod badges' manner: a warm gold lightning bolt with a dark outline,
+ * `size` units tall, centred on x, y.
+ */
+export function paintBolt(x: number, y: number, size: number, alpha = 1): void {
+  if (alpha <= 0.01) return;
+  const c = ctx,
+    k = size / 44,
+    pts: readonly (readonly [number, number])[] = [
+      [4, -22],
+      [-13, 3],
+      [-1, 3],
+      [-7, 22],
+      [13, -5],
+      [1, -5],
+      [9, -22],
+    ];
+  c.save();
+  c.globalAlpha *= alpha;
+  c.translate(x, y);
+  c.scale(k, k);
+  c.beginPath();
+  pts.forEach(([px, py], i) => {
+    if (i === 0) c.moveTo(px, py);
+    else c.lineTo(px, py);
+  });
+  c.closePath();
+  c.lineJoin = 'round';
+  c.lineWidth = 5;
+  c.strokeStyle = 'rgba(38,24,8,0.92)';
+  c.stroke();
+  const g = c.createLinearGradient(0, -22, 0, 22);
+  g.addColorStop(0, '#ffe08a');
+  g.addColorStop(1, '#f2a93b');
+  c.fillStyle = g;
+  c.fill();
+  c.restore();
+}
+
+/**
+ * A snake's boost as a bolt at (x, y): it pops in with a small scale-up when the boost fires,
+ * pulses softly while it lasts and fades out as it ends. Nothing when the snake is not boosted.
+ */
+export function paintBoostBolt(s: Snake, x: number, y: number, size: number, t: number): void {
+  if (s.boost <= 0 || s.wild) return;
+  const since = arena.clock - (fired.get(s.nickname) ?? -Infinity),
+    pop = since < 0.3 ? 1 + 0.45 * Math.sin((since / 0.3) * Math.PI) : 1,
+    pulse = 1 + 0.06 * Math.sin(t * 8),
+    fade = Math.min(1, s.boost / 0.4);
+  paintBolt(x, y, size * pop * pulse, fade);
 }
 
 /**
@@ -426,7 +482,10 @@ export function paintSnakes(
     if (s.egg) paintEggOf(c, s);
   }
   // A picture shows once its snake is out of the egg; the bigger pictures lie on top.
-  const heads = live.filter((s) => s.in && !s.wild).sort((p, q) => faceR(p) - faceR(q));
+  // The crowned picture last, on top.
+  const heads = live
+    .filter((s) => s.in && !s.wild)
+    .sort((p, q) => Number(p.id === arena.crown) - Number(q.id === arena.crown));
   for (const s of live) if (s.in && s.wild) paintHead(s, t);
   for (const s of heads) paintHead(s, t);
 }
