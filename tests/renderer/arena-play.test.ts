@@ -1,7 +1,7 @@
 import { beforeAll, describe, expect, it } from 'vitest';
 
 import { ARENA_DEFAULTS, type ArenaSettings } from '../../src/shared/arena-protocol.ts';
-import { chooseNext } from '../../src/renderer/arena/ai.ts';
+import { BERRY_STAY, chooseNext } from '../../src/renderer/arena/ai.ts';
 import { advanceArena, newArenaRound, setArenaSettings } from '../../src/renderer/arena/arena.ts';
 import { flights, likeHearts, queue, rings } from '../../src/renderer/arena/entry.ts';
 import { countOnArena } from '../../src/renderer/arena/link.ts';
@@ -16,9 +16,12 @@ import {
   placeFood,
   spawn,
   viewer,
+  waitingFor,
+  type Food,
   type Snake,
 } from '../../src/renderer/arena/rules.ts';
-import { game, hooks, newRound } from '../../src/renderer/feed/state.ts';
+import { board } from '../../src/renderer/feed/control-link.ts';
+import { FALL_TIME, game, hooks, newRound } from '../../src/renderer/feed/state.ts';
 
 const STEP = 1 / 30;
 const run = (seconds: number): void => {
@@ -193,5 +196,49 @@ describe('snake arena: a snake never turns back onto its neck', () => {
       }
       expect(reversed).toBe(0);
     }
+  });
+});
+
+describe('snake arena: a berry stays on the board half a second', () => {
+  it('a head crossing a berry in its first half second on the board leaves it there', () => {
+    fresh();
+    const me = place('ana', row(5, 5, 3));
+    const young = cellId(6, 5),
+      old = cellId(7, 5);
+    berry(young, '');
+    berry(old, '');
+    const y = arena.foodAt.get(young),
+      o = arena.foodAt.get(old);
+    if (!y || !o) throw new Error('no berries');
+    y.t = FALL_TIME + BERRY_STAY - 0.1;
+    o.t = FALL_TIME + BERRY_STAY;
+    moveInto(me, young);
+    moveInto(me, old);
+    expect(arena.foodAt.get(young)).toBe(y);
+    expect(arena.foodAt.has(old)).toBe(false);
+  });
+
+  it('gift berries are seen half a second at least, then eaten, by every brain', () => {
+    for (const brain of [{ superAI: true }, { superAI: false, backing: 'off' as const }])
+      for (const seed of [3, 11]) {
+        fresh({ ...brain, wildSnakes: 3 }, seed);
+        run(3);
+        board.gift('gina', undefined, 10, true);
+        const seen: number[] = [],
+          lying = new Map<Food, number>();
+        for (let i = 0; i < 14 / STEP; i++) {
+          advanceArena(STEP);
+          for (const [f, t] of lying)
+            if (!arena.food.includes(f)) {
+              if (alive().some((s) => s.cells[0] === f.cell)) seen.push(t + STEP);
+              lying.delete(f);
+            }
+          for (const f of arena.food) if (f.t >= FALL_TIME) lying.set(f, f.t - FALL_TIME);
+        }
+        expect(seen.length).toBeGreaterThan(0);
+        expect(Math.min(...seen)).toBeGreaterThanOrEqual(BERRY_STAY - 1e-6);
+        expect(arena.food.filter((f) => f.by === 'gina')).toHaveLength(0);
+        expect(waitingFor('gina')).toBe(0);
+      }
   });
 });

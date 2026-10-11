@@ -8,7 +8,15 @@
 import { FCOLS, FROWS } from '../feed/grid.ts';
 import { stepInto } from '../feed/path.ts';
 import { FALL_TIME, READY_TIME, game, hooks, newRound, repay, roundHold } from '../feed/state.ts';
-import { backingOf, chooseNext, neckOf, updateMode, type Sight } from './ai.ts';
+import {
+  BERRY_STAY,
+  backingOf,
+  chooseNext,
+  neckOf,
+  settled,
+  updateMode,
+  type Sight,
+} from './ai.ts';
 import { fullRingWaiting, isPilot, stepQueue, updateFlights, updatePilot } from './entry.ts';
 import { lifePour, stepLives } from './lives.ts';
 import {
@@ -180,8 +188,9 @@ function dropNear(s: Snake, by: string): void {
     hy = cellY(head),
     dx = cellX(s.next) - hx,
     dy = cellY(s.next) - hy,
-    // Cells the head covers while a berry falls: a berry there is passed before it lands.
-    passed = Math.ceil(s.speed * (FALL_TIME + 0.15));
+    // Cells the head covers while a berry falls and settles: a berry there is passed before it
+    // can be eaten.
+    passed = Math.ceil(s.speed * (FALL_TIME + BERRY_STAY + 0.15));
   // A trail straight ahead: the first free cell on the head's line past the fall, so berry after
   // berry lines up in front of the snake and it eats them in one run.
   let cell = -1;
@@ -451,7 +460,7 @@ function stepCell(s: Snake, sight: Sight): void {
   )
     sight.occ[tail] = 0;
   const f = arena.foodAt.get(target);
-  if (f && f.t >= FALL_TIME && edibleBy(f, s)) eatFood(s, f);
+  if (f && settled(f) && edibleBy(f, s)) eatFood(s, f);
   replan(s, sight);
 }
 

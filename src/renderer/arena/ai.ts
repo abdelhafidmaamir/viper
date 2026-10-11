@@ -174,12 +174,18 @@ const HEAD_ON = 5000;
 /** Room a step must leave: the whole body and a little more, so the snake never boxes itself in. */
 export const roomNeeded = (len: number): number => Math.ceil(len) + 2;
 
+/** Seconds a berry lies on the board before a head can eat it: never gone as soon as it lands. */
+export const BERRY_STAY = 0.5;
+
+/** A berry a head entering its cell eats now: landed, and on the board for BERRY_STAY. */
+export const settled = (f: Food): boolean => f.t >= FALL_TIME + BERRY_STAY;
+
 /**
- * A berry still falling is only worth aiming at if the snake gets there after it lands: a berry
- * counts once on the ground (as in Feed), and a head that arrives first passes over it.
+ * A berry still falling, or only just landed, is only worth aiming at if the snake gets there once
+ * it can be eaten (settled): a head that arrives first passes over it and leaves it there.
  */
 export const landsInTime = (f: Food, steps: number, speed: number): boolean =>
-  f.t >= FALL_TIME || steps >= (FALL_TIME - f.t) * speed;
+  settled(f) || steps >= (FALL_TIME + BERRY_STAY - f.t) * speed;
 
 /** The next cell for the snake, or -1 when no cell would let it live. */
 export function chooseNext(me: Snake, s: Sight, rand: () => number): number {
