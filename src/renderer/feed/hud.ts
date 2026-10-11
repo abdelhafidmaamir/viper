@@ -24,6 +24,8 @@ export function paintRing(
   urgent = TOTAL - cells() <= 20 && game.full < 0,
   /** One colour for the fill in place of the green to gold (Snake Arena: the crown holder's). */
   tint?: string,
+  /** How many times Feed's width the rail is drawn (Snake Arena: thicker, read on a phone). */
+  thick = 1,
 ): void {
   const c = ctx,
     x = FX0 - 26,
@@ -33,7 +35,7 @@ export function paintRing(
     r = 30;
   const perim = 2 * (w + h) - 8 * r + 2 * Math.PI * r;
   c.save();
-  c.lineWidth = 7;
+  c.lineWidth = 7 * thick;
   c.lineCap = 'round';
   c.strokeStyle = 'rgba(255,255,255,0.1)';
   c.beginPath();
@@ -47,12 +49,12 @@ export function paintRing(
   g.addColorStop(0, GREEN);
   g.addColorStop(1, GOLD);
   c.strokeStyle = urgent ? `rgba(242,197,124,${String(0.25 * glow)})` : 'rgba(155,226,138,0.18)';
-  c.lineWidth = 17;
+  c.lineWidth = 17 * thick;
   c.beginPath();
   c.roundRect(x, y, w, h, r);
   c.stroke();
   c.strokeStyle = tint ?? g;
-  c.lineWidth = 7;
+  c.lineWidth = 7 * thick;
   c.stroke();
   c.restore();
 }

@@ -21,7 +21,7 @@ import {
   paintFlights,
   paintLikePops,
 } from './beach.ts';
-import { paintFood, paintSnakes } from './board-paint.ts';
+import { paintBoardShade, paintFood, paintSnakes } from './board-paint.ts';
 import { BOOST, PILOT, QUEUE, isPilot, setPilot } from './entry.ts';
 import { paintBeachHearts } from './lives.ts';
 import { paintActors, paintSeats } from './qualify-paint.ts';
@@ -80,8 +80,11 @@ export function paintArena(
   paintSeats(t);
 }
 
-/** The ring round the board: the round's clock. */
-export const paintArenaClock = paintArenaRing;
+/** The ring round the board, the round's clock, over the board's darker shade. */
+export function paintArenaClock(t: number): void {
+  paintBoardShade();
+  paintArenaRing(t);
+}
 
 /**
  * Over the beach and the board: the players' flags and boost rings, the lives, the qualifying's

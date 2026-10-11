@@ -63,6 +63,8 @@ const CROWN_R = 60,
   CROWN_SIZE = 1.8;
 /** The stem from the head to the picture, in the snake's colour. */
 const STEM = 6;
+/** The arena board's shade over the ambience's surface. */
+const BOARD_SHADE = 'rgba(4,10,9,0.3)';
 
 /** Each colour's hex, read from paint.ts itself. */
 export const COLOURS = ((): Record<SnakeColour, string> => {
@@ -89,6 +91,21 @@ setBerryColours((giver) => {
 const phaseOf = (t: number): number =>
   ((Math.round(((t * 3.4) / (Math.PI * 2)) * BERRY_FRAMES) % BERRY_FRAMES) + BERRY_FRAMES) %
   BERRY_FRAMES;
+
+/**
+ * The board one step darker than Feed's, inside the ring and under it (the ring keeps its look):
+ * the pastel snakes stand out from it on a phone. Feed's own board is left as it is.
+ */
+export function paintBoardShade(): void {
+  const c = ctx;
+  c.save();
+  c.fillStyle = BOARD_SHADE;
+  c.beginPath();
+  // The ring's own path (feed/hud.ts paintRing): 26 units outside the board, corners of 30.
+  c.roundRect(FX0 - 26, FY0 - 26, BOARD_W + 52, BOARD_H + 52, 30);
+  c.fill();
+  c.restore();
+}
 
 /** paint.berry, for a berry at any point: free berries as Feed's, paid ones in the giver's colour. */
 function berry(x: number, y: number, t: number, colour: SnakeColour | null, size = 1): void {

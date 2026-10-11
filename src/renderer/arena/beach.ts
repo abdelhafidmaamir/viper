@@ -66,6 +66,8 @@ export function paintArenaRing(t: number): void {
     clock ? clock.left / clock.length : 0,
     clock?.urgent ?? false,
     qualifying() ? undefined : (crownColour() ?? undefined),
+    // Twice Feed's width: on a phone Feed's rail is barely more than a pixel.
+    2,
   );
 }
 
