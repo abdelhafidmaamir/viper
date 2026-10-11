@@ -58,6 +58,11 @@ const BERRY_R = 44,
   FAT = K * 1.3;
 /** A player's name under their picture, in game units. */
 const NAME_SIZE = 34;
+/** The crown holder's picture radius, and its crown's size: the stake, the largest on the board. */
+const CROWN_R = 60,
+  CROWN_SIZE = 1.8;
+/** The stem from the head to the picture, in the snake's colour. */
+const STEM = 6;
 
 /** Each colour's hex, read from paint.ts itself. */
 export const COLOURS = ((): Record<SnakeColour, string> => {
@@ -220,16 +225,6 @@ function paintGulps(s: Snake, trace: Point[]): void {
   }
 }
 
-/** Where a viewer's photo floats over its snake's head this frame (like hearts fly there). */
-export function headPhoto(s: Snake, t: number): { x: number; y: number } {
-  const head = toPx(s.x, s.y),
-    bob = Math.sin(t * 3) * 3;
-  return {
-    x: Math.min(W - 60, Math.max(60, head.x)),
-    y: Math.max(TUNING.photoR + 70, head.y - 64 + bob),
-  };
-}
-
 /** A picture swells a little as a like heart lands in it. */
 export function bumpOf(nickname: string): number {
   const at = bumps.get(nickname);
@@ -239,8 +234,10 @@ export function bumpOf(nickname: string): number {
 }
 
 /**
- * paint.paintHead for one snake: the viewer's photo floats above the head in a gold ring on its
- * stem, with the crown when this snake is the biggest, the red likes ring and the name under it.
+ * paint.paintHead for one snake: the viewer's photo floats above the head on its stem, both
+ * outlined in the snake's own colour so each face is matched to its body, with the crown (and a
+ * bigger photo) when this snake is the biggest, and the name under it. No ring: the likes' ring
+ * is on the player's animal on the beach.
  */
 function paintHead(s: Snake, t: number): void {
   const c = ctx,
@@ -252,22 +249,32 @@ function paintHead(s: Snake, t: number): void {
       crown(head.x, head.y - 24 + Math.sin(t * 4) * 2, 0.8, { x: head.x, y: head.y, r: 16 });
     return;
   }
-  const r = TUNING.photoR * squash,
-    { x: fx, y: fy } = headPhoto(s, t);
+  const crowned = arena.crown === s.id,
+    size = faceR(s),
+    r = size * squash,
+    colour = COLOURS[s.colour],
+    bob = Math.sin(t * 3) * 3,
+    fx = Math.min(W - 60, Math.max(60, head.x)),
+    // A bigger picture rises by what it gains, so it stands as far above the head.
+    fy = Math.max(r + 70, head.y - 64 - (size - TUNING.photoR) + bob);
   c.save();
   if (s.safe > 0) c.globalAlpha = 0.5 + 0.5 * Math.abs(Math.sin(s.born * 11));
-  c.strokeStyle = 'rgba(242,197,124,0.7)';
-  c.lineWidth = 3;
+  c.strokeStyle = colour;
+  c.lineWidth = STEM;
+  c.lineCap = 'round';
   c.beginPath();
   c.moveTo(head.x, head.y - 8);
   c.lineTo(fx, fy + r);
   c.stroke();
-  c.fillStyle = 'rgba(242,197,124,0.25)';
+  c.save();
+  c.globalAlpha *= 0.25;
+  c.fillStyle = colour;
   c.beginPath();
   c.arc(fx, fy, r + 10, 0, Math.PI * 2);
   c.fill();
-  paintFace(s, fx, fy, r);
-  if (arena.crown === s.id) crown(fx, fy - r - 12, 1.2, { x: fx, y: fy, r });
+  c.restore();
+  paintFace(s, fx, fy, r, colour);
+  if (crowned) crown(fx, fy - r - 17, CROWN_SIZE, { x: fx, y: fy, r });
   // Lives: prod hearts in a row by the photo.
   paintSnakeHearts(s, fx, fy, r);
   const full = shownName(s),
@@ -284,6 +291,9 @@ function paintHead(s: Snake, t: number): void {
   c.fillText(name, fx, fy + r + 12);
   c.restore();
 }
+
+/** A viewer's picture radius on the board: the crown holder's is the largest. */
+const faceR = (s: Snake): number => (arena.crown === s.id ? CROWN_R : TUNING.photoR);
 
 /**
  * The likes ring, on a picture's outline itself: same radius and width as the ring
@@ -398,8 +408,10 @@ export function paintSnakes(
     }
     if (s.egg) paintEggOf(c, s);
   }
-  // A picture shows once its snake is out of the egg.
-  for (const s of live) if (s.in) paintHead(s, t);
+  // A picture shows once its snake is out of the egg; the bigger pictures lie on top.
+  const heads = live.filter((s) => s.in && !s.wild).sort((p, q) => faceR(p) - faceR(q));
+  for (const s of live) if (s.in && s.wild) paintHead(s, t);
+  for (const s of heads) paintHead(s, t);
 }
 
 /**

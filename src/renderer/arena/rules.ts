@@ -66,8 +66,11 @@ export const TUNING = {
   wildGap: 1.5,
   /** Seconds the winner's moment lasts before the end screen. */
   winHold: 4,
-  /** The viewer's photo over the head: the radius Feed gives its leader's face (paint.paintHead). */
-  photoR: 40,
+  /**
+   * The viewer's photo over the head, in game units: about 35 px across on a phone, where the
+   * stream is 390 px wide. The crown holder's is bigger still (board-paint.ts).
+   */
+  photoR: 48,
 };
 
 /** Switches from the control room. */
