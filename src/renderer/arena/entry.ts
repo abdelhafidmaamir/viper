@@ -21,6 +21,7 @@ import {
   options,
   cellX,
   cellY,
+  lifeHooks,
   places,
   snakeOf,
   spawn,
@@ -29,6 +30,7 @@ import {
   type Snake,
   type Viewer,
 } from './rules.ts';
+import { lifeGift } from './lives.ts';
 
 export const ENTRY = {
   /** Likes that fill an animal's ring (control room, "Likes to fill the entry ring"). */
@@ -104,13 +106,17 @@ function enter(v: Viewer, instant: boolean): void {
     return;
   }
   if (instant) return;
-  const from = faceOf(v.nickname),
-    to = toPx(cellX(s.egg.cell), cellY(s.egg.cell));
-  // The egg waits for the picture: it only starts once the picture has landed on its spot.
+  flyToEgg(s, faceOf(v.nickname));
+}
+
+/** The picture flies from `from` to the snake's egg, which waits for it to land before it plays. */
+function flyToEgg(s: Snake, from: { x: number; y: number }): void {
+  if (!s.egg) return;
+  const to = toPx(cellX(s.egg.cell), cellY(s.egg.cell));
   s.egg.t = -FLIGHT;
   flights.push({
-    nickname: v.nickname,
-    avatar: v.avatar,
+    nickname: s.nickname,
+    avatar: s.avatar,
     x: from.x,
     y: from.y,
     tx: to.x,
@@ -118,6 +124,9 @@ function enter(v: Viewer, instant: boolean): void {
     t: 0,
   });
 }
+
+// A life used: the picture flies from where the snake died to its new egg.
+lifeHooks.reborn = flyToEgg;
 
 /** Pictures on their way to the eggs, and like hearts on theirs to the rings. */
 export function updateFlights(dt: number): void {
@@ -209,9 +218,13 @@ export const isLifeGift = (coins: number): boolean => TUNING.lifeOn && coins ===
  */
 export function arenaLife(nickname: string, avatar: string | undefined, n: number): void {
   if (!nickname || n <= 0 || nickname === PILOT.key) return;
-  const v = viewer(nickname, avatar);
+  const v = viewer(nickname, avatar),
+    held = (): number => snakeOf(nickname)?.lives ?? v.lives,
+    was = held();
   v.acts.push(arena.clock);
   addLives(v, n);
+  // The flower shows the gift and drops a heart for each life it gave.
+  lifeGift(nickname, v.avatar, n, held() - was);
   if (v.state !== 'in') giftIn(v);
   const s = snakeOf(nickname);
   if (s) s.idle = 0;

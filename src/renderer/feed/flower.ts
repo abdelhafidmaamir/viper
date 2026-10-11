@@ -7,7 +7,7 @@ import { ctx } from '../engine/canvas.ts';
 import { tr } from '../engine/i18n.ts';
 import { FLOWER } from './grid.ts';
 import { GOLD, berryTint } from '../engine/palette.ts';
-import { burstSprite } from './alert-fx.ts';
+import { bigHeart, burstSprite } from './alert-fx.ts';
 import { FONT, berrySprite, paintFace } from './paint.ts';
 import { fanOf, game } from './state.ts';
 
@@ -334,7 +334,14 @@ let seenPour = -1,
  * strokes, never blurred shadows: this is on screen for as long as gifts keep coming.
  */
 function paintWings(
-  pour: { id: number; nickname: string; total: number; title: string; carried?: boolean },
+  pour: {
+    id: number;
+    nickname: string;
+    total: number;
+    title: string;
+    carried?: boolean;
+    life?: boolean;
+  },
   t: number,
 ): void {
   const c = ctx;
@@ -445,7 +452,8 @@ function paintWings(
         from = mid - (cw + 96) / 2,
         k = 1 + 0.42 * punch;
       c.drawImage(
-        berrySprite(0, pour.nickname),
+        // Snake Arena's life gift shows the like heart where a gift shows its berry.
+        pour.life ? bigHeart(true) : berrySprite(0, pour.nickname),
         from + 38 - bs / 2,
         FLOWER.y - bs / 2 + Math.sin(t * 5) * 3,
         bs,
@@ -578,7 +586,8 @@ function paintFlowerBody(t: number): void {
       c.restore();
       return;
     }
-    if (!flowerText) {
+    // The text counts berries: a life gift (Snake Arena) shows its giver's picture alone.
+    if (!flowerText || pour.life) {
       c.restore();
       return;
     }

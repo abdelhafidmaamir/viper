@@ -10,6 +10,7 @@ import { stepInto } from '../feed/path.ts';
 import { FALL_TIME, READY_TIME, game, hooks, newRound, repay, roundHold } from '../feed/state.ts';
 import { backingOf, chooseNext, updateMode, type Sight } from './ai.ts';
 import { fullRingWaiting, isPilot, stepQueue, updateFlights, updatePilot } from './entry.ts';
+import { lifePour, stepLives } from './lives.ts';
 import {
   DEATH_TIME,
   EMERGE,
@@ -223,6 +224,19 @@ function dropNear(s: Snake, by: string): void {
  * berries never open it, as Feed's own never do.
  */
 function flower(dt: number): void {
+  stepLives(dt);
+  // A life gift has the flower for its moment: its giver's picture, then its heart drops out.
+  const life = lifePour();
+  if (life) {
+    if (life.id !== game.pour?.id) {
+      game.pour = life;
+      game.pourT = 0;
+    }
+    game.pourT += dt;
+    game.dripT += dt;
+    game.closeT = 0;
+    return;
+  }
   const q = game.queue.find((p) => p.nickname !== '' && snakeOf(p.nickname));
   if (q && q.id !== game.pour?.id) {
     game.pour = q;

@@ -187,6 +187,11 @@ export interface Dying {
 }
 export const DEATH_TIME = 1;
 
+/** A life brings the snake back: entry.ts flies its picture from where it died to the new egg. */
+export const lifeHooks: { reborn: (s: Snake, from: { x: number; y: number }) => void } = {
+  reborn: () => undefined,
+};
+
 export interface RoundRecord {
   winner: string | null;
   topGifter: string | null;
@@ -566,7 +571,9 @@ function useLife(s: Snake, by: Snake | null): void {
   v.keep = Math.max(1, Math.round(s.len * TUNING.lifeKeep));
   v.shield = 0;
   v.state = 'out';
-  if (!spawn(v, s.colour)) {
+  const next = spawn(v, s.colour);
+  if (next) lifeHooks.reborn(next, photoAt(s));
+  else {
     v.state = 'line';
     arena.line = [v.nickname, ...arena.line.filter((n) => n !== v.nickname)];
   }

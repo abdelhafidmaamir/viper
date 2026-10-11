@@ -21,6 +21,7 @@ export { layOutBeach };
 
 export { paintArenaTime };
 import { paintFood, paintSnakes } from './board-paint.ts';
+import { paintFlyingHearts } from './lives.ts';
 import { ENTRY, QUEUE, isPilot, setPilot } from './entry.ts';
 import { arenaRound, carriedOver, stepArena } from './round.ts';
 
@@ -87,6 +88,9 @@ export function paintArenaBeach(t: number): void {
   paintLikeHearts();
   paintFlights();
 }
+
+/** Over the flower: the hearts a life gift drops, on their way to their pictures. */
+export const paintArenaLives = paintFlyingHearts;
 
 /** Share of the round gone, 0 to 1: the beach climbs with it, as with Feed's fill. */
 export const arenaProgress = (): number => Math.min(1, arena.time / TUNING.roundTime);

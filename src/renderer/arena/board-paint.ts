@@ -35,7 +35,7 @@ import {
 import { FALL_TIME, game } from '../feed/state.ts';
 import { faceOf, shownName } from './entry.ts';
 import { FADE_OUT } from './round.ts';
-import { bigHeart } from '../feed/alert-fx.ts';
+import { paintBrokenHeart, paintSnakeHearts } from './lives.ts';
 import {
   DEATH_TIME,
   TUNING,
@@ -278,10 +278,8 @@ function paintHead(s: Snake, t: number): void {
   const fill = s.boost / TUNING.boostCap;
   if (fill > 0.01) likesRing(fx, fy, r, fill);
   if (arena.crown === s.id) crown(fx, fy - r - 12, 1.2, { x: fx, y: fy, r });
-  // Lives: small prod hearts by the photo.
-  const heart = bigHeart(true);
-  for (let i = 0; i < s.lives; i++)
-    c.drawImage(heart, fx + r + 4 + i * 20, fy - r * 0.7 - 9, 20, 20);
+  // Lives: prod hearts in a row by the photo.
+  paintSnakeHearts(s, fx, fy, r);
   const full = shownName(s),
     name = full.length > 16 ? full.slice(0, 15) + '…' : full;
   c.font = `800 22px ${FONT}`;
@@ -337,14 +335,17 @@ export function paintSnakes(
 
 /**
  * The dying: the body as it pops (round.ts takes its cells away from the tail), the picture
- * shrinking and dropping to its animal on the beach, and a heart breaking when a life saved it.
+ * shrinking and dropping to its animal on the beach. When a life saved it, a heart breaks and the
+ * picture flies to the new egg instead (entry.ts).
  */
 export function paintDying(c: CanvasRenderingContext2D, a: Ambience, e: AmbienceFrame): void {
   for (const d of arena.dying) {
     const s = d.s;
     if (s.cells.length > 1) paintBody(c, a, s, traceOf(s), e);
     const u = Math.min(1, d.t / DEATH_TIME);
-    if (!s.wild) {
+    // A life used: the picture flies to the new egg instead (entry.ts), and a heart breaks.
+    if (d.lifeUsed) paintBrokenHeart(s, d.from, u);
+    if (!s.wild && !(d.lifeUsed && snakeOf(s.nickname))) {
       const to = faceOf(s.nickname),
         drop = u * u,
         x = d.from.x + (to.x - d.from.x) * drop,
@@ -353,26 +354,6 @@ export function paintDying(c: CanvasRenderingContext2D, a: Ambience, e: Ambience
       c.save();
       c.globalAlpha = 1 - 0.6 * u;
       paintFace(s, x, y, r);
-      c.restore();
-    }
-    if (d.lifeUsed) {
-      // The heart splits in two and its halves fall apart.
-      const heart = bigHeart(true),
-        size = 34,
-        hx = d.from.x + TUNING.photoR + 14,
-        hy = d.from.y - TUNING.photoR * 0.7 + 30 * u * u;
-      c.save();
-      c.globalAlpha = 1 - u;
-      for (const side of [-1, 1]) {
-        c.save();
-        c.translate(hx + side * 10 * u, hy);
-        c.rotate(side * 0.6 * u);
-        c.beginPath();
-        c.rect(side < 0 ? -size / 2 : 0, -size / 2, size / 2, size);
-        c.clip();
-        c.drawImage(heart, -size / 2, -size / 2, size, size);
-        c.restore();
-      }
       c.restore();
     }
   }
