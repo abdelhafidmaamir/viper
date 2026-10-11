@@ -43,7 +43,7 @@ export type ArenaBacking = (typeof ARENA_BACKING)[number];
 export interface ArenaSettings {
   /** Snakes on the board at once (ARENA_PLACES). */
   readonly places: number;
-  /** Likes to fill the entry ring (ARENA_ENTRY_LIKES). */
+  /** Likes for one speed boost in the battle (ARENA_ENTRY_LIKES; the name is the old one). */
   readonly entryLikes: number;
   /** A gift from a viewer without a snake brings it in at once. */
   readonly giftEntry: boolean;
@@ -92,7 +92,7 @@ export const ARENA_DEFAULTS: ArenaSettings = {
   likeBoost: true,
   boostCap: 6,
   shieldGift: 0,
-  roundLength: 180,
+  roundLength: 120,
   giftBerries: 'owner',
   wildSnakes: 4,
   speed: 7,

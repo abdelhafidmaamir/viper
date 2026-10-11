@@ -12,6 +12,8 @@ import { bigHeart } from './alert-fx.ts';
 import { FONT, crown, paintFace, photo, photoImage } from './paint.ts';
 
 interface Crab {
+  /** Until when it runs on the spot (crabRun, Snake Arena's likes landing as speed). */
+  run?: number;
   nickname: string;
   avatar: string | undefined;
   /** Clock time of the first like (the crab comes out) and of the latest hop. */
@@ -34,6 +36,9 @@ interface Crab {
   spot?: {
     x: number;
     to: number;
+    /** An eased move (CrabWalks.ease): where it started and seconds since. */
+    from?: number | undefined;
+    moveT?: number | undefined;
     leaving: boolean;
     /** When it began to bury itself in the sand, leaving. */
     goneAt: number;
@@ -72,6 +77,10 @@ export interface CrabWalks {
   readonly lane: number;
   /** Space between two spots: a walk of one place takes PLACE_WALK seconds. */
   readonly step: number;
+  /** Seconds of a move eased in and out, in place of the walk at one pace. */
+  readonly ease?: number;
+  /** Height of the sand under a spot, above the line the feet keep: a crab stands on it. */
+  readonly ground?: (x: number) => number;
 }
 let managed: ({ spots: readonly CrabSpot[] } & CrabWalks) | null = null;
 export function setCrabSpots(spots: readonly CrabSpot[] | null, walks?: CrabWalks): void {
@@ -80,8 +89,43 @@ export function setCrabSpots(spots: readonly CrabSpot[] | null, walks?: CrabWalk
 
 /** Where the sleeping crabs begin on the right of the beach (W when there are none). */
 export function sleepersFrom(): number {
-  if (!beach || !sleeperCount) return W;
-  return Math.min(...(SLEEPER_X[sleeperCount] ?? [940])) - 60;
+  if (!beach || !sleeperCount || sleeperSpot) return W;
+  return Math.min(...sleeperXs()) - 60;
+}
+
+/**
+ * Snake Arena lays its sleeper elsewhere than on the beach (above its board, on a patch of sand it
+ * paints): `x` its middle, `y` the line its shadow lies on. Null: on the beach, as on Feed.
+ */
+let sleeperSpot: { x: number; y: number } | null = null;
+export function setSleeperSpot(spot: { x: number; y: number } | null): void {
+  sleeperSpot = spot;
+  buildSleepers();
+}
+const sleeperXs = (): number[] =>
+  sleeperSpot
+    ? sleeperCount === 2
+      ? [sleeperSpot.x - 140, sleeperSpot.x]
+      : [sleeperSpot.x]
+    : [...(SLEEPER_X[sleeperCount] ?? [940])];
+
+/**
+ * Snake Arena's battle: the sleepers show only these viewers (its players), each while they have
+ * not liked for a while, whether or not their animal is out. Null: anyone here, as on Feed.
+ */
+let sleeperPool: ReadonlySet<string> | null = null;
+export function setSleeperPool(names: Iterable<string> | null): void {
+  sleeperPool = names ? new Set(names) : null;
+}
+
+/** Where each sleeper's heart was drawn last frame. */
+const heartSpots: { x: number; y: number }[] = [];
+export const sleeperHearts = (): readonly { x: number; y: number }[] => heartSpots;
+
+/** A laid-out beach's crab runs on the spot a moment (Snake Arena: a like landing as speed). */
+export function crabRun(nickname: string, seconds = 0.45): void {
+  const c = crabs.find((x) => x?.nickname === nickname && !x.spot?.leaving);
+  if (c) c.run = now + seconds;
 }
 /**
  * Seconds a crab takes to walk one place along the line, whatever the spacing: quick, and long
@@ -148,9 +192,13 @@ function followSpots(t: number): void {
       if (crab.face) crab.face.fresh = 0;
     }
     if (crab.spot?.ring !== s.ring && crab.face) crab.face.fresh = 0;
+    const was = crab.spot,
+      moved = !was || Math.abs(was.to - s.x) > 0.5;
     crab.spot = {
-      x: crab.spot?.x ?? s.x,
+      x: was?.x ?? s.x,
       to: s.x,
+      from: moved ? (was?.x ?? s.x) : was.from,
+      moveT: moved ? 0 : was.moveT,
       leaving: false,
       goneAt: 0,
       crown: s.crown === true,
@@ -182,8 +230,15 @@ function followSpots(t: number): void {
     }
     // Straight along its line in the sand, every crab at once and at the same pace: only its x
     // ever changes (paintCrabs keeps its feet on one line wherever it stands).
-    const d = spot.to - spot.x;
-    if (Math.abs(d) > 0.5) spot.x += Math.sign(d) * Math.min(Math.abs(d), pace * dt);
+    const d = spot.to - spot.x,
+      ease = managed?.ease;
+    if (ease && spot.from !== undefined) {
+      // Eased in and out over `ease` seconds.
+      spot.moveT = (spot.moveT ?? 0) + dt;
+      const u = Math.min(1, spot.moveT / ease),
+        k = u < 0.5 ? 4 * u * u * u : 1 - (-2 * u + 2) ** 3 / 2;
+      spot.x = spot.from + (spot.to - spot.from) * k;
+    } else if (Math.abs(d) > 0.5) spot.x += Math.sign(d) * Math.min(Math.abs(d), pace * dt);
   });
 }
 
@@ -230,8 +285,9 @@ export function crabLike(nickname: string, avatar: string | undefined, n = 1): v
   v.liked = now;
   v.fresh = false;
   // The viewer a sleeping crab shows: their like flies to its heart first, and wakes them up when
-  // it lands (stepSleepers).
-  const s = beach && !hasCrab(nickname) ? sleepers.find((o) => o.who === nickname) : undefined;
+  // it lands (stepSleepers). On a beach Snake Arena lays out, nothing flies.
+  const s =
+    beach && !managed && !hasCrab(nickname) ? sleepers.find((o) => o.who === nickname) : undefined;
   if (s) {
     if (s.flight) s.flight.n += n;
     else s.flight = { at: now, n, avatar };
@@ -505,6 +561,15 @@ function hopHeight(kind: Kind, h: number): number {
   return Math.sin(air * Math.PI) * (springy ? 54 : 46);
 }
 
+/**
+ * The line a laid-out beach's crabs keep their shadows on, for `rise` as paintCrabs gets it:
+ * Snake Arena raises its sand mounds from there.
+ */
+export function beachLine(rise: number): number {
+  const low = (1 - (0.5 + 0.5 * Math.min(1, Math.max(0, rise)))) * 100;
+  return Math.min(H + low - LOWEST_DUNE + 18, feetMax()) + 18;
+}
+
 /** `rise` is how far the round has filled the board (0..1): the beach climbs with it. */
 export function paintCrabs(t: number, rise: number, reduced: boolean, weather: Weather): void {
   stepSleepers(t, weather);
@@ -533,9 +598,10 @@ export function paintCrabs(t: number, rise: number, reduced: boolean, weather: W
       spot = managed ? crab.spot : undefined,
       // Walking only in the middle of each crossing: at both ends the crab stands a moment. On a
       // laid-out beach it walks while it goes to its spot, and only shuffles once there.
+      running = crab.run !== undefined && crab.run > t,
       pace = spot
-        ? Math.abs(spot.to - spot.x) > 2
-          ? still
+        ? Math.abs(spot.to - spot.x) > 2 || running
+          ? still * (running ? 1.8 : 1)
           : 0
         : (Math.max(0, Math.abs(Math.cos(t * w * still + ph)) - 0.3) / 0.7) * still,
       x = spot
@@ -543,7 +609,9 @@ export function paintCrabs(t: number, rise: number, reduced: boolean, weather: W
         : W * (0.12 + 0.19 * i) + 60 * Math.sin(t * w * still + ph),
       // Never so low that the frame cuts its feet or its shadow. On a laid-out beach its feet keep
       // one line wherever it stands, the dune's lowest, so walking never takes it up or down.
-      y = Math.min(H + low - (spot ? LOWEST_DUNE : dune(x)) + 12 + rand(i, 961) * 12, feetMax()),
+      y =
+        Math.min(H + low - (spot ? LOWEST_DUNE : dune(x)) + 12 + rand(i, 961) * 12, feetMax()) -
+        (spot && managed?.ground ? managed.ground(spot.x) : 0),
       // Its steps bob it a little, except on a laid-out beach.
       gait = spot ? 0 : 1,
       step = t * 13 + i * 2,
@@ -866,6 +934,7 @@ function sleepy(name: string, v: Viewer): boolean {
 /** Whether the viewer a sleeper shows may stay on it. */
 function stays(name: string): boolean {
   const v = viewers.get(name);
+  if (sleeperPool) return v !== undefined && sleeperPool.has(name) && now - v.liked >= IDLE;
   return v !== undefined && sleepy(name, v) && here().has(name);
 }
 
@@ -902,9 +971,10 @@ function candidates(): string[] {
   const busy = new Set(sleepers.map((s) => s.who)),
     fresh: [string, Viewer][] = [],
     rest: [string, Viewer][] = [];
-  for (const name of here()) {
-    const v = viewers.get(name);
-    if (!v || busy.has(name) || !sleepy(name, v) || photo(v.avatar, false) === 'failed') continue;
+  for (const name of sleeperPool ?? here()) {
+    const v = viewers.get(name),
+      idle = v && (sleeperPool ? now - v.liked >= IDLE : sleepy(name, v));
+    if (!v || busy.has(name) || !idle || photo(v.avatar, false) === 'failed') continue;
     (v.fresh && now - v.arrived < ARRIVED ? fresh : rest).push([name, v]);
   }
   fresh.sort((a, b) => b[1].joined - a[1].joined);
@@ -962,7 +1032,10 @@ function spare(): string | undefined {
   const busy = new Set(sleepers.map((o) => o.who)),
     out = new Set(crabs.flatMap((c) => (c ? [c.nickname] : []))),
     pool = [...viewers].filter(
-      ([name, v]) => !busy.has(name) && photo(v.avatar, false) !== 'failed',
+      ([name, v]) =>
+        !busy.has(name) &&
+        (!sleeperPool || sleeperPool.has(name)) &&
+        photo(v.avatar, false) !== 'failed',
     );
   pool.sort(
     ([a, p], [b, q]) => Number(out.has(a)) - Number(out.has(b)) || p.shown - q.shown || q.at - p.at,
@@ -976,7 +1049,7 @@ function buildSleepers(): void {
   for (const s of sleepers) if (s.flight && s.who) wake(s.who, s.flight.avatar, s.flight.n);
   sleepers.length = 0;
   sparks.length = 0;
-  for (const [i, x] of (SLEEPER_X[sleeperCount] ?? [940]).entries())
+  for (const [i, x] of sleeperXs().entries())
     sleepers.push({
       x,
       who: undefined,
@@ -1058,6 +1131,7 @@ export const sleepersState = (): readonly { who: string | undefined; flying: num
 
 /** Where a sleeper lies: a little lower on the sand than the others, never cut by the frame. */
 function sleeperY(x: number, low: number): number {
+  if (sleeperSpot) return sleeperSpot.y - 18;
   return Math.min(H + low - dune(x) + 12 + 64, feetMax());
 }
 /** The heart over a sleeper, clear of its picture's ring. */
@@ -1266,6 +1340,7 @@ function paintZs(s: Sleeper, fx: number, fy: number, t: number, alpha: number): 
 }
 
 function paintSleepers(t: number, low: number, reduced: boolean): void {
+  heartSpots.length = 0;
   const g = ctx,
     body = bodyOf(look),
     kind = faceKindOf(look),
@@ -1328,8 +1403,9 @@ function paintSleepers(t: number, low: number, reduced: boolean): void {
     if (look === 'colorFaceGreyCrab' || look === 'colorFaceAsleepCrab')
       paintZs(s, s.x, y + 18 + dy - 55 * SLEEP_SCALE, t, shown);
     // The heart is never greyed: empty and breathing, full for a moment once a like lands in it.
-    const hy = heartY(y),
-      fu = (t - s.filled) / FILL;
+    const hy = heartY(y);
+    heartSpots.push({ x: s.x, y: hy });
+    const fu = (t - s.filled) / FILL;
     let size = HEART_SIZE * (reduced ? 1 : 1 + 0.08 * Math.sin(t * 2.5 + s.x * 0.01));
     if (fu >= 0 && fu < 1) {
       if (!reduced) size = HEART_SIZE * (1 + 0.35 * Math.sin(Math.min(1, fu * 2) * Math.PI));

@@ -203,11 +203,10 @@ export function chooseNext(me: Snake, s: Sight, rand: () => number): number {
   const chased =
       me.mode === 'chase' && !ownWaiting ? s.snakes.find((o) => o.id === me.target) : undefined,
     near2 = (o: Snake): boolean => Math.hypot(o.x - me.x, o.y - me.y) <= 2.5,
-    // With its own berries waiting, only a head right there is fled, and never by a snake that
-    // cannot die.
+    // With its own berries waiting, only a head right there is fled.
     threat =
       me.mode === 'defend'
-        ? s.snakes.find((o) => o.id === me.target && (!ownWaiting || (near2(o) && !me.immune)))
+        ? s.snakes.find((o) => o.id === me.target && (!ownWaiting || near2(o)))
         : undefined;
   for (const o of s.snakes) {
     if (o.id === me.id || !o.alive) continue;
@@ -590,11 +589,10 @@ export function superNext(me: Snake, s: Sight, rand: () => number): number {
     let score = holds([k], me, s, need, limit, depth)
       ? SAFE
       : Math.min(roomAfter([k], me, s, limit), need) * 20;
-    // An unbeatable snake fears nothing; the others keep clear of bigger heads. On the way to its
-    // own berries, only a head-on it would lose turns a snake away, not where a bigger head may
-    // go next.
+    // Snakes keep clear of bigger heads. On the way to its own berries, only a head-on it would
+    // lose turns a snake away, not where a bigger head may go next.
     const risk = risky.get(k) ?? 0;
-    if (!me.immune && (!ownGoal || risk >= HEAD_ON)) score -= risk;
+    if (!ownGoal || risk >= HEAD_ON) score -= risk;
     // Straight to the goal: the move that shortens the way to it, the more for its own berries.
     if (me.goal >= 0) {
       const d = reach[me.goal] ?? -1;
@@ -608,9 +606,9 @@ export function superNext(me: Snake, s: Sight, rand: () => number): number {
         if (mineTo >= 0 && mineTo <= i + 1) score += 900 / (1 + mineTo);
       });
     // Escape: away from where each bigger head is heading; with its own berries waiting, only
-    // from a head right there, and never by a snake that cannot die.
+    // from a head right there.
     for (const o of hunters) {
-      if (ownGoal && (me.immune || Math.hypot(o.x - me.x, o.y - me.y) > 3)) continue;
+      if (ownGoal && Math.hypot(o.x - me.x, o.y - me.y) > 3) continue;
       const way = heading(o, 2),
         far = Math.min(
           ...way.map((c) => Math.abs(cellX(k) - cellX(c)) + Math.abs(cellY(k) - cellY(c))),

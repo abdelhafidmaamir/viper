@@ -208,9 +208,15 @@ function likeChip(line: Line, rank: number, x: number, y: number, age: number): 
 
 /**
  * The round is over: the headline, this round's podium, then the Hall of Fame's flowers. The
- * headline says the board filled; Snake Arena's rounds end on time and say so.
+ * headline says the board filled; Snake Arena's rounds end on time and say so, and bring their
+ * own podium (the battle's ranking) in place of the gifters'.
  */
-export function paintRoundEnd(t: number, carried: number, headline?: string): void {
+export function paintRoundEnd(
+  t: number,
+  carried: number,
+  headline?: string,
+  podiumLines?: readonly Line[],
+): void {
   const c = ctx,
     a = game.full;
   if (a < 0) return;
@@ -248,9 +254,7 @@ export function paintRoundEnd(t: number, carried: number, headline?: string): vo
 
   // This round: the podium, then #4 and #5.
   // This round: the gifters on the podium, then the top likers, each with their own moment.
-  const lines = roundRanking(20)
-      .filter((l) => l.berries > 0)
-      .slice(0, 3),
+  const lines = (podiumLines ?? roundRanking(20).filter((l) => l.berries > 0)).slice(0, 3),
     likes = [...game.likes.values()]
       .sort((p, q) => q.likes - p.likes)
       .slice(0, 3)

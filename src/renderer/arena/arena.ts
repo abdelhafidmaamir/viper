@@ -1,37 +1,35 @@
 // Snake Arena's board: everything between the ring's four sides, and the arena's marks on the
 // beach. The frame loop (main.ts) and the control room link (link.ts) only ever go through the
-// functions here; the rules live in rules.ts, round.ts, ai.ts and entry.ts, the painters in
-// board-paint.ts and beach.ts.
+// functions here; the rules live in qualify.ts, rules.ts, round.ts, ai.ts and entry.ts, the
+// painters in qualify-paint.ts, board-paint.ts and beach.ts.
 
 import type { ArenaSettings, ArenaSnakeCount } from '../../shared/arena-protocol.ts';
 import type { Ambience, AmbienceFrame } from '../engine/types-api.ts';
 import { tr } from '../engine/i18n.ts';
+import { game } from '../feed/state.ts';
 import { brain } from './ai.ts';
 import {
+  SLEEPER_SPOT,
   layOutBeach,
+  paintPodium,
+  paintSleeperSand,
   paintArenaRing,
   paintArenaTime,
   paintBeachRings,
   paintFlags,
+  paintPodiumCrown,
   paintFlights,
-  paintLikeHearts,
+  paintLikePops,
 } from './beach.ts';
-
-export { layOutBeach };
-
-export { paintArenaTime };
 import { paintFood, paintSnakes } from './board-paint.ts';
-import { paintQualifying, paintSeatFlights, paintSeats } from './qualify-paint.ts';
-import { qualifying } from './qualify.ts';
-
-export { paintQualifying, qualifying };
+import { BOOST, PILOT, QUEUE, isPilot, setPilot } from './entry.ts';
 import { paintBeachHearts } from './lives.ts';
-import { ENTRY, QUEUE, isPilot, setPilot } from './entry.ts';
-import { arenaRound, carriedOver, stepArena } from './round.ts';
-
-export { carriedOver };
+import { paintActors, paintSeats } from './qualify-paint.ts';
+import { qualifying } from './qualify.ts';
+import { arenaRound, stepArena } from './round.ts';
 import { TUNING, alive, arena, options, toPx } from './rules.ts';
 
+export { SLEEPER_SPOT, layOutBeach, paintArenaTime, paintPodium, paintSleeperSand, qualifying };
 export { arenaGift, arenaLike } from './entry.ts';
 
 let settings: ArenaSettings | null = null;
@@ -50,9 +48,8 @@ export function setArenaSettings(next: ArenaSettings): void {
   TUNING.lifeKeep = next.lifeKeep;
   TUNING.houseEvery = next.plainEvery;
   TUNING.houseAmount = next.plainAmount;
-  ENTRY.likesNeeded = next.entryLikes;
+  BOOST.likes = next.entryLikes;
   QUEUE.idle = next.queueIdle;
-  ENTRY.giftEntry = next.giftEntry;
   options.likeBoost = next.likeBoost;
   options.ownerOnly = next.giftBerries === 'owner';
   brain.super = next.superAI;
@@ -86,14 +83,18 @@ export function paintArena(
 /** The ring round the board: the round's clock. */
 export const paintArenaClock = paintArenaRing;
 
-/** On the beach, over the animals: their entry rings, their lives and the pictures flying up. */
+/**
+ * Over the beach and the board: the players' flags and boost rings, the lives, the qualifying's
+ * pictures with their likes popping, and a life's picture flying to its egg.
+ */
 export function paintArenaBeach(t: number): void {
   paintFlags(t);
+  paintPodiumCrown(t);
   paintBeachRings(t);
   paintBeachHearts();
-  paintLikeHearts();
+  paintActors(t);
+  paintLikePops();
   paintFlights();
-  paintSeatFlights();
 }
 
 /** Share of the round gone, 0 to 1: the beach climbs with it, as with Feed's fill. */
@@ -105,11 +106,31 @@ export function arenaFocus(fallback: { x: number; y: number }): { x: number; y: 
   return king ? toPx(king.x, king.y) : fallback;
 }
 
-/** The end screen's headline: who survived with the crown, or the time simply ran out. */
+/** The end screen's headline: the viewer whose snake wins, or the time simply ran out. */
 export function arenaHeadline(): string {
   const w = arena.winner;
-  if (!w || isPilot(w)) return tr('arena.over');
-  return tr('arena.won', { name: w.wild ? tr('arena.wild') : w.nickname.toUpperCase() });
+  if (!w || w.wild || isPilot(w)) return tr('arena.over');
+  return tr('arena.wins', { name: w.nickname.toUpperCase() });
+}
+
+/**
+ * The end screen's podium: the round's ranking (the survivors, the biggest first, then the last
+ * to fall), with what each gave and liked this round. The pilot never ranks.
+ */
+export function arenaPodium(): {
+  nickname: string;
+  avatar?: string | undefined;
+  berries: number;
+  likes: number;
+}[] {
+  return arena.ranking
+    .filter((r) => r.nickname !== PILOT.key)
+    .map((r) => ({
+      nickname: r.nickname,
+      avatar: r.avatar,
+      berries: arena.viewers.get(r.nickname)?.gifted ?? 0,
+      likes: game.likes.get(r.nickname)?.likes ?? 0,
+    }));
 }
 
 export interface ArenaStatus {

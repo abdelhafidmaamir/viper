@@ -200,8 +200,9 @@ function arenaCard(arena: ArenaSide, reason: Reason): FeedView {
     tuning(
       arena,
       'entryLikes',
-      'Likes to fill the entry ring',
+      'Likes for a speed boost',
       ARENA_ENTRY_LIKES.map((value) => ({ value, label: String(value) })),
+      "In the battle, a player's likes fill the ring round their animal on the beach; a full ring gives 3 s of speed.",
     ),
     tuning(
       arena,
@@ -249,7 +250,7 @@ function arenaCard(arena: ArenaSide, reason: Reason): FeedView {
     tuning(
       arena,
       'queueIdle',
-      'A waiting animal leaves after',
+      "In the qualifying, a liker's animal leaves after",
       ARENA_QUEUE_IDLES.map((value) => ({ value, label: `${String(value)} s without a like` })),
     ),
     tuning(
@@ -274,12 +275,6 @@ function arenaCard(arena: ArenaSide, reason: Reason): FeedView {
     ),
   ];
   const switches: Switch[] = [
-    toggle(
-      arena,
-      'giftEntry',
-      'A gift also gives entry',
-      'A viewer without a snake gets one at once.',
-    ),
     toggle(arena, 'likeBoost', 'Likes speed up the snake'),
     toggle(arena, 'pilot', 'Pilot player', "The game's own player, Skohlds, shows how it works."),
     toggle(

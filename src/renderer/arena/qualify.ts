@@ -1,259 +1,663 @@
-// Snake Arena: the qualifying. Between the end screen and GET READY, for QUALIFY.time seconds, the
-// board holds no snake: one egg per place, each with the picture of the viewer holding that seat.
-// Everyone starts at 0, last round's players and winner too. The most likes during the qualifying
-// hold the seats. Seats are not ordered: one changes hands only at the cut, when someone without a
-// seat passes the weakest holder, at most one swap every QUALIFY.swapGap seconds. A gift locks a
-// seat for its giver: their ring turns full gold and nobody pushes them out. At 0:00 the holders
-// hatch from their eggs one by one, the empty eggs hatch wild snakes, then 3, 2, 1 and the battle.
+// Snake Arena, step 1: the qualifying. For QUALIFY.time seconds the board holds no snake: one egg
+// per place, ranked 1st to last in two rows, each with the picture of the viewer holding that
+// seat and a heart badge with their likes in this qualifying; a cut line under them; under it the
+// three best challengers without a seat. Everyone starts at 0, last round's players and winner too.
+//
+// The rule is read on screen: a seat changes hands only when the first challenger's number passes
+// the weakest seat's number, the two pictures crossing the cut line together, at most one swap
+// every QUALIFY.swapGap seconds. A gift locks a seat for its giver: the flower opens on their face
+// as for any gift, their picture leaves it for an egg that turns gold as it lands. The seats keep
+// a strict order: the paid ones first in the order the gifts came, then the most likes. Every number on screen rolls up to the likes counted (a heart pops on its
+// badge with each like, entry.ts), and the rules read those same numbers. Everything moves eased, slowly enough to follow.
+//
+// At 0:00 everything freezes for QUALIFY.freeze seconds and the challengers fade; then Feed's
+// 3, 2, 1 plays over the closed eggs, and at GO every egg hatches in one beat (the empty ones hatch
+// wild snakes up to the usual count): a fair start (round.ts).
 
-import { game } from '../feed/state.ts';
-import { FLIGHT, faceOf, leaveQueue, qualHooks, queueLike, rings, gifters } from './entry.ts';
+import { READY_TIME, hooks, game, type Pour } from '../feed/state.ts';
+import { FCOLS, MOUTH } from '../feed/grid.ts';
 import {
+  PILOT,
+  bumps,
+  clearQueue,
+  faceOf,
+  leaveQueue,
+  pilotPlaying,
+  qualHooks,
+  queueLike,
+  updatePilot,
+} from './entry.ts';
+import {
+  EMERGE,
   TUNING,
   arena,
+  cellId,
   cellX,
   cellY,
-  cellId,
   places,
   spawn,
   toPx,
   viewer,
   type Viewer,
 } from './rules.ts';
-import { FCOLS, FROWS } from '../feed/grid.ts';
+
+/** Seconds into Feed's countdown when GO! shows: the eggs burst then (hud.ts paintReady). */
+const HATCH_AT = READY_TIME - 0.6;
 
 export const QUALIFY = {
-  /** Seconds of the qualifying; 0 skips it, as before (straight to GET READY). */
+  /** Seconds of the qualifying; 0 skips it (tests of the battle alone). */
   time: 30,
   /** Seconds at least between two seats changing hands on likes. */
   swapGap: 1.5,
+  /** Seconds at least between two reorders of the ranking on screen. */
+  reorderGap: 1,
+  /** Seconds everything holds still at 0:00 before the eggs hatch. */
+  freeze: 0.5,
+  /** The first challenger this close to the weakest seat (share of its number) puts it at risk. */
+  risk: 0.1,
+  /** Challengers shown under the cut line. */
+  challengers: 3,
+  /** Seconds of a slide in the ranking, of a swap across the cut, of a flight to or from the beach. */
+  slide: 0.6,
+  swap: 0.9,
+  fly: 0.9,
+  /** Seconds the flower shows a gift's giver before their picture leaves it for the egg. */
+  show: 1.3,
+  /** Seconds a number takes to roll up to its new value. */
+  roll: 0.3,
 };
+
+/** Seat pictures and challengers' pictures, in game units. */
+export const SEAT_R = 60,
+  CHALLENGER_R = 44;
+/**
+ * The eggs' rows on the board, in cells; the cut line and the challengers' row, in pixels, low on
+ * the board: the seats take its height, the challengers stand near its bottom edge.
+ */
+const EGG_ROWS = [7, 20],
+  PHOTO_ABOVE = 112;
+export const CUT_Y = 1018,
+  CHALLENGER_Y = 1132;
 
 export interface Seat {
   readonly cell: number;
   holder: string | null;
-  /** A gift holds it: never pushed out. */
-  locked: boolean;
-  /** Seconds since the holder's picture left the beach for this egg. */
-  since: number;
 }
 
+/** The seats in rank order on screen: 1st top left to last bottom right. */
 export const seats: Seat[] = [];
-/** Likes per viewer during this qualifying. */
+/** The challengers' row, best first. */
+export let challengers: string[] = [];
+/** Locked seats' holders, in the order they gave. */
+export const locked: string[] = [];
+/** Locked seats whose picture has landed: their egg is gold. */
+const golden = new Set<string>();
+/** Likes per viewer counted this qualifying, and the numbers on screen rolling up to them. */
 export const qualLikes = new Map<string, number>();
-/** Seconds into the qualifying. */
-export const qual = { t: 0, swapT: 0 };
-/** Gifts sent during the end screen: they lock a seat as soon as the qualifying opens. */
+const rolled = new Map<string, number>();
+/** Seconds into the qualifying, since the last swap and the last reorder. */
+export const qual = { t: 0, swapT: 0, reorderT: 0 };
+/** Life gifts bought outside a qualifying: they lock a seat at the next one. */
 const lateGifts: string[] = [];
 
-/** A picture flying between the beach and a seat's egg. */
-export interface SeatFlight {
-  nickname: string;
-  avatar?: string | undefined;
-  x: number;
-  y: number;
-  tx: number;
-  ty: number;
+/** Gifts the flower shows in turn before each giver's picture leaves it for their egg. */
+interface Show {
+  readonly pour: Pour;
   t: number;
-  /** Down to the beach: it grows as it lands, instead of shrinking. */
-  down: boolean;
 }
-export const seatFlights: SeatFlight[] = [];
-
-export const qualifying = (): boolean => arena.phase === 'qualify';
-
-/** Seconds left in the qualifying. */
-export const qualLeft = (): number => Math.max(0, QUALIFY.time - qual.t);
-
-/** The picture over a seat's egg, in game units. */
-export function seatPhoto(seat: Seat): { x: number; y: number } {
-  const p = toPx(cellX(seat.cell), cellY(seat.cell));
-  return { x: p.x, y: p.y - 64 };
-}
+const shows: Show[] = [];
+let showId = -1;
 
 /**
- * The seats' cells, spread over the board: one row for three places or fewer, else two rows,
- * the second set between the first's columns, clear of the board's edges.
+ * A picture on the qualifying board, gliding toward where it belongs: its seat, its place in the
+ * challengers' row, or back down to its animal on the beach.
  */
+export interface Actor {
+  readonly nickname: string;
+  x: number;
+  y: number;
+  r: number;
+  alpha: number;
+  from: { x: number; y: number; r: number; alpha: number };
+  to: { x: number; y: number; r: number; alpha: number };
+  t: number;
+  dur: number;
+  /** Sideways bow of the path, in pixels (a swap's two pictures bow opposite ways). */
+  arc: number;
+  /** Going back down to the beach: removed once there. */
+  leaving: boolean;
+  /** Flying from the flower to a gift's egg, which turns gold as it lands. */
+  gift: boolean;
+}
+export const actors = new Map<string, Actor>();
+
+export const qualifying = (): boolean => arena.phase === 'qualify';
+/** Seconds left on the qualifying's clock. */
+export const qualLeft = (): number => Math.max(0, QUALIFY.time - qual.t);
+/** The race is over: the board holds still, then hatches. */
+export const frozen = (): boolean => qual.t >= QUALIFY.time;
+
+/** A viewer's number on screen this qualifying (and the one the rules read). */
+export const likesOf = (nickname: string | null): number =>
+  nickname ? Math.round(rolled.get(nickname) ?? 0) : 0;
+
+/** The most likes on screen. */
+export function topLikes(): number {
+  let top = 0;
+  for (const n of rolled.keys()) top = Math.max(top, likesOf(n));
+  return top;
+}
+
+const seated = (nickname: string): Seat | undefined => seats.find((s) => s.holder === nickname);
+export const seatOf = seated;
+export const isLocked = (nickname: string | null): boolean =>
+  !!nickname && locked.includes(nickname);
+/** A locked seat whose picture has landed: gold egg, gold outline. */
+export const isGold = (nickname: string | null): boolean =>
+  !!nickname && golden.has(nickname) && isLocked(nickname);
+
+/** Seats' cells: the first row takes the larger half, each row spread evenly across the board. */
 export function seatCells(n: number): number[] {
-  const out: number[] = [];
-  if (n <= 0) return out;
-  const rows = n <= 3 ? [n] : [Math.ceil(n / 2), Math.floor(n / 2)],
-    ys =
-      rows.length === 1
-        ? [Math.round(FROWS * 0.62)]
-        : [Math.round(FROWS * 0.3), Math.round(FROWS * 0.75)];
+  const out: number[] = [],
+    rows = n <= 3 ? [n] : [Math.ceil(n / 2), Math.floor(n / 2)];
   rows.forEach((count, r) => {
-    const y = ys[r] ?? 0;
-    for (let i = 0; i < count; i++) {
-      const x = Math.round(((i + 0.5) * FCOLS) / count);
-      out.push(cellId(Math.min(FCOLS - 3, Math.max(2, x)), y));
-    }
+    const y = EGG_ROWS[rows.length === 1 ? 1 : r] ?? 0;
+    for (let i = 0; i < count; i++)
+      out.push(cellId(Math.round(((i + 0.5) * FCOLS) / count - 0.5), y));
   });
   return out;
 }
 
-/** The qualifying opens: the eggs are laid empty, every count starts at 0. */
-export function startQualifying(): void {
+/** Where a seat's picture sits, over its egg. */
+export function seatSpot(i: number): { x: number; y: number; r: number } {
+  const seat = seats[i],
+    p = seat ? toPx(cellX(seat.cell), cellY(seat.cell)) : { x: 0, y: 0 };
+  return { x: p.x, y: p.y - PHOTO_ABOVE, r: SEAT_R };
+}
+
+/** Where the i-th challenger stands, under the first row's columns. */
+export function challengerSpot(i: number): { x: number; y: number; r: number } {
+  const first = Math.min(seats.length, Math.ceil(seats.length / 2)),
+    cols = Math.max(QUALIFY.challengers, first),
+    seat = seats[Math.min(i, first - 1)],
+    x =
+      first >= QUALIFY.challengers && seat
+        ? toPx(cellX(seat.cell), 0).x
+        : toPx(Math.round(((i + 0.5) * FCOLS) / cols - 0.5), 0).x;
+  return { x, y: CHALLENGER_Y, r: CHALLENGER_R };
+}
+
+/** Where a like heart lands on a picture of the board: its badge, under the photo. */
+export const badgeOf = (a: Actor): { x: number; y: number } => ({ x: a.x, y: a.y + a.r + 2 });
+
+/** Ease in and out (cubic): every move starts and ends softly. */
+export const easeInOut = (v: number): number => {
+  const x = Math.max(0, Math.min(1, v));
+  return x < 0.5 ? 4 * x * x * x : 1 - (-2 * x + 2) ** 3 / 2;
+};
+
+/** Sends a picture gliding to `to`; a new one starts from `from` (its animal on the beach). */
+function aim(
+  nickname: string,
+  to: { x: number; y: number; r: number },
+  how: {
+    alpha?: number;
+    from?: { x: number; y: number; r: number };
+    dur?: number;
+    arc?: number;
+    gift?: boolean;
+  } = {},
+): void {
+  const alpha = how.alpha ?? 1;
+  let a = actors.get(nickname);
+  if (!a) {
+    const start = how.from ?? faceOf(nickname),
+      a0 = how.from ? 1 : 0.3;
+    a = {
+      nickname,
+      x: start.x,
+      y: start.y,
+      r: start.r,
+      alpha: a0,
+      from: { x: start.x, y: start.y, r: start.r, alpha: a0 },
+      to: { ...to, alpha },
+      t: 0,
+      dur: how.dur ?? QUALIFY.fly,
+      arc: how.arc ?? 0,
+      leaving: false,
+      gift: how.gift ?? false,
+    };
+    actors.set(nickname, a);
+    return;
+  }
+  a.leaving = false;
+  if (a.to.x === to.x && a.to.y === to.y && a.to.r === to.r && a.to.alpha === alpha) return;
+  a.from = { x: a.x, y: a.y, r: a.r, alpha: a.alpha };
+  a.to = { ...to, alpha };
+  a.t = 0;
+  a.dur = how.dur ?? QUALIFY.slide;
+  a.arc = how.arc ?? 0;
+}
+
+/** The picture goes back down to its animal on the beach and fades into it. */
+function sendDown(nickname: string): void {
+  const a = actors.get(nickname);
+  if (!a || a.leaving) return;
+  queueLike(nickname);
+  const to = faceOf(nickname);
+  a.from = { x: a.x, y: a.y, r: a.r, alpha: a.alpha };
+  a.to = { x: to.x, y: to.y, r: to.r * 0.8, alpha: 0 };
+  a.t = 0;
+  a.dur = QUALIFY.fly;
+  a.arc = 0;
+  a.leaving = true;
+}
+
+/** Pictures glide on, eased; a gift's picture turns its egg gold as it lands. */
+function glide(dt: number): void {
+  for (const [n, a] of actors) {
+    a.t += dt;
+    const u = easeInOut(a.t / a.dur),
+      bow = Math.sin(u * Math.PI),
+      lift = a.leaving || a.gift ? bow * 70 : 0,
+      dx = a.to.x - a.from.x,
+      dy = a.to.y - a.from.y,
+      len = Math.hypot(dx, dy) || 1;
+    // The arc bows sideways to the way it goes: across a row it passes above or below.
+    a.x = a.from.x + dx * u + (-dy / len) * bow * a.arc;
+    a.y = a.from.y + dy * u + (dx / len) * bow * a.arc - lift;
+    a.r = a.from.r + (a.to.r - a.from.r) * u;
+    a.alpha = a.from.alpha + (a.to.alpha - a.from.alpha) * u;
+    if (a.gift && a.t >= a.dur) {
+      a.gift = false;
+      golden.add(n);
+      bumps.set(n, arena.clock);
+      hooks.land(0);
+    }
+    if (a.leaving && a.t >= a.dur) actors.delete(n);
+  }
+}
+
+/** The numbers on screen roll up to the likes counted. */
+function roll(dt: number): void {
+  const k = 1 - Math.exp(-dt / (QUALIFY.roll / 3));
+  for (const [n, counted] of qualLikes) {
+    const target = counted,
+      was = rolled.get(n) ?? 0,
+      next = was + (target - was) * k;
+    rolled.set(n, Math.abs(target - next) < 0.02 ? target : next);
+  }
+}
+
+/**
+ * The qualifying opens: the eggs are laid empty, every count starts at 0. `owed` are the givers
+ * whose berries were not all eaten last round: each gets a locked seat, shown by the flower.
+ */
+export function startQualifying(owed: readonly Pour[] = []): void {
   qualLikes.clear();
-  seatFlights.length = 0;
+  rolled.clear();
+  actors.clear();
+  locked.length = 0;
+  golden.clear();
+  shows.length = 0;
+  challengers = [];
   seats.length = 0;
-  for (const cell of seatCells(places()))
-    seats.push({ cell, holder: null, locked: false, since: 9 });
+  for (const cell of seatCells(places())) seats.push({ cell, holder: null });
   qual.t = 0;
   qual.swapT = QUALIFY.swapGap;
+  qual.reorderT = QUALIFY.reorderGap;
   arena.phase = 'qualify';
-  // Feed's countdown waits: it plays at the end of the qualifying.
+  // Feed's countdown waits: it plays once the eggs have hatched.
   game.ready = -1;
-  rings.clear();
-  gifters.length = 0;
   for (const v of arena.viewers.values())
     if (v.state !== 'none') {
       v.state = 'out';
       v.snake = -1;
     }
-  arena.line = [];
+  for (const p of owed) lockSeat(viewer(p.nickname, p.avatar), { ...p, carried: false });
   for (const n of lateGifts.splice(0)) lockSeat(viewer(n));
 }
 
-const seated = (nickname: string): Seat | undefined => seats.find((s) => s.holder === nickname);
-const likesOf = (nickname: string | null): number =>
-  nickname ? (qualLikes.get(nickname) ?? 0) : 0;
-
-/** The most likes anyone has this qualifying: a full ring. */
-export function topLikes(): number {
-  let top = 0;
-  for (const n of qualLikes.values()) if (n > top) top = n;
-  return top;
-}
-
-/** A picture leaves the beach for the seat's egg. */
-function takeSeat(seat: Seat, nickname: string): void {
-  const v = arena.viewers.get(nickname),
-    from = faceOf(nickname),
-    to = seatPhoto(seat);
-  seat.holder = nickname;
-  seat.since = 0;
-  leaveQueue(nickname);
-  seatFlights.push({
-    nickname,
-    avatar: v?.avatar,
-    x: from.x,
-    y: from.y,
-    tx: to.x,
-    ty: to.y,
-    t: 0,
-    down: false,
-  });
-}
-
-/** The holder's picture goes back down to the beach, where their animal walks in. */
-function leaveSeat(seat: Seat): void {
-  const nickname = seat.holder;
-  seat.holder = null;
-  seat.locked = false;
-  if (!nickname) return;
-  queueLike(nickname);
-  const v = arena.viewers.get(nickname),
-    from = seatPhoto(seat),
-    to = faceOf(nickname);
-  seatFlights.push({
-    nickname,
-    avatar: v?.avatar,
-    x: from.x,
-    y: from.y,
-    tx: to.x,
-    ty: to.y,
-    t: 0,
-    down: true,
-  });
-}
-
-/** The unlocked holder with the fewest likes this qualifying. */
+/** The holder of the weakest seat a like can take: the fewest likes, the lowest on screen. */
 function weakest(): Seat | undefined {
   let best: Seat | undefined;
   for (const s of seats)
-    if (s.holder && !s.locked && (!best || likesOf(s.holder) < likesOf(best.holder))) best = s;
+    if (s.holder && !isLocked(s.holder) && (!best || likesOf(s.holder) <= likesOf(best.holder)))
+      best = s;
   return best;
 }
 
-/** A gift locks a seat for its giver: theirs, an empty one, or the weakest unlocked holder's. */
-function lockSeat(v: Viewer): void {
-  const mine = seated(v.nickname);
-  if (mine) {
-    mine.locked = true;
-    return;
+/**
+ * A gift locks a seat for its giver: theirs, an empty one, or the weakest unlocked holder's. The
+ * flower shows the gift, then the picture flies from it to the egg.
+ */
+function lockSeat(v: Viewer, pour?: Pour): void {
+  if (locked.includes(v.nickname)) return;
+  let seat = seated(v.nickname);
+  if (!seat) {
+    seat = seats.find((s) => !s.holder) ?? weakest();
+    if (!seat) return;
+    if (seat.holder) out(seat.holder);
+    seat.holder = v.nickname;
+    challengers = challengers.filter((n) => n !== v.nickname);
+    leaveQueue(v.nickname);
   }
-  const seat = seats.find((s) => !s.holder) ?? weakest();
-  if (!seat) return;
-  if (seat.holder) leaveSeat(seat);
-  takeSeat(seat, v.nickname);
-  seat.locked = true;
+  locked.push(v.nickname);
+  shows.push({
+    pour: pour ??
+      game.queue.find((q) => q.nickname === v.nickname) ?? {
+        id: showId--,
+        nickname: v.nickname,
+        avatar: v.avatar,
+        n: 1,
+        total: 1,
+        title: '',
+      },
+    t: shows.length ? -0.3 : 0,
+  });
+}
+
+/** A holder loses their seat. */
+function out(nickname: string): void {
+  const seat = seated(nickname);
+  if (seat) seat.holder = null;
+  const i = locked.indexOf(nickname);
+  if (i >= 0) locked.splice(i, 1);
+  golden.delete(nickname);
 }
 
 qualHooks.like = (nickname, n) => {
-  qualLikes.set(nickname, likesOf(nickname) + n);
-  if (!seated(nickname)) queueLike(nickname);
+  qualLikes.set(nickname, (qualLikes.get(nickname) ?? 0) + n);
+  if (!seated(nickname) && !challengers.includes(nickname)) queueLike(nickname);
 };
 qualHooks.gift = (v) => {
-  lockSeat(v);
+  if (!frozen()) lockSeat(v);
 };
 qualHooks.late = (nickname) => {
   if (!lateGifts.includes(nickname)) lateGifts.push(nickname);
 };
 
-/** The best liker without a seat. */
-function challenger(): string | null {
-  let best: string | null = null;
-  for (const [n, likes] of qualLikes)
-    if (likes > 0 && !seated(n) && (!best || likes > likesOf(best))) best = n;
-  return best;
+/** The gift the flower shows now, if any: round.ts opens the flower on it. */
+export const showing = (): Pour | null => {
+  const s = shows[0];
+  return s && s.t >= 0 ? s.pour : null;
+};
+
+/** The flower's show moves on; when it ends, the giver's picture leaves the flower. */
+function stepShows(dt: number): void {
+  const s = shows[0];
+  if (!s) return;
+  s.t += dt;
+  if (s.t < QUALIFY.show) return;
+  shows.shift();
+  const next = shows[0];
+  if (next) next.t = Math.min(next.t, -0.3);
+  const n = s.pour.nickname,
+    seat = seated(n);
+  if (!seat) return;
+  if (actors.has(n)) {
+    // Already on its egg: the egg turns gold where it stands.
+    golden.add(n);
+    bumps.set(n, arena.clock);
+    hooks.land(0);
+    return;
+  }
+  aim(n, seatSpot(seats.indexOf(seat)), {
+    from: { x: MOUTH.x, y: MOUTH.y, r: 30 },
+    dur: QUALIFY.fly,
+    gift: true,
+  });
 }
 
-/** One step of the qualifying: empty seats fill, the cut swaps, and 0:00 hatches the eggs. */
+/** Still waiting in the flower's show: their picture is not on the board yet. */
+const inShow = (nickname: string): boolean => shows.some((s) => s.pour.nickname === nickname);
+
+/** Likers without a seat, the most likes first. */
+function waiting(): string[] {
+  return [...qualLikes.keys()]
+    .filter((n) => !seated(n) && likesOf(n) > 0)
+    .sort((p, q) => likesOf(q) - likesOf(p));
+}
+
+/** A clear lead: how many likes more it takes to move up on screen. */
+const lead = (): number => Math.max(2, Math.round(topLikes() * 0.05));
+
+/**
+ * Orders `names` by likes, starting from their order on screen: a picture moves up only past one
+ * it leads clearly, so ties and near ties never shuffle.
+ */
+function settle(names: string[], first: (n: string) => number = () => 0): string[] {
+  const out = [...names],
+    h = lead();
+  // Bubble passes until nothing moves: at most one per name.
+  let passes = names.length,
+    moved = true;
+  while (moved && passes-- > 0) {
+    moved = false;
+    for (let i = 0; i + 1 < out.length; i++) {
+      const a = out[i] ?? '',
+        b = out[i + 1] ?? '',
+        ka = first(a),
+        kb = first(b);
+      if (kb < ka || (kb === ka && likesOf(b) > likesOf(a) + h)) {
+        out[i] = b;
+        out[i + 1] = a;
+        moved = true;
+      }
+    }
+  }
+  return out;
+}
+
+/**
+ * The seats' holders in their strict order: the paid seats first, in the order the gifts came,
+ * then the like seats, the most likes first (a tie keeps its place), the empty seats last.
+ */
+export function ranked(): (string | null)[] {
+  const holders = seats.map((s) => s.holder).filter((n): n is string => !!n),
+    at = (n: string): number => seats.findIndex((s) => s.holder === n),
+    paid = (n: string): number => {
+      const i = locked.indexOf(n);
+      return i >= 0 ? i : Infinity;
+    };
+  holders.sort(
+    (p, q) =>
+      (paid(p) === paid(q) ? 0 : paid(p) < paid(q) ? -1 : 1) ||
+      likesOf(q) - likesOf(p) ||
+      at(p) - at(q),
+  );
+  return seats.map((_, i) => holders[i] ?? null);
+}
+
+/** The challengers' row: the best likers without a seat, a newcomer only with a clear lead. */
+function bestChallengers(): string[] {
+  const all = waiting(),
+    row = challengers.filter((n) => !seated(n) && likesOf(n) > 0),
+    h = lead();
+  for (const n of all) {
+    if (row.includes(n)) continue;
+    if (row.length < QUALIFY.challengers) {
+      row.push(n);
+      continue;
+    }
+    let low = 0;
+    row.forEach((m, i) => {
+      if (likesOf(m) < likesOf(row[low] ?? '')) low = i;
+    });
+    if (likesOf(n) > likesOf(row[low] ?? '') + h) row[low] = n;
+  }
+  return settle(row);
+}
+
+/**
+ * The seats always stand in their strict order: each holder out of place slides to its seat,
+ * eased, those moving up bowing one way and those moving down the other, so none pass through
+ * another.
+ */
+function reorderSeats(): void {
+  const order = ranked(),
+    was = new Map(seats.map((s, i) => [s.holder, i] as const));
+  order.forEach((n, i) => {
+    const seat = seats[i];
+    if (!seat || seat.holder === n) return;
+    seat.holder = n;
+    const from = n ? (was.get(n) ?? i) : i;
+    if (n && actors.has(n)) aim(n, seatSpot(i), { arc: from > i ? 30 : -30 });
+  });
+}
+
+/** One change in the challengers' row: a newcomer in, or two trading places. */
+function reorderChallengers(): boolean {
+  const best = bestChallengers();
+  if (best.join() === challengers.join()) return false;
+  const gone = challengers.find((n) => !best.includes(n)),
+    come = best.find((n) => !challengers.includes(n));
+  if (gone !== undefined || come !== undefined) {
+    // One in, one out, at the same place; the order settles on the next ticks.
+    const at = gone !== undefined ? challengers.indexOf(gone) : challengers.length;
+    const next = challengers.filter((n) => n !== gone);
+    if (come !== undefined) next.splice(Math.min(at, next.length), 0, come);
+    challengers = next.slice(0, QUALIFY.challengers);
+    return true;
+  }
+  const i = best.findIndex((n, k) => n !== challengers[k]);
+  const j = challengers.indexOf(best[i] ?? '');
+  if (i < 0 || j < 0) return false;
+  const next = [...challengers];
+  next[j] = next[i] ?? '';
+  next[i] = best[i] ?? '';
+  challengers = next;
+  aim(next[i] ?? '', challengerSpot(i), { arc: 40 });
+  aim(next[j] ?? '', challengerSpot(j), { arc: -40 });
+  return true;
+}
+
+/** The weakest seat is at risk: the first challenger is within QUALIFY.risk of its number. */
+export function atRisk(): Seat | undefined {
+  const seat = weakest(),
+    first = challengers[0];
+  if (!seat?.holder || !first || seats.some((s) => !s.holder)) return undefined;
+  const mine = likesOf(seat.holder);
+  return mine > 0 && likesOf(first) >= mine * (1 - QUALIFY.risk) ? seat : undefined;
+}
+
+let lastTick = 99;
+
+/** Every seat is held by a gift whose picture has landed. */
+export const allLocked = (): boolean =>
+  seats.length > 0 && !shows.length && seats.every((s) => isGold(s.holder));
+
+/** One step of the qualifying. */
 export function stepQualifying(dt: number): void {
   qual.t += dt;
+  glide(dt);
+  roll(dt);
+  stepShows(dt);
+  if (frozen()) {
+    holdStill();
+    if (qual.t >= QUALIFY.time + QUALIFY.freeze) endQualifying();
+    return;
+  }
+  // Last 5 seconds: a tick each second (the prod bite's note, rising).
+  const left = Math.ceil(qualLeft());
+  if (left <= 5 && left !== lastTick) {
+    lastTick = left;
+    hooks.eat(5 - left);
+  }
+  // Every seat held by a gift: likes can change nothing more, the qualifying ends at once (once
+  // the last gift's picture has landed on its egg).
+  if (allLocked()) {
+    qual.t = QUALIFY.time;
+    return;
+  }
   qual.swapT += dt;
-  for (const s of seats) s.since += dt;
+  qual.reorderT += dt;
+  updatePilot(dt);
+  if (pilotPlaying() && !arena.viewers.has(PILOT.key)) viewer(PILOT.key);
   // Empty seats go to the best likers at once.
   for (const seat of seats) {
     if (seat.holder) continue;
-    const n = challenger();
+    const n = waiting()[0];
     if (!n) break;
-    takeSeat(seat, n);
+    seat.holder = n;
+    challengers = challengers.filter((c) => c !== n);
+    leaveQueue(n);
   }
-  // The cut: one swap at a time, when a challenger passes the weakest unlocked holder.
-  if (qual.swapT >= QUALIFY.swapGap) {
-    const n = challenger(),
-      seat = weakest();
-    if (n && seat && likesOf(n) > likesOf(seat.holder)) {
-      leaveSeat(seat);
-      takeSeat(seat, n);
-      qual.swapT = 0;
-    }
-  }
-  if (qual.t >= QUALIFY.time) endQualifying();
+  swap();
+  reorderSeats();
+  // The challengers' row: at most one change every reorderGap seconds, so the eye can follow it.
+  if (qual.reorderT >= QUALIFY.reorderGap && reorderChallengers()) qual.reorderT = 0;
+  place();
 }
 
-/** Seat flights move on. */
-export function updateSeatFlights(dt: number): void {
-  for (let i = seatFlights.length - 1; i >= 0; i--) {
-    const f = seatFlights[i];
-    if (!f) continue;
-    f.t += dt;
-    if (f.t >= FLIGHT) seatFlights.splice(i, 1);
+/**
+ * The cut: the first challenger on screen passes the weakest seat's number; the two cross the
+ * line together, on gentle opposite arcs.
+ */
+function swap(): void {
+  const first = challengers[0] ?? waiting()[0],
+    seat = weakest();
+  if (
+    qual.swapT < QUALIFY.swapGap ||
+    !first ||
+    !seat?.holder ||
+    seats.some((s) => !s.holder) ||
+    likesOf(first) <= likesOf(seat.holder)
+  )
+    return;
+  const down = seat.holder,
+    at = Math.max(0, challengers.indexOf(first)),
+    i = seats.indexOf(seat);
+  seat.holder = first;
+  challengers = challengers.filter((n) => n !== first);
+  challengers.splice(at, 0, down);
+  challengers = challengers.slice(0, QUALIFY.challengers);
+  leaveQueue(first);
+  qual.swapT = 0;
+  qual.reorderT = 0;
+  aim(first, seatSpot(i), { dur: QUALIFY.swap, arc: 50 });
+  aim(down, challengerSpot(at), { dur: QUALIFY.swap, arc: -50 });
+  hooks.land(0);
+}
+
+/** Every picture heads for where it belongs now. */
+function place(): void {
+  seats.forEach((s, i) => {
+    if (s.holder && (actors.has(s.holder) || !inShow(s.holder))) aim(s.holder, seatSpot(i));
+  });
+  challengers.forEach((n, i) => {
+    leaveQueue(n);
+    aim(n, challengerSpot(i));
+  });
+  for (const n of actors.keys()) if (!seated(n) && !challengers.includes(n)) sendDown(n);
+}
+
+/**
+ * 0:00: nothing changes hands any more. The challengers fade where they stand; each seat's
+ * picture settles where its snake's photo will float, so the hatch reads as one move.
+ */
+function holdStill(): void {
+  seats.forEach((s) => {
+    if (!s.holder) return;
+    const p = toPx(cellX(s.cell), cellY(s.cell)),
+      to = { x: p.x, y: p.y - 64, r: TUNING.photoR };
+    if (actors.has(s.holder)) aim(s.holder, to, { dur: QUALIFY.freeze });
+  });
+  for (const n of challengers) {
+    const a = actors.get(n);
+    if (a) aim(n, { x: a.to.x, y: a.to.y, r: a.to.r }, { alpha: 0, dur: QUALIFY.freeze });
   }
 }
 
 /**
- * 0:00: the holders become the round's players, hatching from their eggs one by one; the empty
- * eggs hatch wild snakes up to the usual count; then Feed's 3, 2, 1 and the battle.
+ * The countdown starts over the closed eggs: every holder's, and the empty eggs' wild snakes up to
+ * the usual count. Each egg is timed to burst at GO, all in one beat (round.ts plays the rest).
  */
 export function endQualifying(): void {
   arena.phase = 'ready';
   game.ready = 0;
-  seatFlights.length = 0;
-  let k = 0;
+  lastTick = 99;
+  shows.length = 0;
   const holders = seats.filter((s) => s.holder).length,
     wild = Math.max(0, Math.min(TUNING.wildUpTo, places()) - holders);
   let wilds = 0;
@@ -264,11 +668,11 @@ export function endQualifying(): void {
     if (!s?.egg) continue;
     if (!v) wilds++;
     s.seat = true;
-    s.egg.t = -k * TUNING.enterGap;
-    k++;
+    s.egg.t = EMERGE - HATCH_AT;
   }
-  // The usual entries wait for the eggs.
-  arena.enterT = k * TUNING.enterGap + 0.3;
-  arena.wildT = arena.enterT + 1;
+  arena.started = arena.snakes.filter((s) => s.alive && !s.wild && s.nickname !== PILOT.key).length;
   seats.length = 0;
+  challengers = [];
+  actors.clear();
+  clearQueue();
 }

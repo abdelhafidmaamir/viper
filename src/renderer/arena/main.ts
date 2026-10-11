@@ -24,7 +24,7 @@ import {
   settings,
   type FeedLinkDeps,
 } from '../feed/control-link.ts';
-import { crabLike, paintCrabs, setCrabRanks, setLikeCount } from '../feed/crabs.ts';
+import { crabLike, paintCrabs, setCrabRanks, setLikeCount, setSleeperSpot } from '../feed/crabs.ts';
 import { paintFlower, setFlowerMotes } from '../feed/flower.ts';
 import { BOARD_H, BOARD_W, FCELL, FCOLS, FROWS, FX0, FY0 } from '../feed/grid.ts';
 import { paintReady } from '../feed/hud.ts';
@@ -41,15 +41,17 @@ import {
   arenaFocus,
   arenaHeadline,
   arenaProgress,
+  arenaPodium,
   layOutBeach,
-  carriedOver,
   newArenaRound,
   paintArena,
   paintArenaBeach,
   paintArenaClock,
   paintArenaTime,
-  paintQualifying,
+  paintPodium,
+  paintSleeperSand,
   qualifying,
+  SLEEPER_SPOT,
 } from './arena.ts';
 import { AUDIENCE, setAudience, tickAudience } from './audience.ts';
 import { arenaLife, isLifeGift } from './entry.ts';
@@ -214,13 +216,15 @@ function step(dt: number): void {
     paintBites();
     a.paintFront(c, e);
     layOutBeach();
+    paintPodium(e.subStep);
+    paintSleeperSand();
     paintCrabs(t, e.subStep, e.reduced, settings.weather);
     paintArenaBeach(t);
     paintFlower(t);
     paintArenaTime();
-    if (game.full >= 0) paintRoundEnd(performance.now() / 1000, carriedOver(), arenaHeadline());
+    // No berry carries over in the arena: the end screen shows the battle's ranking.
+    if (game.full >= 0) paintRoundEnd(performance.now() / 1000, 0, arenaHeadline(), arenaPodium());
     paintReady();
-    paintQualifying();
     paintSupporters(t);
     paintAlerts();
     a.update(dt, e);
@@ -256,6 +260,8 @@ function start(): void {
   setLikeCount(false);
   // The beach has no likes ranking here: the only crown is on the biggest snake.
   setCrabRanks(false);
+  // The sleeping crab lies above the board, top right, on its own patch of sand.
+  setSleeperSpot(SLEEPER_SPOT);
   // The gift thanks at the top keeps its cards and photo, without the particles thrown around it.
   setFlowerMotes(false);
   countOnArena();

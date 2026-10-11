@@ -24,13 +24,12 @@ export const TUNING = {
   /** Bigger is a little slower: a snake this long loses slowBy of its pace. */
   slowAt: 60,
   slowBy: 0.15,
-  /** Likes: a small boost, capped. Seconds of boost per like, the most banked, its strength. */
-  likeBoost: 0.2,
+  /** Likes' speed boosts (entry.ts BOOST): the most seconds banked, and their strength. */
   boostCap: 6,
   boostMax: 0.3, // +30 % speed
   /** Seconds a newborn cannot be hurt (it blinks). */
   safeTime: 3,
-  roundTime: 180, // seconds
+  roundTime: 120, // seconds
   /**
    * Plain berries for everyone, rare and few, so gifts are what makes a snake big: a drip every
    * houseEvery seconds (give or take a fifth) of 1 to houseAmount berries, while fewer than
@@ -135,11 +134,6 @@ export interface Snake {
   hatchLen: number;
   /** The food cell the strong brain is heading for, -1 when none. */
   goal: number;
-  /**
-   * Its viewer's gift berries reached it this round: it cannot die until the round ends (its head
-   * turns away from whatever it meets). It is drawn like any other snake.
-   */
-  immune: boolean;
   /** Hatched from a seat won in the qualifying: its egg shows the picture while it waits. */
   seat?: boolean;
 }
@@ -162,7 +156,7 @@ export interface Food {
 export interface Viewer {
   nickname: string;
   avatar?: string | undefined;
-  state: 'none' | 'line' | 'in' | 'out';
+  state: 'none' | 'in' | 'out';
   snake: number;
   acts: number[];
   gifted: number;
@@ -211,16 +205,19 @@ export const arena = {
   food: [] as Food[],
   foodAt: new Map<number, Food>(),
   viewers: new Map<string, Viewer>(),
-  line: [] as string[],
   phase: 'ready' as 'qualify' | 'ready' | 'play' | 'end',
   time: 0,
   clock: 0,
   crown: -1,
   winner: null as Snake | null,
-  wonT: 0,
+  /** The round's ranking at its end: the survivors, the biggest first, then the last to fall. */
+  ranking: [] as { nickname: string; avatar?: string | undefined }[],
+  /** Viewers' snakes that fell this round, in the order they fell. */
+  outs: [] as { nickname: string; avatar?: string | undefined }[],
+  /** Viewers' snakes that hatched at the start, and how long the fight has been down to one. */
+  started: 0,
+  lastT: 0,
   houseT: 0,
-  enterT: 0,
-  wildT: 0,
   dropT: 0,
   round: 0,
   fed: 0,
@@ -269,13 +266,6 @@ export function viewer(nickname: string, avatar?: string): Viewer {
   }
   if (avatar) v.avatar = avatar;
   return v;
-}
-
-/** What a viewer did in the last minute: who comes back first at a round's start. */
-export function activity(v: Viewer): number {
-  const since = arena.clock - 60;
-  while (v.acts.length && (v.acts[0] ?? 0) < since) v.acts.shift();
-  return v.acts.length;
 }
 
 /** A colour nobody alive wears, the viewer's own usual one when free. */
@@ -454,7 +444,6 @@ export function spawn(v: Viewer | null, colourWas?: SnakeColour, at?: number): S
     backing: 0,
     lives: v?.lives ?? 0,
     goal: -1,
-    immune: false,
     hatchLen: v && v.keep > 0 ? v.keep : TUNING.startLen,
   };
   if (v) {
@@ -525,9 +514,8 @@ export const waitingFor = (nickname: string): number =>
   game.queue.reduce((n, q) => n + (q.nickname === nickname ? q.n : 0), 0);
 
 /**
- * The snake is gone: food where it lay, its viewer back to the beach, the kill on Feed's alert card
- * under the board. A viewer whose paid berries still wait in the flower goes to the front of the
- * line, so the berries reach their next snake as soon as it is born.
+ * The snake is gone: its body pops, its viewer is out of the round (the place stays empty until
+ * the next qualifying), the kill on Feed's alert card under the board.
  */
 export function kill(s: Snake, by: Snake | null, cause: Cause): void {
   if (!s.alive) return;
@@ -544,10 +532,7 @@ export function kill(s: Snake, by: Snake | null, cause: Cause): void {
     else arena.fallen.likesOnly++;
     v.state = 'out';
     v.snake = -1;
-    if (waitingFor(v.nickname) > 0) {
-      v.state = 'line';
-      arena.line = [v.nickname, ...arena.line.filter((n) => n !== v.nickname)];
-    }
+    arena.outs.push({ nickname: s.nickname, avatar: s.avatar });
   }
   if (by) {
     by.kills++;
@@ -560,7 +545,7 @@ export function kill(s: Snake, by: Snake | null, cause: Cause): void {
 /**
  * A life saves the snake: its body still pops and leaves its berries, a heart breaks, and the same
  * viewer comes back from a new egg in the same colour, with its photo, a share of its length and
- * one life less. With no place for the egg right now, it is first in line.
+ * one life less. With no cell for the egg right now, the life is spent and the snake falls.
  */
 function useLife(s: Snake, by: Snake | null): void {
   s.alive = false;
@@ -577,10 +562,7 @@ function useLife(s: Snake, by: Snake | null): void {
   v.state = 'out';
   const next = spawn(v, s.colour);
   if (next) lifeHooks.reborn(next, photoAt(s));
-  else {
-    v.state = 'line';
-    arena.line = [v.nickname, ...arena.line.filter((n) => n !== v.nickname)];
-  }
+  else arena.outs.push({ nickname: s.nickname, avatar: s.avatar });
 }
 
 /** The extra-life gift: one more life per gift, up to the most a snake holds. */

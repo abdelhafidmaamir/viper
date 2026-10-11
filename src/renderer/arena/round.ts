@@ -1,13 +1,22 @@
-// Snake Arena: the frame. The round's clock and its phases (GET READY, play, the winner's moment,
-// the end screen), who comes back at a round's start, the flower pouring gifts next to their
-// snake and dripping plain berries, every snake's step from cell to cell with what happens in the
-// cell it enters (a body, a head, food), and the crown. Feed's round (state.ts) keeps the gifts
-// and likes of the round for the flower, the rankings and the end screen; this file drives its
-// phases.
+// Snake Arena: the frame, three steps and nothing else. The QUALIFYING (qualify.ts) seats the
+// round's players; the BATTLE plays them, and only them: the flower pours each gift next to its
+// giver's snake and drips plain berries, every snake steps from cell to cell with what happens in
+// the cell it enters (a body, a head, food), and the biggest viewer's snake wears the crown; the
+// RESULT comes when the clock runs out or one viewer's snake is left, then the end screen and the
+// next qualifying. Feed's round (state.ts) keeps the gifts and likes of the round for the flower,
+// the rankings and the end screen; this file drives its phases.
 
 import { FCOLS, FROWS } from '../feed/grid.ts';
 import { stepInto } from '../feed/path.ts';
-import { FALL_TIME, READY_TIME, game, hooks, newRound, repay, roundHold } from '../feed/state.ts';
+import {
+  FALL_TIME,
+  READY_TIME,
+  game,
+  hooks,
+  newRound,
+  roundHold,
+  type Pour,
+} from '../feed/state.ts';
 import {
   BERRY_STAY,
   backingOf,
@@ -17,13 +26,14 @@ import {
   updateMode,
   type Sight,
 } from './ai.ts';
-import { fullRingWaiting, isPilot, stepQueue, updateFlights, updatePilot } from './entry.ts';
+import { isPilot, stepQueue, updateFlights } from './entry.ts';
 import {
   QUALIFY,
+  endQualifying,
   qualifying,
+  showing,
   startQualifying,
   stepQualifying,
-  updateSeatFlights,
 } from './qualify.ts';
 import {
   DEATH_TIME,
@@ -31,7 +41,6 @@ import {
   MOUTH_CELL,
   SHELL_GONE,
   TUNING,
-  activity,
   alive,
   arena,
   cellId,
@@ -43,10 +52,8 @@ import {
   occupancy,
   onBoard,
   placeFood,
-  places,
   removeFood,
   snakeOf,
-  spawn,
   tickEffects,
   type Food,
   type Snake,
@@ -55,33 +62,47 @@ import {
 /** Share of the head's pace the tail gives up while the snake grows (state.ts GROW_SHARE). */
 const GROW_SHARE = 0.5;
 
-/** Paid berries not eaten yet on the board, falling or lying, per giver. */
-function paidOnBoard(): Map<string, number> {
-  const per = new Map<string, number>();
-  for (const f of arena.food) if (f.by !== '') per.set(f.by, (per.get(f.by) ?? 0) + f.value);
-  return per;
-}
-
-/** Paid berries the next round owes: still in the flower, or on the board uneaten. */
-export function carriedOver(): number {
-  let n = 0;
-  for (const q of game.queue) if (q.nickname !== '') n += q.n;
-  for (const v of paidOnBoard().values()) n += v;
-  return n;
+/**
+ * Givers whose paid berries were not all eaten when the round ended: still in the flower (gifts
+ * from viewers without a snake, or sent during the end screen) or lying on the board, in the
+ * order they gave, with the berries left (the flower shows them as it seats them).
+ */
+function owedSeats(): Pour[] {
+  const out: Pour[] = [];
+  for (const q of game.queue)
+    if (q.n > 0 && q.nickname !== '' && !out.some((o) => o.nickname === q.nickname))
+      out.push({ ...q, total: q.n });
+  let id = -1000;
+  for (const f of arena.food) {
+    if (f.by === '') continue;
+    const o = out.find((x) => x.nickname === f.by);
+    if (o) {
+      o.n += f.value;
+      o.total += f.value;
+    } else
+      out.push({
+        id: id--,
+        nickname: f.by,
+        avatar: arena.viewers.get(f.by)?.avatar,
+        n: f.value,
+        total: f.value,
+        title: '',
+      });
+  }
+  return out;
 }
 
 /**
- * A new round (hooks.round): the board empties; whoever was in comes back small, those owed paid
- * berries first. Feed's round has already carried over what was in the flower; the paid berries
- * left on the board go back into it here, for their givers, ranked in the new round. Plain berries
- * are simply cleared.
+ * A new round (hooks.round). No berry carries over: the board and the flower empty, and whoever
+ * paid for berries not yet eaten gets a locked seat in the qualifying that opens now instead.
+ * Feed's round keeps its own carry-over; here its flower is emptied after it.
  */
 export function arenaRound(roundTime: number): void {
-  const left = [...paidOnBoard()].map(([nickname, n]) => ({ nickname, n }));
-  if (left.length) repay(left, true);
+  const owed = owedSeats();
+  game.queue = [];
+  game.pour = null;
   arena.round++;
   arena.time = 0;
-  arena.phase = 'ready';
   arena.snakes = [];
   arena.food = [];
   arena.foodAt.clear();
@@ -89,64 +110,20 @@ export function arenaRound(roundTime: number): void {
   arena.fading = [];
   arena.crown = -1;
   arena.winner = null;
+  arena.ranking = [];
+  arena.outs = [];
+  arena.lastT = 0;
+  arena.started = 0;
   arena.kills = 0;
   arena.deaths = { headon: 0, cutoff: 0, accident: 0, trapped: 0, boxed: 0 };
   arena.fed = 0;
   arena.fallen = { backed: 0, likesOnly: 0 };
   arena.played.clear();
-  arena.enterT = 0.3;
-  arena.wildT = 1;
   arena.houseT = TUNING.houseEvery * 0.4;
   TUNING.roundTime = roundTime;
-  // The qualifying opens: nobody is owed a seat, everyone starts again at 0.
-  if (QUALIFY.time > 0) {
-    for (const v of arena.viewers.values()) v.gifted = 0;
-    startQualifying();
-    return;
-  }
-  // Whoever was in, and whoever still has paid berries in the flower, is owed a place.
-  const owed = new Set(
-      game.queue.filter((q) => q.n > 0 && q.nickname !== '').map((q) => q.nickname),
-    ),
-    back = [...arena.viewers.values()].filter(
-      (v) => v.state === 'in' || v.state === 'line' || (v.state === 'out' && owed.has(v.nickname)),
-    );
-  back.sort(
-    (p, q) =>
-      Number(owed.has(q.nickname)) - Number(owed.has(p.nickname)) ||
-      q.gifted - p.gifted ||
-      activity(q) - activity(p),
-  );
-  arena.line = [];
-  for (const v of back) {
-    v.state = 'line';
-    v.snake = -1;
-    arena.line.push(v.nickname);
-  }
   for (const v of arena.viewers.values()) v.gifted = 0;
-}
-
-function entries(dt: number): void {
-  arena.enterT -= dt;
-  arena.wildT -= dt;
-  const n = alive().length;
-  if (arena.enterT <= 0 && n < places() && arena.line.length) {
-    const name = arena.line[0],
-      v = name ? arena.viewers.get(name) : undefined;
-    if (v?.state !== 'line') arena.line.shift();
-    else if (spawn(v)) {
-      arena.line.shift();
-      arena.enterT = TUNING.enterGap;
-    }
-  } else if (
-    arena.wildT <= 0 &&
-    n < Math.min(TUNING.wildUpTo, places()) &&
-    !arena.line.length &&
-    !fullRingWaiting()
-  ) {
-    spawn(null);
-    arena.wildT = TUNING.wildGap;
-  }
+  startQualifying(owed);
+  if (QUALIFY.time <= 0) endQualifying();
 }
 
 const fromFlower = (cell: number, value: number, by: string, colour: Food['colour']): Food => ({
@@ -245,7 +222,10 @@ function dropNear(s: Snake, by: string): void {
  * berries never open it, as Feed's own never do.
  */
 function flower(dt: number): void {
-  const q = game.queue.find((p) => p.nickname !== '' && snakeOf(p.nickname));
+  // In the qualifying the flower opens on each gift that locks a seat, as long as it shows it.
+  const q = qualifying()
+    ? showing()
+    : game.queue.find((p) => p.nickname !== '' && snakeOf(p.nickname));
   if (q && q.id !== game.pour?.id) {
     game.pour = q;
     game.pourT = 0;
@@ -255,8 +235,8 @@ function flower(dt: number): void {
   game.closeT = q ? 0 : game.closeT + dt;
   const every = q ? 1 / Math.min(10, 3 + q.n / 12) : 0.045;
   arena.dropT += dt;
-  // Nothing leaves the flower before the countdown is over: gifts wait in it and pour after GO.
-  while (q && arena.dropT >= every && game.ready < 0) {
+  // Nothing leaves the flower before GO: gifts wait in it and pour once the battle is on.
+  while (q && arena.dropT >= every && arena.phase === 'play') {
     const s = snakeOf(q.nickname);
     if (!s?.in) break;
     arena.dropT -= every;
@@ -269,8 +249,8 @@ function flower(dt: number): void {
 /** The flower's own berries, for everyone: a few, now and then. */
 function house(dt: number): void {
   arena.houseT -= dt;
-  // Not before the countdown is over: a drip due during it falls at GO.
-  if (arena.houseT > 0 || game.ready >= 0) return;
+  // Not before GO: a drip due earlier falls at GO.
+  if (arena.houseT > 0 || arena.phase !== 'play') return;
   const r = arena.rand;
   arena.houseT = TUNING.houseEvery * (0.8 + 0.4 * r());
   let out = 0;
@@ -285,8 +265,6 @@ function house(dt: number): void {
 
 function eatFood(s: Snake, f: Food): void {
   removeFood(f);
-  // The viewer's own gift berries make their snake unbeatable for the rest of the round.
-  if (!s.wild && f.by === s.nickname) s.immune = true;
   s.grow += f.value;
   s.eaten += f.value;
   s.gulps.push(0);
@@ -313,16 +291,11 @@ function eatFood(s: Snake, f: Food): void {
  * Picks the cell the head slides into next: straight on, left or right, never back onto its neck.
  * A snake never dies by its own body: boxed in on those three cells, it passes over the least bad
  * of them for that step (the brains avoid it, so it almost never shows). With only walls and eggs
- * left, it is done; an unbeatable one waits a step instead.
+ * left, it is done.
  */
 function replan(s: Snake, sight: Sight): void {
   let n = chooseNext(s, sight, arena.rand);
   if (n < 0) n = boxedWay(s, sight);
-  if (n < 0 && s.immune) {
-    s.next = s.cells[0] ?? s.next;
-    s.sub = 0;
-    return;
-  }
   if (n < 0) {
     kill(s, null, 'boxed');
     return;
@@ -413,12 +386,11 @@ function stepCell(s: Snake, sight: Sight): void {
     passing.delete(s);
     if (other?.alive) {
       if (other.cells[0] === target) {
-        // Head on head: the bigger survives; a shield, a newborn's grace or immunity spares either.
+        // Head on head: the bigger survives; a shield or a newborn's grace spares either.
         const sBig = s.len > other.len * 1.05,
           oBig = other.len > s.len * 1.05;
-        if (!oBig && other.shield <= 0 && other.safe <= 0 && !other.immune)
-          kill(other, s, 'headon');
-        if (!sBig && s.shield <= 0 && s.safe <= 0 && !s.immune) {
+        if (!oBig && other.shield <= 0 && other.safe <= 0) kill(other, s, 'headon');
+        if (!sBig && s.shield <= 0 && s.safe <= 0) {
           kill(s, other, 'headon');
           return;
         }
@@ -429,8 +401,8 @@ function stepCell(s: Snake, sight: Sight): void {
         }
         for (const c of other.cells) if (onBoard(c)) sight.occ[c] = 0;
       } else {
-        // An egg is solid and keeps its newborn safe; an immune head turns away from any body.
-        if (s.shield > 0 || s.safe > 0 || s.immune || (other.egg && !other.egg.hatched)) {
+        // An egg is solid and keeps its newborn safe; a shielded head turns away from any body.
+        if (s.shield > 0 || s.safe > 0 || (other.egg && !other.egg.hatched)) {
           s.sub = 0;
           replan(s, sight);
           return;
@@ -471,6 +443,7 @@ function move(
   live: readonly Snake[],
   sight: Sight,
   hunting: Map<number, number>,
+  still: boolean,
 ): void {
   s.born += dt;
   s.idle += dt;
@@ -478,7 +451,8 @@ function move(
   s.backing = v ? backingOf(v.gifted) : 0;
   if (v) arena.played.set(v.nickname, (arena.played.get(v.nickname) ?? false) || v.gifted > 0);
   brood(s, dt, sight);
-  if (!s.in) return;
+  // Out of its egg, a snake waits for GO with the others: a fair start.
+  if (!s.in || still) return;
   s.boost = Math.max(0, s.boost - dt);
   s.shield = Math.max(0, s.shield - dt);
   s.safe = Math.max(0, s.safe - dt);
@@ -507,7 +481,7 @@ function move(
   while (s.sub >= 1 && s.alive && guard++ < 4) {
     s.sub -= 1;
     if (s.next === s.cells[0]) {
-      // Waiting for the way to open (an immune snake boxed in): look again.
+      // Waiting for the way to open: look again.
       replan(s, sight);
       s.sub = 0;
       break;
@@ -527,9 +501,9 @@ function move(
   s.bite += dt;
 }
 
-/** The biggest snake in play wears the crown; the game's own pilot never does. */
+/** The biggest viewer's snake in play wears the crown; a wild one and the game's pilot never do. */
 function crown(): void {
-  const inPlay = alive().filter((s) => s.in && !isPilot(s));
+  const inPlay = alive().filter((s) => s.in && !s.wild && !isPilot(s));
   let best: Snake | undefined;
   for (const s of inPlay) if (!best || s.len > best.len) best = s;
   const holder = arena.snakes.find((s) => s.id === arena.crown && s.alive);
@@ -540,11 +514,49 @@ function crown(): void {
   if (!holder || (best !== holder && best.len > holder.len)) arena.crown = best.id;
 }
 
-/** Time is up: the crowned snake wins and the end screen comes up at once. */
+/** Viewers' snakes still in the fight (the game's pilot is not a viewer). */
+const viewersAlive = (): Snake[] => alive().filter((s) => !s.wild && !isPilot(s));
+
+/**
+ * The fight is down to its last viewer (or to none, when only one started): the round ends a
+ * moment later, once the last death has played.
+ */
+function lastStanding(dt: number): boolean {
+  const left = viewersAlive().length,
+    over = arena.started >= 2 ? left <= 1 : arena.started === 1 && left === 0;
+  arena.lastT = over ? arena.lastT + dt : 0;
+  return arena.lastT >= LAST_HOLD;
+}
+const LAST_HOLD = 1.2;
+
+/**
+ * The round's ranking: the viewers still alive, the biggest first, then the fallen, the last to
+ * fall first. Its first is the winner.
+ */
+function rank(): { nickname: string; avatar?: string | undefined }[] {
+  const out = viewersAlive()
+    .sort((p, q) => q.len - p.len)
+    .map((s) => ({ nickname: s.nickname, avatar: s.avatar }));
+  for (let i = arena.outs.length - 1; i >= 0; i--) {
+    const o = arena.outs[i];
+    if (o && !out.some((x) => x.nickname === o.nickname))
+      out.push({ nickname: o.nickname, avatar: o.avatar });
+  }
+  return out;
+}
+
+/** The result: the clock ran out or one viewer is left. The end screen comes up at once. */
 function finish(): void {
   arena.phase = 'end';
-  const best = arena.snakes.find((s) => s.id === arena.crown && s.alive) ?? null;
+  arena.ranking = rank();
+  const first = arena.ranking[0],
+    best = first
+      ? (arena.snakes.find((s) => s.nickname === first.nickname && !s.wild && s.alive) ??
+        arena.snakes.find((s) => s.nickname === first.nickname && !s.wild) ??
+        null)
+      : null;
   arena.winner = best;
+  if (best) arena.crown = best.alive ? best.id : -1;
   let topGifter: string | null = null,
     most = 0;
   for (const v of arena.viewers.values())
@@ -552,7 +564,7 @@ function finish(): void {
       most = v.gifted;
       topGifter = v.nickname;
     }
-  if (best && !best.wild) {
+  if (best) {
     const v = arena.viewers.get(best.nickname);
     if (v) v.wins++;
   }
@@ -625,27 +637,28 @@ export function moveInto(s: Snake, cell: number): void {
   stepCell(s, { occ, reserved, foodAt: arena.foodAt, snakes: alive() });
 }
 
-/** Every snake's step. */
-function moveAll(dt: number): void {
+/** Every snake's step; `still` before GO: the eggs hatch, nobody moves. */
+function moveAll(dt: number, still = false): void {
   const live = alive();
   const { occ, reserved } = occupancy(),
     sight: Sight = { occ, reserved, foodAt: arena.foodAt, snakes: live },
     hunting = new Map<number, number>();
   for (const s of live)
     if (s.mode === 'chase') hunting.set(s.target, (hunting.get(s.target) ?? 0) + 1);
-  for (const s of live) if (s.alive) move(s, dt, live, sight, hunting);
+  for (const s of live) if (s.alive) move(s, dt, live, sight, hunting, still);
 }
 
-/** One step of the round: the board in play, then the end screen and a new round. */
+/**
+ * One step of the round: the qualifying, the hatch and Feed's 3, 2, 1, the battle, then the end
+ * screen and the next qualifying.
+ */
 export function stepArena(dt: number): void {
   arena.clock += dt;
   tickEffects(dt);
   dying(dt);
   for (const f of arena.food) f.t += dt;
   flower(dt);
-  updatePilot(dt);
   updateFlights(dt);
-  stepQueue();
   // The end screen: the snakes keep moving under it until the next round starts.
   if (game.full >= 0) {
     game.full += dt;
@@ -653,25 +666,24 @@ export function stepArena(dt: number): void {
     if (game.full > roundHold()) newRound();
     return;
   }
-  // The qualifying: eggs and pictures only, no snake yet.
   if (qualifying()) {
-    updateSeatFlights(dt);
+    stepQueue();
     stepQualifying(dt);
     return;
   }
-  const ready = game.ready >= 0;
-  if (ready) {
+  if (arena.phase === 'ready') {
+    // The countdown over the closed eggs; they all burst at GO, and nobody moves before the end.
     game.ready += dt;
     if (game.ready >= READY_TIME) {
       game.ready = -1;
       arena.phase = 'play';
     }
-  } else arena.time += dt;
-  entries(dt);
+    moveAll(dt, true);
+    return;
+  }
+  arena.time += dt;
   house(dt);
   moveAll(dt);
-  if (!ready) {
-    crown();
-    if (arena.time >= TUNING.roundTime) finish();
-  }
+  crown();
+  if (arena.time >= TUNING.roundTime || lastStanding(dt)) finish();
 }

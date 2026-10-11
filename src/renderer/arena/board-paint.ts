@@ -10,6 +10,7 @@
 
 import { SNAKE_COLOURS, type SnakeColour } from '../../shared/feed-protocol.ts';
 import { ctx } from '../engine/canvas.ts';
+import { GOLD } from '../engine/palette.ts';
 import { paintEgg } from '../engine/eggshell.ts';
 import { CELL, W } from '../engine/layout.ts';
 import { HATCH_TIME } from '../engine/rules.ts';
@@ -33,7 +34,7 @@ import {
   tintedBerrySprite,
 } from '../feed/paint.ts';
 import { FALL_TIME, game } from '../feed/state.ts';
-import { faceOf, shownName } from './entry.ts';
+import { bumps, faceOf, shownName } from './entry.ts';
 import { FADE_OUT } from './round.ts';
 import { paintBrokenHeart, paintSnakeHearts } from './lives.ts';
 import {
@@ -217,6 +218,24 @@ function paintGulps(s: Snake, trace: Point[]): void {
   }
 }
 
+/** Where a viewer's photo floats over its snake's head this frame (like hearts fly there). */
+export function headPhoto(s: Snake, t: number): { x: number; y: number } {
+  const head = toPx(s.x, s.y),
+    bob = Math.sin(t * 3) * 3;
+  return {
+    x: Math.min(W - 60, Math.max(60, head.x)),
+    y: Math.max(TUNING.photoR + 70, head.y - 64 + bob),
+  };
+}
+
+/** A picture swells a little as a like heart lands in it. */
+export function bumpOf(nickname: string): number {
+  const at = bumps.get(nickname);
+  if (at === undefined) return 1;
+  const u = (arena.clock - at) / 0.25;
+  return u >= 0 && u < 1 ? 1 + 0.15 * Math.sin(u * Math.PI) : 1;
+}
+
 /**
  * paint.paintHead for one snake: the viewer's photo floats above the head in a gold ring on its
  * stem, with the crown when this snake is the biggest, the red likes ring and the name under it.
@@ -232,9 +251,7 @@ function paintHead(s: Snake, t: number): void {
     return;
   }
   const r = TUNING.photoR * squash,
-    bob = Math.sin(t * 3) * 3,
-    fx = Math.min(W - 60, Math.max(60, head.x)),
-    fy = Math.max(r + 70, head.y - 64 + bob);
+    { x: fx, y: fy } = headPhoto(s, t);
   c.save();
   if (s.safe > 0) c.globalAlpha = 0.5 + 0.5 * Math.abs(Math.sin(s.born * 11));
   c.strokeStyle = 'rgba(242,197,124,0.7)';
@@ -248,9 +265,6 @@ function paintHead(s: Snake, t: number): void {
   c.arc(fx, fy, r + 10, 0, Math.PI * 2);
   c.fill();
   paintFace(s, fx, fy, r);
-  // The likes ring on the photo's outline: what is left of the boost, from the top clockwise.
-  const fill = s.boost / TUNING.boostCap;
-  if (fill > 0.01) likesRing(fx, fy, r, fill);
   if (arena.crown === s.id) crown(fx, fy - r - 12, 1.2, { x: fx, y: fy, r });
   // Lives: prod hearts in a row by the photo.
   paintSnakeHearts(s, fx, fy, r);
@@ -286,6 +300,83 @@ export function likesRing(x: number, y: number, r: number, fill: number): void {
   c.restore();
 }
 
+/**
+ * Speed streaks: short lines trailing behind a point moving at `angle`, in `colour`, fading fast,
+ * flickering, spread across `spread` pixels; `k` from 0 to 1 is how strong.
+ */
+export function speedStreaks(
+  x: number,
+  y: number,
+  angle: number,
+  colour: string,
+  k: number,
+  t: number,
+  spread: number,
+): void {
+  if (k <= 0.02) return;
+  const c = ctx,
+    dx = Math.cos(angle),
+    dy = Math.sin(angle),
+    beat = Math.floor(t * 24);
+  c.save();
+  c.lineCap = 'round';
+  for (let i = 0; i < 3; i++) {
+    const v = Math.sin((beat + i * 7) * 12.9898) * 43758.5453,
+      flick = v - Math.floor(v),
+      off = (i - 1) * spread * 0.6,
+      ox = x - dy * off - dx * (6 + flick * 8),
+      oy = y + dx * off - dy * (6 + flick * 8),
+      len = (34 + 34 * flick) * (0.6 + 0.4 * k),
+      g = c.createLinearGradient(ox, oy, ox - dx * len, oy - dy * len);
+    g.addColorStop(0, colour);
+    g.addColorStop(1, 'rgba(255,255,255,0)');
+    c.globalAlpha = Math.min(1, k * (0.75 + 0.35 * flick));
+    c.strokeStyle = g;
+    c.lineWidth = 6;
+    c.beginPath();
+    c.moveTo(ox, oy);
+    c.lineTo(ox - dx * len, oy - dy * len);
+    c.stroke();
+  }
+  c.restore();
+}
+
+/**
+ * A boosted snake: speed streaks behind its head and along its last segments in its own colour,
+ * and a light ripple running down its back faster than it moves. Nothing round the body.
+ */
+function paintBoost(s: Snake, trace: Point[], t: number): void {
+  if (s.boost <= 0 || trace.length < 4) return;
+  const k = Math.min(1, s.boost / 1.5),
+    colour = COLOURS[s.colour],
+    at = (i: number): { p: Point; a: number } | null => {
+      const p = trace[Math.min(trace.length - 1, i)],
+        q = trace[Math.max(0, Math.min(trace.length - 1, i - 2))];
+      if (!p || !q) return null;
+      return { p, a: Math.atan2(q.y - p.y, q.x - p.x) };
+    };
+  const head = at(2);
+  if (head) speedStreaks(head.p.x, head.p.y, head.a, colour, k, t, 30);
+  for (const share of [0.55, 0.85]) {
+    const seg = at(Math.round((trace.length - 1) * share));
+    if (seg) speedStreaks(seg.p.x, seg.p.y, seg.a, colour, k * 0.7, t + share, 26);
+  }
+  // The ripple: soft light bands running head to tail.
+  const c = ctx;
+  c.save();
+  c.globalAlpha = 0.35 * k;
+  c.fillStyle = '#fff';
+  for (let j = 0; j < 3; j++) {
+    const u = (t * 2.2 + j / 3) % 1,
+      p = trace[Math.round(u * (trace.length - 1))];
+    if (!p) continue;
+    c.beginPath();
+    c.arc(p.x, p.y, 7 * FAT, 0, Math.PI * 2);
+    c.fill();
+  }
+  c.restore();
+}
+
 /** Every living snake, the smallest first so the big ones lie on top; the photos over everything. */
 export function paintSnakes(
   c: CanvasRenderingContext2D,
@@ -300,6 +391,7 @@ export function paintSnakes(
       const trace = traceOf(s);
       paintBody(c, a, s, trace, e);
       paintGulps(s, trace);
+      paintBoost(s, trace, t);
     }
     if (s.egg) paintEggOf(c, s);
   }
@@ -338,10 +430,18 @@ function paintEggOf(c: CanvasRenderingContext2D, s: Snake): void {
   const egg = s.egg;
   if (!egg) return;
   const p = toPx(cellX(egg.cell), cellY(egg.cell));
-  if (egg.t < 0 && s.seat) {
-    // A seat won in the qualifying: the egg waits its turn with the picture over it.
-    paintStillEgg(c, p.x, p.y, arena.clock);
-    if (!s.wild) paintFace(s, p.x, p.y - 64, SEAT_PHOTO);
+  if (s.seat && !egg.hatched) {
+    // A seat won in the qualifying: the egg stays closed through the countdown, trembling only
+    // just before GO; the picture stays over it until the snake is out, where its photo floats.
+    if (egg.t < 0) paintStillEgg(c, p.x, p.y, arena.clock + egg.cell);
+    else {
+      c.save();
+      c.translate(p.x, p.y);
+      c.scale(FAT, FAT);
+      paintEgg(c, 0, 0, egg.t, egg.t / HATCH_TIME);
+      c.restore();
+    }
+    if (!s.wild) paintFace(s, p.x, p.y - 64, TUNING.photoR);
     return;
   }
   if (egg.t < 0) {
@@ -363,15 +463,34 @@ function paintEggOf(c: CanvasRenderingContext2D, s: Snake): void {
   c.restore();
 }
 
-/** A seat's picture over its egg (qualify.ts). */
-export const SEAT_PHOTO = 34;
-
-/** The Duel's egg at rest, barely breathing, at the size of the arena's snakes. */
-export function paintStillEgg(c: CanvasRenderingContext2D, x: number, y: number, t: number): void {
+/**
+ * The Duel's egg at rest, barely breathing, at the size of the arena's snakes; trembling when its
+ * seat is at risk, its shell gold when a gift holds it.
+ */
+export function paintStillEgg(
+  c: CanvasRenderingContext2D,
+  x: number,
+  y: number,
+  t: number,
+  look: { wobble?: boolean; gold?: boolean } = {},
+): void {
   c.save();
   c.translate(x, y);
   c.scale(FAT, FAT);
-  paintEgg(c, 0, 0, t, 0.04);
+  paintEgg(c, 0, 0, t, look.wobble ? 0.32 : 0.04);
+  c.restore();
+  if (!look.gold) return;
+  c.save();
+  c.globalCompositeOperation = 'multiply';
+  c.fillStyle = GOLD;
+  c.beginPath();
+  c.ellipse(x, y + 2, CELL * 0.42 * FAT, CELL * 0.6 * FAT, 0, 0, Math.PI * 2);
+  c.fill();
+  c.globalCompositeOperation = 'lighter';
+  c.globalAlpha = 0.25 + 0.1 * Math.sin(t * 3);
+  c.beginPath();
+  c.ellipse(x, y + 2, CELL * 0.5 * FAT, CELL * 0.68 * FAT, 0, 0, Math.PI * 2);
+  c.fill();
   c.restore();
 }
 
