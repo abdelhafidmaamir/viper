@@ -4,7 +4,7 @@ export const ORIENTATIONS = ['portrait', 'landscape'] as const;
 export type Orientation = (typeof ORIENTATIONS)[number];
 
 /** The game modes. With no `--mode`, the launcher asks which one to open. */
-export const MODES = ['duel', 'feed'] as const;
+export const MODES = ['duel', 'feed', 'arena'] as const;
 export type Mode = (typeof MODES)[number];
 
 export const DIAGNOSTICS = [
@@ -90,6 +90,7 @@ function numberIn(flag: string, value: string, min: number, max: number): number
  *
  * @example
  *   Viper.exe --mode=feed
+ *   Viper.exe --mode=arena
  *   Viper.exe --mode=duel --orientation=landscape
  *   Viper.exe --diagnostic=frame-timing --out=perf --all-weathers
  */

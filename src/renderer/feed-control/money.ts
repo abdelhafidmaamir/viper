@@ -71,7 +71,7 @@ function tierRow(dispatch: Dispatch): {
   return { el, coins, berries, info, test };
 }
 
-function pricingCard(store: FeedControlStore, dispatch: Dispatch): FeedView {
+export function pricingCard(store: FeedControlStore, dispatch: Dispatch): FeedView {
   const rows = Array.from({ length: PRICE_TIERS_MAX }, () => tierRow(dispatch));
   /** The operator is typing: the fields stop following the game until applied or reset. */
   let editing = false;

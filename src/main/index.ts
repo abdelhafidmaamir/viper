@@ -12,7 +12,7 @@ import { useReproducibleRendering, VISUAL_SEED } from './diagnostics/visual.js';
 import { evaluate } from './page/evaluate.js';
 import { hostRenderer } from './renderer-host.js';
 import type { AppRequest } from './app-request.js';
-import { openControlWindow, openGameWindow, openLauncherWindow } from './windows.js';
+import { GAME_TITLE, openControlWindow, openGameWindow, openLauncherWindow } from './windows.js';
 
 /**
  * Windows reports a covered window as occluded and Chromium then stops painting it. The game
@@ -103,15 +103,21 @@ function createSession(origin: string, config: AppConfig) {
         control.close();
         throw new Error('game window closed while opening');
       }
-      // Feed saves its round every second, so a sudden shutdown can be undone on the next launch.
-      if (mode === 'feed') {
-        const stop = await backUpFeed(game, app.getPath('userData'));
-        // The supporters list lives online too when the build carries its key (feed-cloud.ts).
+      if (mode === 'feed' || mode === 'arena') {
+        // Feed saves its round every second, so a sudden shutdown can be undone on the next
+        // launch. The arena has no round worth saving yet.
+        const stop =
+          mode === 'feed' ? await backUpFeed(game, app.getPath('userData')) : () => undefined;
+        // Both keep a journal and the one supporters list, which lives online too when the build
+        // carries its key (feed-cloud.ts).
         const cloud = await readCloudConfig([process.resourcesPath, app.getAppPath()]);
-        const stopJournal = await journalFeed(game, app.getPath('userData'), cloud, [
-          process.resourcesPath,
-          app.getAppPath(),
-        ]);
+        const stopJournal = await journalFeed(
+          game,
+          app.getPath('userData'),
+          cloud,
+          [process.resourcesPath, app.getAppPath()],
+          GAME_TITLE[mode],
+        );
         game.once('closed', () => {
           stop();
           stopJournal();

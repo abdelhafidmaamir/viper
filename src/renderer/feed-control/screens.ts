@@ -95,7 +95,11 @@ const CROWD_OPTIONS = CROWD_LEVELS.map((level) => ({
   label: CROWD_LABELS[level],
 }));
 
-export function createRehearsalScreen(dispatch: Dispatch): FeedView {
+/** Snake Arena has no board to jump near full: it passes `nearFullBoard: false`. */
+export function createRehearsalScreen(
+  dispatch: Dispatch,
+  { nearFullBoard = true }: { readonly nearFullBoard?: boolean } = {},
+): FeedView {
   const lock = createLockBanner();
   const giftButtons = [
     createButton({
@@ -185,13 +189,14 @@ export function createRehearsalScreen(dispatch: Dispatch): FeedView {
         crowd.update({ value: state.gameState?.crowd ?? 0, reason: rehearsalReason(state) });
       },
     },
-    {
+  ];
+  if (nearFullBoard)
+    views.push({
       el: nearFullCard.el,
       update(state: FeedControlState) {
         nearFull.update({ reason: rehearsalReason(state) });
       },
-    },
-  ];
+    });
 
   return {
     el: h(
@@ -240,7 +245,11 @@ export function parsePastSupporters(
   });
 }
 
-export function createSetupScreen(dispatch: Dispatch, reason: Reason): FeedView {
+export function createSetupScreen(
+  dispatch: Dispatch,
+  reason: Reason,
+  { nearFullBoard = true }: { readonly nearFullBoard?: boolean } = {},
+): FeedView {
   const language = createSegmented({
     label: 'Game language',
     options: LANGUAGE_OPTIONS,
@@ -441,7 +450,10 @@ export function createSetupScreen(dispatch: Dispatch, reason: Reason): FeedView 
     importPast.el,
     pastDone,
   ]);
-  const shortcutText = h('pre', { class: 'card__line', text: SHORTCUTS_TEXT });
+  const shortcutText = h('pre', {
+    class: 'card__line',
+    text: nearFullBoard ? SHORTCUTS_TEXT : SHORTCUTS_TEXT.replace('\nF  Jump near full board', ''),
+  });
   const helpCard = createCard({ title: 'Keyboard shortcuts' }, [shortcutText]);
 
   return {

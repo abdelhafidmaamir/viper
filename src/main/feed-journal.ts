@@ -23,15 +23,18 @@ const BOM = String.fromCharCode(0xfeff);
 
 const pad = (n: number): string => String(n).padStart(2, '0');
 
-/** A file name that sorts by date and says when the live began: `Viper Feed 2026-09-29 21h14.csv`. */
-export function journalName(at: Date): string {
-  return `Viper Feed ${String(at.getFullYear())}-${pad(at.getMonth() + 1)}-${pad(at.getDate())} ${pad(at.getHours())}h${pad(at.getMinutes())}.csv`;
+/**
+ * A file name that sorts by date and says which mode and when the live began:
+ * `Viper Feed 2026-09-29 21h14.csv`.
+ */
+export function journalName(at: Date, title = 'Viper Feed'): string {
+  return `${title} ${String(at.getFullYear())}-${pad(at.getMonth() + 1)}-${pad(at.getDate())} ${pad(at.getHours())}h${pad(at.getMinutes())}.csv`;
 }
 
 /**
- * Loads the supporters list into a Feed game window, then keeps the journal and the list saved:
- * on this computer, and online when the build carries a cloud key, so a new build or a new
- * computer picks up where the last one left off.
+ * Loads the supporters list into a Feed or Arena game window, then keeps the journal and the list
+ * saved: on this computer, and online when the build carries a cloud key, so a new build or a new
+ * computer picks up where the last one left off. Both modes share the one list.
  */
 export async function journalFeed(
   game: BrowserWindow,
@@ -39,10 +42,12 @@ export async function journalFeed(
   cloud: CloudConfig | null = null,
   /** Folders that may hold seed-supporters.local.json: supporters from before, added once. */
   seedDirs: readonly string[] = [],
+  /** The game window's title, which starts the journal's file name. */
+  title = 'Viper Feed',
 ): Promise<() => void> {
   const supportersFile = path.join(dir, 'feed-supporters.json'),
     folder = journalDir(dir),
-    file = path.join(folder, journalName(new Date()));
+    file = path.join(folder, journalName(new Date(), title));
   const run = (code: string): Promise<unknown> => game.webContents.executeJavaScript(code);
 
   // The newest of the two copies wins: this computer's, or the one saved online by any computer.

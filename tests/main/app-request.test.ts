@@ -14,6 +14,10 @@ describe('appRequest', () => {
       kind: 'open',
       mode: 'duel',
     });
+    expect(appRequest(`${ORIGIN}/__viper/open?mode=arena`, ORIGIN)).toEqual({
+      kind: 'open',
+      mode: 'arena',
+    });
   });
 
   it('reads the way back to the launcher', () => {

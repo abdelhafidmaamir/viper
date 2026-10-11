@@ -14,17 +14,22 @@ const GREEN = berryTint(null);
 
 // ---- the ring ------------------------------------------------------------------------------
 
-/** Same rail as the duel (12 px outside the board); its fill is how full the board is. */
-export function paintRing(t: number): void {
+/**
+ * Same rail as the duel (12 px outside the board); its fill is how full the board is. Snake Arena
+ * fills it with the round's time instead, and says when it is nearly up.
+ */
+export function paintRing(
+  t: number,
+  fill = game.len / TOTAL,
+  urgent = TOTAL - cells() <= 20 && game.full < 0,
+): void {
   const c = ctx,
     x = FX0 - 26,
     y = FY0 - 26,
     w = BOARD_W + 52,
     h = BOARD_H + 52,
     r = 30;
-  const fill = game.len / TOTAL,
-    left = TOTAL - cells(),
-    perim = 2 * (w + h) - 8 * r + 2 * Math.PI * r;
+  const perim = 2 * (w + h) - 8 * r + 2 * Math.PI * r;
   c.save();
   c.lineWidth = 7;
   c.lineCap = 'round';
@@ -33,7 +38,6 @@ export function paintRing(t: number): void {
   c.roundRect(x, y, w, h, r);
   c.stroke();
   // Drawn from the top center, clockwise, like the duel's timer.
-  const urgent = left <= 20 && game.full < 0;
   const glow = urgent ? 0.6 + 0.4 * Math.sin(t * 7) : 0.9;
   c.setLineDash([perim * fill, perim]);
   c.lineDashOffset = -(w / 2 - r);

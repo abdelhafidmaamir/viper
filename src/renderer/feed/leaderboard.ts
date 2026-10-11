@@ -206,8 +206,11 @@ function likeChip(line: Line, rank: number, x: number, y: number, age: number): 
   c.restore();
 }
 
-/** The round is over: the headline, this round's podium, then the Hall of Fame's flowers. */
-export function paintRoundEnd(t: number, carried: number): void {
+/**
+ * The round is over: the headline, this round's podium, then the Hall of Fame's flowers. The
+ * headline says the board filled; Snake Arena's rounds end on time and say so.
+ */
+export function paintRoundEnd(t: number, carried: number, headline?: string): void {
   const c = ctx,
     a = game.full;
   if (a < 0) return;
@@ -228,7 +231,7 @@ export function paintRoundEnd(t: number, carried: number): void {
   c.shadowBlur = 30;
   c.fillStyle = GOLD;
   c.font = `900 60px ${FONT}`;
-  c.fillText(tr('feed.filled'), 0, 0);
+  c.fillText(headline ?? tr('feed.filled'), 0, 0);
   c.restore();
   c.fillStyle = 'rgba(255,255,255,0.85)';
   c.font = `700 26px ${FONT}`;

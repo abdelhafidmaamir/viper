@@ -1,9 +1,10 @@
 // Launcher: pick a game mode, then navigate to open it.
 import './launcher.css';
 import { h } from '../control/ui/dom.ts';
-import { mountDuelPreview, mountFeedPreview } from './previews.ts';
+import { mountArenaPreview, mountDuelPreview, mountFeedPreview } from './previews.ts';
 
-type Mode = 'duel' | 'feed';
+const MODES = ['duel', 'feed', 'arena'] as const;
+type Mode = (typeof MODES)[number];
 
 interface CardDef {
   readonly mode: Mode;
@@ -25,12 +26,25 @@ const CARDS: readonly CardDef[] = [
     desc: 'The whole room feeds one snake until it fills the board. Rose = 1 berry, Rosa = 10.',
     key: '2',
   },
+  {
+    mode: 'arena',
+    title: 'Snake Arena',
+    desc: 'One snake per viewer on a shared board. Likes bring it in and speed it up, gifts feed it.',
+    key: '3',
+  },
 ];
+
+const PREVIEWS: Record<Mode, (canvas: HTMLCanvasElement, reducedMotion: boolean) => () => void> = {
+  duel: mountDuelPreview,
+  feed: mountFeedPreview,
+  arena: mountArenaPreview,
+};
 
 function readLastMode(): Mode | null {
   try {
     const v = localStorage.getItem('viper-last-mode');
-    if (v === 'duel' || v === 'feed') return v;
+    const mode = MODES.find((m) => m === v);
+    if (mode) return mode;
   } catch {
     // storage may be unavailable
   }
@@ -166,13 +180,7 @@ function mount(root: HTMLElement): void {
   root.append(header, cardsRow, footer);
 
   // Mount canvas previews
-  for (const entry of entries) {
-    if (entry.mode === 'duel') {
-      mountDuelPreview(entry.canvas, reducedMotion);
-    } else {
-      mountFeedPreview(entry.canvas, reducedMotion);
-    }
-  }
+  for (const entry of entries) PREVIEWS[entry.mode](entry.canvas, reducedMotion);
 
   // Keyboard navigation
   let highlightIdx = entries.findIndex((e) => e.mode === defaultHighlight);
@@ -190,16 +198,13 @@ function mount(root: HTMLElement): void {
   }
 
   document.addEventListener('keydown', (event) => {
-    if (event.key === '1') {
+    // Cards and entries are in the same order: the digit on a card opens it.
+    const keyed = CARDS.findIndex((c) => c.key === event.key);
+    const byKey = entries[keyed];
+    if (byKey) {
       event.preventDefault();
-      updateHighlight(0);
-      const e = entries[0];
-      if (e) openMode('duel', allBtns, e.btn);
-    } else if (event.key === '2') {
-      event.preventDefault();
-      updateHighlight(1);
-      const e = entries[1];
-      if (e) openMode('feed', allBtns, e.btn);
+      updateHighlight(keyed);
+      openMode(byKey.mode, allBtns, byKey.btn);
     } else if (event.key === 'ArrowLeft' || event.key === 'ArrowUp') {
       event.preventDefault();
       updateHighlight((highlightIdx - 1 + entries.length) % entries.length);
