@@ -21,6 +21,10 @@ export { layOutBeach };
 
 export { paintArenaTime };
 import { paintFood, paintSnakes } from './board-paint.ts';
+import { paintQualifying, paintSeatFlights, paintSeats } from './qualify-paint.ts';
+import { qualifying } from './qualify.ts';
+
+export { paintQualifying, qualifying };
 import { paintBeachHearts } from './lives.ts';
 import { ENTRY, QUEUE, isPilot, setPilot } from './entry.ts';
 import { arenaRound, carriedOver, stepArena } from './round.ts';
@@ -76,6 +80,7 @@ export function paintArena(
 ): void {
   paintFood(t);
   paintSnakes(c, a, e, t);
+  paintSeats(t);
 }
 
 /** The ring round the board: the round's clock. */
@@ -88,6 +93,7 @@ export function paintArenaBeach(t: number): void {
   paintBeachHearts();
   paintLikeHearts();
   paintFlights();
+  paintSeatFlights();
 }
 
 /** Share of the round gone, 0 to 1: the beach climbs with it, as with Feed's fill. */
@@ -109,7 +115,7 @@ export function arenaHeadline(): string {
 export interface ArenaStatus {
   readonly secondsLeft: number;
   readonly roundLength: number;
-  readonly phase: 'ready' | 'play' | 'won' | 'end';
+  readonly phase: 'qualify' | 'ready' | 'play' | 'won' | 'end';
   /** Berries eaten on the board this round. */
   readonly eaten: number;
   readonly snakes: ArenaSnakeCount;

@@ -23,6 +23,7 @@ import {
 } from './entry.ts';
 import { bigHeart } from '../feed/alert-fx.ts';
 import { TUNING, alive, arena, places, snakeOf } from './rules.ts';
+import { QUALIFY, qualLeft, qualLikes, qualifying, topLikes } from './qualify.ts';
 
 const RED = '#ff3b5c';
 const smooth = (v: number): number => {
@@ -41,6 +42,10 @@ export function clockText(seconds: number): string {
  * time left written small at its top centre.
  */
 export function paintArenaRing(t: number): void {
+  if (qualifying()) {
+    paintRing(t, qualLeft() / QUALIFY.time, false);
+    return;
+  }
   const left = Math.max(0, TUNING.roundTime - arena.time),
     playing = arena.phase === 'play' || arena.phase === 'ready',
     urgent = left <= 20 && arena.phase === 'play';
@@ -49,9 +54,10 @@ export function paintArenaRing(t: number): void {
 
 /** The time left, small at the ring's top centre: painted after the flower, which reaches over it. */
 export function paintArenaTime(): void {
-  const left = Math.max(0, TUNING.roundTime - arena.time),
-    urgent = left <= 20 && arena.phase === 'play';
-  if (arena.phase !== 'play' && arena.phase !== 'ready') return;
+  const q = qualifying(),
+    left = q ? qualLeft() : Math.max(0, TUNING.roundTime - arena.time),
+    urgent = q ? left <= 5 : left <= 20 && arena.phase === 'play';
+  if (!q && arena.phase !== 'play' && arena.phase !== 'ready') return;
   const c = ctx,
     x = FX0 + BOARD_W / 2,
     y = FY0 - 26,
@@ -132,7 +138,7 @@ export function layOutBeach(): void {
         nickname,
         avatar: arena.viewers.get(nickname)?.avatar,
         x: queueFrom + i * unit,
-        tag: i === 0 ? 'NEXT' : undefined,
+        tag: i === 0 && !qualifying() ? 'NEXT' : undefined,
       });
     });
   // Every animal on one line in the sand: a ranking change, or a move in the queue, is a walk
@@ -178,7 +184,9 @@ const CRAB_PHOTO = 28 / 32;
  */
 export function paintBeachRings(t: number): void {
   const need = ENTRY.likesNeeded,
-    leader = queueOrder()[0],
+    q = qualifying(),
+    top = topLikes(),
+    leader = q ? undefined : queueOrder()[0],
     c = ctx;
   for (const [nickname, f] of crabFaces()) {
     if (snakeOf(nickname)) continue;
@@ -194,7 +202,12 @@ export function paintBeachRings(t: number): void {
       c.stroke();
       c.restore();
     }
-    const fill = (rings.get(nickname) ?? 0) / need;
+    // During the qualifying the ring is this race's likes, full for its top liker.
+    const fill = q
+      ? top > 0
+        ? (qualLikes.get(nickname) ?? 0) / top
+        : 0
+      : (rings.get(nickname) ?? 0) / need;
     if (fill > 0.01) likesRing(f.x, f.y, f.r * CRAB_PHOTO, Math.min(1, fill));
   }
 }

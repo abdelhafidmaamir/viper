@@ -33,6 +33,10 @@ import {
 } from '../../src/renderer/arena/rules.ts';
 import { board } from '../../src/renderer/feed/control-link.ts';
 import { game, hooks, newRound } from '../../src/renderer/feed/state.ts';
+import { QUALIFY } from '../../src/renderer/arena/qualify.ts';
+
+// These tests play the round as it was before the qualifying: straight to GET READY.
+QUALIFY.time = 0;
 
 const STEP = 1 / 30;
 const run = (seconds: number): void => {

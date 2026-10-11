@@ -140,6 +140,8 @@ export interface Snake {
    * turns away from whatever it meets). It is drawn like any other snake.
    */
   immune: boolean;
+  /** Hatched from a seat won in the qualifying: its egg shows the picture while it waits. */
+  seat?: boolean;
 }
 
 export interface Food {
@@ -210,7 +212,7 @@ export const arena = {
   foodAt: new Map<number, Food>(),
   viewers: new Map<string, Viewer>(),
   line: [] as string[],
-  phase: 'ready' as 'ready' | 'play' | 'end',
+  phase: 'ready' as 'qualify' | 'ready' | 'play' | 'end',
   time: 0,
   clock: 0,
   crown: -1,
@@ -405,10 +407,12 @@ export function eggCell(): number {
  * A snake is laid as the Duel's egg at a free place (eggCell) and hatches from it (round.ts). Null
  * when no colour or no cell is free.
  */
-export function spawn(v: Viewer | null, colourWas?: SnakeColour): Snake | null {
+export function spawn(v: Viewer | null, colourWas?: SnakeColour, at?: number): Snake | null {
   const free = colourWas && !arena.snakes.some((o) => o.alive && o.colour === colourWas),
     colour = free ? colourWas : freeColour(v?.nickname ?? 'wild'),
-    cell = colour ? eggCell() : -1;
+    // A seat's egg (qualify.ts) is laid where it stood, when that cell is still free.
+    seatFree = at !== undefined && onBoard(at) && !occupancy().occ[at],
+    cell = !colour ? -1 : at !== undefined && seatFree ? at : eggCell();
   if (!colour || cell < 0) return null;
   const id = arena.nextId++,
     body = makeBody([], 0, 0);

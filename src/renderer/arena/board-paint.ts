@@ -338,6 +338,12 @@ function paintEggOf(c: CanvasRenderingContext2D, s: Snake): void {
   const egg = s.egg;
   if (!egg) return;
   const p = toPx(cellX(egg.cell), cellY(egg.cell));
+  if (egg.t < 0 && s.seat) {
+    // A seat won in the qualifying: the egg waits its turn with the picture over it.
+    paintStillEgg(c, p.x, p.y, arena.clock);
+    if (!s.wild) paintFace(s, p.x, p.y - 64, SEAT_PHOTO);
+    return;
+  }
   if (egg.t < 0) {
     // The picture is on its way: only a faint mark where it will land.
     c.save();
@@ -354,6 +360,18 @@ function paintEggOf(c: CanvasRenderingContext2D, s: Snake): void {
   c.translate(p.x, p.y);
   c.scale(FAT, FAT);
   paintEgg(c, 0, 0, egg.t, egg.t / HATCH_TIME);
+  c.restore();
+}
+
+/** A seat's picture over its egg (qualify.ts). */
+export const SEAT_PHOTO = 34;
+
+/** The Duel's egg at rest, barely breathing, at the size of the arena's snakes. */
+export function paintStillEgg(c: CanvasRenderingContext2D, x: number, y: number, t: number): void {
+  c.save();
+  c.translate(x, y);
+  c.scale(FAT, FAT);
+  paintEgg(c, 0, 0, t, 0.04);
   c.restore();
 }
 

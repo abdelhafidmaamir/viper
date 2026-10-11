@@ -19,6 +19,13 @@ import {
 } from './ai.ts';
 import { fullRingWaiting, isPilot, stepQueue, updateFlights, updatePilot } from './entry.ts';
 import {
+  QUALIFY,
+  qualifying,
+  startQualifying,
+  stepQualifying,
+  updateSeatFlights,
+} from './qualify.ts';
+import {
   DEATH_TIME,
   EMERGE,
   MOUTH_CELL,
@@ -91,6 +98,12 @@ export function arenaRound(roundTime: number): void {
   arena.wildT = 1;
   arena.houseT = TUNING.houseEvery * 0.4;
   TUNING.roundTime = roundTime;
+  // The qualifying opens: nobody is owed a seat, everyone starts again at 0.
+  if (QUALIFY.time > 0) {
+    for (const v of arena.viewers.values()) v.gifted = 0;
+    startQualifying();
+    return;
+  }
   // Whoever was in, and whoever still has paid berries in the flower, is owed a place.
   const owed = new Set(
       game.queue.filter((q) => q.n > 0 && q.nickname !== '').map((q) => q.nickname),
@@ -638,6 +651,12 @@ export function stepArena(dt: number): void {
     game.full += dt;
     moveAll(dt);
     if (game.full > roundHold()) newRound();
+    return;
+  }
+  // The qualifying: eggs and pictures only, no snake yet.
+  if (qualifying()) {
+    updateSeatFlights(dt);
+    stepQualifying(dt);
     return;
   }
   const ready = game.ready >= 0;

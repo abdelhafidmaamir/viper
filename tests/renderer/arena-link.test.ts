@@ -29,6 +29,10 @@ import {
   settingsIn,
   supportersText,
 } from '../../src/renderer/feed/supporters.ts';
+import { QUALIFY } from '../../src/renderer/arena/qualify.ts';
+
+// These tests play the round as it was before the qualifying: straight to GET READY.
+QUALIFY.time = 0;
 
 function store(map = new Map<string, string>()): FeedLinkDeps['storage'] {
   return {

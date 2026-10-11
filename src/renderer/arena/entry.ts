@@ -45,6 +45,18 @@ export const ENTRY = {
 export const PILOT = { name: 'Skohlds', key: 'S\u200b', fill: 20 };
 let pilotOn = false;
 
+/**
+ * The qualifying's own rules (qualify.ts), set there: likes count in its race and a gift locks a
+ * seat; a gift during the end screen locks one as soon as it opens.
+ */
+export const qualHooks: {
+  like: (nickname: string, n: number) => void;
+  gift: (v: Viewer) => void;
+  late: (nickname: string) => void;
+} = { like: () => undefined, gift: () => undefined, late: () => undefined };
+
+const qualifying = (): boolean => arena.phase === 'qualify';
+
 /** Likes toward entry per viewer, since their last birth or death. */
 export const rings = new Map<string, number>();
 
@@ -86,7 +98,7 @@ export const gifters: string[] = [];
  * colour or cell free, they wait in the line for the next place.
  */
 function enter(v: Viewer, instant: boolean): void {
-  if (v.state === 'in' || v.state === 'line') return;
+  if (v.state === 'in' || v.state === 'line' || qualifying()) return;
   const wait = (): void => {
     v.state = 'line';
     if (!arena.line.includes(v.nickname)) arena.line.push(v.nickname);
@@ -159,6 +171,10 @@ export function arenaLike(nickname: string, avatar: string | undefined, n: numbe
   v.acts.push(arena.clock);
   for (let k = 0; k < Math.min(n, HEARTS_PER_LIKE) && likeHearts.length < HEARTS_MAX; k++)
     likeHearts.push({ nickname, t: 0, delay: k * 0.08 });
+  if (qualifying()) {
+    qualHooks.like(nickname, n);
+    return;
+  }
   const s = v.state === 'in' ? snakeOf(nickname) : undefined;
   if (s) {
     if (options.likeBoost) s.boost = Math.min(TUNING.boostCap, s.boost + n * TUNING.likeBoost);
@@ -202,6 +218,12 @@ export function arenaGift(nickname: string, avatar: string | undefined, berries:
   const v = viewer(nickname, avatar);
   v.acts.push(arena.clock);
   v.gifted += berries;
+  if (qualifying()) {
+    qualHooks.gift(v);
+    if (TUNING.shieldGift > 0 && berries >= TUNING.shieldGift) shield(v, undefined);
+    return;
+  }
+  if (arena.phase === 'end') qualHooks.late(nickname);
   if (v.state !== 'in' && ENTRY.giftEntry) giftIn(v);
   const s = snakeOf(nickname);
   if (s) s.idle = 0;
@@ -220,6 +242,11 @@ export function arenaLife(nickname: string, avatar: string | undefined, n: numbe
   const v = viewer(nickname, avatar);
   v.acts.push(arena.clock);
   addLives(v, n);
+  if (qualifying()) {
+    qualHooks.gift(v);
+    return;
+  }
+  if (arena.phase === 'end') qualHooks.late(nickname);
   if (v.state !== 'in') giftIn(v);
   const s = snakeOf(nickname);
   if (s) s.idle = 0;
@@ -276,6 +303,15 @@ export function queueLike(nickname: string): void {
   queueMoves.count += 2;
 }
 
+/** The viewer's animal leaves its spot in the queue (its picture went up to a seat). */
+export function leaveQueue(nickname: string): void {
+  const i = queue.findIndex((w) => w?.nickname === nickname);
+  if (i < 0) return;
+  queue[i] = null;
+  freedAt[i] = arena.clock;
+  queueMoves.count++;
+}
+
 /**
  * Someone with a full ring waiting on the beach, or a gifter waiting for a place: a wild snake
  * never takes a place they are waiting for.
@@ -313,7 +349,7 @@ export function stepQueue(): void {
     }
   }
   for (const n of gifters) queueLike(n);
-  if (arena.phase === 'end' || !hasRoom()) return;
+  if (arena.phase === 'end' || qualifying() || !hasRoom()) return;
   const here = (n: string): boolean => queue.some((w) => w?.nickname === n),
     gifter = gifters.find(here),
     full = queue
@@ -378,7 +414,7 @@ export const pilotPlaying = (): boolean => pilotOn;
  * out on the beach first; its likes never reach the round's rankings or the journal.
  */
 export function updatePilot(dt: number): void {
-  if (!pilotOn) return;
+  if (!pilotOn || qualifying()) return;
   const v = viewer(PILOT.key);
   if (v.state !== 'out' && v.state !== 'none') return;
   rings.set(PILOT.key, (rings.get(PILOT.key) ?? 0) + (ENTRY.likesNeeded / PILOT.fill) * dt);

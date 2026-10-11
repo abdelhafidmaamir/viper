@@ -48,6 +48,8 @@ import {
   paintArenaBeach,
   paintArenaClock,
   paintArenaTime,
+  paintQualifying,
+  qualifying,
 } from './arena.ts';
 import { AUDIENCE, setAudience, tickAudience } from './audience.ts';
 import { arenaLife, isLifeGift } from './entry.ts';
@@ -199,8 +201,8 @@ function step(dt: number): void {
   simulate(dt);
   advanceArena(dt);
   updateAlerts(dt);
-  // Supporter entrances wait while the board is not in play (get ready, end screen).
-  updateSupporters(dt, game.ready >= 0 || game.full >= 0);
+  // Supporter entrances wait while the board is not in play (qualifying, get ready, end screen).
+  updateSupporters(dt, game.ready >= 0 || game.full >= 0 || qualifying());
   easeHour(dt);
   const c = ctx as CanvasRenderingContext2D | null,
     a = ambience();
@@ -218,6 +220,7 @@ function step(dt: number): void {
     paintArenaTime();
     if (game.full >= 0) paintRoundEnd(performance.now() / 1000, carriedOver(), arenaHeadline());
     paintReady();
+    paintQualifying();
     paintSupporters(t);
     paintAlerts();
     a.update(dt, e);

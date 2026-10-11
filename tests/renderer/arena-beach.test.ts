@@ -26,6 +26,10 @@ import {
   sleepersState,
 } from '../../src/renderer/feed/crabs.ts';
 import { game, hooks, newRound } from '../../src/renderer/feed/state.ts';
+import { QUALIFY } from '../../src/renderer/arena/qualify.ts';
+
+// These tests play the round as it was before the qualifying: straight to GET READY.
+QUALIFY.time = 0;
 
 // The beach is painted for real on a context that only keeps track of its transform, and of the
 // circles it is asked to draw: where each picture lands, and the rings drawn round them.
