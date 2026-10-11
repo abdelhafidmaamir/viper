@@ -41,6 +41,10 @@ less, likes-only ones look less far.
   `queueIdle` seconds without a like (3 s on screen at least). Progress is kept without a spot.
 - Only a crab on screen goes in: the first full ring. Its picture flies to the egg, the egg plays
   once the picture has landed, and the snake hatches with that picture.
+- A full board stays full: no snake is ever put off it to make room, not a viewer's, not a wild
+  one, not the pilot. A place frees only when a snake dies, with its death on screen. Then a
+  waiting gifter goes in first, then viewers owed a place, then the fullest ring. A wild snake
+  never takes a place someone with a full ring is waiting for.
 - Crabs come up out of the sand and bury themselves to leave (Feed's crab, coming out and its
   reverse); a ranking change walks them sideways along the sand, the one moving forward stepping
   back while the other passes.
@@ -51,7 +55,12 @@ less, likes-only ones look less far.
   straight ahead of the head, past the cells it crosses while they fall. Paid berries take the
   giver's colour wherever they show (board, flower, thanks, end screen).
 - `giftBerries`: `owner` (default), only the giver's snake eats them; `shared`, any snake can.
-- `giftEntry` (default on): a gift from a viewer without a snake brings it in at once.
+- `giftEntry` (default on): a gift from a viewer without a snake brings it in at once. On a full
+  board its ring fills at once and its crab waits at the front of the queue, NEXT, gifters first
+  come, first in; its berries wait in the flower and pour once its snake is out. The life gift
+  does the same.
+- A snake the control room takes off (the pilot switched off) hands its paid berries back to the
+  flower, as a death does: no paid berry lies on the board without its giver's snake.
 - `shieldGift`: one gift worth this many berries gives 10 s of shield (default 0, never).
 - The extra-life gift, set on the control room's Money tab (`lifeOn`, off by default): a gift at
   `lifePrice` coins gives a life instead of berries, up to `maxLives`. A snake with a life that

@@ -495,6 +495,11 @@ const photoAt = (s: Snake): { x: number; y: number } => {
  */
 function dieSlowly(s: Snake, lifeUsed: boolean): void {
   arena.dying.push({ s, t: 0, segments: s.cells.length, from: photoAt(s), lifeUsed });
+  handBack(s);
+}
+
+/** The snake's own paid berries on the board or falling fade off it, back into the flower. */
+function handBack(s: Snake): void {
   if (s.wild) return;
   let mine = 0;
   for (const f of [...arena.food])
@@ -574,10 +579,14 @@ export function addLives(v: Viewer, n: number): void {
   else v.lives = Math.min(TUNING.maxLives, v.lives + n);
 }
 
-/** A snake leaves quietly to make room (a gifter arriving on a full board). */
+/**
+ * A snake taken off the board on purpose by a control room switch (the pilot switched off),
+ * never to make room. Its paid berries go back to the flower as at a death.
+ */
 export function leave(s: Snake): void {
   if (!s.alive) return;
   s.alive = false;
+  handBack(s);
   const v = s.wild ? undefined : arena.viewers.get(s.nickname);
   if (v) {
     v.state = 'out';

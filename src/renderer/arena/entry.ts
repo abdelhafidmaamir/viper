@@ -3,7 +3,8 @@
 // picture flies to it and their snake hatches from it. Once in, likes fill the same ring on the
 // snake's head: its speed gauge, when the boost is on. A gift's berries pour from the flower to
 // the giver's snake and make it grow; a gift from someone without a snake brings it in at once (a
-// control room switch), and a big one gives a shield. Comments do nothing.
+// control room switch), or on a full board to the front of the queue, and a big one gives a
+// shield. Comments do nothing. Nobody is ever put off the board to make room.
 //
 // The pilot player, "Skohlds", shows newcomers how it works: its ring fills by itself, its
 // picture flies to its egg, its snake plays like any other and comes back after a death. It is the
@@ -66,36 +67,38 @@ export function faceOf(nickname: string): { x: number; y: number; r: number } {
   return crabFaces().get(nickname) ?? { x: W / 2, y: H - 220, r: 45 };
 }
 
-/** On a full board, the smallest wild snake goes, else the one whose viewer has been quiet longest. */
-function makeRoom(): boolean {
-  const live = alive();
-  if (live.length < places()) return true;
-  const wild = live.filter((s) => s.wild).sort((p, q) => p.len - q.len)[0],
-    idle = live.filter((s) => !s.wild && !isPilot(s)).sort((p, q) => q.idle - p.idle)[0],
-    pilot = live.find(isPilot),
-    victim = wild ?? pilot ?? idle;
-  if (!victim) return false;
-  leave(victim);
-  return true;
-}
+/**
+ * A place is free. A snake on the board is never put out to make room, not a viewer's, not a wild
+ * one, not the pilot: a place frees only when a snake dies.
+ */
+const hasRoom = (): boolean => alive().length < places();
+
+/**
+ * Viewers who gave on a full board, in the order they gave: their ring is full, their animal
+ * stands at the front of the queue, and they go in first at the next free place.
+ */
+export const gifters: string[] = [];
 
 /**
  * The viewer comes in: their egg is laid at once; for a full ring, their picture flies from the
- * beach to it. With no place, colour or cell free, they wait for the next place.
+ * beach to it. On a full board nothing happens: they wait on the beach. With a place but no
+ * colour or cell free, they wait in the line for the next place.
  */
 function enter(v: Viewer, instant: boolean): void {
   if (v.state === 'in' || v.state === 'line') return;
-  rings.set(v.nickname, 0);
   const wait = (): void => {
     v.state = 'line';
     if (!arena.line.includes(v.nickname)) arena.line.push(v.nickname);
   };
   // The round is over: a place at the start of the next one.
   if (arena.phase === 'end') {
+    rings.set(v.nickname, 0);
     wait();
     return;
   }
-  const s = makeRoom() ? spawn(v) : null;
+  if (!hasRoom()) return;
+  rings.set(v.nickname, 0);
+  const s = spawn(v);
   if (!s?.egg) {
     wait();
     return;
@@ -166,16 +169,32 @@ function shield(v: Viewer, s: Snake | undefined): void {
 }
 
 /**
+ * A gift from a viewer without a snake: with a free place they come in at once. On a full board
+ * nobody makes way: their ring fills at once and their animal waits at the front of the queue,
+ * NEXT, gifters in the order they gave, until a snake dies.
+ */
+function giftIn(v: Viewer): void {
+  if (arena.phase === 'end' || hasRoom()) {
+    enter(v, true);
+    return;
+  }
+  if (v.state === 'in' || v.state === 'line') return;
+  rings.set(v.nickname, Math.max(rings.get(v.nickname) ?? 0, ENTRY.likesNeeded));
+  if (!gifters.includes(v.nickname)) gifters.push(v.nickname);
+  queueLike(v.nickname);
+}
+
+/**
  * A gift, already priced in berries by the control room's list: the flower pours them to the
- * giver's snake (round.ts), a viewer without one comes in at once when the switch says so, and a
- * big gift gives a shield. Berries never get lost: without a snake they wait in the flower.
+ * giver's snake (round.ts), a viewer without one comes in when the switch says so, and a big gift
+ * gives a shield. Berries never get lost: without a snake they wait in the flower.
  */
 export function arenaGift(nickname: string, avatar: string | undefined, berries: number): void {
   if (!nickname || berries <= 0 || nickname === PILOT.key) return;
   const v = viewer(nickname, avatar);
   v.acts.push(arena.clock);
   v.gifted += berries;
-  if (v.state !== 'in' && ENTRY.giftEntry) enter(v, true);
+  if (v.state !== 'in' && ENTRY.giftEntry) giftIn(v);
   const s = snakeOf(nickname);
   if (s) s.idle = 0;
   if (TUNING.shieldGift > 0 && berries >= TUNING.shieldGift) shield(v, s);
@@ -186,14 +205,14 @@ export const isLifeGift = (coins: number): boolean => TUNING.lifeOn && coins ===
 
 /**
  * Extra-life gifts, `n` of them: one more life each for the giver's snake, up to the most a snake
- * holds; a viewer without a snake comes in at once with them.
+ * holds; a viewer without a snake comes in with them as with any gift.
  */
 export function arenaLife(nickname: string, avatar: string | undefined, n: number): void {
   if (!nickname || n <= 0 || nickname === PILOT.key) return;
   const v = viewer(nickname, avatar);
   v.acts.push(arena.clock);
   addLives(v, n);
-  if (v.state !== 'in') enter(v, true);
+  if (v.state !== 'in') giftIn(v);
   const s = snakeOf(nickname);
   if (s) s.idle = 0;
 }
@@ -237,11 +256,37 @@ export function queueLike(nickname: string): void {
       queueMoves.count++;
       return;
     }
+  // A gifter waiting for a place is never kept off the beach: with every spot taken, the quietest
+  // animal without a gift leaves its spot to them (its likes are kept).
+  if (!gifters.includes(nickname) || queue.some((w) => !w)) return;
+  let at = -1;
+  queue.forEach((w, i) => {
+    if (w && !gifters.includes(w.nickname) && (at < 0 || w.liked < (queue[at]?.liked ?? 0))) at = i;
+  });
+  if (at < 0) return;
+  queue[at] = { nickname, since: now, liked: now };
+  queueMoves.count += 2;
 }
 
-/** The queue between frames: who leaves their spot, and the first full ring that goes in. */
+/**
+ * Someone with a full ring waiting on the beach, or a gifter waiting for a place: a wild snake
+ * never takes a place they are waiting for.
+ */
+export const fullRingWaiting = (): boolean =>
+  gifters.length > 0 || queue.some((w) => !!w && (rings.get(w.nickname) ?? 0) >= ENTRY.likesNeeded);
+
+/**
+ * The queue between frames: who leaves their spot, and who goes in at a free place. A gifter
+ * waiting goes first, in the order they gave; then the fullest ring, once the viewers owed a
+ * place in the line (round.ts lets them in) have theirs.
+ */
 export function stepQueue(): void {
   const now = arena.clock;
+  // Gifters who went in, or into the line, wait here no more.
+  for (let i = gifters.length - 1; i >= 0; i--) {
+    const st = arena.viewers.get(gifters[i] ?? '')?.state;
+    if (st !== 'none' && st !== 'out') gifters.splice(i, 1);
+  }
   queue.length = QUEUE.spots;
   for (let i = 0; i < QUEUE.spots; i++) {
     const w = queue[i];
@@ -251,19 +296,25 @@ export function stepQueue(): void {
     }
     const v = arena.viewers.get(w.nickname),
       gone = !v || v.state === 'in' || v.state === 'line',
-      quiet = now - w.liked > QUEUE.idle && now - w.since > QUEUE.least;
+      quiet =
+        !gifters.includes(w.nickname) && now - w.liked > QUEUE.idle && now - w.since > QUEUE.least;
     if (gone || quiet) {
       queue[i] = null;
       freedAt[i] = now;
       queueMoves.count++;
     }
   }
-  if (arena.phase === 'end') return;
-  const full = queue
-    .filter((w): w is Waiting => !!w && (rings.get(w.nickname) ?? 0) >= ENTRY.likesNeeded)
-    .sort((p, q) => (rings.get(q.nickname) ?? 0) - (rings.get(p.nickname) ?? 0))[0];
-  if (!full) return;
-  const v = arena.viewers.get(full.nickname);
+  for (const n of gifters) queueLike(n);
+  if (arena.phase === 'end' || !hasRoom()) return;
+  const here = (n: string): boolean => queue.some((w) => w?.nickname === n),
+    gifter = gifters.find(here),
+    full = queue
+      .filter((w): w is Waiting => !!w && (rings.get(w.nickname) ?? 0) >= ENTRY.likesNeeded)
+      .sort((p, q) => (rings.get(q.nickname) ?? 0) - (rings.get(p.nickname) ?? 0))[0],
+    likes = !gifters.length && alive().length + arena.line.length < places(),
+    next = gifter ?? (likes ? full?.nickname : undefined);
+  if (!next) return;
+  const v = arena.viewers.get(next);
   if (v && v.state !== 'in' && v.state !== 'line') enter(v, false);
 }
 
@@ -276,9 +327,12 @@ export function queueOrder(): string[] {
   // Who left is gone from the line; who came stands at its end.
   line = line.filter((n) => here.includes(n));
   for (const n of here) if (!line.includes(n)) line.push(n);
+  // Gifters waiting for a place stand at the front, in the order they gave.
+  const first = gifters.filter((n) => line.includes(n));
+  line = [...first, ...line.filter((n) => !first.includes(n))];
   // One overtake at a time, and only by a clear margin: the swap is a short walk to watch.
   const margin = ENTRY.likesNeeded * OVERTAKE;
-  for (let i = 0; i + 1 < line.length; i++) {
+  for (let i = first.length; i + 1 < line.length; i++) {
     const a = line[i] ?? '',
       b = line[i + 1] ?? '';
     if ((rings.get(b) ?? 0) > (rings.get(a) ?? 0) + margin) {

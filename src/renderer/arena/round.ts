@@ -9,7 +9,7 @@ import { FCOLS, FROWS } from '../feed/grid.ts';
 import { stepInto } from '../feed/path.ts';
 import { FALL_TIME, READY_TIME, game, hooks, newRound, repay, roundHold } from '../feed/state.ts';
 import { backingOf, chooseNext, updateMode, type Sight } from './ai.ts';
-import { isPilot, stepQueue, updateFlights, updatePilot } from './entry.ts';
+import { fullRingWaiting, isPilot, stepQueue, updateFlights, updatePilot } from './entry.ts';
 import {
   DEATH_TIME,
   EMERGE,
@@ -117,7 +117,12 @@ function entries(dt: number): void {
       arena.line.shift();
       arena.enterT = TUNING.enterGap;
     }
-  } else if (arena.wildT <= 0 && n < Math.min(TUNING.wildUpTo, places()) && !arena.line.length) {
+  } else if (
+    arena.wildT <= 0 &&
+    n < Math.min(TUNING.wildUpTo, places()) &&
+    !arena.line.length &&
+    !fullRingWaiting()
+  ) {
     spawn(null);
     arena.wildT = TUNING.wildGap;
   }
