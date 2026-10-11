@@ -10,17 +10,17 @@ and the supporters list. See [rules-feed.md](rules-feed.md).
 
 ## The snakes
 
-| Element    | Rule                                                                                                                                                                           |
-| ---------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
-| Look       | Feed's snake, trace and painter at Feed's size, in one of the 8 prod colours, the viewer's photo above the head                                                                |
-| Places     | `places` snakes at once, one per colour (8 at most); wild snakes fill up to `wildSnakes`                                                                                       |
-| Birth      | The Duel's egg at a free place: 3 cells or more from every body, out of reach of every head before it hatches                                                                  |
-| Start      | One cell out of the egg, growing to 8; 3 s of grace, blinking                                                                                                                  |
-| Speed      | `speed` cells a second, up to 15% slower at 60 cells; likes add 30% for up to `boostCap` seconds                                                                               |
-| Death      | A head into another snake's body, or the smaller head in a head-on. Never by its own body: boxed in by itself, a snake passes over itself                                      |
-| Dying      | The body pops from the tail to the head in 1 s, leaving nothing to eat; the photo drops to its crab                                                                            |
-| Unbeatable | A snake that ate its viewer's gift berries this round cannot die: its head turns away from whatever it meets, and it glows in its colour. A normal head still dies on its body |
-| Crown      | On the biggest snake in play (never the pilot), on its head and on its crab                                                                                                    |
+| Element    | Rule                                                                                                                                                                              |
+| ---------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Look       | Feed's snake, trace and painter at Feed's size, in one of the 8 prod colours, the viewer's photo above the head                                                                   |
+| Places     | `places` snakes at once, one per colour (8 at most); wild snakes fill up to `wildSnakes`                                                                                          |
+| Birth      | The Duel's egg at a free place: 3 cells or more from every body, out of reach of every head before it hatches                                                                     |
+| Start      | One cell out of the egg, growing to 8; 3 s of grace, blinking                                                                                                                     |
+| Speed      | `speed` cells a second, up to 15% slower at 60 cells; likes add 30% for up to `boostCap` seconds                                                                                  |
+| Death      | A head into another snake's body, or the smaller head in a head-on. Never by its own body: boxed in by itself, a snake passes over itself                                         |
+| Dying      | The body pops from the tail to the head in 1 s, leaving nothing to eat; the photo drops to its crab                                                                               |
+| Unbeatable | A snake that ate its viewer's gift berries this round cannot die: its head turns away from whatever it meets. It looks like any other snake. A normal head still dies on its body |
+| Crown      | On the biggest snake in play (never the pilot), on its head and on its crab                                                                                                       |
 
 The brains: with `superAI` on, every snake plays the strong one (flood fill one to three moves
 ahead, a food goal held to the end, other heads read a few moves ahead, cut-offs only when reached

@@ -15,7 +15,7 @@ import { CELL, W } from '../engine/layout.ts';
 import { HATCH_TIME } from '../engine/rules.ts';
 import type { Ambience, AmbienceFrame } from '../engine/types-api.ts';
 import type { Point } from '../engine/types.ts';
-import { BOARD_H, BOARD_W, FCELL, FX0, FY0, K } from '../feed/grid.ts';
+import { BOARD_H, BOARD_W, FX0, FY0, K } from '../feed/grid.ts';
 import {
   FONT,
   berrySprite,
@@ -163,31 +163,6 @@ export function traceOf(s: Snake): Point[] {
   return pts;
 }
 
-/**
- * An unbeatable snake's glow: wide soft strokes along its body in its own colour, as the prod
- * glows are drawn (never a blurred shadow, which costs too much on a long body).
- */
-function glow(c: CanvasRenderingContext2D, trace: Point[], colour: string): void {
-  const first = trace[0];
-  if (!first) return;
-  const path = new Path2D();
-  path.moveTo(first.x, first.y);
-  for (const p of trace) path.lineTo(p.x, p.y);
-  c.save();
-  c.lineCap = 'round';
-  c.lineJoin = 'round';
-  c.strokeStyle = colour;
-  for (const [w, a] of [
-    [FCELL * 2.1, 0.1],
-    [FCELL * 1.55, 0.16],
-  ] as const) {
-    c.globalAlpha = a;
-    c.lineWidth = w;
-    c.stroke(path);
-  }
-  c.restore();
-}
-
 /** The body and its skin, as Feed paints its snake, clipped to the board so a newborn comes up. */
 function paintBody(
   c: CanvasRenderingContext2D,
@@ -204,7 +179,6 @@ function paintBody(
   c.beginPath();
   c.rect(FX0 - 6, FY0 - 6, BOARD_W + 12, BOARD_H + 12);
   c.clip();
-  if (s.immune) glow(c, trace, COLOURS[s.colour]);
   if (s.safe > 0) c.globalAlpha = 0.5 + 0.4 * Math.abs(Math.sin(s.born * 11));
   c.save();
   c.scale(FAT, FAT);

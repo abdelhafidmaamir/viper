@@ -137,7 +137,7 @@ export interface Snake {
   goal: number;
   /**
    * Its viewer's gift berries reached it this round: it cannot die until the round ends (its head
-   * turns away from whatever it meets), and it glows.
+   * turns away from whatever it meets). It is drawn like any other snake.
    */
   immune: boolean;
 }
