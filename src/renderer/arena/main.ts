@@ -25,7 +25,7 @@ import {
   type FeedLinkDeps,
 } from '../feed/control-link.ts';
 import { crabLike, paintCrabs, setCrabRanks, setLikeCount } from '../feed/crabs.ts';
-import { paintFlower } from '../feed/flower.ts';
+import { paintFlower, setFlowerMotes } from '../feed/flower.ts';
 import { BOARD_H, BOARD_W, FCELL, FCOLS, FROWS, FX0, FY0 } from '../feed/grid.ts';
 import { paintReady } from '../feed/hud.ts';
 import { COLUMNS, drainJournal, note } from '../feed/journal.ts';
@@ -247,6 +247,8 @@ function start(): void {
   setLikeCount(false);
   // The beach has no likes ranking here: the only crown is on the biggest snake.
   setCrabRanks(false);
+  // The gift thanks at the top keeps its cards and photo, without the particles thrown around it.
+  setFlowerMotes(false);
   countOnArena();
   // One channel for both links: Feed's commands and state, and the arena's own.
   const channel = new BroadcastChannel(ARENA_CHANNEL),

@@ -91,7 +91,15 @@ interface Mote {
 let motes: Mote[] = [];
 let motesAt = 0;
 
+/** Snake Arena's flower throws nothing when a gift opens it; Feed keeps its particles. */
+let throwsMotes = true;
+export function setFlowerMotes(on: boolean): void {
+  throwsMotes = on;
+  if (!on) motes = [];
+}
+
 function spray(n: number, force: number): void {
+  if (!throwsMotes) return;
   for (let k = 0; k < n; k++) {
     const side = k % 2 ? 1 : -1,
       u = Math.random(),
