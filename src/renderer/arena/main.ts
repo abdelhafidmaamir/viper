@@ -52,6 +52,7 @@ import {
 import { AUDIENCE, setAudience, tickAudience } from './audience.ts';
 import { arenaLife, isLifeGift } from './entry.ts';
 import { arenaStorage, countOnArena, linkArenaControl } from './link.ts';
+import { alive } from './rules.ts';
 
 let t = 0,
   last = performance.now() / 1000,
@@ -71,8 +72,15 @@ let fps = 0,
   windowStart = 0;
 
 const ambience = () => (window.AMBIENCES ?? []).find((a) => a.id === 'forest') ?? null;
-/** A name for test gifts and likes sent from the control room without one. */
-const someone = (): string => `tester${String(1 + Math.floor(Math.random() * 9))}`;
+/**
+ * A name for test gifts and likes sent from the control room without one: a viewer whose snake
+ * is on the board, so the test shows at once; a tester only while no viewer plays.
+ */
+const someone = (): string => {
+  const playing = alive().filter((s) => !s.wild);
+  const s = playing[Math.floor(Math.random() * playing.length)];
+  return s ? s.nickname : `tester${String(1 + Math.floor(Math.random() * 9))}`;
+};
 
 let liveCheck = 0;
 
