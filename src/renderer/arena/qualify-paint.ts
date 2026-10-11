@@ -10,7 +10,7 @@ import { ctx } from '../engine/canvas.ts';
 import { GOLD } from '../engine/palette.ts';
 import { bigHeart } from '../feed/alert-fx.ts';
 import { BOARD_W, FX0 } from '../feed/grid.ts';
-import { FONT, berrySprite, paintFace } from '../feed/paint.ts';
+import { FONT, paintFace } from '../feed/paint.ts';
 import { bumpOf, paintStillEgg } from './board-paint.ts';
 import { nameOf } from './entry.ts';
 import {
@@ -60,24 +60,6 @@ function paintName(name: string, x: number, y: number): void {
   c.strokeText(shown, x, y);
   c.fillStyle = '#fff';
   c.fillText(shown, x, y);
-  c.restore();
-}
-
-/** A paid seat's badge: the prod berry alone, in a gold-rimmed pill; no like count. */
-function paintGiftBadge(x: number, y: number, t: number): void {
-  const c = ctx,
-    h = 46,
-    w = 62,
-    size = 40;
-  c.save();
-  c.fillStyle = 'rgba(8,12,10,0.82)';
-  c.strokeStyle = GOLD;
-  c.lineWidth = 2.5;
-  c.beginPath();
-  c.roundRect(x - w / 2, y - h / 2, w, h, h / 2);
-  c.fill();
-  c.stroke();
-  c.drawImage(berrySprite(Math.floor(t * 8) % 32), x - size / 2, y - size / 2, size, size);
   c.restore();
 }
 
@@ -174,8 +156,8 @@ function paintActor(a: Actor, t: number, risky: string | null): void {
     c.globalAlpha *= words;
     paintName(nameOf(a.nickname), a.x, a.y - r - 6);
     const alarm = risky === a.nickname ? 0.5 + 0.5 * Math.sin(t * 9) : 0;
-    if (isLocked(a.nickname)) paintGiftBadge(a.x, a.y + r + 2, t);
-    else paintBadge(n, a.x, a.y + r + 2, alarm);
+    // A paid seat shows no badge: its gold egg and outline say it.
+    if (!isLocked(a.nickname)) paintBadge(n, a.x, a.y + r + 2, alarm);
   }
   c.restore();
 }
