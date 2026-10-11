@@ -166,6 +166,10 @@ let modList = new Set<string>();
 export const board: {
   gift: (nickname: string, avatar: string | undefined, berries: number, live?: boolean) => void;
   like: (nickname: string, avatar: string | undefined, n: number) => void;
+  /** A gift at this price is something else than berries (Snake Arena's extra life). */
+  instead?: (coins: number) => boolean;
+  /** A gift that gives no berries, `n` of it at `coins` each: true when it was used anyway. */
+  unpriced?: (nickname: string, avatar: string | undefined, coins: number, n: number) => boolean;
 } = { gift, like };
 
 export interface FrameMetrics {
@@ -375,7 +379,7 @@ export function receiveFeedEvent(ev: AudienceEvent | null | undefined): number {
   if (id) supporterPhoto(id, ev?.avatar);
   if (ev?.type !== 'gift') return 0;
   const coins = giftCoins(ev.name ?? ev.gift, ev.value),
-    berries = priced(coins);
+    berries = board.instead?.(coins) ? 0 : priced(coins);
   note({
     event: 'gift',
     source: 'tiktok',
@@ -402,7 +406,7 @@ export function receiveFeedEvent(ev: AudienceEvent | null | undefined): number {
     coins: coins * n,
   });
   if (giftLog.length > GIFT_LOG) giftLog.length = GIFT_LOG;
-  if (!berries) return 0;
+  if (!berries) return board.unpriced?.(ev.nickname ?? 'viewer', ev.avatar, coins, n) ? n : 0;
   board.gift(ev.nickname ?? 'viewer', ev.avatar, berries * n, true);
   return n;
 }
@@ -573,8 +577,11 @@ export function applyFeedCommand(command: FeedCommand, deps: FeedLinkDeps): void
       {
         const nickname = command.nickname ?? deps.someone(),
           coins = giftCoins(undefined, command.coins) || FEED_GIFTS[command.gift],
-          berries = priced(coins) * count(command.count);
-        if (!berries) return;
+          berries = (board.instead?.(coins) ? 0 : priced(coins)) * count(command.count);
+        if (!berries) {
+          board.unpriced?.(nickname, undefined, coins, count(command.count));
+          return;
+        }
         board.gift(nickname, undefined, berries);
         thankGift(nickname, undefined, berries);
         note({

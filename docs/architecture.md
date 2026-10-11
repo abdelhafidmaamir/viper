@@ -116,21 +116,30 @@ is the first screen.
 ## Snake Arena
 
 The third mode, one snake per viewer, plays its own board inside Feed's scene. Everything around
-the board (forest, ring, flower, animals, alerts, entrances, end screen, journal, supporters) is
-imported from `feed/` as it is. `arena/` holds the rest:
+the board (forest, ring, flower, alerts, entrances, end screen, journal, supporters) is Feed's,
+imported as it is. `arena/` holds the rest:
 
-| Module     | What's in it                                                                  |
-| ---------- | ----------------------------------------------------------------------------- |
-| `main.ts`  | the frame loop: Feed's scene around the board, the round on the arena's clock |
-| `arena.ts` | the board, and the only file that knows how it plays (a placeholder for now)  |
-| `link.ts`  | Feed's link on the arena's channel and storage, plus the game's tuning values |
+| Module           | What's in it                                                           |
+| ---------------- | ---------------------------------------------------------------------- |
+| `main.ts`        | the frame loop: Feed's scene round the board, the simulated audience   |
+| `arena.ts`       | the board's face to the rest: settings, round, step, painters, status  |
+| `rules.ts`       | the state: snakes, food, eggs, deaths, lives, the tuning values        |
+| `round.ts`       | the frame's rules: phases, the flower's drip, steps, collisions, crown |
+| `ai.ts`          | the calm and strong brains, flood fill and look-ahead                  |
+| `entry.ts`       | likes, gifts, the queue on the beach, flights to the egg, the pilot    |
+| `board-paint.ts` | food, bodies with Feed's painter, heads, eggs, the dying               |
+| `beach.ts`       | the ring as a clock, the beach's layout, rings, flags, like hearts     |
+| `audience.ts`    | the rehearsal audience                                                 |
+| `link.ts`        | Feed's link on the arena's channel and storage, plus the tuning values |
 
 Feed's link hands every like and gift it counts to a `board` object; Feed points it at its round,
-the arena at its round and its board. Feed's settings are saved under `viper-arena-...` keys in the
-arena, so neither mode changes what the other reads back.
+the arena at its round and its board. The few Feed modules the arena needs to steer only gained
+optional parameters or switches it turns on (`crabs.ts` lays out a managed beach, `paint.ts`
+keeps one chevron sprite per colour and tints paid berries, `alerts.ts` has a `kill` card); with
+them off, Feed draws what it always drew. The Duel's egg is drawn by `engine/eggshell.ts`, shared.
 
-`arena-control/` is its control room: Feed's control room shell and cards (`feed-control/`) on
-the arena's channel, with the arena's round card and an Arena card for the tuning values.
+`arena-control/` is its control room: Feed's control room shell and cards on the arena's channel,
+with the arena's round card and, on the Setup tab, an Arena card for the tuning values.
 
 ## Persistence and sync (Feed)
 

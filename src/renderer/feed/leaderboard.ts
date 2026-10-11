@@ -91,7 +91,7 @@ function stats(line: Line, x: number, y: number, size: number, align: 'center' |
     gap = size * 0.3,
     parts: { sprite: HTMLCanvasElement; text: string; color: string }[] = [];
   if (line.berries > 0)
-    parts.push({ sprite: berrySprite(0), text: num(line.berries), color: '#fff' });
+    parts.push({ sprite: berrySprite(0, line.nickname), text: num(line.berries), color: '#fff' });
   if (line.likes > 0)
     parts.push({
       sprite: burstSprite('like'),

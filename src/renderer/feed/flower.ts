@@ -445,7 +445,7 @@ function paintWings(
         from = mid - (cw + 96) / 2,
         k = 1 + 0.42 * punch;
       c.drawImage(
-        berrySprite(0),
+        berrySprite(0, pour.nickname),
         from + 38 - bs / 2,
         FLOWER.y - bs / 2 + Math.sin(t * 5) * 3,
         bs,

@@ -84,7 +84,8 @@ Re-importing the same list does not count anyone twice.
 
 | Flag                                                | Effect                                  |
 | --------------------------------------------------- | --------------------------------------- |
-| `--mode=duel\|feed`                                 | Skips the launcher                      |
+| `--mode=duel\|feed\|arena`                          | Skips the launcher                      |
+| `--data-dir=<dir>`                                  | Keeps every file in `<dir>` (rehearsal) |
 | `--orientation=portrait\|landscape`                 | Landscape is supported by the Duel only |
 | `--diagnostic=<name> --out=<dir>`                   | Runs a measurement and exits            |
 | `--weather`, `--hour`, `--settle`, `--all-weathers` | Diagnostic parameters                   |

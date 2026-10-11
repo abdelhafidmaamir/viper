@@ -18,7 +18,8 @@ import { burstSprite } from './alert-fx.ts';
 import { FONT, crown, paintFace } from './paint.ts';
 import { LOTUS, paintBloom, paintLoosePetals, visitNumber } from './welcome.ts';
 
-export type AlertKind = 'join' | 'like' | 'share' | 'follow';
+/** 'kill' is Snake Arena's: a snake eliminated. Feed never sends it. */
+export type AlertKind = 'join' | 'like' | 'share' | 'follow' | 'kill';
 
 interface Alert {
   kind: AlertKind;
@@ -46,6 +47,8 @@ interface Alert {
   supporter: number | undefined;
   /** A join by someone with a high gifter level on TikTok who has not given here: the gold edge. */
   ranked: boolean;
+  /** For a kill: the snake that did it, its photo at the card's right end. */
+  by?: { nickname: string; avatar?: string | undefined } | undefined;
 }
 
 interface Heart {
@@ -73,9 +76,17 @@ const STAY: Readonly<Record<AlertKind, number>> = {
   like: 3.8,
   share: 4,
   follow: 3.8,
+  kill: 4,
 };
 /** Icons bursting when a card comes up; likes burst one per like instead. */
-const BURST: Readonly<Record<AlertKind, number>> = { join: 0, like: 0, share: 14, follow: 12 };
+const BURST: Readonly<Record<AlertKind, number>> = {
+  join: 0,
+  like: 0,
+  share: 14,
+  follow: 12,
+  // A kill's card comes up plain: no blossoms.
+  kill: 0,
+};
 const FADE = 0.35;
 /** A card is readable for at least this long before a more important one may cut it. */
 const MIN_SHOW = 1.2,
@@ -92,7 +103,7 @@ const EXPIRES: Readonly<Record<number, number>> = { 1: 10, 2: 6 };
 
 /** 0 first: follows, shares and returning supporters, then likes and ranked joins, plain joins last. */
 const rank = (a: Pick<Alert, 'kind' | 'supporter' | 'ranked'>): number =>
-  a.kind === 'share' || a.kind === 'follow' || a.supporter !== undefined
+  a.kind === 'share' || a.kind === 'follow' || a.kind === 'kill' || a.supporter !== undefined
     ? 0
     : a.kind === 'like' || a.ranked
       ? 1
@@ -102,6 +113,7 @@ const ACCENT: Readonly<Record<AlertKind, string>> = {
   share: '246,184,196',
   follow: '255,159,184',
   join: '242,197,124',
+  kill: '255,143,168',
 };
 /** Hearts per like event, at most: a flood of likes must not cover the screen. */
 const HEARTS_PER_EVENT = 24,
@@ -112,6 +124,7 @@ const PHRASES: Readonly<Record<AlertKind, readonly I18nKey[]>> = {
   like: ['like.0', 'like.1'],
   share: ['share.0', 'share.1'],
   follow: ['follow.0', 'follow.1'],
+  kill: ['kill.0'],
 };
 
 /** What the sound layer listens to. */
@@ -221,6 +234,38 @@ export function alertViewer(
   if (queue.length > 5) queue.length = 5;
 }
 
+/**
+ * Snake Arena: a snake eliminated. The same card as a share (first in line, never expires) with
+ * no blossoms, the loser's photo and sentence, the winner's photo at the right end when there is
+ * one.
+ */
+export function alertKill(
+  victim: { nickname: string; avatar?: string | undefined },
+  by: { nickname: string; avatar?: string | undefined } | null,
+): void {
+  if (!victim.nickname || !alertsOn) return;
+  const next: Alert = {
+    kind: 'kill',
+    nickname: victim.nickname,
+    avatar: victim.avatar,
+    by: by ?? undefined,
+    likes: 0,
+    phrase: by ? 'kill.by' : 'kill.0',
+    visit: 0,
+    supporter: undefined,
+    ranked: false,
+    age: 0,
+    shown: 0,
+    waited: 0,
+    stay: STAY.kill,
+    hearts: BURST.kill,
+  };
+  const at = queue.findIndex((a) => rank(a) > rank(next));
+  if (at < 0) queue.push(next);
+  else queue.splice(at, 0, next);
+  if (queue.length > 5) queue.length = 5;
+}
+
 /** A point on the card's outline, for icons to leave from. */
 function edgePoint(): { x: number; y: number; nx: number; ny: number } {
   const u = Math.random();
@@ -320,10 +365,19 @@ const smooth = (v: number): number => {
 
 /** The sentence with the name cut out, so the name can be drawn bold in gold. */
 function sentence(a: Alert): [string, string, string] {
+  if (a.kind === 'kill') return killSentence(a);
   const text = tr(a.phrase, { n: a.phrase === 'welcome.top' ? (a.supporter ?? 0) : a.likes }),
     at = text.indexOf('{name}'),
     name = a.nickname.length > 18 ? a.nickname.slice(0, 17) + '…' : a.nickname;
   return at < 0 ? [text, '', ''] : [text.slice(0, at), name, text.slice(at + 6)];
+}
+
+/** A kill's sentence: who fell, and who got them when it was another viewer's snake. */
+function killSentence(a: Alert): [string, string, string] {
+  const cut = (name: string): string => (name.length > 14 ? name.slice(0, 13) + '…' : name),
+    text = tr(a.phrase, { q: a.by ? cut(a.by.nickname) : '' }),
+    at = text.indexOf('{name}');
+  return at < 0 ? [text, '', ''] : [text.slice(0, at), cut(a.nickname), text.slice(at + 6)];
 }
 
 export function paintAlerts(): void {
@@ -375,7 +429,9 @@ export function paintAlerts(): void {
       const [before, name, after] = sentence(a),
         // The bloom reaches past the photo: the welcome's text starts a little further right.
         tx = ax + AVATAR / 2 + (a.kind === 'join' ? AVATAR * 0.6 : 18),
-        room = x + CARD_W - 24 - tx;
+        // A kill keeps the right end for the winner's photo.
+        room = x + CARD_W - 24 - tx - (a.by ? AVATAR + 12 : 0);
+      if (a.by) paintFace(a.by, x + CARD_W - 18 - AVATAR / 2, 0, AVATAR / 2, GOLD);
       const widths = (px: number): [number, number, number] => {
         c.font = `500 ${String(px)}px ${FONT}`;
         const b = c.measureText(before).width,

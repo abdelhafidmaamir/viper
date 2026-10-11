@@ -177,9 +177,6 @@ function fail(error: unknown): never {
 
 keepRenderingWhenCovered();
 
-// The app was named Viper Duel before it had a second mode: its settings stay where they were.
-app.setPath('userData', path.join(app.getPath('appData'), 'Viper Duel'));
-
 let config: AppConfig;
 try {
   // Packaged: [exe, ...args]. Development: [electron, appPath, ...args].
@@ -187,6 +184,13 @@ try {
 } catch (error) {
   fail(error);
 }
+
+// The app was named Viper Duel before it had a second mode: its settings stay where they were,
+// unless a rehearsal asks for a folder of its own.
+app.setPath(
+  'userData',
+  config.dataDir ? path.resolve(config.dataDir) : path.join(app.getPath('appData'), 'Viper Duel'),
+);
 
 // Pixel regression needs a rasteriser that is a pure function of the draw calls.
 if (config.diagnostic?.name === 'visual') useReproducibleRendering(app);

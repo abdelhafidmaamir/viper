@@ -134,6 +134,8 @@ const DRAW: Readonly<Record<AlertKind, (g: CanvasRenderingContext2D) => void>> =
   join: sparkle,
   share,
   follow,
+  // Never burst (a kill's card has no icons): here for the table to be complete.
+  kill: share,
 };
 
 export function burstSprite(kind: AlertKind): HTMLCanvasElement {

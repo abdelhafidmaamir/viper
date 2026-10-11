@@ -7,28 +7,49 @@
 
 export const ARENA_CHANNEL = 'viper-arena';
 
-/** Snakes on the board at once. Viewers past that wait for a place. */
-export const ARENA_PLACES = [4, 6, 8, 10, 12] as const;
-/** Likes a viewer sends to fill their entry ring and bring their snake onto the board. */
-export const ARENA_ENTRY_LIKES = [10, 25, 50, 100, 200] as const;
-/** Fastest a snake may go on likes, as a multiple of its normal speed. */
-export const ARENA_BOOST_CAPS = [1, 1.25, 1.5, 2] as const;
+/** Snakes on the board at once, one per snake colour, so 8 at most. Viewers past that wait. */
+export const ARENA_PLACES = [4, 6, 8] as const;
+/** Likes that fill a viewer's entry ring round their animal's picture: their snake is born. */
+export const ARENA_ENTRY_LIKES = [25, 50, 100, 150, 200] as const;
+/** Seconds of speed boost likes can bank at most, while the boost is on. */
+export const ARENA_BOOST_CAPS = [3, 6, 10] as const;
 /** Berries one gift must be worth to give its owner's snake a shield; 0 never does. */
-export const ARENA_SHIELD_GIFTS = [0, 5, 10, 30, 100] as const;
+export const ARENA_SHIELD_GIFTS = [0, 10, 30, 100] as const;
 /** Seconds a round lasts before its end screen. */
-export const ARENA_ROUND_LENGTHS = [60, 120, 180, 300, 600] as const;
+export const ARENA_ROUND_LENGTHS = [60, 120, 180, 240, 300] as const;
 /** Who may eat a gift's berries: only the snake of the viewer who sent it, or any snake. */
 export const ARENA_GIFT_BERRIES = ['owner', 'shared'] as const;
 export type ArenaGiftBerries = (typeof ARENA_GIFT_BERRIES)[number];
-/** The board keeps at least this many snakes, adding wild ones while few viewers play; 0 is off. */
-export const ARENA_WILD_SNAKES = [0, 2, 3, 4, 6] as const;
+/** With few viewers, wild snakes make up the board to this many; 0 is off. */
+export const ARENA_WILD_SNAKES = [0, 2, 4, 6] as const;
+/** A small snake's speed, in cells per second (Feed's snake runs at 9). */
+export const ARENA_SPEEDS = [5, 6, 7, 8, 9] as const;
+/** Seconds between two drips of plain berries for everyone, give or take a fifth. */
+export const ARENA_PLAIN_EVERY = [15, 25, 40, 60] as const;
+/** Most plain berries in one drip (each drip drops 1 up to this many). */
+export const ARENA_PLAIN_AMOUNTS = [1, 2, 3, 5] as const;
+/** Coins of the one gift that gives an extra life instead of berries; 0 is none. */
+export const ARENA_LIFE_PRICES = [0, 10, 20, 30, 99, 199] as const;
+/** Most lives a snake can hold. */
+export const ARENA_MAX_LIVES = [1, 2, 3, 5] as const;
+/** Share of its length a snake keeps when a life brings it back. */
+export const ARENA_LIFE_KEEPS = [0.25, 0.5, 0.75, 1] as const;
+/** Seconds without a like before a waiting animal leaves its queue spot. */
+export const ARENA_QUEUE_IDLES = [3, 5, 10, 15] as const;
+/** How much a viewer's gifts make their snake smarter and safer, against likes-only ones. */
+export const ARENA_BACKING = ['off', 'light', 'strong'] as const;
+export type ArenaBacking = (typeof ARENA_BACKING)[number];
 
 export interface ArenaSettings {
   /** Snakes on the board at once (ARENA_PLACES). */
   readonly places: number;
   /** Likes to fill the entry ring (ARENA_ENTRY_LIKES). */
   readonly entryLikes: number;
-  /** Speed cap on likes (ARENA_BOOST_CAPS). */
+  /** A gift from a viewer without a snake brings it in at once. */
+  readonly giftEntry: boolean;
+  /** Likes speed up the viewer's snake once it is in. */
+  readonly likeBoost: boolean;
+  /** Most seconds of boost likes can bank (ARENA_BOOST_CAPS). */
   readonly boostCap: number;
   /** Gift size, in berries, that buys a shield (ARENA_SHIELD_GIFTS). */
   readonly shieldGift: number;
@@ -36,20 +57,52 @@ export interface ArenaSettings {
   readonly roundLength: number;
   /** Whether a gift's berries are for its owner only (ARENA_GIFT_BERRIES). */
   readonly giftBerries: ArenaGiftBerries;
-  /** Least snakes on the board, wild ones filling in (ARENA_WILD_SNAKES). */
+  /** Wild snakes fill the board up to this many (ARENA_WILD_SNAKES). */
   readonly wildSnakes: number;
+  /** Speed in cells per second (ARENA_SPEEDS). */
+  readonly speed: number;
+  /** Seconds between two plain drips (ARENA_PLAIN_EVERY). */
+  readonly plainEvery: number;
+  /** Most plain berries per drip (ARENA_PLAIN_AMOUNTS). */
+  readonly plainAmount: number;
+  /** Gifts make a snake's brain smarter and safer (ARENA_BACKING). */
+  readonly backing: ArenaBacking;
+  /** Seconds without a like before a queue animal walks away (ARENA_QUEUE_IDLES). */
+  readonly queueIdle: number;
+  /** The extra-life gift's price in coins (ARENA_LIFE_PRICES). */
+  readonly lifePrice: number;
+  /** Most lives a snake holds (ARENA_MAX_LIVES). */
+  readonly maxLives: number;
+  /** Share of length kept on a life (ARENA_LIFE_KEEPS). */
+  readonly lifeKeep: number;
+  /** The game's own player, "Viper", plays to show viewers how it works. */
+  readonly pilot: boolean;
+  /** Every snake plays the strong brain; off, the calm one. */
+  readonly superAI: boolean;
 }
 
 export type ArenaSettingName = keyof ArenaSettings;
 
 export const ARENA_DEFAULTS: ArenaSettings = {
-  places: 8,
-  entryLikes: 50,
-  boostCap: 1.5,
-  shieldGift: 10,
+  places: 6,
+  entryLikes: 100,
+  giftEntry: true,
+  likeBoost: true,
+  boostCap: 6,
+  shieldGift: 0,
   roundLength: 180,
   giftBerries: 'owner',
-  wildSnakes: 3,
+  wildSnakes: 4,
+  speed: 7,
+  plainEvery: 25,
+  plainAmount: 1,
+  backing: 'off',
+  queueIdle: 5,
+  lifePrice: 0,
+  maxLives: 3,
+  lifeKeep: 0.5,
+  pilot: false,
+  superAI: true,
 };
 
 /** One of the game's tuning values; the Feed settings travel as Feed commands. */
@@ -59,10 +112,20 @@ export interface ArenaCommand {
   readonly value: unknown;
 }
 
+/** Snakes on the board: viewers', wild ones, and whether the pilot plays. */
+export interface ArenaSnakeCount {
+  readonly viewers: number;
+  readonly wild: number;
+  readonly pilot: boolean;
+}
+
 export interface ArenaState {
   readonly settings: ArenaSettings;
   /** Seconds before the round ends, counted only while it plays. */
   readonly secondsLeft: number;
+  readonly snakes?: ArenaSnakeCount;
+  /** Snakes that boxed themselves in this round. */
+  readonly trapped?: number;
 }
 
 export interface ArenaStateMessage {
@@ -116,8 +179,29 @@ export function sanitizeArenaSetting<K extends ArenaSettingName>(
       return listed(ARENA_ROUND_LENGTHS, value) ? ok(value) : undefined;
     case 'giftBerries':
       return ARENA_GIFT_BERRIES.includes(value as ArenaGiftBerries) ? ok(value) : undefined;
+    case 'lifePrice':
+      return listed(ARENA_LIFE_PRICES, value) ? ok(value) : undefined;
+    case 'maxLives':
+      return listed(ARENA_MAX_LIVES, value) ? ok(value) : undefined;
+    case 'lifeKeep':
+      return listed(ARENA_LIFE_KEEPS, value) ? ok(value) : undefined;
+    case 'queueIdle':
+      return listed(ARENA_QUEUE_IDLES, value) ? ok(value) : undefined;
+    case 'backing':
+      return ARENA_BACKING.includes(value as ArenaBacking) ? ok(value) : undefined;
     case 'wildSnakes':
       return listed(ARENA_WILD_SNAKES, value) ? ok(value) : undefined;
+    case 'speed':
+      return listed(ARENA_SPEEDS, value) ? ok(value) : undefined;
+    case 'plainEvery':
+      return listed(ARENA_PLAIN_EVERY, value) ? ok(value) : undefined;
+    case 'plainAmount':
+      return listed(ARENA_PLAIN_AMOUNTS, value) ? ok(value) : undefined;
+    case 'giftEntry':
+    case 'likeBoost':
+    case 'pilot':
+    case 'superAI':
+      return typeof value === 'boolean' ? ok(value) : undefined;
   }
   return undefined;
 }

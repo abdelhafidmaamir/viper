@@ -22,6 +22,8 @@ export function paintRing(
   t: number,
   fill = game.len / TOTAL,
   urgent = TOTAL - cells() <= 20 && game.full < 0,
+  /** One colour for the fill in place of the green to gold (Snake Arena: the crown holder's). */
+  tint?: string,
 ): void {
   const c = ctx,
     x = FX0 - 26,
@@ -49,7 +51,7 @@ export function paintRing(
   c.beginPath();
   c.roundRect(x, y, w, h, r);
   c.stroke();
-  c.strokeStyle = g;
+  c.strokeStyle = tint ?? g;
   c.lineWidth = 7;
   c.stroke();
   c.restore();

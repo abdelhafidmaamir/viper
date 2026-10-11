@@ -8,6 +8,7 @@ describe('parseConfig', () => {
       orientation: 'portrait',
       mode: null,
       rendererOrigin: null,
+      dataDir: null,
       diagnostic: null,
     });
   });
@@ -19,6 +20,10 @@ describe('parseConfig', () => {
     expect(parseConfig([]).mode).toBeNull();
   });
 
+  it('keeps its files in another folder for a rehearsal', () => {
+    expect(parseConfig(['--data-dir=rehearsal']).dataDir).toBe('rehearsal');
+  });
+
   it('accepts landscape', () => {
     expect(parseConfig(['--orientation=landscape']).orientation).toBe('landscape');
   });
@@ -28,6 +33,7 @@ describe('parseConfig', () => {
       orientation: 'portrait',
       mode: null,
       rendererOrigin: null,
+      dataDir: null,
       diagnostic: null,
     });
   });

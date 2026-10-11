@@ -35,6 +35,11 @@ export interface AppConfig {
   /** Opens this mode directly, skipping the launcher. Null shows the launcher. */
   readonly mode: Mode | null;
   /**
+   * Keeps every file the app writes (settings, supporters list, journal, backup) in this folder
+   * instead of the usual one: for a rehearsal that must leave the real data alone. Null: usual.
+   */
+  readonly dataDir: string | null;
+  /**
    * Development only: origin of the Vite dev server that serves the renderer with hot reload.
    * Null in production, where the main process serves the built renderer itself.
    */
@@ -91,6 +96,7 @@ function numberIn(flag: string, value: string, min: number, max: number): number
  * @example
  *   Viper.exe --mode=feed
  *   Viper.exe --mode=arena
+ *   Viper.exe --mode=arena --data-dir=C:\rehearsal
  *   Viper.exe --mode=duel --orientation=landscape
  *   Viper.exe --diagnostic=frame-timing --out=perf --all-weathers
  */
@@ -103,6 +109,7 @@ export function parseConfig(argv: readonly string[]): AppConfig {
       orientation: { type: 'string' },
       mode: { type: 'string' },
       'renderer-url': { type: 'string' },
+      'data-dir': { type: 'string' },
       diagnostic: { type: 'string' },
       out: { type: 'string' },
       weather: { type: 'string' },
@@ -127,9 +134,10 @@ export function parseConfig(argv: readonly string[]): AppConfig {
 
   const rendererFlag = text('renderer-url');
   const rendererOrigin = rendererFlag ? loopbackOrigin('renderer-url', rendererFlag) : null;
+  const dataDir = text('data-dir') ?? null;
 
   const diagnosticFlag = text('diagnostic');
-  if (!diagnosticFlag) return { orientation, mode, rendererOrigin, diagnostic: null };
+  if (!diagnosticFlag) return { orientation, mode, rendererOrigin, dataDir, diagnostic: null };
 
   const hour = text('hour');
   const settle = text('settle');
@@ -137,6 +145,7 @@ export function parseConfig(argv: readonly string[]): AppConfig {
     orientation,
     mode,
     rendererOrigin,
+    dataDir,
     diagnostic: {
       name: oneOf('diagnostic', diagnosticFlag, DIAGNOSTICS),
       options: {

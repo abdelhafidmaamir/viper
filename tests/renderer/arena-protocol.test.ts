@@ -20,19 +20,44 @@ describe('arena protocol', () => {
   });
 
   it('clamps settings to values the game accepts', () => {
-    expect(sanitizeArenaSetting('places', 10)).toBe(10);
-    expect(sanitizeArenaSetting('places', 7)).toBeUndefined();
-    expect(sanitizeArenaSetting('places', '8')).toBeUndefined();
-    expect(sanitizeArenaSetting('entryLikes', 100)).toBe(100);
-    expect(sanitizeArenaSetting('boostCap', 1.25)).toBe(1.25);
-    expect(sanitizeArenaSetting('boostCap', 3)).toBeUndefined();
+    expect(sanitizeArenaSetting('places', 8)).toBe(8);
+    expect(sanitizeArenaSetting('places', 10)).toBeUndefined();
+    expect(sanitizeArenaSetting('places', '6')).toBeUndefined();
+    expect(sanitizeArenaSetting('entryLikes', 150)).toBe(150);
+    expect(sanitizeArenaSetting('boostCap', 10)).toBe(10);
+    expect(sanitizeArenaSetting('boostCap', 1.5)).toBeUndefined();
     expect(sanitizeArenaSetting('shieldGift', 0)).toBe(0);
-    expect(sanitizeArenaSetting('roundLength', 300)).toBe(300);
+    expect(sanitizeArenaSetting('roundLength', 240)).toBe(240);
     expect(sanitizeArenaSetting('roundLength', 1e9)).toBeUndefined();
     expect(sanitizeArenaSetting('giftBerries', 'shared')).toBe('shared');
     expect(sanitizeArenaSetting('giftBerries', 'everyone')).toBeUndefined();
     expect(sanitizeArenaSetting('wildSnakes', 0)).toBe(0);
-    expect(sanitizeArenaSetting('wildSnakes', -1)).toBeUndefined();
+    expect(sanitizeArenaSetting('plainEvery', 25)).toBe(25);
+    expect(sanitizeArenaSetting('queueIdle', 5)).toBe(5);
+    expect(sanitizeArenaSetting('lifePrice', 30)).toBe(30);
+    expect(sanitizeArenaSetting('lifeKeep', 0.6)).toBeUndefined();
+    expect(sanitizeArenaSetting('backing', 'strong')).toBe('strong');
+    for (const name of ['giftEntry', 'likeBoost', 'pilot', 'superAI'] as const) {
+      expect(sanitizeArenaSetting(name, true)).toBe(true);
+      expect(sanitizeArenaSetting(name, 'yes')).toBeUndefined();
+    }
+  });
+
+  it('starts as Abdel set it: 100 likes in, berries for their giver, no shield, no life gift', () => {
+    expect(ARENA_DEFAULTS).toMatchObject({
+      places: 6,
+      entryLikes: 100,
+      giftEntry: true,
+      giftBerries: 'owner',
+      shieldGift: 0,
+      plainEvery: 25,
+      plainAmount: 1,
+      queueIdle: 5,
+      lifePrice: 0,
+      backing: 'off',
+      superAI: true,
+      pilot: false,
+    });
   });
 
   it('every default is a value the game accepts', () => {
@@ -45,8 +70,8 @@ describe('arena protocol', () => {
     expect(readArenaSettings('not json')).toEqual(ARENA_DEFAULTS);
     expect(readArenaSettings('[1,2]')).toEqual(ARENA_DEFAULTS);
     expect(
-      readArenaSettings(JSON.stringify({ places: 12, roundLength: 61, giftBerries: 'shared' })),
-    ).toEqual({ ...ARENA_DEFAULTS, places: 12, giftBerries: 'shared' });
+      readArenaSettings(JSON.stringify({ places: 8, roundLength: 61, giftBerries: 'shared' })),
+    ).toEqual({ ...ARENA_DEFAULTS, places: 8, giftBerries: 'shared' });
   });
 
   it('decodes the board state and ignores anything else', () => {

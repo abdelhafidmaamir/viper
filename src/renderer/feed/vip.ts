@@ -475,7 +475,7 @@ export function paintSupporters(t: number): void {
   }
   if (!sparks.length) return;
   const sparkle = burstSprite('join'),
-    berry = berrySprite(0);
+    berry = berrySprite(0, s?.nickname);
   c.save();
   const fade = s ? shown(s) : 1;
   for (const p of sparks) {

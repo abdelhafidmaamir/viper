@@ -1,153 +1,134 @@
-// Snake Arena's board: everything between the ring's four sides. The frame loop (main.ts) gives
-// it time, the canvas, the round's start and end and the viewers' likes and gifts, and asks for
-// the round clock. Nothing else in the window knows how the board plays, so the game itself can
-// be swapped in behind these few functions.
-//
-// For now the board is a placeholder: one snake loops round the board, a cell longer for each
-// berry given this round.
+// Snake Arena's board: everything between the ring's four sides, and the arena's marks on the
+// beach. The frame loop (main.ts) and the control room link (link.ts) only ever go through the
+// functions here; the rules live in rules.ts, round.ts, ai.ts and entry.ts, the painters in
+// board-paint.ts and beach.ts.
 
-import { ARENA_DEFAULTS, type ArenaSettings } from '../../shared/arena-protocol.ts';
-import { FCELL, FCOLS, FROWS, FX0, FY0 } from '../feed/grid.ts';
-import { snakeTint } from '../feed/paint.ts';
+import type { ArenaSettings, ArenaSnakeCount } from '../../shared/arena-protocol.ts';
+import type { Ambience, AmbienceFrame } from '../engine/types-api.ts';
+import { tr } from '../engine/i18n.ts';
+import { brain } from './ai.ts';
+import {
+  layOutBeach,
+  paintArenaRing,
+  paintArenaTime,
+  paintBeachRings,
+  paintFlags,
+  paintFlights,
+  paintLikeHearts,
+} from './beach.ts';
 
-let settings: ArenaSettings = ARENA_DEFAULTS;
+export { layOutBeach };
+
+export { paintArenaTime };
+import { paintFood, paintSnakes } from './board-paint.ts';
+import { ENTRY, QUEUE, isPilot, setPilot } from './entry.ts';
+import { arenaRound, carriedOver, stepArena } from './round.ts';
+
+export { carriedOver };
+import { TUNING, alive, arena, options, toPx } from './rules.ts';
+
+export { arenaGift, arenaLike } from './entry.ts';
+
+let settings: ArenaSettings | null = null;
 
 /** The control room's tuning values; the round length applies from the next round. */
 export function setArenaSettings(next: ArenaSettings): void {
   settings = next;
+  TUNING.places = next.places;
+  TUNING.wildUpTo = next.wildSnakes;
+  TUNING.speed = next.speed;
+  TUNING.boostCap = next.boostCap;
+  TUNING.shieldGift = next.shieldGift;
+  TUNING.lifePrice = next.lifePrice;
+  TUNING.maxLives = next.maxLives;
+  TUNING.lifeKeep = next.lifeKeep;
+  TUNING.houseEvery = next.plainEvery;
+  TUNING.houseAmount = next.plainAmount;
+  ENTRY.likesNeeded = next.entryLikes;
+  QUEUE.idle = next.queueIdle;
+  ENTRY.giftEntry = next.giftEntry;
+  options.likeBoost = next.likeBoost;
+  options.ownerOnly = next.giftBerries === 'owner';
+  brain.super = next.superAI;
+  brain.backing = next.backing;
+  setPilot(next.pilot);
 }
 
-/** Gifts sent once the round was over: they are paid for, so they play in the next round. */
-const nextRound: { nickname: string; avatar: string | undefined; n: number }[] = [];
-let over = false,
-  secondsLeft = ARENA_DEFAULTS.roundLength,
-  /** This round's length: a new setting waits for the next round. */
-  roundLength = ARENA_DEFAULTS.roundLength,
-  /** Likes and berries that reached the board this round. */
-  likes = 0,
-  berries = 0,
-  /** The placeholder snake's place on its loop, in cells. */
-  along = 0;
-
-const SPEED = 9,
-  START_LEN = 6,
-  MAX_LEN = 80,
-  /** The loop runs this many cells inside the board's edge. */
-  INSET = 3;
-
-/**
- * A new round: the board empties and the clock starts again at the round length. Gifts sent
- * during the last end screen come in first.
- */
+/** A new round: the board empties and whoever was in comes back. */
 export function newArenaRound(): void {
-  roundLength = settings.roundLength;
-  secondsLeft = roundLength;
-  likes = 0;
-  berries = 0;
-  over = false;
-  for (const g of nextRound.splice(0)) arenaGift(g.nickname, g.avatar, g.n);
+  arenaRound(settings?.roundLength ?? TUNING.roundTime);
 }
 
-/** The round stops and its end screen shows. */
-export function endArenaRound(): void {
-  over = true;
+/** Plays dt seconds, in short steps so a slow frame never lets a snake skip a cell's rules. */
+export function advanceArena(dt: number): void {
+  const n = Math.max(1, Math.ceil(dt / 0.034));
+  for (let i = 0; i < n; i++) stepArena(dt / n);
 }
 
-/** Plays dt seconds of the round. True on the frame its time runs out. */
-export function advanceArena(dt: number): boolean {
-  along += dt * SPEED;
-  if (over || secondsLeft <= 0) return false;
-  secondsLeft = Math.max(0, secondsLeft - dt);
-  if (secondsLeft > 0) return false;
-  over = true;
-  return true;
+/** The board's food and snakes, painted with the ambience's own snake painter. */
+export function paintArena(
+  c: CanvasRenderingContext2D,
+  a: Ambience,
+  e: AmbienceFrame,
+  t: number,
+): void {
+  paintFood(t);
+  paintSnakes(c, a, e, t);
 }
 
-/** A viewer's likes: `n` of them at once, as TikTok batches them. */
-export function arenaLike(nickname: string, _avatar: string | undefined, n: number): void {
-  if (!nickname || n <= 0) return;
-  likes += n;
+/** The ring round the board: the round's clock. */
+export const paintArenaClock = paintArenaRing;
+
+/** On the beach, over the animals: their entry rings and the pictures flying up. */
+export function paintArenaBeach(t: number): void {
+  paintFlags(t);
+  paintBeachRings(t);
+  paintLikeHearts();
+  paintFlights();
 }
 
-/** A viewer's gift, already priced in berries (the control room's price list). */
-export function arenaGift(nickname: string, avatar: string | undefined, n: number): void {
-  if (!nickname || n <= 0) return;
-  if (over) {
-    nextRound.push({ nickname, avatar, n });
-    return;
-  }
-  berries += n;
+/** Share of the round gone, 0 to 1: the beach climbs with it, as with Feed's fill. */
+export const arenaProgress = (): number => Math.min(1, arena.time / TUNING.roundTime);
+
+/** Where the ambience looks: the crowned head, or the board's middle. */
+export function arenaFocus(fallback: { x: number; y: number }): { x: number; y: number } {
+  const king = arena.snakes.find((s) => s.id === arena.crown && s.alive);
+  return king ? toPx(king.x, king.y) : fallback;
 }
 
-/** Seconds left in the round and how long it was set to last, read every frame for the ring. */
-export function arenaClock(): { secondsLeft: number; roundLength: number } {
-  return { secondsLeft, roundLength };
+/** The end screen's headline: who survived with the crown, or the time simply ran out. */
+export function arenaHeadline(): string {
+  const w = arena.winner;
+  if (!w || isPilot(w)) return tr('arena.over');
+  return tr('arena.won', { name: w.wild ? tr('arena.wild') : w.nickname.toUpperCase() });
 }
 
 export interface ArenaStatus {
   readonly secondsLeft: number;
   readonly roundLength: number;
-  /** Likes that reached the board this round. */
-  readonly likes: number;
-  /** Berries eaten on the board this round, for the end screen. */
+  readonly phase: 'ready' | 'play' | 'won' | 'end';
+  /** Berries eaten on the board this round. */
   readonly eaten: number;
+  readonly snakes: ArenaSnakeCount;
+  readonly kills: number;
+  /** Deaths by cause this round, self-traps included. */
+  readonly trapped: number;
 }
 
-/** The round so far. */
+/** The round so far, for the control room and the tests. */
 export function arenaStatus(): ArenaStatus {
-  return { secondsLeft, roundLength, likes, eaten: berries };
-}
-
-// ---- the placeholder snake -----------------------------------------------------------------
-
-const SIDE_W = FCOLS - 2 * INSET - 1,
-  SIDE_H = FROWS - 2 * INSET - 1,
-  LOOP = 2 * (SIDE_W + SIDE_H);
-
-/** The centre of the cell `k` steps round the loop, clockwise from its top left corner. */
-function loopPoint(k: number): { x: number; y: number } {
-  const s = ((k % LOOP) + LOOP) % LOOP;
-  let gx: number, gy: number;
-  if (s < SIDE_W) [gx, gy] = [s, 0];
-  else if (s < SIDE_W + SIDE_H) [gx, gy] = [SIDE_W, s - SIDE_W];
-  else if (s < 2 * SIDE_W + SIDE_H) [gx, gy] = [SIDE_W - (s - SIDE_W - SIDE_H), SIDE_H];
-  else [gx, gy] = [0, SIDE_H - (s - 2 * SIDE_W - SIDE_H)];
-  return { x: FX0 + (INSET + gx + 0.5) * FCELL, y: FY0 + (INSET + gy + 0.5) * FCELL };
-}
-
-/** Draws the board. `hour` is the time of day, 0 to 1, for anything that changes with it. */
-export function paintArena(c: CanvasRenderingContext2D, t: number, hour: number): void {
-  const length = Math.min(MAX_LEN, START_LEN + berries),
-    head = loopPoint(along);
-  c.save();
-  c.lineCap = 'round';
-  c.lineJoin = 'round';
-  c.strokeStyle = snakeTint();
-  c.lineWidth = FCELL * 0.8;
-  c.beginPath();
-  c.moveTo(head.x, head.y);
-  // One point per cell back along the loop, the last one part of the way.
-  for (let k = 1; k <= Math.ceil(length); k++) {
-    const p = loopPoint(along - Math.min(k, length));
-    c.lineTo(p.x, p.y);
-  }
-  c.stroke();
-  // Eyes that glow a little at night, blinking now and then.
-  const night = hour < 0.2 || hour > 0.85,
-    open = Math.sin(t * 1.3) > -0.97;
-  c.fillStyle = night ? '#fff6c8' : '#fff';
-  for (const side of [-1, 1]) {
-    c.beginPath();
-    c.arc(head.x + side * FCELL * 0.18, head.y - FCELL * 0.08, FCELL * 0.12, 0, Math.PI * 2);
-    c.fill();
-  }
-  if (open) {
-    c.fillStyle = '#10140f';
-    for (const side of [-1, 1]) {
-      c.beginPath();
-      c.arc(head.x + side * FCELL * 0.18, head.y - FCELL * 0.06, FCELL * 0.06, 0, Math.PI * 2);
-      c.fill();
-    }
-  }
-  c.restore();
+  const live = alive();
+  return {
+    secondsLeft: Math.max(0, TUNING.roundTime - arena.time),
+    roundLength: TUNING.roundTime,
+    phase: arena.phase,
+    eaten: arena.fed,
+    snakes: {
+      viewers: live.filter((s) => !s.wild && !isPilot(s)).length,
+      wild: live.filter((s) => s.wild).length,
+      pilot: live.some(isPilot),
+    },
+    kills: arena.kills,
+    trapped: arena.deaths.trapped,
+  };
 }

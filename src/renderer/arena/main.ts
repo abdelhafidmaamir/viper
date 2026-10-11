@@ -11,7 +11,6 @@ import '../game/game.css';
 import { ARENA_CHANNEL } from '../../shared/arena-protocol.ts';
 import { berriesPerGift, type CrowdLevel } from '../../shared/feed-protocol.ts';
 import { bindCanvas, ctx } from '../engine/canvas.ts';
-import { tr } from '../engine/i18n.ts';
 import { H, OX, W, WF } from '../engine/layout.ts';
 import type { AmbienceFrame } from '../engine/types-api.ts';
 import { paintAlerts, updateAlerts } from '../feed/alerts.ts';
@@ -25,45 +24,38 @@ import {
   settings,
   type FeedLinkDeps,
 } from '../feed/control-link.ts';
-import { crabLike, paintCrabs } from '../feed/crabs.ts';
+import { crabLike, paintCrabs, setCrabRanks, setLikeCount } from '../feed/crabs.ts';
 import { paintFlower } from '../feed/flower.ts';
 import { BOARD_H, BOARD_W, FCELL, FCOLS, FROWS, FX0, FY0 } from '../feed/grid.ts';
-import { paintReady, paintRing } from '../feed/hud.ts';
+import { paintReady } from '../feed/hud.ts';
 import { COLUMNS, drainJournal, note } from '../feed/journal.ts';
 import { paintRoundEnd } from '../feed/leaderboard.ts';
+import { paintBites } from '../feed/paint.ts';
 import { updateRainBed } from '../feed/rain-sound.ts';
 import { armSound } from '../feed/sound.ts';
 import { restoreSupporters, supportersText } from '../feed/supporters.ts';
-import { READY_TIME, game, hooks, newRound, roundHold } from '../feed/state.ts';
+import { game, hooks, newRound } from '../feed/state.ts';
 import { paintSupporters, thankGift, updateSupporters } from '../feed/vip.ts';
 import {
   advanceArena,
-  arenaClock,
-  arenaStatus,
-  endArenaRound,
+  arenaFocus,
+  arenaHeadline,
+  arenaProgress,
+  layOutBeach,
+  carriedOver,
   newArenaRound,
   paintArena,
+  paintArenaBeach,
+  paintArenaClock,
+  paintArenaTime,
 } from './arena.ts';
+import { AUDIENCE, setAudience, tickAudience } from './audience.ts';
+import { arenaLife, isLifeGift } from './entry.ts';
 import { arenaStorage, countOnArena, linkArenaControl } from './link.ts';
-
-const NAMES = [
-  'mira.lux',
-  'tobi_77',
-  'Pomelo',
-  'kazu2041',
-  'Nadia R.',
-  'Elio',
-  'fern',
-  'Ioana',
-  'rikko5150',
-  'Saulmx',
-];
 
 let t = 0,
   last = performance.now() / 1000,
   crowd: CrowdLevel = 0,
-  simTimer = 2,
-  likeTimer = 1,
   /** The hour on screen eases toward the chosen one; a new round snaps both. */
   hour = settings.hour,
   snap = true;
@@ -79,18 +71,15 @@ let fps = 0,
   windowStart = 0;
 
 const ambience = () => (window.AMBIENCES ?? []).find((a) => a.id === 'forest') ?? null;
-const someone = (): string => NAMES[Math.floor(Math.random() * NAMES.length)] ?? 'viewer';
-
-/** Seconds between simulated gifts, per audience size: a small live up to a busy one. */
-const GIFT_GAP: Record<Exclude<CrowdLevel, 0>, [number, number]> = {
-  1: [3, 8],
-  2: [1.2, 3.5],
-  3: [0.4, 1.4],
-};
+/** A name for test gifts and likes sent from the control room without one. */
+const someone = (): string => `tester${String(1 + Math.floor(Math.random() * 9))}`;
 
 let liveCheck = 0;
 
-/** The rehearsal audience: likes and gifts sent the way the live sends them, to the board too. */
+/**
+ * The rehearsal audience (audience.ts): its likes and gifts go the way the control room's test
+ * buttons send theirs, to the round, the animals and the board, priced like real gifts.
+ */
 function simulate(dt: number): void {
   if (crowd === 0) return;
   // A real live switches the simulated audience off, whatever was left on from a rehearsal.
@@ -99,105 +88,37 @@ function simulate(dt: number): void {
     liveCheck = 0.5;
     if (isLive(window.TikFinityBridge)) {
       crowd = 0;
+      setAudience(0);
       return;
     }
   }
-  simTimer -= dt;
-  likeTimer -= dt;
-  if (likeTimer <= 0) {
-    likeTimer = (0.3 + Math.random()) / crowd;
-    const who = someone(),
-      n = 1 + Math.floor(Math.random() * 15);
-    board.like(who, undefined, n);
-    crabLike(who, undefined, n);
-  }
-  if (simTimer > 0) return;
-  const [lo, hi] = GIFT_GAP[crowd];
-  simTimer = lo + Math.random() * (hi - lo);
-  // Mostly Roses, some Rosas, priced like real ones, times the streak.
-  const berries = berriesPerGift(
-    Math.random() < 0.8 ? 'Rose' : 'Rosa',
-    undefined,
-    settings.pricing,
-    settings.otherGifts,
-  );
-  if (!berries) return;
-  const nickname = someone(),
-    n = berries * (1 + Math.floor(Math.random() * 3));
-  board.gift(nickname, undefined, n);
-  thankGift(nickname, undefined, n);
-  note({ event: 'gift', source: 'simulated', nickname, berries: n });
+  tickAudience(dt, {
+    like: (who, n, avatar) => {
+      board.like(who, avatar, n);
+      crabLike(who, avatar, n);
+    },
+    gift: (nickname, coins, avatar) => {
+      if (isLifeGift(coins)) {
+        arenaLife(nickname, avatar, 1);
+        note({ event: 'life gift', source: 'simulated', nickname, coins });
+        return;
+      }
+      const berries = berriesPerGift(undefined, coins, settings.pricing, settings.otherGifts);
+      if (!berries) return;
+      board.gift(nickname, avatar, berries);
+      thankGift(nickname, avatar, berries);
+      note({ event: 'gift', source: 'simulated', nickname, berries });
+    },
+  });
 }
 
 window.receiveEvent = receiveFeedEvent;
-
-// ---- the round around the board ------------------------------------------------------------
-
-/** Seconds the flower shows a gift once its count stops growing: the berries are already in play. */
-const SHOW_GIFT = 2.6;
-let shownId = -1,
-  shownTotal = 0,
-  shownFor = 0;
-
-/**
- * The flower opens on each gift in turn and closes once all are shown. In Feed it pours the
- * berries one by one; here they reach the board at once (arena.ts), so it only shows the gift.
- */
-function showGifts(dt: number): void {
-  const q = game.queue[0];
-  if (q && q.id !== game.pour?.id) {
-    game.pour = q;
-    game.pourT = 0;
-  }
-  game.pourT += dt;
-  game.dripT += dt;
-  game.closeT = game.queue.length ? 0 : game.closeT + dt;
-  if (!q) return;
-  // A streak keeps adding to the gift on show: it stays while the count goes up.
-  if (q.id !== shownId || q.total !== shownTotal) {
-    if (q.id === shownId) game.dripT = 0;
-    shownId = q.id;
-    shownTotal = q.total;
-    shownFor = 0;
-  }
-  shownFor += dt;
-  if (shownFor >= SHOW_GIFT) game.queue.shift();
-}
-
-/** The round's time is up: its end screen, then the next round (newRound, after the hold). */
-function endRound(): void {
-  if (game.full >= 0) return;
-  endArenaRound();
-  game.ready = -1;
-  game.eaten = arenaStatus().eaten;
-  game.full = 0;
-  // Only the gift on show stays in the flower: the others are counted and on the board already,
-  // and the next round must not rank them a second time as carried over.
-  game.queue.splice(1);
-  hooks.full();
-}
-
-/** GET READY, the round itself on the arena's clock, then the end screen and a new round. */
-function playRound(dt: number): void {
-  showGifts(dt);
-  if (game.full >= 0) {
-    game.full += dt;
-    if (game.full > roundHold()) newRound();
-    return;
-  }
-  if (game.ready >= 0) {
-    game.ready += dt;
-    if (game.ready >= READY_TIME) game.ready = -1;
-    return;
-  }
-  if (advanceArena(dt)) endRound();
-}
 
 // ---- the frame -----------------------------------------------------------------------------
 
 const CENTRE = { x: FX0 + BOARD_W / 2, y: FY0 + BOARD_H / 2 };
 
-function frame(dt: number, elapsed: number): AmbienceFrame {
+function frame(dt: number, progress: number): AmbienceFrame {
   return {
     t,
     dt,
@@ -208,16 +129,16 @@ function frame(dt: number, elapsed: number): AmbienceFrame {
     y0: FY0,
     cols: FCOLS,
     rows: FROWS,
-    head: CENTRE,
+    head: arenaFocus(CENTRE),
     world: 0,
     worldKind: null,
     silence: 0,
     hour,
     weather: settings.weather,
     weatherSnap: snap,
-    subStep: elapsed,
+    subStep: progress,
     progression: 0,
-    tension: Math.max(0, (elapsed - 0.85) * 6),
+    tension: Math.max(0, (progress - 0.85) * 6),
     reduced: reducedMotion.matches,
   };
 }
@@ -257,14 +178,18 @@ function loop(ms: number): void {
     step(dt);
   } catch (error) {
     errors++;
-    if (errors < 5) console.error('[arena] frame failed', error);
+    if (errors < 5)
+      console.error(
+        '[arena] frame failed',
+        error instanceof Error ? (error.stack ?? error.message) : error,
+      );
   }
 }
 
 function step(dt: number): void {
   t += dt;
   simulate(dt);
-  playRound(dt);
+  advanceArena(dt);
   updateAlerts(dt);
   // Supporter entrances wait while the board is not in play (get ready, end screen).
   updateSupporters(dt, game.ready >= 0 || game.full >= 0);
@@ -272,17 +197,18 @@ function step(dt: number): void {
   const c = ctx as CanvasRenderingContext2D | null,
     a = ambience();
   if (c && a) {
-    // The ring fills with the round's time and pulses in its last ten seconds.
-    const clock = arenaClock(),
-      elapsed = Math.min(1, Math.max(0, 1 - clock.secondsLeft / clock.roundLength)),
-      e = frame(dt, elapsed);
+    const e = frame(dt, arenaProgress());
     a.paintBack(c, e);
-    paintRing(t, elapsed, clock.secondsLeft <= 10 && game.full < 0 && game.ready < 0);
-    paintArena(c, t, hour);
+    paintArenaClock(t);
+    paintArena(c, a, e, t);
+    paintBites();
     a.paintFront(c, e);
+    layOutBeach();
     paintCrabs(t, e.subStep, e.reduced, settings.weather);
+    paintArenaBeach(t);
     paintFlower(t);
-    if (game.full >= 0) paintRoundEnd(performance.now() / 1000, 0, tr('arena.over'));
+    paintArenaTime();
+    if (game.full >= 0) paintRoundEnd(performance.now() / 1000, carriedOver(), arenaHeadline());
     paintReady();
     paintSupporters(t);
     paintAlerts();
@@ -314,6 +240,11 @@ function start(): void {
   // otherwise; saved settings, read by the link below, win over these.
   settings.weather = 'sea';
   settings.autoAmbience = false;
+  // No like counts under the animals here, unless the control room turns them on.
+  settings.likeCount = false;
+  setLikeCount(false);
+  // The beach has no likes ranking here: the only crown is on the biggest snake.
+  setCrabRanks(false);
   countOnArena();
   // One channel for both links: Feed's commands and state, and the arena's own.
   const channel = new BroadcastChannel(ARENA_CHANNEL),
@@ -324,7 +255,7 @@ function start(): void {
     metrics: () => ({ fps, slowFrames, errors }),
     setCrowd: (level) => {
       crowd = level;
-      simTimer = 0.5;
+      setAudience(AUDIENCE[level]);
     },
     crowd: () => crowd,
     someone,

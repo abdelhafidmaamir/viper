@@ -5,13 +5,8 @@ import {
   decodeArenaState,
   type ArenaSettingName,
 } from '../../src/shared/arena-protocol.ts';
-import {
-  advanceArena,
-  arenaStatus,
-  endArenaRound,
-  newArenaRound,
-  setArenaSettings,
-} from '../../src/renderer/arena/arena.ts';
+import { newArenaRound, setArenaSettings } from '../../src/renderer/arena/arena.ts';
+import { queue, rings } from '../../src/renderer/arena/entry.ts';
 import {
   ARENA_STORAGE_KEY,
   applyArenaCommand,
@@ -22,12 +17,13 @@ import {
   linkArenaControl,
   restoreArenaSettings,
 } from '../../src/renderer/arena/link.ts';
+import { arena, snakeOf } from '../../src/renderer/arena/rules.ts';
 import {
   applyFeedCommand,
   receiveFeedEvent,
   type FeedLinkDeps,
 } from '../../src/renderer/feed/control-link.ts';
-import { game, newRound } from '../../src/renderer/feed/state.ts';
+import { game, hooks, newRound } from '../../src/renderer/feed/state.ts';
 import {
   restoreSupporters,
   settingsIn,
@@ -64,27 +60,35 @@ const setting = (name: ArenaSettingName, value: unknown, map = new Map<string, s
 
 describe('arena link', () => {
   beforeAll(() => {
+    hooks.round = () => {
+      newArenaRound();
+    };
     countOnArena();
   });
 
   beforeEach(() => {
+    Object.assign(arenaSettings, ARENA_DEFAULTS);
+    setArenaSettings({ ...ARENA_DEFAULTS, pilot: false, wildSnakes: 0 });
+    arena.viewers.clear();
+    rings.clear();
+    queue.length = 0;
     game.queue = [];
     newRound(() => 0.5);
-    Object.assign(arenaSettings, ARENA_DEFAULTS);
-    setArenaSettings({ ...ARENA_DEFAULTS });
-    newArenaRound();
   });
 
   afterEach(() => {
     vi.useRealTimers();
   });
 
-  it('likes and gifts from the live reach the board and the round', () => {
+  it('likes from the live fill the entry ring and count for the round', () => {
     receiveFeedEvent({ type: 'like', nickname: 'ana', n: 5 });
-    receiveFeedEvent({ type: 'gift', name: 'Rosa', n: 2, nickname: 'ben' });
-    expect(arenaStatus()).toMatchObject({ likes: 5, eaten: 20 });
-    // The round keeps them too, for the flower and the end screen's rankings.
+    expect(rings.get('ana')).toBe(5);
     expect(game.likes.get('ana')?.likes).toBe(5);
+  });
+
+  it('a gift from the live brings its giver in and counts for the round', () => {
+    receiveFeedEvent({ type: 'gift', name: 'Rosa', n: 2, nickname: 'ben' });
+    expect(snakeOf('ben')).toBeDefined();
     expect(game.fans.get('ben')?.coins).toBe(20);
   });
 
@@ -92,66 +96,55 @@ describe('arena link', () => {
     for (const type of ['comment', 'join', 'follow', 'share', 'viewers'] as const)
       receiveFeedEvent({ type, nickname: 'cara', total: 12 });
     receiveFeedEvent({ type: 'gift', name: 'Lion', value: 29999, nickname: 'cara' });
-    expect(arenaStatus()).toMatchObject({ likes: 0, eaten: 0 });
+    expect(arena.viewers.has('cara')).toBe(false);
+    expect(rings.has('cara')).toBe(false);
   });
 
   it('test gifts, test likes and berries given by hand reach the board', () => {
     const d = deps();
     applyFeedCommand({ cmd: 'gift', gift: 'rosa', count: 1 }, d);
-    applyFeedCommand({ cmd: 'likes', count: 25 }, d);
+    applyFeedCommand({ cmd: 'likes', count: 25, nickname: 'lou' }, d);
     applyFeedCommand({ cmd: 'grant', nickname: 'dan', count: 7 }, d);
-    expect(arenaStatus()).toMatchObject({ likes: 25, eaten: 17 });
+    expect(snakeOf('tester')).toBeDefined();
+    expect(rings.get('lou')).toBe(25);
+    expect(snakeOf('dan')).toBeDefined();
   });
 
   it('during a real live, rehearsal gifts and likes reach nothing', () => {
     const live = deps(store(), true);
     applyFeedCommand({ cmd: 'gift', gift: 'rosa', count: 5 }, live);
-    applyFeedCommand({ cmd: 'likes', count: 25 }, live);
-    expect(arenaStatus()).toMatchObject({ likes: 0, eaten: 0 });
+    applyFeedCommand({ cmd: 'likes', count: 25, nickname: 'lou' }, live);
+    expect(snakeOf('tester')).toBeUndefined();
+    expect(rings.has('lou')).toBe(false);
     // Berries given back by hand still count on a live.
     applyFeedCommand({ cmd: 'grant', nickname: 'eve', count: 3 }, live);
-    expect(arenaStatus().eaten).toBe(3);
+    expect(snakeOf('eve')).toBeDefined();
   });
 
-  it('the round clock runs out once, at the length set when the round began', () => {
-    setting('roundLength', 60);
-    newArenaRound();
-    setting('roundLength', 600);
-    expect(arenaStatus().roundLength).toBe(60);
-    expect(advanceArena(59.5)).toBe(false);
-    expect(advanceArena(1)).toBe(true);
-    expect(advanceArena(1)).toBe(false);
-    expect(arenaStatus().secondsLeft).toBe(0);
-    newArenaRound();
-    expect(arenaStatus().secondsLeft).toBe(600);
-  });
-
-  it('a gift sent once the round is over plays in the next one', () => {
-    endArenaRound();
-    receiveFeedEvent({ type: 'gift', name: 'Rosa', n: 1, nickname: 'late' });
-    expect(arenaStatus().eaten).toBe(0);
-    expect(advanceArena(1)).toBe(false);
-    newArenaRound();
-    expect(arenaStatus().eaten).toBe(10);
+  it('a gift at the life price gives a life, not berries, whatever the price list says', () => {
+    setArenaSettings({ ...ARENA_DEFAULTS, pilot: false, wildSnakes: 0, lifePrice: 30 });
+    receiveFeedEvent({ type: 'gift', name: 'Hat', value: 30, nickname: 'liv' });
+    expect(snakeOf('liv')?.lives).toBe(1);
+    expect(game.queue.some((q) => q.nickname === 'liv')).toBe(false);
   });
 
   it('keeps the tuning values the game accepts, under its own key, and reads them back', () => {
     const map = new Map<string, string>();
-    setting('places', 12, map);
+    setting('places', 8, map);
     setting('places', 13, map);
     setting('giftBerries', 'shared', map);
-    setting('speed' as ArenaSettingName, 3, map);
-    expect(arenaSettings.places).toBe(12);
+    setting('speed', 'fast', map);
+    expect(arenaSettings.places).toBe(8);
     expect(JSON.parse(map.get(ARENA_STORAGE_KEY) ?? '{}')).toEqual({
       ...ARENA_DEFAULTS,
-      places: 12,
+      places: 8,
       giftBerries: 'shared',
     });
     Object.assign(arenaSettings, ARENA_DEFAULTS);
     restoreArenaSettings(store(map));
     expect(arenaSnapshot().settings).toEqual({
       ...ARENA_DEFAULTS,
-      places: 12,
+      places: 8,
       giftBerries: 'shared',
     });
   });

@@ -20,6 +20,7 @@ import { board, type FeedLinkDeps } from '../feed/control-link.ts';
 import { note } from '../feed/journal.ts';
 import { gift, like } from '../feed/state.ts';
 import { arenaGift, arenaLike, arenaStatus, setArenaSettings } from './arena.ts';
+import { arenaLife, isLifeGift } from './entry.ts';
 
 type Store = FeedLinkDeps['storage'];
 
@@ -53,6 +54,13 @@ export function countOnArena(): void {
   board.gift = (nickname, avatar, berries, live) => {
     gift(nickname, avatar, berries, live);
     arenaGift(nickname, avatar, berries);
+  };
+  // The life gift's price buys a life, not berries, whatever the price list says.
+  board.instead = isLifeGift;
+  board.unpriced = (nickname, avatar, coins, n) => {
+    if (!isLifeGift(coins)) return false;
+    arenaLife(nickname, avatar, n);
+    return true;
   };
   board.like = (nickname, avatar, n) => {
     like(nickname, avatar, n);
@@ -96,7 +104,13 @@ export function applyArenaCommand(command: ArenaCommand, deps: ArenaLinkDeps): v
 }
 
 export function arenaSnapshot(): ArenaState {
-  return { settings: { ...arenaSettings }, secondsLeft: arenaStatus().secondsLeft };
+  const s = arenaStatus();
+  return {
+    settings: { ...arenaSettings },
+    secondsLeft: s.secondsLeft,
+    snakes: s.snakes,
+    trapped: s.trapped,
+  };
 }
 
 export interface ArenaChannel {

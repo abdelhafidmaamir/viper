@@ -30,6 +30,177 @@ interface Crab {
   face?: { cv: HTMLCanvasElement; fresh: number; gold: boolean };
   /** The count's image, and the number it shows. */
   label?: { n: number; cv: HTMLCanvasElement };
+  /** On a beach laid out by Snake Arena (setCrabSpots): where it stands and walks to. */
+  spot?: {
+    x: number;
+    to: number;
+    /** Height above its row on the sand, now and where it goes: rows and the walking lane. */
+    dy: number;
+    toDy: number;
+    leaving: boolean;
+    /** When it began to bury itself in the sand, leaving. */
+    goneAt: number;
+    /** When its spot last moved along the line: those moving right wait for the others to step back. */
+    movedAt: number;
+    crown: boolean;
+    ring: string | undefined;
+    tag: string | undefined;
+  };
+}
+
+/**
+ * A spot on a beach that Snake Arena lays out itself: who stands there, at which x, the outline of
+ * their picture and a small tag over it.
+ */
+export interface CrabSpot {
+  readonly nickname: string;
+  readonly avatar?: string | undefined;
+  readonly x: number;
+  /** Pixels up from where the sand would have it: a second row behind the first. */
+  readonly dy?: number;
+  /** It wears the crown: on a laid-out beach the arena says who leads. */
+  readonly crown?: boolean;
+  readonly ring?: string | undefined;
+  readonly tag?: string | undefined;
+}
+
+/**
+ * Snake Arena lays the beach out itself (null: Feed's own beach, the default). A crab comes up out
+ * of the sand at its spot as Feed's do, once any crab still burying there is gone, and buries
+ * itself again when it leaves or changes group. When its spot moves along the line it walks there
+ * sideways, all of them at once: one moving left steps back a little first, the others wait for
+ * that, so no two pictures ever cross. A like makes its crab hop as usual but never brings one.
+ */
+export interface CrabWalks {
+  /** Size of the animals. */
+  readonly scale: number;
+  /** How far up a crab walks when it comes, goes or crosses the beach: no picture is there. */
+  readonly lane: number;
+  /** Space between two spots: a move of about one is a short walk, not through the lane. */
+  readonly step: number;
+  /** How far up a crab steps to pass another one on a short walk forward. */
+  readonly lift: number;
+}
+let managed: ({ spots: readonly CrabSpot[] } & CrabWalks) | null = null;
+export function setCrabSpots(spots: readonly CrabSpot[] | null, walks?: CrabWalks): void {
+  managed = spots ? { spots, scale: 1, lane: 0, step: 0, lift: 0, ...walks } : null;
+}
+
+/** Where the sleeping crabs begin on the right of the beach (W when there are none). */
+export function sleepersFrom(): number {
+  if (!beach || !sleeperCount) return W;
+  return Math.min(...(SLEEPER_X[sleeperCount] ?? [940])) - 60;
+}
+/** Pixels a second a crab walks to its spot, and the clock of the last frame it walked at. */
+const WALK = 260;
+let walkedAt = -1;
+
+/** How long a crab takes to bury itself, the reverse of coming out of the sand. */
+const BURY = 0.5;
+
+/** The crabs follow the spots: newcomers come up at their spot, those gone bury themselves. */
+function followSpots(t: number): void {
+  if (!managed) return;
+  const dt = walkedAt < 0 ? 0 : Math.min(0.1, Math.max(0, t - walkedAt));
+  walkedAt = t;
+  // The beach's clock, which the sleepers keep on Feed's beach.
+  now = t;
+  const bury = (c: Crab): void => {
+    if (!c.spot || c.spot.leaving) return;
+    c.spot.leaving = true;
+    c.spot.goneAt = now;
+  };
+  for (const s of managed.spots) {
+    let crab = crabs.find((c) => c?.nickname === s.nickname && !c.spot?.leaving);
+    // Into the other group: it buries itself here and comes up there.
+    if (
+      crab?.spot &&
+      Math.abs(crab.spot.to - s.x) > 2 &&
+      (crab.spot.ring === undefined) !== (s.ring === undefined)
+    ) {
+      bury(crab);
+      crab = undefined;
+    }
+    if (!crab) {
+      // A spot is taken once whoever was burying there is gone.
+      const near = (managed.step || 60) * 0.95,
+        clear = crabs.reduce(
+          (at, c) =>
+            c?.spot?.leaving && Math.abs(c.spot.x - s.x) < near
+              ? Math.max(at, c.spot.goneAt + BURY)
+              : at,
+          now,
+        );
+      crab = {
+        nickname: s.nickname,
+        avatar: s.avatar,
+        born: clear,
+        hop: now - 1,
+        owed: -1,
+        hearts: [],
+        spree: 0,
+        spreeAt: now,
+        total: 0,
+      };
+      const free = crabs.findIndex((c) => !c);
+      if (free >= 0) crabs[free] = crab;
+      else crabs.push(crab);
+    }
+    if (s.avatar && s.avatar !== crab.avatar) {
+      crab.avatar = s.avatar;
+      if (crab.face) crab.face.fresh = 0;
+    }
+    if (crab.spot?.ring !== s.ring && crab.face) crab.face.fresh = 0;
+    const moved = crab.spot !== undefined && Math.abs(crab.spot.to - s.x) > 2;
+    crab.spot = {
+      x: crab.spot?.x ?? s.x,
+      to: s.x,
+      dy: crab.spot?.dy ?? s.dy ?? 0,
+      toDy: s.dy ?? 0,
+      leaving: false,
+      goneAt: 0,
+      movedAt: moved ? now : (crab.spot?.movedAt ?? -Infinity),
+      crown: s.crown === true,
+      ring: s.ring,
+      tag: s.tag,
+    };
+  }
+  crabs.forEach((crab, i) => {
+    if (!crab) return;
+    if (!crab.spot?.leaving && !managed?.spots.some((s) => s.nickname === crab.nickname)) {
+      const x = crab.spot?.x ?? W / 2;
+      crab.spot = {
+        x,
+        to: x,
+        dy: crab.spot?.dy ?? 0,
+        toDy: crab.spot?.dy ?? 0,
+        leaving: true,
+        goneAt: now,
+        movedAt: -Infinity,
+        crown: false,
+        ring: crab.spot?.ring,
+        tag: undefined,
+      };
+    }
+    // A crab not up yet keeps its hops for when it is.
+    if (crab.born > now) crab.hop = crab.born - 1;
+    const spot = crab.spot;
+    if (!spot) return;
+    if (spot.leaving) {
+      if (now - spot.goneAt >= BURY) crabs[i] = undefined;
+      return;
+    }
+    // Sideways along the sand. One moving left steps back first and walks behind; one moving
+    // right waits for that, then walks on the line; both settle on the line once there.
+    const d = spot.to - spot.x,
+      lift = managed?.lift ?? 0,
+      stepBack = lift / (WALK * 0.6),
+      back = d < -0.5 ? spot.toDy + lift : spot.toDy,
+      up = back - spot.dy;
+    if (Math.abs(up) > 0.5) spot.dy += Math.sign(up) * Math.min(Math.abs(up), WALK * 0.6 * dt);
+    else if (d < -0.5 || (d > 0.5 && now - spot.movedAt >= stepBack))
+      spot.x += Math.sign(d) * Math.min(Math.abs(d), WALK * dt);
+  });
 }
 
 const SPOTS = 5,
@@ -50,6 +221,15 @@ const feetMax = (): number => H - 36;
 /** Likes that earn the animal its ornament, then the gold ring round the picture. */
 const TIERS = [500, 2000] as const;
 const tierOf = (total: number): number => (total >= TIERS[1] ? 2 : total >= TIERS[0] ? 1 : 0);
+/**
+ * The likes ranking on the beach: the top liker's crown, the ornament and the gold. Snake Arena
+ * turns it off (its only crown is on the biggest snake); Feed keeps it.
+ */
+let ranks = true;
+export function setCrabRanks(on: boolean): void {
+  ranks = on;
+}
+const shownTier = (total: number): number => (ranks ? tierOf(total) : 0);
 /** Likes before the crown is worth wearing. */
 const CROWN_FROM = 10;
 
@@ -79,6 +259,8 @@ export function crabLike(nickname: string, avatar: string | undefined, n = 1): v
 /** The like itself: the viewer's animal comes out if it has to, hops and sends its hearts up. */
 function wake(nickname: string, avatar: string | undefined, n: number): void {
   let mine = crabs.find((c) => c?.nickname === nickname);
+  // On a beach Snake Arena lays out, a like never brings a crab of its own.
+  if (!mine && managed) return;
   if (!mine) {
     let spot = 0;
     for (let i = 0; i < spots(); i++) {
@@ -147,6 +329,31 @@ export const crabsState = (): readonly {
     c ? [{ nickname: c.nickname, total: c.total, hearts: c.hearts.length, owed: c.owed }] : [],
   );
 
+/**
+ * Where each picture was drawn this frame, in game units: its centre and radius in whatever pose
+ * (hops, bob, walk, a sleeper's stir). Snake Arena draws its entry rings round them; Feed draws
+ * nothing from it.
+ */
+const drawnFaces = new Map<string, { x: number; y: number; r: number }>();
+let toGame: DOMMatrix | null = null;
+export const crabFaces = (): ReadonlyMap<string, { x: number; y: number; r: number }> => drawnFaces;
+
+/** The picture just drawn at (0, cy) under the current transform, kept for this frame. */
+function noteFace(nickname: string | undefined, cy: number): void {
+  if (!nickname || !toGame) return;
+  const m = toGame.multiply(ctx.getTransform()),
+    p = m.transformPoint({ x: 0, y: cy });
+  drawnFaces.set(nickname, { x: p.x, y: p.y, r: (FACE / 2) * Math.hypot(m.a, m.b) });
+}
+
+/** A viewer's animal leaves the beach at once (Snake Arena's own player, switched off). */
+export function crabGone(nickname: string): void {
+  const i = crabs.findIndex((c) => c?.nickname === nickname);
+  if (i >= 0) crabs[i] = undefined;
+  viewers.delete(nickname);
+  drawnFaces.delete(nickname);
+}
+
 function rand(i: number, d: number): number {
   const v = Math.sin(i * 12.9898 + d * 78.233) * 43758.5453;
   return v - Math.floor(v);
@@ -192,7 +399,7 @@ function badge(crab: Crab): HTMLCanvasElement {
   cv.height = 48;
   const c = cv.getContext('2d');
   if (c) {
-    c.fillStyle = tierOf(crab.total) > 1 ? '#c8860f' : '#e8436f';
+    c.fillStyle = shownTier(crab.total) > 1 ? '#c8860f' : '#e8436f';
     c.strokeStyle = '#fff';
     c.lineWidth = 4;
     c.beginPath();
@@ -232,7 +439,8 @@ const FACE = 64,
 /** The viewer's picture with its ring, white then gold at the top tier, drawn now and then. */
 function face(crab: Crab): HTMLCanvasElement {
   const kept = crab.face,
-    gold = tierOf(crab.total) > 1;
+    gold = shownTier(crab.total) > 1,
+    ring = (managed ? crab.spot?.ring : undefined) ?? (gold ? '#ffd24a' : '#fff');
   if (kept?.gold === gold && kept.fresh-- > 0) return kept.cv;
   const cv = kept?.cv ?? document.createElement('canvas');
   cv.width = cv.height = FACE * FACE_SCALE;
@@ -240,7 +448,7 @@ function face(crab: Crab): HTMLCanvasElement {
   if (c) {
     c.setTransform(FACE_SCALE, 0, 0, FACE_SCALE, cv.width / 2, cv.height / 2);
     const main = setCtx(c);
-    paintFace(crab, 0, 0, 28, gold ? '#ffd24a' : '#fff');
+    paintFace(crab, 0, 0, 28, ring);
     setCtx(main);
   }
   crab.face = { cv, fresh: 45, gold };
@@ -314,6 +522,9 @@ function hopHeight(kind: Kind, h: number): number {
 /** `rise` is how far the round has filled the board (0..1): the beach climbs with it. */
 export function paintCrabs(t: number, rise: number, reduced: boolean, weather: Weather): void {
   stepSleepers(t, weather);
+  followSpots(t);
+  drawnFaces.clear();
+  toGame = ctx.getTransform().invertSelf();
   const g = ctx,
     kind = CRITTERS[weather],
     low = (1 - (0.5 + 0.5 * Math.min(1, Math.max(0, rise)))) * 100,
@@ -324,7 +535,7 @@ export function paintCrabs(t: number, rise: number, reduced: boolean, weather: W
   if (beach) paintSleepers(t, low, reduced);
   let leader: Crab | undefined;
   for (const c of crabs)
-    if (c && c.total >= CROWN_FROM && c.total > (leader?.total ?? 0)) leader = c;
+    if (ranks && c && c.total >= CROWN_FROM && c.total > (leader?.total ?? 0)) leader = c;
   crabs.forEach((crab, i) => {
     if (!crab) return;
     if (crab.owed > 0 && t - crab.hop > HOP) {
@@ -333,13 +544,24 @@ export function paintCrabs(t: number, rise: number, reduced: boolean, weather: W
     }
     const w = 0.16 + rand(i, 955) * 0.12,
       ph = rand(i, 957) * 6.28,
-      // Walking only in the middle of each crossing: at both ends the crab stands a moment.
-      pace = (Math.max(0, Math.abs(Math.cos(t * w * still + ph)) - 0.3) / 0.7) * still,
-      x = W * (0.12 + 0.19 * i) + 60 * Math.sin(t * w * still + ph),
+      spot = managed ? crab.spot : undefined,
+      // Walking only in the middle of each crossing: at both ends the crab stands a moment. On a
+      // laid-out beach it walks while it goes to its spot, and only shuffles once there.
+      pace = spot
+        ? Math.abs(spot.to - spot.x) > 2
+          ? still
+          : 0
+        : (Math.max(0, Math.abs(Math.cos(t * w * still + ph)) - 0.3) / 0.7) * still,
+      x = spot
+        ? spot.x + 4 * Math.sin(t * w * still + ph)
+        : W * (0.12 + 0.19 * i) + 60 * Math.sin(t * w * still + ph),
       // Never so low that the frame cuts its feet or its shadow.
-      y = Math.min(H + low - dune(x) + 12 + rand(i, 961) * 12, feetMax()),
+      y = Math.min(H + low - dune(x) + 12 + rand(i, 961) * 12, feetMax()) - (spot?.dy ?? 0),
       step = t * 13 + i * 2,
-      out = Math.min(1, (t - crab.born) / 0.5),
+      out =
+        Math.max(0, Math.min(1, (t - crab.born) / 0.5)) *
+        (spot?.leaving ? Math.max(0, 1 - (t - spot.goneAt) / BURY) : 1) *
+        (managed?.scale ?? 1),
       hop = (t - crab.hop) / HOP,
       h = Math.min(1, hop),
       // Every animal but the crab gathers itself, springs, stretches in the air and lands soft.
@@ -375,7 +597,7 @@ export function paintCrabs(t: number, rise: number, reduced: boolean, weather: W
     g.scale(1 + (1 - tall) * 0.8, tall);
     g.translate(0, -12);
     g.drawImage(
-      drawn(kind, i, t, hop, kind.bound ? bounce : pace, tierOf(crab.total)),
+      drawn(kind, i, t, hop, kind.bound ? bounce : pace, shownTier(crab.total)),
       -ART_X,
       -ART_Y,
       ART_W,
@@ -385,6 +607,22 @@ export function paintCrabs(t: number, rise: number, reduced: boolean, weather: W
     // The picture follows the arms without being squashed with them.
     const fy = 12 + (-54 - kind.lift) * tall;
     g.drawImage(face(crab), -FACE / 2, fy - FACE / 2, FACE, FACE);
+    noteFace(crab.nickname, fy);
+    const tag = spot?.tag;
+    if (tag) {
+      // A small descriptive tag over the picture ("NEXT").
+      g.font = `900 15px ${FONT}`;
+      g.textAlign = 'center';
+      g.textBaseline = 'middle';
+      const tw = g.measureText(tag).width + 14,
+        ty = fy - FACE / 2 - 14;
+      g.fillStyle = 'rgba(12,20,15,0.82)';
+      g.beginPath();
+      g.roundRect(-tw / 2, ty - 11, tw, 22, 11);
+      g.fill();
+      g.fillStyle = '#fff';
+      g.fillText(tag, 0, ty + 1);
+    }
     if (likeCount) {
       // The badge pops at each burst.
       const tag = badge(crab),
@@ -398,7 +636,7 @@ export function paintCrabs(t: number, rise: number, reduced: boolean, weather: W
       );
     }
     // The crown goes to whoever of the five has liked the most.
-    if (crab === leader)
+    if (crab === leader || spot?.crown)
       crown(0, fy - 35 + Math.sin(t * 3) * 1.2, 0.95, { x: 0, y: fy, r: FACE / 2 });
     g.restore();
     // One heart per like, drifting up from the picture and fading: a like spree is a stream of them.
@@ -762,7 +1000,8 @@ export function stepSleepers(t: number, weather: Weather): void {
       if (rotate(s)) s.next = Math.max(s.next + ROTATE, now + ROTATE / 2);
     } else if (s.who === undefined || !stays(s.who)) rotate(s);
   }
-  if (beach) keepLeft();
+  // A beach Snake Arena lays out keeps every crab it placed.
+  if (beach && !managed) keepLeft();
   for (const key of sleepFaces.keys()) {
     const url = key.slice(key.indexOf('|') + 1);
     if (!sleepers.some((s) => s.face === url || s.prevFace === url)) sleepFaces.delete(key);
@@ -1045,6 +1284,7 @@ function paintSleepers(t: number, low: number, reduced: boolean): void {
     if (current) {
       g.globalAlpha = faceAlpha * u;
       g.drawImage(current, -FACE / 2, -FACE / 2, FACE, FACE);
+      noteFace(s.who, 0);
     }
     g.restore();
     if (body === 'sunk') {

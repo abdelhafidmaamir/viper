@@ -3,13 +3,22 @@
  * place of Feed's, an Arena card for the game's tuning values, and no near-full board.
  */
 import {
+  ARENA_BACKING,
   ARENA_BOOST_CAPS,
   ARENA_ENTRY_LIKES,
   ARENA_GIFT_BERRIES,
+  ARENA_LIFE_KEEPS,
+  ARENA_LIFE_PRICES,
+  ARENA_MAX_LIVES,
   ARENA_PLACES,
   ARENA_ROUND_LENGTHS,
   ARENA_SHIELD_GIFTS,
+  ARENA_PLAIN_AMOUNTS,
+  ARENA_QUEUE_IDLES,
+  ARENA_PLAIN_EVERY,
+  ARENA_SPEEDS,
   ARENA_WILD_SNAKES,
+  type ArenaBacking,
   type ArenaGiftBerries,
   type ArenaSettingName,
 } from '../../shared/arena-protocol.ts';
@@ -17,6 +26,7 @@ import type { SettingValue } from '../control/model.ts';
 import { createButton } from '../control/ui/components/button.ts';
 import { createCard } from '../control/ui/components/card.ts';
 import { createSegmented, type SegmentedView } from '../control/ui/components/segmented.ts';
+import { createToggle, type ToggleView } from '../control/ui/components/toggle.ts';
 import { h, setText, setVar } from '../control/ui/dom.ts';
 import {
   ambienceCard,
@@ -33,6 +43,7 @@ import {
   controlsReason,
   rehearsalReason,
   resolvePending,
+  type FeedControlState,
   type FeedControlStore,
 } from '../feed-control/store.ts';
 import type { Dispatch, FeedRoom, FeedView, PressArm } from '../feed-control/ui.ts';
@@ -126,10 +137,56 @@ function tuning(
   return { name, view };
 }
 
+interface Switch {
+  readonly name: ArenaSettingName;
+  readonly view: ToggleView;
+}
+
+function toggle(arena: ArenaSide, name: ArenaSettingName, label: string, caption?: string): Switch {
+  const view = createToggle({
+    label,
+    onToggle: (value) => {
+      arena.send({ cmd: 'arena-setting', name, value });
+    },
+    ...(caption ? { caption } : {}),
+  });
+  return { name, view };
+}
+
+const BACKING_LABELS: Record<ArenaBacking, string> = {
+  off: 'Off',
+  light: 'Light',
+  strong: 'Strong',
+};
+
 const GIFT_BERRIES_LABELS: Record<ArenaGiftBerries, string> = {
   owner: 'Giver only',
-  shared: 'Anyone can steal',
+  shared: 'Anyone can eat them',
 };
+
+/** Shows the game's values as the board last confirmed them, or as sent and still pending. */
+function updateTuning(
+  state: FeedControlState,
+  arena: ArenaSide,
+  lock: string | null,
+  rows: readonly Tuning[],
+  switches: readonly Switch[],
+): void {
+  const settings = arena.state()?.settings,
+    pending = arena.pending();
+  for (const { name, view } of rows) {
+    const p = resolvePending(settings?.[name], pending[name], state.now);
+    view.update({
+      value: typeof p.value === 'number' || typeof p.value === 'string' ? p.value : undefined,
+      status: p.status,
+      reason: lock,
+    });
+  }
+  for (const { name, view } of switches) {
+    const p = resolvePending(settings?.[name], pending[name], state.now);
+    view.update({ on: p.value === true, status: p.status, reason: lock });
+  }
+}
 
 /** The game's tuning values. They apply at once, the round length from the next round. */
 function arenaCard(arena: ArenaSide, reason: Reason): FeedView {
@@ -149,11 +206,8 @@ function arenaCard(arena: ArenaSide, reason: Reason): FeedView {
     tuning(
       arena,
       'boostCap',
-      'Fastest on likes',
-      ARENA_BOOST_CAPS.map((value) => ({
-        value,
-        label: value === 1 ? 'No boost' : `x${String(value)}`,
-      })),
+      'Likes boost, at most',
+      ARENA_BOOST_CAPS.map((value) => ({ value, label: `${String(value)} s` })),
     ),
     tuning(
       arena,
@@ -183,29 +237,98 @@ function arenaCard(arena: ArenaSide, reason: Reason): FeedView {
       'Wild snakes while few play',
       ARENA_WILD_SNAKES.map((value) => ({
         value,
-        label: value === 0 ? 'Off' : `Up to ${String(value)} snakes`,
+        label: value === 0 ? 'Off' : `Up to ${String(value)}`,
       })),
-      'Wild snakes keep this many on the board until enough viewers come in.',
+    ),
+    tuning(
+      arena,
+      'speed',
+      'Snake speed',
+      ARENA_SPEEDS.map((value) => ({ value, label: `${String(value)} cells/s` })),
+    ),
+    tuning(
+      arena,
+      'queueIdle',
+      'A waiting animal leaves after',
+      ARENA_QUEUE_IDLES.map((value) => ({ value, label: `${String(value)} s without a like` })),
+    ),
+    tuning(
+      arena,
+      'lifePrice',
+      'Extra-life gift, at',
+      ARENA_LIFE_PRICES.map((value) => ({
+        value,
+        label: value === 0 ? 'Off' : `${String(value)} coins`,
+      })),
+      'A gift at this price gives a life instead of berries.',
+    ),
+    tuning(
+      arena,
+      'maxLives',
+      'Lives a snake can hold',
+      ARENA_MAX_LIVES.map((value) => ({ value, label: String(value) })),
+    ),
+    tuning(
+      arena,
+      'lifeKeep',
+      'Length kept on a life',
+      ARENA_LIFE_KEEPS.map((value) => ({ value, label: `${String(Math.round(value * 100))}%` })),
+    ),
+    tuning(
+      arena,
+      'backing',
+      'Gifts make a snake smarter and safer',
+      ARENA_BACKING.map((value) => ({ value, label: BACKING_LABELS[value] })),
+      'Backed snakes look further ahead and are chased less; likes-only ones play the basic brain.',
+    ),
+    tuning(
+      arena,
+      'plainEvery',
+      'Plain berries every',
+      ARENA_PLAIN_EVERY.map((value) => ({ value, label: `${String(value)} s` })),
+      'Berries for everyone, rare: gifts are what makes a snake big.',
+    ),
+    tuning(
+      arena,
+      'plainAmount',
+      'Plain berries per drip, up to',
+      ARENA_PLAIN_AMOUNTS.map((value) => ({ value, label: String(value) })),
     ),
   ];
-  const card = createCard(
-    { title: 'Arena' },
-    rows.map((r) => r.view.el),
-  );
+  const switches: Switch[] = [
+    toggle(
+      arena,
+      'giftEntry',
+      'A gift also gives entry',
+      'A viewer without a snake gets one at once.',
+    ),
+    toggle(arena, 'likeBoost', 'Likes speed up the snake'),
+    toggle(arena, 'pilot', 'Pilot player', "The game's own player, Skohlds, shows how it works."),
+    toggle(
+      arena,
+      'superAI',
+      'Super AI',
+      'The best-backed snakes play the strongest brain: they never box themselves in.',
+    ),
+  ];
+  const status = h('p', { class: 'card__line' });
+  const card = createCard({ title: 'Arena' }, [
+    ...rows.map((r) => r.view.el),
+    ...switches.map((w) => w.view.el),
+    status,
+  ]);
   return {
     el: card.el,
     update(state) {
-      const lock = reason(),
-        settings = arena.state()?.settings,
-        pending = arena.pending();
-      for (const { name, view } of rows) {
-        const p = resolvePending(settings?.[name], pending[name], state.now);
-        view.update({
-          value: typeof p.value === 'number' || typeof p.value === 'string' ? p.value : undefined,
-          status: p.status,
-          reason: lock,
-        });
-      }
+      updateTuning(state, arena, reason(), rows, switches);
+      const board = arena.state(),
+        snakes = board?.snakes;
+      setText(
+        status,
+        snakes
+          ? `On the board: ${String(snakes.viewers)} viewers, ${String(snakes.wild)} wild${snakes.pilot ? ', the pilot' : ''} · ${String(board.trapped ?? 0)} boxed in by their own body this round`
+          : '',
+      );
     },
   };
 }
@@ -219,7 +342,6 @@ function liveScreen(
   const reason: Reason = () => controlsReason(store.get());
   const views = {
     round: roundCard(dispatch, pressArm, arena),
-    arena: arenaCard(arena, reason),
     bridge: bridgeCard(dispatch, reason),
     leaders: giftLeadersCard(),
     gifts: giftsCard(),
@@ -235,7 +357,6 @@ function liveScreen(
         views.entrances.el,
       ]),
       h('div', { class: 'column column--center' }, [
-        views.arena.el,
         views.leaders.el,
         views.gifts.el,
         views.grant.el,
@@ -244,6 +365,19 @@ function liveScreen(
     ]),
     update(state) {
       for (const view of Object.values(views)) view.update(state);
+    },
+  };
+}
+
+/** A screen with one more card, at its start or its end. */
+function withCard(screen: FeedView, card: FeedView, first = false): FeedView {
+  if (first) screen.el.prepend(card.el);
+  else screen.el.append(card.el);
+  return {
+    el: screen.el,
+    update(state) {
+      screen.update(state);
+      card.update(state);
     },
   };
 }
@@ -261,9 +395,12 @@ export function arenaRoom(
     screens: {
       live: liveScreen(store, dispatch, pressArm, arena),
       rehearsal: createRehearsalScreen(dispatch, { nearFullBoard: false }),
-      setup: createSetupScreen(dispatch, () => controlsReason(store.get()), {
-        nearFullBoard: false,
-      }),
+      // The game's own settings first, then Feed's.
+      setup: withCard(
+        createSetupScreen(dispatch, () => controlsReason(store.get()), { nearFullBoard: false }),
+        arenaCard(arena, () => controlsReason(store.get())),
+        true,
+      ),
       money: {
         el: h('div', { class: 'screen screen--money' }, [pricing.el]),
         update: (state) => {
