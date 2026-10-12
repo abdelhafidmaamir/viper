@@ -5,7 +5,7 @@ import { BERRY_STAY, chooseNext } from '../../src/renderer/arena/ai.ts';
 import { advanceArena, newArenaRound, setArenaSettings } from '../../src/renderer/arena/arena.ts';
 import { flights, likePops, queue, rings, nextSeats } from '../../src/renderer/arena/entry.ts';
 import { countOnArena } from '../../src/renderer/arena/link.ts';
-import { moveInto } from '../../src/renderer/arena/round.ts';
+import { CATCH_UP, moveInto } from '../../src/renderer/arena/round.ts';
 import {
   alive,
   arena,
@@ -189,6 +189,28 @@ describe('snake arena: a snake never turns back onto its neck', () => {
       }
       expect(reversed).toBe(0);
     }
+  });
+});
+
+describe('snake arena: a leader grows less from gift berries', () => {
+  it('a gift berry is a full cell, half a cell once the snake leads the second by a fifth', () => {
+    fresh();
+    const lead = place('lead', row(5, 22, 3)),
+      other = place('other', row(20, 22, 7));
+    // 20 cells against 16: a lead of a quarter.
+    const eat = (s: Snake, by: string): number => {
+      const before = s.grow,
+        cell = cellId(cellX(s.cells[0] ?? 0) + 1, cellY(s.cells[0] ?? 0));
+      berry(cell, by);
+      const f = arena.foodAt.get(cell);
+      if (f) f.t = FALL_TIME + BERRY_STAY + 0.1;
+      moveInto(s, cell);
+      return s.grow - before;
+    };
+    expect(lead.len / other.len).toBeGreaterThan(1.2);
+    expect(eat(lead, 'lead')).toBe(CATCH_UP.slow);
+    expect(eat(lead, '')).toBe(1);
+    expect(eat(other, 'other')).toBe(1);
   });
 });
 

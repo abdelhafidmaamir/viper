@@ -14,6 +14,8 @@ import { board } from '../../src/renderer/feed/control-link.ts';
 import { game, hooks, newRound } from '../../src/renderer/feed/state.ts';
 
 const ROUNDS = Number(process.env.ARENA_MEASURE ?? 0),
+  /** Battle gifters (ARENA_GIFTERS, 1 or 2): scenario A has one, B two. */
+  GIFTERS = Number(process.env.ARENA_GIFTERS ?? 1),
   /** Seconds between the battle gifter's gifts of 5 berries (ARENA_GIFT_EVERY, 20 by default). */
   GIFT_EVERY = Number(process.env.ARENA_GIFT_EVERY ?? 20);
 const STEP = 1 / 30;
@@ -29,14 +31,13 @@ describe.skipIf(!ROUNDS)('snake arena: survival tiers, measured', () => {
     let seed = 11;
     arena.rand = () => ((seed = (seed * 16807) % 2147483647) - 1) / 2147483646;
     const r = arena.rand;
-    const roles: Record<string, 1 | 2 | 3> = {
-      gifter: 1,
-      paidA: 2,
-      paidB: 2,
-      likeA: 3,
-      likeB: 3,
-      likeC: 3,
-    };
+    // A: one battle gifter, two paid seats, three like seats. B: two battle gifters, one paid seat.
+    const roles: Record<string, 1 | 2 | 3> =
+        GIFTERS === 2
+          ? { gifter: 1, gifter2: 1, paidA: 2, likeA: 3, likeB: 3, likeC: 3 }
+          : { gifter: 1, paidA: 2, paidB: 2, likeA: 3, likeB: 3, likeC: 3 },
+      gifters = Object.keys(roles).filter((n) => n.startsWith('gifter')),
+      paid = Object.keys(roles).filter((n) => n.startsWith('paid'));
     const deaths = { 1: 0, 2: 0, 3: 0 },
       seats = { 1: 0, 2: 0, 3: 0 },
       wins = { 1: 0, 2: 0, 3: 0, none: 0 },
@@ -52,9 +53,8 @@ describe.skipIf(!ROUNDS)('snake arena: survival tiers, measured', () => {
       arena.snakes = [];
       newRound();
       // The qualifying: two paid seats, four like seats (the gifter among them).
-      board.gift('paidA', undefined, 5, true);
-      board.gift('paidB', undefined, 5, true);
-      for (const n of ['gifter', 'likeA', 'likeB', 'likeC']) arenaLike(n, undefined, 20);
+      for (const n of paid) board.gift(n, undefined, 5, true);
+      for (const n of [...gifters, 'likeA', 'likeB', 'likeC']) arenaLike(n, undefined, 20);
       while (qualifying() || arena.phase === 'ready') advanceArena(STEP);
       // The battle: the gifter gives at once and every 20 s; every player's likes now and then.
       let t = 0,
@@ -66,7 +66,7 @@ describe.skipIf(!ROUNDS)('snake arena: survival tiers, measured', () => {
           holder = arena.crown;
         }
         if (t >= nextGift) {
-          board.gift('gifter', undefined, 5, true);
+          for (const n of gifters) board.gift(n, undefined, 5, true);
           nextGift += GIFT_EVERY;
         }
         for (const n of Object.keys(roles)) if (r() < STEP / 12) arenaLike(n, undefined, 100);

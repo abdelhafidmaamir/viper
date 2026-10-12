@@ -285,9 +285,22 @@ function house(dt: number): void {
   }
 }
 
+/**
+ * Catch-up: a gift berry grows a snake by a full cell unless it already leads the second biggest
+ * by CATCH_UP.lead or more; then by CATCH_UP.slow. Plain berries always a full cell. Nothing shows
+ * it: the leader just grows less fast, and the rivalry stays open.
+ */
+export const CATCH_UP = { lead: 0.2, slow: 0.5 };
+function growthOf(s: Snake, f: Food): number {
+  if (f.by === '') return f.value;
+  let second = 0;
+  for (const o of alive()) if (o !== s && o.in && o.len > second) second = o.len;
+  return s.len >= second * (1 + CATCH_UP.lead) && second > 0 ? f.value * CATCH_UP.slow : f.value;
+}
+
 function eatFood(s: Snake, f: Food): void {
   removeFood(f);
-  s.grow += f.value;
+  s.grow += growthOf(s, f);
   s.eaten += f.value;
   s.gulps.push(0);
   s.bite = 0;
