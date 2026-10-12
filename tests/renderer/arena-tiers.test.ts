@@ -5,7 +5,7 @@ import { describe, expect, it } from 'vitest';
 
 import { ARENA_DEFAULTS } from '../../src/shared/arena-protocol.ts';
 import { advanceArena, newArenaRound, setArenaSettings } from '../../src/renderer/arena/arena.ts';
-import { arenaLike, nextSeats } from '../../src/renderer/arena/entry.ts';
+import { BOOST, arenaLike, nextSeats } from '../../src/renderer/arena/entry.ts';
 import { countOnArena } from '../../src/renderer/arena/link.ts';
 import { QUALIFY, qualifying } from '../../src/renderer/arena/qualify.ts';
 import { tierOf } from '../../src/renderer/arena/round.ts';
@@ -28,6 +28,8 @@ describe.skipIf(!ROUNDS)('snake arena: survival tiers, measured', () => {
     countOnArena();
     setArenaSettings({ ...ARENA_DEFAULTS, pilot: false, wildSnakes: 0, roundLength: 120 });
     QUALIFY.time = 2;
+    // Cells a full likes ring grows a snake by (ARENA_BOOST_CELLS, the game's default otherwise).
+    BOOST.cells = Number(process.env.ARENA_BOOST_CELLS ?? BOOST.cells);
     let seed = 11;
     arena.rand = () => ((seed = (seed * 16807) % 2147483647) - 1) / 2147483646;
     const r = arena.rand;

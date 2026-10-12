@@ -322,7 +322,7 @@ describe('snake arena: the battle', () => {
     expect(arena.ranking.map((r) => r.nickname)).toEqual(['w1', 'w3', 'w2']);
   });
 
-  it('every 100 likes of a player fire one speed boost; the ring keeps what is left over', () => {
+  it('every 100 likes of a player fire one speed boost and grow its snake; the ring keeps what is left over', () => {
     fresh({ roundLength: 120 });
     like('speedy', 30);
     like('slow', 20);
@@ -331,8 +331,11 @@ describe('snake arena: the battle', () => {
     expect(s).toBeDefined();
     if (!s) return;
     s.boost = 0;
+    const grow = s.grow;
     like('speedy', BOOST.likes);
     expect(s.boost).toBe(BOOST.seconds);
+    // A full ring also grows the snake, as berries do.
+    expect(s.grow - grow).toBe(BOOST.cells);
     expect(rings.get('speedy')).toBe(0);
     s.boost = 0;
     like('speedy', 250);

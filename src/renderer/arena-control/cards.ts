@@ -200,7 +200,7 @@ function arenaCard(arena: ArenaSide, reason: Reason): FeedView {
       'entryLikes',
       'Likes for a speed boost',
       ARENA_ENTRY_LIKES.map((value) => ({ value, label: String(value) })),
-      "In the battle, a player's likes fill the ring round their animal on the beach; a full ring gives 4 s of speed.",
+      "In the battle, a player's likes fill the ring round their animal on the beach; a full ring gives 4 s of speed and 3 cells of length.",
     ),
     tuning(
       arena,

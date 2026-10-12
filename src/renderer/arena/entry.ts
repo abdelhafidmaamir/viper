@@ -108,9 +108,10 @@ const POPS_MAX = 24,
   MERGE = 0.4;
 /**
  * The battle's speed boosts: every `likes` likes of a player (control room, "Likes for a speed
- * boost") give `seconds` of speed, banked up to the "Likes boost, at most" cap.
+ * boost") give `seconds` of speed, banked up to the "Likes boost, at most" cap, and grow the snake
+ * by `cells`, as berries do: likes count in the race for size.
  */
-export const BOOST = { likes: 100, seconds: 4 };
+export const BOOST = { likes: 100, seconds: 4, cells: 3 };
 /** Likes toward each player's next boost: the red ring round their animal's picture. */
 export const rings = new Map<string, number>();
 /** When each player's last boost fired: its ring flashes. */
@@ -130,6 +131,8 @@ function land(nickname: string, n: number): void {
   while (ring >= BOOST.likes) {
     ring -= BOOST.likes;
     s.boost = Math.min(TUNING.boostCap, s.boost + BOOST.seconds);
+    s.grow += BOOST.cells;
+    s.gulps.push(0);
     fired.set(nickname, arena.clock);
     crabRun(nickname);
   }
