@@ -44,7 +44,7 @@ describe('arena protocol', () => {
     }
   });
 
-  it('starts as Abdel set it: 100 likes in, berries for their giver, no shield, no life gift', () => {
+  it('starts as Abdel set it: a boost every 100 likes, berries for their giver, no shield, no life gift, the survival tiers on, two-minute battles', () => {
     expect(ARENA_DEFAULTS).toMatchObject({
       places: 6,
       entryLikes: 100,
@@ -56,8 +56,9 @@ describe('arena protocol', () => {
       queueIdle: 5,
       lifeOn: false,
       lifePrice: 30,
-      backing: 'off',
-      superAI: true,
+      backing: 'strong',
+      superAI: false,
+      roundLength: 120,
       pilot: false,
     });
   });

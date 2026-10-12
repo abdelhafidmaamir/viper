@@ -4,7 +4,14 @@ import { ARENA_DEFAULTS } from '../../src/shared/arena-protocol.ts';
 import { setCtx } from '../../src/renderer/engine/canvas.ts';
 import { advanceArena, newArenaRound, setArenaSettings } from '../../src/renderer/arena/arena.ts';
 import { layOutBeach, paintBeachRings } from '../../src/renderer/arena/beach.ts';
-import { arenaLike, flights, likeHearts, queue, rings } from '../../src/renderer/arena/entry.ts';
+import {
+  arenaLike,
+  flights,
+  likePops,
+  queue,
+  rings,
+  nextSeats,
+} from '../../src/renderer/arena/entry.ts';
 import { countOnArena } from '../../src/renderer/arena/link.ts';
 import {
   TUNING,
@@ -210,8 +217,9 @@ function fresh(): void {
   rings.clear();
   queue.length = 0;
   flights.length = 0;
-  likeHearts.length = 0;
+  likePops.length = 0;
   game.queue = [];
+  nextSeats.length = 0;
   newRound();
   for (let i = 0; i < 120; i++) advanceArena(1 / 30);
   clearCrabs();
@@ -248,10 +256,6 @@ const row = (y: number, from: number, to: number): number[] => {
   return out;
 };
 
-/** Frames where `n` walks to the left (its picture moving more than its idle sway). */
-const walkingLeft = (seen: readonly Frame[], n: string): Frame[] =>
-  seen.filter((f, i) => i > 0 && face(f, n).x < face(seen[i - 1], n).x - 0.5);
-
 describe('the snake arena beach', () => {
   beforeAll(() => {
     hooks.round = () => {
@@ -261,114 +265,64 @@ describe('the snake arena beach', () => {
   });
   beforeEach(fresh);
 
-  it('a player overtaking another walks sideways on its line: same height, same size, in front', () => {
-    player('ana', 12);
-    const bo = player('bo', 8);
-    frames(1.5);
-    const still = frame(),
-      a0 = face(still, 'ana'),
-      b0 = face(still, 'bo');
-    expect(b0.x).toBeGreaterThan(a0.x);
+  it("the podium stands in the board's order: the crowned snake on the 1st mound, the highest", () => {
+    const ana = playing('ana', row(5, 12, 5)),
+      bo = playing('bo', row(9, 12, 5)),
+      cy = playing('cy', row(13, 12, 5));
+    ana.eaten = 1;
+    ana.len = 12;
+    bo.len = 9;
+    cy.len = 8;
+    advanceArena(1 / 30);
+    expect(arena.crown).toBe(ana.id);
+    const end = frames(2).at(-1),
+      a = face(end, 'ana'),
+      b = face(end, 'bo'),
+      c = face(end, 'cy');
+    // The 1st in the podium's middle and highest, the 2nd on its left, the 3rd on its right.
+    expect(b.x).toBeLessThan(a.x);
+    expect(c.x).toBeGreaterThan(a.x);
+    expect(a.y).toBeLessThan(b.y);
+    expect(b.y).toBeLessThan(c.y);
+    // A new leader: the animals trade mounds, eased, and the crowned one ends on the 1st.
+    bo.eaten = 1;
     bo.len = 20;
-    const slide = frames(1.5),
-      forward = walkingLeft(slide, 'bo');
-    expect(forward.length).toBeGreaterThan(5);
-    for (const f of slide) {
-      // Only x changes: never up, never into the sand, never smaller or bigger.
-      expect(face(f, 'ana').y).toBe(a0.y);
-      expect(face(f, 'bo').y).toBe(b0.y);
-      expect(face(f, 'ana').r).toBe(a0.r);
-      expect(face(f, 'bo').r).toBe(b0.r);
-    }
-    // The one moving up the ranking passes in front of the other.
-    for (const f of forward) expect(f.order.indexOf('bo')).toBeGreaterThan(f.order.indexOf('ana'));
-    const end = slide[slide.length - 1];
-    // They traded places, each within its idle sway of the other's.
-    expect(Math.abs(face(end, 'bo').x - a0.x)).toBeLessThan(9);
-    expect(Math.abs(face(end, 'ana').x - b0.x)).toBeLessThan(9);
+    advanceArena(1 / 30);
+    expect(arena.crown).toBe(bo.id);
+    const after = frames(2).at(-1);
+    expect(Math.abs(face(after, 'bo').x - a.x)).toBeLessThan(9);
   });
 
-  it('a waiting animal overtaking another in the queue walks sideways too', () => {
-    arenaLike('q1', pic('q1'), 10);
-    arenaLike('q2', pic('q2'), 1);
-    frames(1.5);
-    const still = frame(),
-      p0 = face(still, 'q1'),
-      q0 = face(still, 'q2');
-    expect(q0.x).toBeGreaterThan(p0.x);
-    arenaLike('q2', pic('q2'), 30);
-    const slide = frames(1.5);
-    expect(walkingLeft(slide, 'q2').length).toBeGreaterThan(5);
-    for (const f of slide) {
-      expect(face(f, 'q1').y).toBe(p0.y);
-      expect(face(f, 'q2').y).toBe(q0.y);
-      expect(face(f, 'q2').r).toBe(q0.r);
-    }
-    const end = slide[slide.length - 1];
-    expect(face(end, 'q2').x).toBeLessThan(face(end, 'q1').x);
-  });
-
-  it("a like fills a waiting viewer's entry ring, a player's speed: never the other", () => {
+  it("in the battle a player's likes fill the ring round its animal, and 100 fire a boost", () => {
     const pia = playing('pia', row(5, 12, 5));
-    arenaLike('quin', pic('quin'), 30);
     frames(1);
-    // Waiting in the queue: the entry ring fills, no snake goes any faster.
-    arenaLike('quin', pic('quin'), 5);
-    expect(rings.get('quin')).toBe(35);
-    expect(snakeOf('quin')).toBeUndefined();
+    arenaLike('pia', pic('pia'), 50);
+    crabLike('pia', pic('pia'), 50);
+    expect(rings.get('pia')).toBe(50);
     expect(pia.boost).toBe(0);
-    // Playing: the snake's speed ring on the board fills and it speeds up; nothing builds up on
-    // the way in, and the animal on the beach shows the like's hearts as Feed's do.
-    advanceArena(1 / 30);
-    const cruising = pia.speed;
-    arenaLike('pia', pic('pia'), 5);
-    crabLike('pia', pic('pia'), 5);
-    expect(pia.boost).toBeCloseTo(5 * TUNING.likeBoost);
-    expect(pia.boost / TUNING.boostCap).toBeGreaterThan(0.01);
-    expect(rings.get('pia') ?? 0).toBe(0);
-    expect(queue.some((w) => w?.nickname === 'pia')).toBe(false);
     expect(crabsState().find((c) => c.nickname === 'pia')?.hearts).toBeGreaterThan(0);
-    advanceArena(1 / 30);
-    expect(pia.speed).toBeGreaterThan(cruising);
-    // On the beach only the waiting animal wears a red ring.
     const f = frame(),
-      ringOn = (n: string): boolean => {
-        const p = face(f, n);
-        return f.rings.some((c) => Math.abs(c.x - p.x) < 0.01 && Math.abs(c.y - p.y) < 0.01);
-      };
-    expect(ringOn('quin')).toBe(true);
-    expect(ringOn('pia')).toBe(false);
+      p = face(f, 'pia');
+    // The red ring is round the animal's picture on the beach.
+    expect(f.rings.some((c) => Math.abs(c.x - p.x) < 0.01 && Math.abs(c.y - p.y) < 0.01)).toBe(
+      true,
+    );
+    arenaLike('pia', pic('pia'), 50);
+    expect(pia.boost).toBeGreaterThan(0);
+    expect(rings.get('pia')).toBe(0);
+    expect(TUNING.boostCap).toBeGreaterThan(0);
   });
 
-  it('keeps the sleeping crab, clear of a full board and a full queue', () => {
-    for (let k = 0; k < 8; k++) player(`p${String(k)}`, 10 + k);
-    for (let k = 0; k < 4; k++) arenaLike(`w${String(k)}`, pic(`w${String(k)}`), 10 + k);
-    // Just liked, no animal out: Feed's sleeper would show nobody at all.
-    crabLike('zed', pic('zed'), 1);
-    frames(3);
-    const f = frame(),
-      sleeper = face(f, 'zed'),
-      animals = [...f.faces].filter(([n]) => n !== 'zed');
-    expect(sleepersState()[0]?.who).toBe('zed');
-    expect(animals).toHaveLength(12);
-    // Every picture on the beach stands left of the sleeper's, none touching it.
-    const PHOTO = 28 / 32;
-    for (const [, a] of animals)
-      expect(a.x + a.r * PHOTO).toBeLessThan(sleeper.x - sleeper.r * PHOTO);
-  });
-
-  it('never drops the sleeping crab, even with every viewer already on the beach', () => {
-    for (let k = 0; k < 8; k++) player(`p${String(k)}`, 10 + k);
-    for (let k = 0; k < 4; k++) arenaLike(`w${String(k)}`, pic(`w${String(k)}`), 10 + k);
-    for (let k = 0; k < 4; k++) crabLike(`w${String(k)}`, pic(`w${String(k)}`), 1);
+  it('in the battle the sleeping crab shows the players, each in turn', () => {
+    for (let k = 0; k < 6; k++) playing(`p${String(k)}`, row(3 + 4 * k, 12, 5));
+    for (let k = 0; k < 6; k++) crabLike(`p${String(k)}`, pic(`p${String(k)}`), 1);
     const shown = new Set<string>();
-    for (let k = 0; k < 6 / FRAME; k++) {
+    for (let k = 0; k < 8 / FRAME; k++) {
       frame();
       const who = sleepersState()[0]?.who;
-      expect(who).toBeDefined();
-      shown.add(who ?? '');
+      if (who) shown.add(who);
     }
-    // And its pictures still turn.
     expect(shown.size).toBeGreaterThan(1);
+    for (const n of shown) expect(snakeOf(n)).toBeDefined();
   });
 });

@@ -3,7 +3,7 @@ import { beforeAll, describe, expect, it } from 'vitest';
 import { ARENA_DEFAULTS, type ArenaSettings } from '../../src/shared/arena-protocol.ts';
 import { BERRY_STAY, chooseNext } from '../../src/renderer/arena/ai.ts';
 import { advanceArena, newArenaRound, setArenaSettings } from '../../src/renderer/arena/arena.ts';
-import { flights, likeHearts, queue, rings } from '../../src/renderer/arena/entry.ts';
+import { flights, likePops, queue, rings, nextSeats } from '../../src/renderer/arena/entry.ts';
 import { countOnArena } from '../../src/renderer/arena/link.ts';
 import { moveInto } from '../../src/renderer/arena/round.ts';
 import {
@@ -41,8 +41,9 @@ function fresh(extra: Partial<ArenaSettings> = {}, seed = 7): void {
   rings.clear();
   queue.length = 0;
   flights.length = 0;
-  likeHearts.length = 0;
+  likePops.length = 0;
   game.queue = [];
+  nextSeats.length = 0;
   newRound();
   run(4);
 }
@@ -132,7 +133,7 @@ describe('snake arena: a snake goes for its own berries', () => {
     expect(apart(step, own)).toBeLessThan(apart(cellId(10, 10), own));
   });
 
-  it('the calm brain flees a bigger head right there, unless it cannot die', () => {
+  it('the calm brain flees a bigger head right there, its own berries waiting or not', () => {
     fresh({ superAI: false, backing: 'off' });
     const me = place('ana', row(10, 10, 3));
     const big = place(null, [...col(12, 11, 29), ...row(29, 13, 16)]);
@@ -140,8 +141,6 @@ describe('snake arena: a snake goes for its own berries', () => {
     me.mode = 'defend';
     me.target = big.id;
     expect(next(me)).toBe(cellId(10, 9));
-    me.immune = true;
-    expect(next(me)).toBe(cellId(11, 10));
   });
 
   it('the strong brain is not turned off its own berries by where a bigger head may go', () => {
@@ -151,16 +150,6 @@ describe('snake arena: a snake goes for its own berries', () => {
     const big = place(null, [...col(13, 13, 29), ...row(29, 14, 16)]);
     big.next = cellId(13, 12);
     berry(cellId(24, 10), 'ana');
-    expect(next(me)).toBe(cellId(13, 10));
-  });
-
-  it('the strong brain does not flee with its own berries waiting once it cannot die', () => {
-    fresh({ superAI: true });
-    const me = place('ana', row(10, 12, 5));
-    const big = place(null, [...col(14, 12, 29), ...row(29, 15, 16)]);
-    big.next = cellId(14, 11);
-    berry(cellId(26, 10), 'ana');
-    me.immune = true;
     expect(next(me)).toBe(cellId(13, 10));
   });
 });
@@ -226,6 +215,7 @@ describe('snake arena: a berry stays on the board half a second', () => {
     for (const brain of [{ superAI: true }, { superAI: false, backing: 'off' as const }])
       for (const seed of [3, 11]) {
         fresh({ ...brain, wildSnakes: 3 }, seed);
+        place('gina', row(20, 10, 3));
         run(3);
         board.gift('gina', undefined, 10, true);
         const seen: number[] = [],
@@ -250,11 +240,12 @@ describe('snake arena: a berry stays on the board half a second', () => {
 describe('snake arena: berries wait for the countdown', () => {
   it('no berry on the board before the countdown ends, then they pour', () => {
     fresh({ plainEvery: 2 });
-    // A paid berry left on the board goes back to the flower for the next round.
+    // A paid berry left on the board does not carry over: its giver gets a seat instead.
     place('lia', row(12, 10, 3));
     berry(cellId(20, 20), 'lia');
     newRound();
     expect(game.ready).toBe(0);
+    place('gina', row(20, 10, 3));
     board.gift('gina', undefined, 10, true);
     let most = 0;
     while (game.ready >= 0) {

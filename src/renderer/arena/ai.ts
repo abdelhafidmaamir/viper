@@ -90,7 +90,9 @@ export function updateMode(
   now: number,
   hunting: Map<number, number>,
 ): void {
-  const escapeAt = me.backing >= 3 && brain.backing === 'strong' ? 6.5 : 4.5;
+  // With the survival tiers, a like seat sees danger late: it flees a head only right there.
+  const escapeAt =
+    brain.backing !== 'strong' ? 4.5 : me.backing >= 3 ? 6.5 : me.backing >= 1 ? 4.5 : 2.5;
   me.modeT += dt;
   let threat: Snake | null = null,
     threatD = Infinity,
@@ -376,9 +378,14 @@ function brainFor(level: number): number {
   return level >= 3 ? 2 : level >= 1 ? 1 : 0;
 }
 
-/** How much bigger a chaser must be to pick this prey: backed snakes are rarely chosen. */
+/**
+ * How much bigger a chaser must be to pick this prey: backed snakes are rarely chosen. With the
+ * strong backing (the survival tiers), a like seat is prey as soon as a snake is a fifth bigger.
+ */
+const TIER_GUARD = [1.2, 1.6, 2.2, 3] as const;
 function preyGuard(level: number): number {
-  const step = brain.backing === 'strong' ? 0.5 : brain.backing === 'light' ? 0.25 : 0;
+  if (brain.backing === 'strong') return TIER_GUARD[Math.min(3, level)] ?? TUNING.bigger;
+  const step = brain.backing === 'light' ? 0.25 : 0;
   return TUNING.bigger + step * level;
 }
 

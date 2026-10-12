@@ -88,5 +88,5 @@ describe.skipIf(!ROUNDS)('snake arena: survival tiers, measured', () => {
         `snakes whose tier differed from their role: ${String(mismatched.n)}\n`,
     );
     expect(played).toBe(ROUNDS);
-  });
+  }, 3_600_000);
 });

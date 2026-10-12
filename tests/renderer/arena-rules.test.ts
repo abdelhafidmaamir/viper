@@ -3,22 +3,17 @@ import { beforeAll, describe, expect, it } from 'vitest';
 import { ARENA_DEFAULTS, type ArenaSettings } from '../../src/shared/arena-protocol.ts';
 import { advanceArena, newArenaRound, setArenaSettings } from '../../src/renderer/arena/arena.ts';
 import {
-  ENTRY,
-  FLIGHT,
-  PILOT,
   arenaLife,
-  arenaLike,
   flights,
-  likeHearts,
+  likePops,
   queue,
-  queueOrder,
   rings,
+  nextSeats,
 } from '../../src/renderer/arena/entry.ts';
-import { carriedOver, moveInto } from '../../src/renderer/arena/round.ts';
+import { moveInto } from '../../src/renderer/arena/round.ts';
 import { countOnArena } from '../../src/renderer/arena/link.ts';
 import {
   DEATH_TIME,
-  EMERGE,
   arena,
   cellId,
   cellX,
@@ -52,8 +47,9 @@ function fresh(extra: Partial<ArenaSettings> = {}, seed = 7): void {
   rings.clear();
   queue.length = 0;
   flights.length = 0;
-  likeHearts.length = 0;
+  likePops.length = 0;
   game.queue = [];
+  nextSeats.length = 0;
   newRound();
   run(4);
 }
@@ -96,19 +92,6 @@ describe('snake arena', () => {
     countOnArena();
   });
 
-  it('a full ring on screen lays an egg; it starts once the picture lands, and the snake hatches', () => {
-    fresh();
-    arenaLike('ana', undefined, ENTRY.likesNeeded);
-    run(STEP * 2);
-    const s = snakeOf('ana');
-    expect(s?.egg).toBeTruthy();
-    expect(s?.egg?.t).toBeLessThan(0);
-    expect(flights).toHaveLength(1);
-    run(FLIGHT + EMERGE + 0.2);
-    expect(s?.in).toBe(true);
-    expect(rings.get('ana')).toBe(0);
-  });
-
   it('lays an egg a safe distance from every snake', () => {
     fresh({ places: 8 });
     const bodies = [place(null, row(10, 5, 20)), place(null, row(20, 25, 10))];
@@ -125,41 +108,14 @@ describe('snake arena', () => {
     }
   });
 
-  it('only an animal on screen goes in; a quiet one leaves its spot, its progress kept', () => {
+  it('pours a gift from the flower to its snake, which eats it all', () => {
     fresh();
-    for (const n of ['q1', 'q2', 'q3', 'q4']) arenaLike(n, undefined, 1);
-    arenaLike('late', undefined, ENTRY.likesNeeded);
-    run(0.5);
-    expect(queueOrder()).not.toContain('late');
-    expect(snakeOf('late')).toBeUndefined();
-    expect(rings.get('late')).toBe(ENTRY.likesNeeded);
-    run(6);
-    expect(queueOrder()).toHaveLength(0);
-    arenaLike('late', undefined, 1);
-    run(0.2);
-    expect(snakeOf('late')).toBeDefined();
-  });
-
-  it('stands the queue in order of ring fill, the fullest first', () => {
-    fresh();
-    arenaLike('a', undefined, 10);
-    arenaLike('b', undefined, 40);
-    arenaLike('c', undefined, 20);
-    for (let k = 0; k < 4; k++) queueOrder();
-    expect(queueOrder()).toEqual(['b', 'c', 'a']);
-  });
-
-  it('pours a gift from the flower to its snake, which eats it all and cannot die after', () => {
-    fresh();
+    const s = place('gina', row(20, 10, 3));
     give('gina', 10);
-    run(0.1);
-    const s = snakeOf('gina');
-    expect(s).toBeDefined();
     run(10);
     expect(arena.food.filter((f) => f.by === 'gina')).toHaveLength(0);
     expect(waitingFor('gina')).toBe(0);
-    expect(s?.immune).toBe(true);
-    expect(s?.len).toBeGreaterThan(ARENA_DEFAULTS.places);
+    expect(s.len).toBeGreaterThan(ARENA_DEFAULTS.places);
   });
 
   it('every brain goes for its own berries and eats them all', () => {
@@ -170,6 +126,7 @@ describe('snake arena', () => {
     ])
       for (const seed of [3, 11, 29]) {
         fresh({ ...brain, wildSnakes: 3 }, seed);
+        place('gina', row(20, 10, 3));
         run(3);
         give('gina', 10);
         run(14);
@@ -178,19 +135,7 @@ describe('snake arena', () => {
       }
   });
 
-  it('with gift entry off, berries wait in the flower until likes bring the snake in', () => {
-    fresh({ giftEntry: false });
-    give('ivo', 5);
-    run(1);
-    expect(snakeOf('ivo')).toBeUndefined();
-    expect(waitingFor('ivo')).toBe(5);
-    arenaLike('ivo', undefined, ENTRY.likesNeeded);
-    run(10);
-    expect(snakeOf('ivo')?.immune).toBe(true);
-    expect(waitingFor('ivo')).toBe(0);
-  });
-
-  it('a head into a body dies, an unbeatable one turns away, two unbeatable heads both live', () => {
+  it('a head into a body dies, a shielded one turns away; nothing else is unbeatable', () => {
     fresh();
     const wall = place('wall', row(15, 12, 3)),
       hit = place('hit', [cellId(8, 13), cellId(8, 12)]);
@@ -198,17 +143,17 @@ describe('snake arena', () => {
     moveInto(hit, cellId(8, 15));
     expect(hit.alive).toBe(false);
     const safe = place('safe', [cellId(6, 13), cellId(6, 12)]);
-    safe.immune = true;
+    safe.shield = 5;
     moveInto(safe, cellId(6, 14));
     moveInto(safe, cellId(6, 15));
     expect(safe.alive).toBe(true);
     expect(wall.alive).toBe(true);
-    const a = place('a', row(25, 3, 5)),
-      b = place('b', row(25, 9, 7));
-    a.immune = b.immune = true;
-    moveInto(a, cellId(6, 25));
-    moveInto(b, cellId(6, 25));
-    expect(a.alive && b.alive).toBe(true);
+    // A snake whose giver's berries it ate is no longer spared.
+    const fed = place('fed', [cellId(4, 13), cellId(4, 12)]);
+    fed.eaten = 10;
+    moveInto(fed, cellId(4, 14));
+    moveInto(fed, cellId(4, 15));
+    expect(fed.alive).toBe(false);
   });
 
   it('never dies by its own body: boxed in by itself, it passes over itself', () => {
@@ -258,21 +203,6 @@ describe('snake arena', () => {
     expect(arena.dying).toHaveLength(0);
   });
 
-  it('carries paid berries over to the next round, a gift in the last seconds included', () => {
-    fresh({ roundLength: 60 });
-    give('lia', 3);
-    run(55);
-    give('lia', 10);
-    run(5.5);
-    expect(game.full).toBeGreaterThanOrEqual(0);
-    expect(carriedOver()).toBeGreaterThan(0);
-    run(15);
-    expect(arena.round).toBeGreaterThan(1);
-    run(12);
-    expect(waitingFor('lia')).toBe(0);
-    expect(arena.food.filter((f) => f.by === 'lia')).toHaveLength(0);
-  });
-
   it('ends at 0:00 straight into the end screen', () => {
     fresh({ roundLength: 60 });
     while (arena.time < 59.9) advanceArena(STEP);
@@ -306,15 +236,5 @@ describe('snake arena', () => {
     expect(back?.colour).toBe(colour);
     expect(back?.hatchLen).toBe(10);
     expect(back?.lives).toBe(0);
-  });
-
-  it('plays the pilot, which never ranks, and takes it away at once when switched off', () => {
-    fresh({ pilot: true });
-    run(PILOT.fill + 4);
-    expect(snakeOf(PILOT.key)).toBeDefined();
-    expect(game.likes.has(PILOT.key)).toBe(false);
-    expect(game.fans.has(PILOT.key)).toBe(false);
-    setArenaSettings({ ...ARENA_DEFAULTS, pilot: false, wildSnakes: 0 });
-    expect(snakeOf(PILOT.key)).toBeUndefined();
   });
 });

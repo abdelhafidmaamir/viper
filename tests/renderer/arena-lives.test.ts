@@ -8,10 +8,10 @@ import {
   FLIGHT,
   arenaLife,
   flights,
-  gifters,
-  likeHearts,
+  likePops,
   queue,
   rings,
+  nextSeats,
 } from '../../src/renderer/arena/entry.ts';
 import { countOnArena } from '../../src/renderer/arena/link.ts';
 import {
@@ -54,10 +54,10 @@ function fresh(extra: Partial<ArenaSettings> = {}, seed = 7): void {
   arena.viewers.clear();
   rings.clear();
   queue.length = 0;
-  gifters.length = 0;
   flights.length = 0;
-  likeHearts.length = 0;
+  likePops.length = 0;
   game.queue = [];
+  nextSeats.length = 0;
   newRound();
   run(4);
 }
@@ -197,7 +197,7 @@ describe('snake arena: lives shown on the snake and its crab', () => {
 
   it('a viewer waiting on the beach shows the lives kept for their snake', () => {
     fresh({ places: 4 });
-    for (let k = 0; k < 4; k++) place(`p${String(k)}`, row(3 + 6 * k, 20, 6)).immune = true;
+    for (let k = 0; k < 4; k++) place(`p${String(k)}`, row(3 + 6 * k, 20, 6)).shield = 99;
     arenaLife('wai', undefined, 2);
     run(1.5);
     expect(snakeOf('wai')).toBeUndefined();

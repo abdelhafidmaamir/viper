@@ -6,7 +6,8 @@ import {
   type ArenaSettingName,
 } from '../../src/shared/arena-protocol.ts';
 import { newArenaRound, setArenaSettings } from '../../src/renderer/arena/arena.ts';
-import { queue, rings } from '../../src/renderer/arena/entry.ts';
+import { queue, rings, nextSeats } from '../../src/renderer/arena/entry.ts';
+import { locked, qualLikes } from '../../src/renderer/arena/qualify.ts';
 import {
   ARENA_STORAGE_KEY,
   applyArenaCommand,
@@ -17,7 +18,7 @@ import {
   linkArenaControl,
   restoreArenaSettings,
 } from '../../src/renderer/arena/link.ts';
-import { arena, snakeOf } from '../../src/renderer/arena/rules.ts';
+import { arena } from '../../src/renderer/arena/rules.ts';
 import {
   applyFeedCommand,
   receiveFeedEvent,
@@ -29,10 +30,6 @@ import {
   settingsIn,
   supportersText,
 } from '../../src/renderer/feed/supporters.ts';
-import { QUALIFY } from '../../src/renderer/arena/qualify.ts';
-
-// These tests play the round as it was before the qualifying: straight to GET READY.
-QUALIFY.time = 0;
 
 function store(map = new Map<string, string>()): FeedLinkDeps['storage'] {
   return {
@@ -77,6 +74,10 @@ describe('arena link', () => {
     rings.clear();
     queue.length = 0;
     game.queue = [];
+    nextSeats.length = 0;
+    arena.snakes = [];
+    arena.food = [];
+    arena.foodAt.clear();
     newRound(() => 0.5);
   });
 
@@ -84,15 +85,15 @@ describe('arena link', () => {
     vi.useRealTimers();
   });
 
-  it('likes from the live fill the entry ring and count for the round', () => {
+  it('likes from the live count in the qualifying and for the round', () => {
     receiveFeedEvent({ type: 'like', nickname: 'ana', n: 5 });
-    expect(rings.get('ana')).toBe(5);
+    expect(qualLikes.get('ana')).toBe(5);
     expect(game.likes.get('ana')?.likes).toBe(5);
   });
 
-  it('a gift from the live brings its giver in and counts for the round', () => {
+  it('a gift from the live locks its giver a seat and counts for the round', () => {
     receiveFeedEvent({ type: 'gift', name: 'Rosa', n: 2, nickname: 'ben' });
-    expect(snakeOf('ben')).toBeDefined();
+    expect(locked).toContain('ben');
     expect(game.fans.get('ben')?.coins).toBe(20);
   });
 
@@ -109,28 +110,29 @@ describe('arena link', () => {
     applyFeedCommand({ cmd: 'gift', gift: 'rosa', count: 1 }, d);
     applyFeedCommand({ cmd: 'likes', count: 25, nickname: 'lou' }, d);
     applyFeedCommand({ cmd: 'grant', nickname: 'dan', count: 7 }, d);
-    expect(snakeOf('tester')).toBeDefined();
-    expect(rings.get('lou')).toBe(25);
-    expect(snakeOf('dan')).toBeDefined();
+    expect(locked.some((n) => n.startsWith('tester'))).toBe(true);
+    expect(qualLikes.get('lou')).toBe(25);
+    expect(locked).toContain('dan');
   });
 
   it('during a real live, rehearsal gifts and likes reach nothing', () => {
     const live = deps(store(), true);
     applyFeedCommand({ cmd: 'gift', gift: 'rosa', count: 5 }, live);
     applyFeedCommand({ cmd: 'likes', count: 25, nickname: 'lou' }, live);
-    expect(snakeOf('tester')).toBeUndefined();
-    expect(rings.has('lou')).toBe(false);
+    expect(locked).toHaveLength(0);
+    expect(qualLikes.has('lou')).toBe(false);
     // Berries given back by hand still count on a live.
     applyFeedCommand({ cmd: 'grant', nickname: 'eve', count: 3 }, live);
-    expect(snakeOf('eve')).toBeDefined();
+    expect(locked).toContain('eve');
   });
 
   it('a gift at the life price gives a life, not berries, only with the life gift on', () => {
     receiveFeedEvent({ type: 'gift', name: 'Hat', value: 30, nickname: 'off' });
-    expect(snakeOf('off')?.lives ?? 0).toBe(0);
+    expect(arena.viewers.get('off')?.lives ?? 0).toBe(0);
     setArenaSettings({ ...ARENA_DEFAULTS, pilot: false, wildSnakes: 0, lifeOn: true });
     receiveFeedEvent({ type: 'gift', name: 'Hat', value: 30, nickname: 'liv' });
-    expect(snakeOf('liv')?.lives).toBe(1);
+    expect(arena.viewers.get('liv')?.lives).toBe(1);
+    expect(locked).toContain('liv');
     expect(game.queue.some((q) => q.nickname === 'liv')).toBe(false);
   });
 
