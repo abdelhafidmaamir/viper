@@ -13,7 +13,9 @@ import { arena } from '../../src/renderer/arena/rules.ts';
 import { board } from '../../src/renderer/feed/control-link.ts';
 import { game, hooks, newRound } from '../../src/renderer/feed/state.ts';
 
-const ROUNDS = Number(process.env.ARENA_MEASURE ?? 0);
+const ROUNDS = Number(process.env.ARENA_MEASURE ?? 0),
+  /** Seconds between the battle gifter's gifts of 5 berries (ARENA_GIFT_EVERY, 20 by default). */
+  GIFT_EVERY = Number(process.env.ARENA_GIFT_EVERY ?? 20);
 const STEP = 1 / 30;
 
 describe.skipIf(!ROUNDS)('snake arena: survival tiers, measured', () => {
@@ -65,7 +67,7 @@ describe.skipIf(!ROUNDS)('snake arena: survival tiers, measured', () => {
         }
         if (t >= nextGift) {
           board.gift('gifter', undefined, 5, true);
-          nextGift += 20;
+          nextGift += GIFT_EVERY;
         }
         for (const n of Object.keys(roles)) if (r() < STEP / 12) arenaLike(n, undefined, 100);
         advanceArena(STEP);
