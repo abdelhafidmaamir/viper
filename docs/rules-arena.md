@@ -42,17 +42,18 @@ closed eggs and every egg bursts at GO, in one beat. Empty eggs hatch wild snake
 Only the qualified snakes play: nobody comes in during the battle and a dead snake leaves its place
 empty.
 
-| Element | Rule                                                                                                                              |
-| ------- | --------------------------------------------------------------------------------------------------------------------------------- |
-| Look    | Feed's snake in one of the 8 prod colours; the viewer's photo floats above the head, its name above it                            |
-| Photo   | Follows the head through a damped spring; photos push each other apart, a smaller snake's name gives way to a bigger one's        |
-| Speed   | `speed` cells a second, up to 15% slower at 60 cells                                                                              |
-| Likes   | A player's likes fill the red ring round their crab on the beach; every `entryLikes` likes (100) fire a 3 s speed boost           |
-| Boost   | The snake dashes with speed streaks in its colour and a bolt by its photo; the crab runs on the spot with the same bolt           |
-| Gifts   | Berries from the flower in the giver's colour, for the giver's snake (`giftBerries`): growth                                      |
-| Food    | 3 plain berries on the board at all times, each popping up away from every head, a new one 2 s after one is eaten                 |
-| Death   | A head into another snake's body, or the smaller head in a head-on. Never by its own body. A shield or the newborn's grace spares |
-| Crown   | Nobody's at GO; the first snake to eat, then the biggest viewer's snake (a tie keeps it where it is). Never a wild snake          |
+| Element  | Rule                                                                                                                                  |
+| -------- | ------------------------------------------------------------------------------------------------------------------------------------- |
+| Look     | Feed's snake in one of the 8 prod colours; the viewer's photo floats above the head, its name above it                                |
+| Photo    | Follows the head through a damped spring; photos push each other apart, a smaller snake's name gives way to a bigger one's            |
+| Speed    | `speed` cells a second, up to 15% slower at 60 cells                                                                                  |
+| Likes    | A player's likes fill the red ring round their crab on the beach; every `entryLikes` likes (100) fire a 3 s speed boost               |
+| Boost    | The snake dashes with speed streaks in its colour and a bolt by its photo; the crab runs on the spot with the same bolt               |
+| Gifts    | Berries from the flower in the giver's colour, for the giver's snake (`giftBerries`): growth                                          |
+| Catch-up | A gift berry grows a snake by a full cell, half a cell once it leads the second biggest by a fifth or more; plain berries a full cell |
+| Food     | 3 plain berries on the board at all times, each popping up away from every head, a new one 2 s after one is eaten                     |
+| Death    | A head into another snake's body, or the smaller head in a head-on. Never by its own body. A shield or the newborn's grace spares     |
+| Crown    | Nobody's at GO; the first snake to eat, then the biggest viewer's snake (a tie keeps it where it is). Never a wild snake              |
 
 Survival tiers, never shown: a player who gives during this battle plays the strongest brain and is
 rarely chased (tier 1); a paid seat plays a good brain (tier 2); a like seat plays the basic brain,
