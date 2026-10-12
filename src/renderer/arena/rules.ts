@@ -132,6 +132,8 @@ export interface Snake {
   idle: number;
   /** Its survival tier as a backing level for the brains (ai.ts backingOfTier): 0 to 3. */
   backing: number;
+  /** Its viewer filled a likes ring lately (round.ts ACTIVE): a liking like seat is not prey. */
+  active?: boolean;
   /** Extra lives from the life gift, and the length it grows to out of its egg. */
   lives: number;
   hatchLen: number;

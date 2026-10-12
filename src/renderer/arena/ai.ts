@@ -103,7 +103,9 @@ export function updateMode(
     // The two biggest on the board: a like seat among them is no longer anyone's favourite prey.
     lens = [me.len, ...others.map((o) => o.len)].sort((a, b) => b - a),
     leaders = lens[1] ?? lens[0] ?? 0,
-    preyLevel = (o: Snake): number => (o.len >= leaders ? Math.max(1, o.backing) : o.backing);
+    // A like seat that keeps liking is not the favourite prey either: only a passive one is.
+    preyLevel = (o: Snake): number =>
+      o.len >= leaders || o.active ? Math.max(1, o.backing) : o.backing;
   for (const o of others) {
     const d = Math.hypot(o.x - me.x, o.y - me.y),
       facing =

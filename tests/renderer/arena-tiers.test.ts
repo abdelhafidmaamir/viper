@@ -39,6 +39,11 @@ describe.skipIf(!ROUNDS)('snake arena: survival tiers, measured', () => {
           ? { gifter: 1, gifter2: 1, paidA: 2, likeA: 3, likeB: 3, likeC: 3 }
           : { gifter: 1, paidA: 2, paidB: 2, likeA: 3, likeB: 3, likeC: 3 },
       gifters = Object.keys(roles).filter((n) => n.startsWith('gifter')),
+      EVERY: Record<string, number> =
+        GIFTERS === 2
+          ? { gifter: 6, gifter2: 15, paidA: 40, likeA: 6, likeB: 15, likeC: 40 }
+          : { gifter: 6, paidA: 15, paidB: 40, likeA: 6, likeB: 15, likeC: 40 },
+      heavy = { wins: 0, deaths: 0 },
       paid = Object.keys(roles).filter((n) => n.startsWith('paid'));
     const deaths = { 1: 0, 2: 0, 3: 0 },
       seats = { 1: 0, 2: 0, 3: 0 },
@@ -71,7 +76,10 @@ describe.skipIf(!ROUNDS)('snake arena: survival tiers, measured', () => {
           for (const n of gifters) board.gift(n, undefined, 5, true);
           nextGift += GIFT_EVERY;
         }
-        for (const n of Object.keys(roles)) if (r() < STEP / 12) arenaLike(n, undefined, 100);
+        // A skewed like rate: in each group one heavy liker (a ring every 6 s on average), one
+        // medium (15 s), one light (40 s).
+        for (const n of Object.keys(roles))
+          if (r() < STEP / (EVERY[n] ?? 15)) arenaLike(n, undefined, 100);
         advanceArena(STEP);
         t += STEP;
       }
@@ -83,6 +91,8 @@ describe.skipIf(!ROUNDS)('snake arena: survival tiers, measured', () => {
       }
       food.eaten += game.eaten;
       const w = arena.winner?.nickname;
+      if (w === 'likeA') heavy.wins++;
+      if (arena.outs.some((o) => o.nickname === 'likeA')) heavy.deaths++;
       if (w && w in roles) wins[roles[w] ?? 3]++;
       else wins.none++;
       played++;
@@ -98,7 +108,7 @@ describe.skipIf(!ROUNDS)('snake arena: survival tiers, measured', () => {
         `wins, tier 1 ${share(1)}, tier 2 ${share(2)}, tier 3 ${share(3)}, none ${share('none')}; ` +
         `snakes whose tier differed from their role: ${String(mismatched.n)}; ` +
         `berries eaten per battle ${(food.eaten / Math.max(1, played)).toFixed(1)}, ` +
-        `crown changes per battle ${(food.crowns / Math.max(1, played)).toFixed(1)}\n`,
+        `crown changes per battle ${(food.crowns / Math.max(1, played)).toFixed(1)}; heavy liker (like seat) wins ${String(heavy.wins)} %, dies ${String(heavy.deaths)} %\n`,
     );
     expect(played).toBe(ROUNDS);
   }, 3_600_000);

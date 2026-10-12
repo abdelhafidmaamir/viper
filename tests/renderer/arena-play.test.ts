@@ -1,7 +1,7 @@
 import { beforeAll, describe, expect, it } from 'vitest';
 
 import { ARENA_DEFAULTS, type ArenaSettings } from '../../src/shared/arena-protocol.ts';
-import { BERRY_STAY, chooseNext } from '../../src/renderer/arena/ai.ts';
+import { BERRY_STAY, chooseNext, updateMode } from '../../src/renderer/arena/ai.ts';
 import { advanceArena, newArenaRound, setArenaSettings } from '../../src/renderer/arena/arena.ts';
 import { flights, likePops, queue, rings, nextSeats } from '../../src/renderer/arena/entry.ts';
 import { countOnArena } from '../../src/renderer/arena/link.ts';
@@ -189,6 +189,27 @@ describe('snake arena: a snake never turns back onto its neck', () => {
       }
       expect(reversed).toBe(0);
     }
+  });
+});
+
+describe('snake arena: a like seat that keeps liking is not the favourite prey', () => {
+  it('a bigger snake goes after the passive like seat, not the one that keeps liking', () => {
+    fresh({ superAI: false, backing: 'strong' });
+    // Two small like seats at the same distance from a big head; a mid-size snake far away holds
+    // the second place, so neither small one counts among the two biggest.
+    const hunter = place('hunter', row(10, 25, 8)),
+      mid = place('mid', row(25, 20, 11)),
+      liking = place('liking', row(8, 23, 20)),
+      passive = place('passive', row(12, 23, 20));
+    mid.backing = 1;
+    liking.backing = passive.backing = 0;
+    liking.active = true;
+    passive.active = false;
+    hunter.backing = 1;
+    for (let k = 0; k < 40 && hunter.mode !== 'chase'; k++)
+      updateMode(hunter, [mid, liking, passive], 0.05, k * 0.05, new Map());
+    expect(hunter.mode).toBe('chase');
+    expect(hunter.target).toBe(passive.id);
   });
 });
 

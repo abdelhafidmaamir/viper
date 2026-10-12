@@ -27,7 +27,7 @@ import {
   updateMode,
   type Sight,
 } from './ai.ts';
-import { endGifts, isPilot, nextSeats, stepQueue, updateFlights } from './entry.ts';
+import { endGifts, fired, isPilot, nextSeats, stepQueue, updateFlights } from './entry.ts';
 import {
   QUALIFY,
   endQualifying,
@@ -484,6 +484,7 @@ function move(
   s.idle += dt;
   const v = s.wild ? undefined : arena.viewers.get(s.nickname);
   s.backing = backingOfTier(tierOf(s));
+  s.active = arena.clock - (fired.get(s.nickname) ?? -Infinity) < ACTIVE;
   if (v) arena.played.set(v.nickname, (arena.played.get(v.nickname) ?? false) || v.gifted > 0);
   brood(s, dt, sight);
   // Out of its egg, a snake waits for GO with the others: a fair start.
@@ -673,6 +674,9 @@ function dying(dt: number): void {
 
 /** Seconds a dead snake's paid berries take to fade off the board. */
 export const FADE_OUT = 0.35;
+
+/** Seconds since a player's last full likes ring during which a like seat is not anyone's prey. */
+export const ACTIVE = 20;
 
 /**
  * A snake's survival tier, never shown: 1 when its viewer gave during this battle, 2 for a paid
