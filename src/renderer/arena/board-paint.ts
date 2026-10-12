@@ -268,7 +268,9 @@ function paintHead(s: Snake, t: number): void {
   const crowned = arena.crown === s.id,
     r = TUNING.photoR * squash,
     colour = COLOURS[s.colour],
-    { x: fx, y: fy } = photoSpot(s, head, t);
+    spot = laidOut.get(s) ?? { ...photoSpot(s, head, t), name: 1 },
+    fx = spot.x,
+    fy = spot.y;
   c.save();
   if (s.safe > 0) c.globalAlpha = 0.5 + 0.5 * Math.abs(Math.sin(s.born * 11));
   c.strokeStyle = colour;
@@ -294,17 +296,98 @@ function paintHead(s: Snake, t: number): void {
   paintSnakeHearts(s, fx, fy, r);
   const full = shownName(s),
     name = full.length > 16 ? full.slice(0, 15) + '…' : full;
-  // Above the picture, read on a phone, with the prod outline.
-  c.font = `800 ${String(NAME_SIZE)}px ${FONT}`;
-  c.textAlign = 'center';
-  c.textBaseline = 'bottom';
-  c.lineJoin = 'round';
-  c.lineWidth = 6;
-  c.strokeStyle = 'rgba(12,20,15,0.85)';
-  c.strokeText(name, fx, fy - r - 6);
-  c.fillStyle = '#fff';
-  c.fillText(name, fx, fy - r - 6);
+  // Above the picture, read on a phone, with the prod outline; hidden while it would cover a
+  // bigger snake's name.
+  if (spot.name > 0.01) {
+    c.globalAlpha *= spot.name;
+    c.font = `800 ${String(NAME_SIZE)}px ${FONT}`;
+    c.textAlign = 'center';
+    c.textBaseline = 'bottom';
+    c.lineJoin = 'round';
+    c.lineWidth = 6;
+    c.strokeStyle = 'rgba(12,20,15,0.85)';
+    c.strokeText(name, fx, fy - r - 6);
+    c.fillStyle = '#fff';
+    c.fillText(name, fx, fy - r - 6);
+  }
   c.restore();
+}
+
+/** Each picture's place this frame, apart from the others, and its name's opacity. */
+const laidOut = new Map<Snake, { x: number; y: number; name: number }>();
+/** Each picture's eased push away from the others, and its name's eased opacity. */
+const apart = new WeakMap<Snake, { x: number; y: number; name: number; at: number }>();
+/** Two pictures overlap by a fifth of a radius at most. */
+const OVERLAP = 0.2;
+
+/**
+ * Lays the viewers' pictures out for this frame: each where its spring has it, then softly
+ * pushed apart so two never overlap by more than a fifth of a radius, the push eased; and when
+ * two names would still overlap, the bigger snake's shows and the other fades until there is room.
+ */
+function layOutHeads(heads: readonly Snake[], t: number): void {
+  laidOut.clear();
+  const r = TUNING.photoR,
+    min = 2 * r * (1 - OVERLAP / 2),
+    base = heads.map((s) => ({ s, ...photoSpot(s, toPx(s.x, s.y), t) })),
+    want = base.map(() => ({ x: 0, y: 0 }));
+  // A few passes: a cluster of three or more settles, not only the pairs.
+  for (let pass = 0; pass < 4; pass++)
+    for (let i = 0; i < base.length; i++)
+      for (let j = i + 1; j < base.length; j++) {
+        const a = base[i],
+          b = base[j],
+          wa = want[i],
+          wb = want[j];
+        if (!a || !b || !wa || !wb) continue;
+        let dx = b.x + wb.x - (a.x + wa.x),
+          dy = b.y + wb.y - (a.y + wa.y);
+        const d = Math.hypot(dx, dy);
+        if (d >= min) continue;
+        if (d < 0.01) {
+          dx = 1;
+          dy = 0;
+        } else {
+          dx /= d;
+          dy /= d;
+        }
+        const push = (min - d) / 2;
+        wa.x -= dx * push;
+        wa.y -= dy * push;
+        wb.x += dx * push;
+        wb.y += dy * push;
+      }
+  // Names: the smaller snake's name gives way where two would overlap.
+  const label = (x: number, y: number, name: string): [number, number, number, number] => {
+    const w = Math.min(16, name.length) * NAME_SIZE * 0.55;
+    return [x - w / 2, y - r - 6 - NAME_SIZE, x + w / 2, y - r - 6];
+  };
+  const placed = base.map((b, i) => {
+    const s = b.s,
+      prev = apart.get(s),
+      dt = prev ? Math.min(0.1, Math.max(0, arena.clock - prev.at)) : 1,
+      k = 1 - Math.exp(-dt * 8),
+      w = want[i] ?? { x: 0, y: 0 },
+      ox = prev ? prev.x + (w.x - prev.x) * k : w.x,
+      oy = prev ? prev.y + (w.y - prev.y) * k : w.y;
+    return { s, x: b.x + ox, y: b.y + oy, ox, oy, prev, k };
+  });
+  for (const p of placed) {
+    const mine = label(p.x, p.y, shownName(p.s)),
+      hidden = placed.some((o) => {
+        if (o === p || o.s.len < p.s.len || (o.s.len === p.s.len && o.s.id > p.s.id)) return false;
+        const other = label(o.x, o.y, shownName(o.s)),
+          // The other picture's square, its name over it.
+          face: [number, number, number, number] = [o.x - r, o.y - r, o.x + r, o.y + r],
+          meets = (q: [number, number, number, number]): boolean =>
+            mine[0] < q[2] && q[0] < mine[2] && mine[1] < q[3] && q[1] < mine[3];
+        return meets(other) || meets(face);
+      }),
+      was = p.prev?.name ?? 1,
+      name = was + ((hidden ? 0 : 1) - was) * Math.min(1, p.k * 1.5);
+    apart.set(p.s, { x: p.ox, y: p.oy, name, at: arena.clock });
+    laidOut.set(p.s, { x: p.x, y: p.y, name });
+  }
 }
 
 /** How far above the head a picture floats, and how fast it follows (a critically damped spring). */
@@ -522,6 +605,7 @@ export function paintSnakes(
   const heads = live
     .filter((s) => s.in && !s.wild)
     .sort((p, q) => Number(p.id === arena.crown) - Number(q.id === arena.crown));
+  layOutHeads(heads, t);
   for (const s of live) if (s.in && s.wild) paintHead(s, t);
   for (const s of heads) paintHead(s, t);
 }

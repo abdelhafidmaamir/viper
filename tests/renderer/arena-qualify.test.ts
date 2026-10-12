@@ -29,7 +29,7 @@ import {
   qualifying,
   seats,
 } from '../../src/renderer/arena/qualify.ts';
-import { tierOf } from '../../src/renderer/arena/round.ts';
+import { FIELD, tierOf } from '../../src/renderer/arena/round.ts';
 import { EMERGE, alive, arena, kill, snakeOf } from '../../src/renderer/arena/rules.ts';
 import { board } from '../../src/renderer/feed/control-link.ts';
 import { READY_TIME, game, hooks, newRound } from '../../src/renderer/feed/state.ts';
@@ -450,6 +450,10 @@ describe('snake arena: the battle', () => {
 
   it("the end screen's podium counts the berries each snake ate, gift or plain, in the result order", () => {
     fresh({ roundLength: 120 });
+    // No plain berries for this count: the numbers are the test's own.
+    FIELD.count = 0;
+    arena.food = [];
+    arena.foodAt.clear();
     like('eater', 30);
     like('other', 20);
     toBattle();
@@ -468,5 +472,6 @@ describe('snake arena: the battle', () => {
     ]);
     expect(eatenBy('eater')).toBe(7);
     expect(game.eaten).toBe(10);
+    FIELD.count = 3;
   });
 });

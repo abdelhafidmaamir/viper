@@ -13,9 +13,7 @@ import {
   ARENA_PLACES,
   ARENA_ROUND_LENGTHS,
   ARENA_SHIELD_GIFTS,
-  ARENA_PLAIN_AMOUNTS,
   ARENA_QUEUE_IDLES,
-  ARENA_PLAIN_EVERY,
   ARENA_SPEEDS,
   ARENA_WILD_SNAKES,
   type ArenaBacking,
@@ -259,19 +257,6 @@ function arenaCard(arena: ArenaSide, reason: Reason): FeedView {
       'Gifts make a snake smarter and safer',
       ARENA_BACKING.map((value) => ({ value, label: BACKING_LABELS[value] })),
       'Backed snakes look further ahead and are chased less; likes-only ones play the basic brain.',
-    ),
-    tuning(
-      arena,
-      'plainEvery',
-      'Plain berries every',
-      ARENA_PLAIN_EVERY.map((value) => ({ value, label: `${String(value)} s` })),
-      'Berries for everyone, rare: gifts are what makes a snake big.',
-    ),
-    tuning(
-      arena,
-      'plainAmount',
-      'Plain berries per drip, up to',
-      ARENA_PLAIN_AMOUNTS.map((value) => ({ value, label: String(value) })),
     ),
   ];
   const switches: Switch[] = [

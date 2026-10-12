@@ -99,7 +99,11 @@ export function updateMode(
     prey: Snake | null = null,
     preyD = Infinity;
   const anyChase = hunting.size > 0,
-    resting = (me.cool.get(REST) ?? 0) > now;
+    resting = (me.cool.get(REST) ?? 0) > now,
+    // The two biggest on the board: a like seat among them is no longer anyone's favourite prey.
+    lens = [me.len, ...others.map((o) => o.len)].sort((a, b) => b - a),
+    leaders = lens[1] ?? lens[0] ?? 0,
+    preyLevel = (o: Snake): number => (o.len >= leaders ? Math.max(1, o.backing) : o.backing);
   for (const o of others) {
     const d = Math.hypot(o.x - me.x, o.y - me.y),
       facing =
@@ -114,10 +118,11 @@ export function updateMode(
       threat = o;
       threatD = d;
     }
-    const clearlyBigger = me.len >= o.len * preyGuard(o.backing),
+    const level = preyLevel(o),
+      clearlyBigger = me.len >= o.len * preyGuard(level),
       boosted = me.boost > 0 && o.len < me.len,
       // The least backed are the preferred prey: a backed snake counts as further away.
-      far = d * (1 + 0.6 * o.backing * (brain.backing === 'strong' ? 1 : 0));
+      far = d * (1 + 0.6 * level * (brain.backing === 'strong' ? 1 : 0));
     if ((clearlyBigger || boosted) && d <= TUNING.huntRange && far < preyD && o.safe <= 0) {
       prey = o;
       preyD = far;

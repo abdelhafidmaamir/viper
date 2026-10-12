@@ -38,7 +38,8 @@ describe.skipIf(!ROUNDS)('snake arena: survival tiers, measured', () => {
     const deaths = { 1: 0, 2: 0, 3: 0 },
       seats = { 1: 0, 2: 0, 3: 0 },
       wins = { 1: 0, 2: 0, 3: 0, none: 0 },
-      mismatched = { n: 0 };
+      mismatched = { n: 0 },
+      food = { eaten: 0, crowns: 0 };
     let played = 0;
     newRound();
     for (let round = 0; round < ROUNDS; round++) {
@@ -55,8 +56,13 @@ describe.skipIf(!ROUNDS)('snake arena: survival tiers, measured', () => {
       while (qualifying() || arena.phase === 'ready') advanceArena(STEP);
       // The battle: the gifter gives at once and every 20 s; every player's likes now and then.
       let t = 0,
-        nextGift = 0;
+        nextGift = 0,
+        holder = -1;
       while (game.full < 0 && t < 200) {
+        if (arena.crown !== holder && arena.crown >= 0) {
+          food.crowns++;
+          holder = arena.crown;
+        }
         if (t >= nextGift) {
           board.gift('gifter', undefined, 5, true);
           nextGift += 20;
@@ -71,6 +77,7 @@ describe.skipIf(!ROUNDS)('snake arena: survival tiers, measured', () => {
         const s = arena.snakes.find((x) => x.nickname === n);
         if (s && tierOf(s) !== tier) mismatched.n++;
       }
+      food.eaten += game.eaten;
       const w = arena.winner?.nickname;
       if (w && w in roles) wins[roles[w] ?? 3]++;
       else wins.none++;
@@ -85,7 +92,9 @@ describe.skipIf(!ROUNDS)('snake arena: survival tiers, measured', () => {
     process.stderr.write(
       `TIERS over ${String(played)} battles: deaths per round, tier 1 ${rate(1)}, tier 2 ${rate(2)}, tier 3 ${rate(3)}; ` +
         `wins, tier 1 ${share(1)}, tier 2 ${share(2)}, tier 3 ${share(3)}, none ${share('none')}; ` +
-        `snakes whose tier differed from their role: ${String(mismatched.n)}\n`,
+        `snakes whose tier differed from their role: ${String(mismatched.n)}; ` +
+        `berries eaten per battle ${(food.eaten / Math.max(1, played)).toFixed(1)}, ` +
+        `crown changes per battle ${(food.crowns / Math.max(1, played)).toFixed(1)}\n`,
     );
     expect(played).toBe(ROUNDS);
   }, 3_600_000);

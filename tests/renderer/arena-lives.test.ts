@@ -134,6 +134,7 @@ describe('snake arena: lives shown on the snake and its crab', () => {
     arenaLife('liv', undefined, 2);
     run(1.5);
     expect(shownLives('liv')).toBe(2);
+    const lenAtDeath = s.len;
     kill(s, null, 'headon');
     // The body pops as at a death.
     const dying = arena.dying.find((d) => d.s === s);
@@ -142,7 +143,7 @@ describe('snake arena: lives shown on the snake and its crab', () => {
       flight = flights.find((f) => f.nickname === 'liv'),
       egg = back?.egg;
     expect(back?.lives).toBe(1);
-    expect(back?.hatchLen).toBe(10);
+    expect(back?.hatchLen).toBe(Math.max(1, Math.round(lenAtDeath * 0.5)));
     expect(shownLives('liv')).toBe(1);
     if (!egg || !flight || !dying) throw new Error('no flight to the egg');
     const to = toPx(cellX(egg.cell), cellY(egg.cell));

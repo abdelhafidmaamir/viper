@@ -103,7 +103,7 @@ export function arenaRound(roundTime: number): void {
   arena.fed = 0;
   arena.fallen = { backed: 0, likesOnly: 0 };
   arena.played.clear();
-  arena.houseT = TUNING.houseEvery * 0.4;
+  arena.houseT = 0;
   TUNING.roundTime = roundTime;
   for (const v of arena.viewers.values()) {
     v.gifted = 0;
@@ -247,20 +247,41 @@ function flower(dt: number): void {
 const shownGifts = new Set<number>(),
   OUTSIDER_SHOW = 1.6;
 
-/** The flower's own berries, for everyone: a few, now and then. */
+/**
+ * Plain berries for everyone during the battle: FIELD.count of them on the board at all times,
+ * each popping up in place on a free cell away from every head, a new one FIELD.delay seconds after
+ * one is eaten. The flower gives only gifts.
+ */
+export const FIELD = { count: 3, delay: 2, clear: 4 };
 function house(dt: number): void {
-  arena.houseT -= dt;
-  // Not before GO: a drip due earlier falls at GO.
-  if (arena.houseT > 0 || arena.phase !== 'play') return;
-  const r = arena.rand;
-  arena.houseT = TUNING.houseEvery * (0.8 + 0.4 * r());
+  if (arena.phase !== 'play') return;
   let out = 0;
   for (const f of arena.food) if (f.by === '' && !f.glow) out++;
-  const n = Math.min(TUNING.houseMax - out, 1 + Math.floor(r() * TUNING.houseAmount)),
-    { occ } = occupancy();
-  for (let i = 0; i < n; i++) {
-    const cell = freeCell(occ);
-    if (cell >= 0) placeFood(fromFlower(cell, 1, '', null));
+  // Full: the clock waits; one eaten: a new one FIELD.delay seconds later (all of them at GO).
+  if (out >= FIELD.count) {
+    arena.houseT = FIELD.delay;
+    return;
+  }
+  arena.houseT -= dt;
+  if (arena.houseT > 0) return;
+  arena.houseT = FIELD.delay;
+  const { occ } = occupancy(),
+    heads = alive()
+      .map((s) => s.cells[0] ?? -1)
+      .filter(onBoard),
+    far = (c: number): boolean =>
+      heads.every(
+        (h) => Math.abs(cellX(h) - cellX(c)) + Math.abs(cellY(h) - cellY(c)) >= FIELD.clear,
+      );
+  for (let k = out; k < (arena.time < 0.5 ? FIELD.count : out + 1); k++) {
+    let cell = -1;
+    for (let tries = 0; tries < 80 && cell < 0; tries++) {
+      const c = freeCell(occ);
+      if (c >= 0 && far(c)) cell = c;
+    }
+    if (cell < 0) return;
+    // In place, landed: Feed's berry bounces as it appears.
+    placeFood({ ...fromFlower(cell, 1, '', null), t: FALL_TIME, fx: cellX(cell), fy: cellY(cell) });
   }
 }
 
