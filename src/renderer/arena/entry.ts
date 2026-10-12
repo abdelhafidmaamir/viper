@@ -110,7 +110,7 @@ const POPS_MAX = 24,
  * The battle's speed boosts: every `likes` likes of a player (control room, "Likes for a speed
  * boost") give `seconds` of speed, banked up to the "Likes boost, at most" cap.
  */
-export const BOOST = { likes: 100, seconds: 3 };
+export const BOOST = { likes: 100, seconds: 4 };
 /** Likes toward each player's next boost: the red ring round their animal's picture. */
 export const rings = new Map<string, number>();
 /** When each player's last boost fired: its ring flashes. */

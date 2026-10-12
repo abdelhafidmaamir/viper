@@ -47,7 +47,7 @@ empty.
 | Look     | Feed's snake in one of the 8 prod colours; the viewer's photo floats above the head, its name above it                                |
 | Photo    | Follows the head through a damped spring; photos push each other apart, a smaller snake's name gives way to a bigger one's            |
 | Speed    | `speed` cells a second, up to 15% slower at 60 cells                                                                                  |
-| Likes    | A player's likes fill the red ring round their crab on the beach; every `entryLikes` likes (100) fire a 3 s speed boost               |
+| Likes    | A player's likes fill the red ring round their crab on the beach; every `entryLikes` likes (100) fire a 4 s speed boost               |
 | Boost    | The snake dashes with speed streaks in its colour and a bolt by its photo; the crab runs on the spot with the same bolt               |
 | Gifts    | Berries from the flower in the giver's colour, for the giver's snake (`giftBerries`): growth                                          |
 | Catch-up | A gift berry grows a snake by a full cell, half a cell once it leads the second biggest by a fifth or more; plain berries a full cell |
