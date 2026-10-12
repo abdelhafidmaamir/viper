@@ -26,11 +26,13 @@ import {
   likesRing,
   paintBolt,
   paintBoostBolt,
+  paintStillEgg,
   speedStreaks,
 } from './board-paint.ts';
 import {
   BOOST,
   FLIGHT,
+  nextSeats,
   POP_TIME,
   QUEUE,
   fired,
@@ -126,8 +128,8 @@ const RING_GREEN = berryTint(null);
 
 /**
  * The time left in a pill at the ring's top centre, painted after the flower, which reaches over
- * it. In the qualifying it reads "QUALIFYING  0:24", at the same size, and beats once a second in
- * gold through the last five: the only word on the qualifying's screen.
+ * it. In the qualifying it reads "QUALIFYING  0:24", smaller than the battle's, and beats once a
+ * second in gold through the last five: the only word on the qualifying's screen.
  */
 export function paintArenaTime(): void {
   const clock = clockNow();
@@ -140,29 +142,38 @@ export function paintArenaTime(): void {
     word = q ? tr('arena.qualifying') : '',
     beat = q && clock.urgent && clock.left > 0 ? 1 - (clock.left % 1) : 0,
     pop = 1 + 0.14 * Math.max(0, 1 - beat * 4),
-    // One pill for both steps: the battle's size, the word in the same weight.
-    size = 40,
-    h = 52;
+    // The battle's pill: the time at 40. The qualifying's is smaller: the word at 24, spaced a
+    // little, the time at 30, the pill a tenth lower and as wide as what it holds.
+    size = q ? 30 : 40,
+    h = q ? 47 : 52,
+    pad = q ? 16 : 15;
   c.save();
   c.translate(x, y);
   if (beat > 0) c.scale(pop, pop);
-  c.font = `900 ${String(size)}px ${FONT}`;
   c.textBaseline = 'middle';
-  const gap = word ? 22 : 0,
-    ww = word ? c.measureText(word).width : 0,
+  c.font = `900 24px ${FONT}`;
+  c.letterSpacing = '1.5px';
+  const ww = word ? c.measureText(word).width : 0;
+  c.letterSpacing = '0px';
+  c.font = `900 ${String(size)}px ${FONT}`;
+  const gap = word ? 12 : 0,
     tw = c.measureText(time).width,
-    w = ww + gap + tw + 36;
+    w = ww + gap + tw + pad * 2;
   c.fillStyle = 'rgba(8,12,10,0.8)';
   c.beginPath();
   c.roundRect(-w / 2, -h / 2, w, h, h / 2);
   c.fill();
   c.textAlign = 'left';
   if (word) {
+    c.font = `900 24px ${FONT}`;
+    c.letterSpacing = '1.5px';
     c.fillStyle = '#fff';
-    c.fillText(word, -w / 2 + 18, 2);
+    c.fillText(word, -w / 2 + pad, 2);
+    c.letterSpacing = '0px';
   }
+  c.font = `900 ${String(size)}px ${FONT}`;
   c.fillStyle = clock.urgent ? GOLD : '#fff';
-  c.fillText(time, -w / 2 + 18 + ww + gap, 2);
+  c.fillText(time, -w / 2 + pad + ww + gap, 2);
   c.restore();
 }
 
@@ -305,7 +316,10 @@ export function layOutBeach(): void {
     width = right - margin,
     spots: CrabSpot[] = [];
   raisePodium();
-  podium.u = width / (Math.max(3, places()) + 0.4);
+  const extra = qualifying()
+    ? 0
+    : nextSeats.filter((n) => !alive().some((s) => !s.wild && s.nickname === n)).length;
+  podium.u = width / (Math.max(3, places()) + 0.4 + (extra ? extra * 0.8 + 0.4 : 0));
   podium.x3 = right - podium.u / 2;
   // In the battle the sleepers show the players who have not liked lately: a like is speed.
   setSleeperPool(
@@ -336,8 +350,18 @@ export function layOutBeach(): void {
   const players = alive()
       .filter((s) => !s.wild)
       .sort((p, q) => p.id - q.id),
+    // Next round's: battle givers without a snake, in a small group on the left.
+    waiting = nextSeats.filter((n) => !players.some((s) => s.nickname === n)),
     unit = podium.u,
     scale = Math.max(0.55, Math.min(1, (unit - 10) / (2 * PHOTO)));
+  waiting.forEach((nickname, i) => {
+    spots.push({
+      nickname,
+      avatar: arena.viewers.get(nickname)?.avatar,
+      x: margin + unit * 0.5 + i * unit * 0.8,
+      ring: GOLD,
+    });
+  });
   podium.scale = scale;
   // The players stand in the board's order: the crowned snake on the 1st mound, then the others,
   // the biggest first (ties keep their places). The animals ease to their new places.
@@ -359,7 +383,8 @@ export function layOutBeach(): void {
       nickname,
       avatar: s.avatar,
       x: podiumX(i),
-      ring: COLOURS[s.colour],
+      // A gift in this battle: next round's seat is theirs, the outline says it.
+      ring: nextSeats.includes(nickname) ? GOLD : COLOURS[s.colour],
     });
   });
   setCrabSpots(spots, { scale, lane: 0, step: unit, ...walks });
@@ -379,7 +404,8 @@ export function paintPodiumCrown(t: number): void {
   if (podium.crownY < 0) return;
   const r = PHOTO * podium.scale;
   ctx.save();
-  ctx.globalAlpha = Math.min(1, (podium.k - 0.5) * 2);
+  // Dimmed until a snake wears it (nobody does at GO: they are all equal).
+  ctx.globalAlpha = Math.min(1, (podium.k - 0.5) * 2) * (arena.crown < 0 ? 0.35 : 1);
   crown(x, podium.crownY - 14 + Math.sin(t * 3) * 1.5, 1.33 * podium.scale, {
     x,
     y: podium.crownY + r,
@@ -454,9 +480,36 @@ export function paintBeachRings(t: number): void {
     // The same bolt as on the snake's photo, above the animal, for as long as the boost lasts.
     paintBoostBolt(s, f.x + r * 0.75, f.y - r * 1.3, BOLT * 0.9, t);
   }
-  // The sleeping crab's heart holds a bolt, breathing with it: a like is speed.
-  for (const h of sleeperHearts()) paintBolt(h.x, h.y + h.size * 0.02, h.size * 0.5);
 }
+
+/** 0 in the qualifying (an egg in the sleeper's heart), 1 in the battle (a bolt), eased. */
+const heartIcon = { k: 0, at: -1 };
+
+/**
+ * The sleeping crab's heart holds what a like does now: a small egg in the qualifying (a like is
+ * a seat), the bolt in the battle (a like is speed), one fading into the other at the change.
+ */
+export function paintSleeperHeart(): void {
+  const dt = heartIcon.at < 0 ? 1 : Math.min(0.1, Math.max(0, arena.clock - heartIcon.at)),
+    want = qualifying() ? 0 : 1;
+  heartIcon.at = arena.clock;
+  heartIcon.k += Math.sign(want - heartIcon.k) * Math.min(Math.abs(want - heartIcon.k), dt / 0.5);
+  const k = heartIcon.k,
+    c = ctx;
+  for (const h of sleeperHearts()) {
+    if (k > 0.01) paintBolt(h.x, h.y + h.size * 0.02, h.size * 0.5, k);
+    if (k < 0.99) {
+      c.save();
+      c.globalAlpha *= 1 - k;
+      c.translate(h.x, h.y + h.size * 0.04);
+      c.scale((h.size * 0.5) / EGG_TALL, (h.size * 0.5) / EGG_TALL);
+      paintStillEgg(c, 0, 0, arena.clock);
+      c.restore();
+    }
+  }
+}
+/** The arena's egg is about this tall at its own size (board-paint.ts paintStillEgg). */
+const EGG_TALL = 54;
 
 /**
  * Each like on the qualifying board: the prod heart pops on the liker's badge, rises a little and

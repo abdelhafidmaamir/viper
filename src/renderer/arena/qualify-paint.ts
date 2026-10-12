@@ -133,8 +133,9 @@ export function paintSeats(t: number): void {
 function paintActor(a: Actor, t: number, risky: string | null): void {
   const c = ctx,
     locked = isGold(a.nickname),
-    // Going back to the beach, its name and number fade with it.
     onBoard = a.leaving || !!seatOf(a.nickname) || challengers.includes(a.nickname),
+    // Going back to the beach, its name and number fade out at once: one name per animal.
+    leavingWords = a.leaving ? Math.max(0, 1 - a.t / 0.2) : 1,
     r = a.r * bumpOf(a.nickname),
     // At 0:00 the names and numbers fade: the hatch takes over.
     words = qual.t > QUALIFY.time ? Math.max(0, 1 - (qual.t - QUALIFY.time) / QUALIFY.freeze) : 1;
@@ -152,8 +153,8 @@ function paintActor(a: Actor, t: number, risky: string | null): void {
   const fan = { nickname: a.nickname, avatar: arena.viewers.get(a.nickname)?.avatar };
   paintFace(fan, a.x, a.y, r, locked ? GOLD : 'rgba(255,255,255,0.55)');
   const n = likesOf(a.nickname);
-  if (onBoard && words > 0) {
-    c.globalAlpha *= words;
+  if (onBoard && words * leavingWords > 0) {
+    c.globalAlpha *= words * leavingWords;
     paintName(nameOf(a.nickname), a.x, a.y - r - 6);
     const alarm = risky === a.nickname ? 0.5 + 0.5 * Math.sin(t * 9) : 0;
     // A paid seat shows no badge: its gold egg and outline say it.

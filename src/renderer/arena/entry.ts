@@ -10,6 +10,7 @@
 // qualifying like any viewer and plays when it gets a seat. It is the game's own: no ranking, no
 // crown, no thanks, no alert, no journal row, no supporters list.
 
+import { alertQualified } from '../feed/alerts.ts';
 import { crabFaces, crabGone, crabRun } from '../feed/crabs.ts';
 import { H, W } from '../engine/layout.ts';
 import {
@@ -36,15 +37,11 @@ import {
 export const PILOT = { name: 'Skohlds', key: 'S​', likes: 1 };
 let pilotOn = false;
 
-/**
- * The qualifying's own rules (qualify.ts), set there: likes count in its race, a gift locks a
- * seat, and a life bought outside the qualifying locks one at the next.
- */
+/** The qualifying's own rules (qualify.ts), set there: likes count in its race, a gift locks a seat. */
 export const qualHooks: {
   like: (nickname: string, n: number) => void;
   gift: (v: Viewer) => void;
-  late: (nickname: string) => void;
-} = { like: () => undefined, gift: () => undefined, late: () => undefined };
+} = { like: () => undefined, gift: () => undefined };
 
 const qualifying = (): boolean => arena.phase === 'qualify';
 
@@ -63,9 +60,12 @@ export const flights: Flight[] = [];
 /** Seconds of a picture's flight; the egg starts when it lands. */
 export const FLIGHT = 0.84;
 
-/** The picture of a viewer's animal as drawn this frame, or where the beach would have it. */
+/**
+ * The picture of a viewer's animal as drawn this frame, or where the beach would have it: on the
+ * line the animals' pictures stand on, in the middle.
+ */
 export function faceOf(nickname: string): { x: number; y: number; r: number } {
-  return crabFaces().get(nickname) ?? { x: W / 2, y: H - 220, r: 45 };
+  return crabFaces().get(nickname) ?? { x: W / 2, y: H - 100, r: 36 };
 }
 
 /** The picture flies from `from` to the snake's egg, which waits for it to land before it plays. */
@@ -179,6 +179,26 @@ export function arenaLike(nickname: string, avatar: string | undefined, n: numbe
   land(nickname, n);
 }
 
+/**
+ * Viewers who gave during a battle (or its end screen), in the order they gave: each is qualified
+ * for the next round, a paid seat locked first at the qualifying. More of them than places: the
+ * first get the seats and the others keep their place in this list for the round after.
+ */
+export const nextSeats: string[] = [];
+/** Givers told this round, on the alert card, that they are qualified: once each. */
+const announced = new Set<string>();
+export function qualifyNext(nickname: string): void {
+  if (!nextSeats.includes(nickname)) nextSeats.push(nickname);
+  if (announced.has(nickname) || nickname === PILOT.key) return;
+  announced.add(nickname);
+  const v = arena.viewers.get(nickname);
+  alertQualified({ nickname, avatar: v?.avatar });
+}
+/** A new round: each giver may be told once more. */
+export const newRoundAnnounced = (): void => {
+  announced.clear();
+};
+
 /** A big gift's shield, on the snake or kept for the one about to be born. */
 function shield(v: Viewer, s: Snake | undefined): void {
   if (s) s.shield = Math.min(TUNING.shieldCap, s.shield + TUNING.shieldSeconds);
@@ -188,8 +208,8 @@ function shield(v: Viewer, s: Snake | undefined): void {
 /**
  * A gift, already priced in berries by the control room's list: in the qualifying it locks a seat
  * and its berries wait in the flower for the battle; in the battle the flower pours them to the
- * giver's snake (round.ts). Berries a giver has not seen eaten when the round ends buy a locked
- * seat at the next qualifying instead (round.ts). A big gift gives a shield.
+ * giver's snake (round.ts), and whoever gives in the battle or its end screen, playing or not, is
+ * qualified for the next round (nextSeats). A big gift gives a shield.
  */
 export function arenaGift(nickname: string, avatar: string | undefined, berries: number): void {
   if (!nickname || berries <= 0 || nickname === PILOT.key) return;
@@ -197,6 +217,10 @@ export function arenaGift(nickname: string, avatar: string | undefined, berries:
   v.acts.push(arena.clock);
   v.gifted += berries;
   if (qualifying()) qualHooks.gift(v);
+  else {
+    if (arena.phase !== 'end') v.battle += berries;
+    qualifyNext(nickname);
+  }
   const s = snakeOf(nickname);
   if (s) s.idle = 0;
   if (TUNING.shieldGift > 0 && berries >= TUNING.shieldGift) shield(v, s);
@@ -207,18 +231,20 @@ export const isLifeGift = (coins: number): boolean => TUNING.lifeOn && coins ===
 
 /**
  * Extra-life gifts, `n` of them: one more life each for the giver's snake, up to the most a snake
- * holds. Without a snake, the lives wait for the next one, and the gift locks a seat: now in the
- * qualifying, else at the next.
+ * holds. Without a snake, the lives wait for the next one. In the qualifying the gift locks a seat;
+ * outside it, the giver is qualified for the next round, as with any gift.
  */
 export function arenaLife(nickname: string, avatar: string | undefined, n: number): void {
   if (!nickname || n <= 0 || nickname === PILOT.key) return;
   const v = viewer(nickname, avatar);
   v.acts.push(arena.clock);
   addLives(v, n);
+  if (!qualifying() && arena.phase !== 'end') v.battle += n;
   const s = snakeOf(nickname);
   if (s) s.idle = 0;
-  else if (qualifying()) qualHooks.gift(v);
-  else qualHooks.late(nickname);
+  if (qualifying()) {
+    if (!s) qualHooks.gift(v);
+  } else qualifyNext(nickname);
 }
 
 // ---- the likers on the beach, during the qualifying -----------------------------------------

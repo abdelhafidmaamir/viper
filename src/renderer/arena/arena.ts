@@ -6,7 +6,6 @@
 import type { ArenaSettings, ArenaSnakeCount } from '../../shared/arena-protocol.ts';
 import type { Ambience, AmbienceFrame } from '../engine/types-api.ts';
 import { tr } from '../engine/i18n.ts';
-import { game } from '../feed/state.ts';
 import { brain } from './ai.ts';
 import {
   SLEEPER_SPOT,
@@ -16,6 +15,7 @@ import {
   paintArenaTime,
   paintBeachRings,
   paintFlags,
+  paintSleeperHeart,
   paintPodiumCrown,
   paintFlights,
   paintLikePops,
@@ -93,6 +93,7 @@ export function paintArenaBeach(t: number): void {
   paintFlags(t);
   paintPodiumCrown(t);
   paintBeachRings(t);
+  paintSleeperHeart();
   paintBeachHearts();
   paintActors(t);
   paintLikePops();
@@ -115,9 +116,14 @@ export function arenaHeadline(): string {
   return tr('arena.wins', { name: w.nickname.toUpperCase() });
 }
 
+/** Berries a viewer's snakes ate this round: their own gift berries and the plain ones alike. */
+export const eatenBy = (nickname: string): number =>
+  arena.snakes.reduce((n, s) => n + (!s.wild && s.nickname === nickname ? s.eaten : 0), 0);
+
 /**
  * The end screen's podium: the round's ranking (the survivors, the biggest first, then the last
- * to fall), with what each gave and liked this round. The pilot never ranks.
+ * to fall), each with the berries their snake ate by the end of the battle, as the headline counts
+ * them. No likes here: they have their own section. The pilot never ranks.
  */
 export function arenaPodium(): {
   nickname: string;
@@ -130,8 +136,8 @@ export function arenaPodium(): {
     .map((r) => ({
       nickname: r.nickname,
       avatar: r.avatar,
-      berries: arena.viewers.get(r.nickname)?.gifted ?? 0,
-      likes: game.likes.get(r.nickname)?.likes ?? 0,
+      berries: r.eaten,
+      likes: 0,
     }));
 }
 

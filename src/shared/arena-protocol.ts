@@ -98,14 +98,14 @@ export const ARENA_DEFAULTS: ArenaSettings = {
   speed: 7,
   plainEvery: 25,
   plainAmount: 1,
-  backing: 'off',
+  backing: 'strong',
   queueIdle: 5,
   lifeOn: false,
   lifePrice: 30,
   maxLives: 3,
   lifeKeep: 0.5,
   pilot: false,
-  superAI: true,
+  superAI: false,
 };
 
 /** One of the game's tuning values; the Feed settings travel as Feed commands. */

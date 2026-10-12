@@ -108,8 +108,22 @@ export interface AudienceOut {
   gift: (nickname: string, coins: number, avatar: string) => void;
 }
 
-/** Advances the audience by dt seconds. */
-export function tickAudience(dt: number, out: AudienceOut, rand: () => number = Math.random): void {
+/**
+ * Gifts a second from the whole audience during Snake Arena's qualifying: about one a qualifying
+ * for a medium room, a few for a busy one, so the likes race shows. An assumption, not measured.
+ */
+export const qualifyingGifts = (n: number): number => 0.034 * Math.sqrt(n / 100);
+
+/**
+ * Advances the audience by dt seconds. `giftRate`, when given, replaces the room's gift rate
+ * (gifts a second from the whole audience).
+ */
+export function tickAudience(
+  dt: number,
+  out: AudienceOut,
+  rand: () => number = Math.random,
+  giftRate?: number,
+): void {
   const n = viewers.length;
   if (!n) return;
   let likes = n * RATES.like * dt;
@@ -120,7 +134,7 @@ export function tickAudience(dt: number, out: AudienceOut, rand: () => number = 
     }
     likes -= 1;
   }
-  let gifts = n * RATES.gift * dt;
+  let gifts = (giftRate ?? n * RATES.gift) * dt;
   while (gifts > 0) {
     if (rand() < Math.min(1, gifts)) {
       const v = pick(rand, true);

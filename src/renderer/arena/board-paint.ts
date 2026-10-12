@@ -56,8 +56,8 @@ const BERRY_R = 44,
   RED = '#ff3b5c',
   /** Feed's fat snake: the duel's body drawn 30% thicker than the grid alone would give. */
   FAT = K * 1.3;
-/** A player's name under their picture, in game units. */
-const NAME_SIZE = 34;
+/** A player's name over their picture, in game units. */
+const NAME_SIZE = 26;
 /** The crown's size over the biggest snake's picture: every picture is the same size. */
 const CROWN_SIZE = 1.2;
 /** The stem from the head to the picture, in the snake's colour. */
@@ -251,9 +251,9 @@ export function bumpOf(nickname: string): number {
 
 /**
  * paint.paintHead for one snake: the viewer's photo floats above the head on its stem, both
- * outlined in the snake's own colour so each face is matched to its body, with the crown (and a
- * bigger photo) when this snake is the biggest, and the name under it. No ring: the likes' ring
- * is on the player's animal on the beach.
+ * outlined in the snake's own colour so each face is matched to its body, its name above it and
+ * the crown above the name when this snake leads. No ring: the likes' ring is on the player's
+ * animal on the beach.
  */
 function paintHead(s: Snake, t: number): void {
   const c = ctx,
@@ -268,11 +268,7 @@ function paintHead(s: Snake, t: number): void {
   const crowned = arena.crown === s.id,
     r = TUNING.photoR * squash,
     colour = COLOURS[s.colour],
-    bob = Math.sin(t * 3) * 3,
-    fx = Math.min(W - 60, Math.max(60, head.x)),
-    // Under the clock's pill at the board's top, the picture stays below it: the pill is read.
-    clear = Math.abs(fx - (FX0 + BOARD_W / 2)) < PILL_HALF + r ? FY0 + r + 10 : r + 70,
-    fy = Math.max(clear, head.y - 64 + bob);
+    { x: fx, y: fy } = photoSpot(s, head, t);
   c.save();
   if (s.safe > 0) c.globalAlpha = 0.5 + 0.5 * Math.abs(Math.sin(s.born * 11));
   c.strokeStyle = colour;
@@ -290,24 +286,64 @@ function paintHead(s: Snake, t: number): void {
   c.fill();
   c.restore();
   paintFace(s, fx, fy, r, colour);
-  if (crowned) crown(fx, fy - r - 17, CROWN_SIZE, { x: fx, y: fy, r });
+  // The name above the picture, the crown above the name: nothing lies over the body.
+  if (crowned) crown(fx, fy - r - NAME_SIZE - 22, CROWN_SIZE, { x: fx, y: fy, r });
   // Boosted: the bolt at the photo's top right, as on the player's animal on the beach.
   paintBoostBolt(s, fx + r * 0.82, fy - r * 0.82, BOLT, t);
   // Lives: prod hearts in a row by the photo.
   paintSnakeHearts(s, fx, fy, r);
   const full = shownName(s),
     name = full.length > 16 ? full.slice(0, 15) + '…' : full;
-  // Read on a phone: TikTok shows the stream about 390 px wide, a third of a unit per pixel.
+  // Above the picture, read on a phone, with the prod outline.
   c.font = `800 ${String(NAME_SIZE)}px ${FONT}`;
   c.textAlign = 'center';
-  c.textBaseline = 'top';
+  c.textBaseline = 'bottom';
   c.lineJoin = 'round';
-  c.lineWidth = 5;
-  c.strokeStyle = 'rgba(12,20,15,0.8)';
-  c.strokeText(name, fx, fy + r + 12);
+  c.lineWidth = 6;
+  c.strokeStyle = 'rgba(12,20,15,0.85)';
+  c.strokeText(name, fx, fy - r - 6);
   c.fillStyle = '#fff';
-  c.fillText(name, fx, fy + r + 12);
+  c.fillText(name, fx, fy - r - 6);
   c.restore();
+}
+
+/** How far above the head a picture floats, and how fast it follows (a critically damped spring). */
+const LIFT = 84,
+  FOLLOW = 16;
+/** Each picture's spring: where it is, its speed, and the clock it was last moved at. */
+const springs = new WeakMap<Snake, { x: number; y: number; vx: number; vy: number; at: number }>();
+
+/**
+ * Where a snake's picture floats this frame: straight above its head at a fixed height, following
+ * it through a critically damped spring, so its path is a smooth curve and it never snaps. Near an
+ * edge or under the clock's pill its target eases away from them; the spring smooths that too.
+ */
+function photoSpot(s: Snake, head: { x: number; y: number }, t: number): { x: number; y: number } {
+  const r = TUNING.photoR,
+    tx = Math.min(W - 60, Math.max(60, head.x)),
+    // Near the pill, eased by distance: the picture and its name stay below it.
+    near = 1 - Math.min(1, Math.max(0, (Math.abs(tx - (FX0 + BOARD_W / 2)) - PILL_HALF) / (2 * r))),
+    floor = r + NAME_SIZE + 40 + (FY0 + 12 - 40) * near * near * (3 - 2 * near),
+    ty = Math.max(floor, head.y - LIFT);
+  let p = springs.get(s);
+  if (!p) {
+    p = { x: tx, y: ty, vx: 0, vy: 0, at: arena.clock };
+    springs.set(s, p);
+  }
+  let dt = Math.min(0.1, Math.max(0, arena.clock - p.at));
+  p.at = arena.clock;
+  // Small steps keep the spring exact whatever the frame's length.
+  while (dt > 0) {
+    const h = Math.min(dt, 1 / 120),
+      k = FOLLOW * FOLLOW,
+      d = 2 * FOLLOW;
+    p.vx += (k * (tx - p.x) - d * p.vx) * h;
+    p.vy += (k * (ty - p.y) - d * p.vy) * h;
+    p.x += p.vx * h;
+    p.y += p.vy * h;
+    dt -= h;
+  }
+  return { x: p.x, y: p.y + Math.sin(t * 3) * 3 };
 }
 
 /** Half the widest clock pill (beach.ts paintArenaTime): pictures keep clear of it. */
@@ -532,7 +568,7 @@ function paintEggOf(c: CanvasRenderingContext2D, s: Snake): void {
       paintEgg(c, 0, 0, egg.t, egg.t / HATCH_TIME);
       c.restore();
     }
-    if (!s.wild) paintFace(s, p.x, p.y - 64, TUNING.photoR);
+    if (!s.wild) paintFace(s, p.x, p.y - 84, TUNING.photoR);
     return;
   }
   if (egg.t < 0) {

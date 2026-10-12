@@ -19,17 +19,26 @@ import {
 } from '../feed/state.ts';
 import {
   BERRY_STAY,
-  backingOf,
+  backingOfTier,
+  type Tier,
   chooseNext,
   neckOf,
   settled,
   updateMode,
   type Sight,
 } from './ai.ts';
-import { isPilot, stepQueue, updateFlights } from './entry.ts';
+import {
+  isPilot,
+  newRoundAnnounced,
+  nextSeats,
+  qualifyNext,
+  stepQueue,
+  updateFlights,
+} from './entry.ts';
 import {
   QUALIFY,
   endQualifying,
+  locked,
   qualifying,
   showing,
   startQualifying,
@@ -98,7 +107,20 @@ function owedSeats(): Pour[] {
  * Feed's round keeps its own carry-over; here its flower is emptied after it.
  */
 export function arenaRound(roundTime: number): void {
-  const owed = owedSeats();
+  // Battle givers first, in the order they gave, then givers whose berries went uneaten.
+  const uneaten = owedSeats(),
+    owed: Pour[] = nextSeats.map(
+      (n) =>
+        uneaten.find((o) => o.nickname === n) ?? {
+          id: -2000 - nextSeats.indexOf(n),
+          nickname: n,
+          avatar: arena.viewers.get(n)?.avatar,
+          n: 1,
+          total: 1,
+          title: '',
+        },
+    );
+  for (const o of uneaten) if (!owed.some((x) => x.nickname === o.nickname)) owed.push(o);
   game.queue = [];
   game.pour = null;
   arena.round++;
@@ -121,8 +143,16 @@ export function arenaRound(roundTime: number): void {
   arena.played.clear();
   arena.houseT = TUNING.houseEvery * 0.4;
   TUNING.roundTime = roundTime;
-  for (const v of arena.viewers.values()) v.gifted = 0;
+  for (const v of arena.viewers.values()) {
+    v.gifted = 0;
+    v.battle = 0;
+  }
+  newRoundAnnounced();
   startQualifying(owed);
+  // Those seated leave the list; the others keep their priority for the round after.
+  for (let i = nextSeats.length - 1; i >= 0; i--)
+    if (locked.includes(nextSeats[i] ?? '')) nextSeats.splice(i, 1);
+  shownGifts.clear();
   if (QUALIFY.time <= 0) endQualifying();
 }
 
@@ -222,13 +252,22 @@ function dropNear(s: Snake, by: string): void {
  * berries never open it, as Feed's own never do.
  */
 function flower(dt: number): void {
-  // In the qualifying the flower opens on each gift that locks a seat, as long as it shows it.
+  // In the qualifying the flower opens on each gift that locks a seat, as long as it shows it. In
+  // the battle a gift from a viewer without a snake opens it too, for a moment, as any gift does:
+  // its berries stay in it (they buy the giver a seat at the next qualifying).
+  const outsider = (): Pour | undefined => {
+    if (game.pour && shownGifts.has(game.pour.id) && game.pourT < OUTSIDER_SHOW) return game.pour;
+    return game.queue.find(
+      (p) => p.nickname !== '' && !snakeOf(p.nickname) && !shownGifts.has(p.id),
+    );
+  };
   const q = qualifying()
     ? showing()
-    : game.queue.find((p) => p.nickname !== '' && snakeOf(p.nickname));
+    : (game.queue.find((p) => p.nickname !== '' && snakeOf(p.nickname)) ?? outsider());
   if (q && q.id !== game.pour?.id) {
     game.pour = q;
     game.pourT = 0;
+    if (!qualifying() && !snakeOf(q.nickname)) shownGifts.add(q.id);
   }
   game.pourT += dt;
   game.dripT += dt;
@@ -245,6 +284,10 @@ function flower(dt: number): void {
   }
   if (arena.dropT > every) arena.dropT = every;
 }
+
+/** Gifts from viewers without a snake the flower has shown this round, and for how long. */
+const shownGifts = new Set<number>(),
+  OUTSIDER_SHOW = 1.6;
 
 /** The flower's own berries, for everyone: a few, now and then. */
 function house(dt: number): void {
@@ -448,7 +491,7 @@ function move(
   s.born += dt;
   s.idle += dt;
   const v = s.wild ? undefined : arena.viewers.get(s.nickname);
-  s.backing = v ? backingOf(v.gifted) : 0;
+  s.backing = backingOfTier(tierOf(s));
   if (v) arena.played.set(v.nickname, (arena.played.get(v.nickname) ?? false) || v.gifted > 0);
   brood(s, dt, sight);
   // Out of its egg, a snake waits for GO with the others: a fair start.
@@ -501,14 +544,18 @@ function move(
   s.bite += dt;
 }
 
-/** The biggest viewer's snake in play wears the crown; a wild one and the game's pilot never do. */
+/**
+ * The crown: nobody's at GO, then the first snake to eat, then the biggest viewer's snake in play
+ * (a tie keeps it where it is); a wild one and the game's pilot never wear it.
+ */
 function crown(): void {
-  const inPlay = alive().filter((s) => s.in && !s.wild && !isPilot(s));
+  const inPlay = alive().filter((s) => s.in && !s.wild && !isPilot(s)),
+    holder = inPlay.find((s) => s.id === arena.crown);
+  // All equal at GO: nobody wears it until a snake has eaten; a tie keeps it where it is.
   let best: Snake | undefined;
-  for (const s of inPlay) if (!best || s.len > best.len) best = s;
-  const holder = arena.snakes.find((s) => s.id === arena.crown && s.alive);
+  for (const s of inPlay) if (s.eaten > 0 && (!best || s.len > best.len)) best = s;
   if (!best) {
-    arena.crown = -1;
+    arena.crown = holder ? holder.id : -1;
     return;
   }
   if (!holder || (best !== holder && best.len > holder.len)) arena.crown = best.id;
@@ -533,14 +580,17 @@ const LAST_HOLD = 1.2;
  * The round's ranking: the viewers still alive, the biggest first, then the fallen, the last to
  * fall first. Its first is the winner.
  */
-function rank(): { nickname: string; avatar?: string | undefined }[] {
+function rank(): { nickname: string; avatar?: string | undefined; eaten: number }[] {
+  // The berries each ate, counted now: the snakes keep moving under the end screen.
+  const eaten = (n: string): number =>
+    arena.snakes.reduce((k, s) => k + (!s.wild && s.nickname === n ? s.eaten : 0), 0);
   const out = viewersAlive()
     .sort((p, q) => q.len - p.len)
-    .map((s) => ({ nickname: s.nickname, avatar: s.avatar }));
+    .map((s) => ({ nickname: s.nickname, avatar: s.avatar, eaten: eaten(s.nickname) }));
   for (let i = arena.outs.length - 1; i >= 0; i--) {
     const o = arena.outs[i];
     if (o && !out.some((x) => x.nickname === o.nickname))
-      out.push({ nickname: o.nickname, avatar: o.avatar });
+      out.push({ nickname: o.nickname, avatar: o.avatar, eaten: eaten(o.nickname) });
   }
   return out;
 }
@@ -580,7 +630,11 @@ function finish(): void {
     played: { backed, likesOnly: arena.played.size - backed },
   });
   if (arena.log.length > 200) arena.log.shift();
-  game.eaten = arena.fed;
+  // Berries paid for and not eaten: their givers are qualified for the next round.
+  for (const o of owedSeats()) qualifyNext(o.nickname);
+  // The headline's count: every berry the snakes ate, the sum of the podium's own counts and the
+  // wild snakes'.
+  game.eaten = arena.snakes.reduce((n, s) => n + s.eaten, 0);
   game.full = 0;
   hooks.full();
 }
@@ -629,6 +683,17 @@ function dying(dt: number): void {
 
 /** Seconds a dead snake's paid berries take to fade off the board. */
 export const FADE_OUT = 0.35;
+
+/**
+ * A snake's survival tier, never shown: 1 when its viewer gave during this battle, 2 for a paid
+ * seat (and the game's pilot), 3 for a like seat and wild snakes. A gift moves it up at once.
+ */
+export function tierOf(s: Snake): Tier {
+  if (s.wild) return 3;
+  if (isPilot(s)) return 2;
+  if ((arena.viewers.get(s.nickname)?.battle ?? 0) > 0) return 1;
+  return s.paid ? 2 : 3;
+}
 
 /** For tests: the snake's head enters `cell` now, with the rules of a step. */
 export function moveInto(s: Snake, cell: number): void {

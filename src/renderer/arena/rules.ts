@@ -130,7 +130,7 @@ export interface Snake {
   eaten: number;
   kills: number;
   idle: number;
-  /** How much its viewer backed it with gifts this round (ai.ts backingOf): 0 for likes only. */
+  /** Its survival tier as a backing level for the brains (ai.ts backingOfTier): 0 to 3. */
   backing: number;
   /** Extra lives from the life gift, and the length it grows to out of its egg. */
   lives: number;
@@ -139,6 +139,8 @@ export interface Snake {
   goal: number;
   /** Hatched from a seat won in the qualifying: its egg shows the picture while it waits. */
   seat?: boolean;
+  /** Its seat was paid for (a gift in the qualifying, or berries owed from the round before). */
+  paid?: boolean;
 }
 
 export interface Food {
@@ -163,6 +165,8 @@ export interface Viewer {
   snake: number;
   acts: number[];
   gifted: number;
+  /** Berries (or lives) given during this round's battle: the survival tier's first step. */
+  battle: number;
   wins: number;
   /** Shield seconds and lives bought before the snake was born, and the length a life keeps. */
   shield: number;
@@ -214,7 +218,7 @@ export const arena = {
   crown: -1,
   winner: null as Snake | null,
   /** The round's ranking at its end: the survivors, the biggest first, then the last to fall. */
-  ranking: [] as { nickname: string; avatar?: string | undefined }[],
+  ranking: [] as { nickname: string; avatar?: string | undefined; eaten: number }[],
   /** Viewers' snakes that fell this round, in the order they fell. */
   outs: [] as { nickname: string; avatar?: string | undefined }[],
   /** Viewers' snakes that hatched at the start, and how long the fight has been down to one. */
@@ -260,6 +264,7 @@ export function viewer(nickname: string, avatar?: string): Viewer {
       snake: -1,
       acts: [],
       gifted: 0,
+      battle: 0,
       wins: 0,
       shield: 0,
       lives: 0,
@@ -486,7 +491,7 @@ export function freeCell(occ: Int16Array, tries = 60): number {
 /** The picture over the head, where board-paint.ts draws it. */
 const photoAt = (s: Snake): { x: number; y: number } => {
   const head = toPx(s.x, s.y);
-  return { x: head.x, y: Math.max(TUNING.photoR + 70, head.y - 64) };
+  return { x: head.x, y: Math.max(TUNING.photoR + 70, head.y - 84) };
 };
 
 /**

@@ -113,10 +113,12 @@ export function updateMode(
       threatD = d;
     }
     const clearlyBigger = me.len >= o.len * preyGuard(o.backing),
-      boosted = me.boost > 0 && o.len < me.len;
-    if ((clearlyBigger || boosted) && d <= TUNING.huntRange && d < preyD && o.safe <= 0) {
+      boosted = me.boost > 0 && o.len < me.len,
+      // The least backed are the preferred prey: a backed snake counts as further away.
+      far = d * (1 + 0.6 * o.backing * (brain.backing === 'strong' ? 1 : 0));
+    if ((clearlyBigger || boosted) && d <= TUNING.huntRange && far < preyD && o.safe <= 0) {
       prey = o;
-      preyD = d;
+      preyD = far;
     }
   }
   const target = me.mode === 'chase' ? others.find((o) => o.id === me.target) : undefined;
@@ -352,22 +354,26 @@ export function chooseNext(me: Snake, s: Sight, rand: () => number): number {
  * Strong): backed snakes look further ahead and are chased less, likes-only and wild ones look
  * less far.
  */
-export const brain = { super: true, backing: 'off' as 'off' | 'light' | 'strong' };
+export const brain = { super: false, backing: 'strong' as 'off' | 'light' | 'strong' };
 
-/** Backing levels by berries given this round: none, 1+, 30+, 100+. */
-const BACKING = [1, 30, 100] as const;
-export function backingOf(gifted: number): number {
-  let level = 0;
-  for (const at of BACKING) if (gifted >= at) level++;
-  return level;
-}
+/**
+ * The battle's survival tiers, read by how a player supports the round, never shown: 1 for a
+ * player who gives during this battle, 2 for a paid seat, 3 for a like seat (and wild snakes).
+ * Each tier is a backing level for the brains below: 3, 1 and 0.
+ */
+export type Tier = 1 | 2 | 3;
+export const backingOfTier = (tier: Tier): number => (tier === 1 ? 3 : tier === 2 ? 1 : 0);
 
-/** The brain a snake of this backing plays: 0 calm and short-sighted, 1 calm, 2 strong. */
+/**
+ * The brain a snake of this backing plays: 0 calm and short-sighted, 1 calm, 2 strong. With the
+ * strong backing (the arena's default) the tiers get one brain each: the gifter the strong one.
+ * Super AI gives every snake the strong one, whatever its tier.
+ */
 function brainFor(level: number): number {
   if (brain.super) return 2;
   if (brain.backing === 'off') return 1;
   if (brain.backing === 'light') return 1;
-  return level >= 1 ? 1 : 0;
+  return level >= 3 ? 2 : level >= 1 ? 1 : 0;
 }
 
 /** How much bigger a chaser must be to pick this prey: backed snakes are rarely chosen. */

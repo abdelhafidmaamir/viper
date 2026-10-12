@@ -18,8 +18,11 @@ import { burstSprite } from './alert-fx.ts';
 import { FONT, crown, paintFace } from './paint.ts';
 import { LOTUS, paintBloom, paintLoosePetals, visitNumber } from './welcome.ts';
 
-/** 'kill' is Snake Arena's: a snake eliminated. Feed never sends it. */
-export type AlertKind = 'join' | 'like' | 'share' | 'follow' | 'kill';
+/**
+ * 'kill' and 'qualified' are Snake Arena's: a snake eliminated, a giver qualified for the next
+ * round. Feed never sends them.
+ */
+export type AlertKind = 'join' | 'like' | 'share' | 'follow' | 'kill' | 'qualified';
 
 interface Alert {
   kind: AlertKind;
@@ -77,6 +80,7 @@ const STAY: Readonly<Record<AlertKind, number>> = {
   share: 4,
   follow: 3.8,
   kill: 4,
+  qualified: 4,
 };
 /** Icons bursting when a card comes up; likes burst one per like instead. */
 const BURST: Readonly<Record<AlertKind, number>> = {
@@ -84,8 +88,9 @@ const BURST: Readonly<Record<AlertKind, number>> = {
   like: 0,
   share: 14,
   follow: 12,
-  // A kill's card comes up plain: no blossoms.
+  // A kill's card comes up plain: no blossoms; a qualified giver's too.
   kill: 0,
+  qualified: 0,
 };
 const FADE = 0.35;
 /** A card is readable for at least this long before a more important one may cut it. */
@@ -103,7 +108,11 @@ const EXPIRES: Readonly<Record<number, number>> = { 1: 10, 2: 6 };
 
 /** 0 first: follows, shares and returning supporters, then likes and ranked joins, plain joins last. */
 const rank = (a: Pick<Alert, 'kind' | 'supporter' | 'ranked'>): number =>
-  a.kind === 'share' || a.kind === 'follow' || a.kind === 'kill' || a.supporter !== undefined
+  a.kind === 'share' ||
+  a.kind === 'follow' ||
+  a.kind === 'kill' ||
+  a.kind === 'qualified' ||
+  a.supporter !== undefined
     ? 0
     : a.kind === 'like' || a.ranked
       ? 1
@@ -114,6 +123,7 @@ const ACCENT: Readonly<Record<AlertKind, string>> = {
   follow: '255,159,184',
   join: '242,197,124',
   kill: '255,143,168',
+  qualified: '242,197,124',
 };
 /** Hearts per like event, at most: a flood of likes must not cover the screen. */
 const HEARTS_PER_EVENT = 24,
@@ -125,6 +135,7 @@ const PHRASES: Readonly<Record<AlertKind, readonly I18nKey[]>> = {
   share: ['share.0', 'share.1'],
   follow: ['follow.0', 'follow.1'],
   kill: ['kill.0'],
+  qualified: ['arena.qualified'],
 };
 
 /** What the sound layer listens to. */
@@ -259,6 +270,31 @@ export function alertKill(
     waited: 0,
     stay: STAY.kill,
     hearts: BURST.kill,
+  };
+  const at = queue.findIndex((a) => rank(a) > rank(next));
+  if (at < 0) queue.push(next);
+  else queue.splice(at, 0, next);
+  if (queue.length > 5) queue.length = 5;
+}
+
+/** Snake Arena: a giver qualified for the next round, their photo and name on the plain card. */
+export function alertQualified(who: { nickname: string; avatar?: string | undefined }): void {
+  if (!who.nickname || !alertsOn) return;
+  const next: Alert = {
+    kind: 'qualified',
+    nickname: who.nickname,
+    avatar: who.avatar,
+    by: undefined,
+    likes: 0,
+    phrase: 'arena.qualified',
+    visit: 0,
+    supporter: undefined,
+    ranked: false,
+    age: 0,
+    shown: 0,
+    waited: 0,
+    stay: STAY.qualified,
+    hearts: BURST.qualified,
   };
   const at = queue.findIndex((a) => rank(a) > rank(next));
   if (at < 0) queue.push(next);

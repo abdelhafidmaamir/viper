@@ -62,7 +62,7 @@ export const QUALIFY = {
   swap: 0.9,
   fly: 0.9,
   /** Seconds the flower shows a gift's giver before their picture leaves it for the egg. */
-  show: 1.3,
+  show: 0.9,
   /** Seconds a number takes to roll up to its new value. */
   roll: 0.3,
 };
@@ -72,9 +72,10 @@ export const SEAT_R = 60,
   CHALLENGER_R = 44;
 /**
  * The eggs' rows on the board, in cells; the cut line and the challengers' row, in pixels, low on
- * the board: the seats take its height, the challengers stand near its bottom edge.
+ * the board. The two rows of seats stand evenly between the board's top (clear of the clock's pill
+ * by about a picture's radius) and the cut line; the challengers near the board's bottom edge.
  */
-const EGG_ROWS = [7, 20],
+const EGG_ROWS = [9, 19],
   PHOTO_ABOVE = 112;
 export const CUT_Y = 1018,
   CHALLENGER_Y = 1132;
@@ -97,8 +98,6 @@ export const qualLikes = new Map<string, number>();
 const rolled = new Map<string, number>();
 /** Seconds into the qualifying, since the last swap and the last reorder. */
 export const qual = { t: 0, swapT: 0, reorderT: 0 };
-/** Life gifts bought outside a qualifying: they lock a seat at the next one. */
-const lateGifts: string[] = [];
 
 /** Gifts the flower shows in turn before each giver's picture leaves it for their egg. */
 interface Show {
@@ -315,7 +314,6 @@ export function startQualifying(owed: readonly Pour[] = []): void {
       v.snake = -1;
     }
   for (const p of owed) lockSeat(viewer(p.nickname, p.avatar), { ...p, carried: false });
-  for (const n of lateGifts.splice(0)) lockSeat(viewer(n));
 }
 
 /** The holder of the weakest seat a like can take: the fewest likes, the lowest on screen. */
@@ -353,7 +351,7 @@ function lockSeat(v: Viewer, pour?: Pour): void {
         total: 1,
         title: '',
       },
-    t: shows.length ? -0.3 : 0,
+    t: shows.length ? -0.1 : 0,
   });
 }
 
@@ -373,9 +371,6 @@ qualHooks.like = (nickname, n) => {
 qualHooks.gift = (v) => {
   if (!frozen()) lockSeat(v);
 };
-qualHooks.late = (nickname) => {
-  if (!lateGifts.includes(nickname)) lateGifts.push(nickname);
-};
 
 /** The gift the flower shows now, if any: round.ts opens the flower on it. */
 export const showing = (): Pour | null => {
@@ -391,7 +386,7 @@ function stepShows(dt: number): void {
   if (s.t < QUALIFY.show) return;
   shows.shift();
   const next = shows[0];
-  if (next) next.t = Math.min(next.t, -0.3);
+  if (next) next.t = Math.min(next.t, -0.1);
   const n = s.pour.nickname,
     seat = seated(n);
   if (!seat) return;
@@ -640,7 +635,7 @@ function holdStill(): void {
   seats.forEach((s) => {
     if (!s.holder) return;
     const p = toPx(cellX(s.cell), cellY(s.cell)),
-      to = { x: p.x, y: p.y - 64, r: TUNING.photoR };
+      to = { x: p.x, y: p.y - 84, r: TUNING.photoR };
     if (actors.has(s.holder)) aim(s.holder, to, { dur: QUALIFY.freeze });
   });
   for (const n of challengers) {
@@ -668,6 +663,7 @@ export function endQualifying(): void {
     if (!s?.egg) continue;
     if (!v) wilds++;
     s.seat = true;
+    s.paid = !!v && isLocked(v.nickname);
     s.egg.t = EMERGE - HATCH_AT;
   }
   arena.started = arena.snakes.filter((s) => s.alive && !s.wild && s.nickname !== PILOT.key).length;

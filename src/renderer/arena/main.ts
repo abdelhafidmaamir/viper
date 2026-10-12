@@ -52,7 +52,7 @@ import {
   qualifying,
   SLEEPER_SPOT,
 } from './arena.ts';
-import { AUDIENCE, setAudience, tickAudience } from './audience.ts';
+import { AUDIENCE, audienceSize, qualifyingGifts, setAudience, tickAudience } from './audience.ts';
 import { arenaLife, isLifeGift } from './entry.ts';
 import { arenaStorage, countOnArena, linkArenaControl } from './link.ts';
 import { alive } from './rules.ts';
@@ -103,24 +103,30 @@ function simulate(dt: number): void {
       return;
     }
   }
-  tickAudience(dt, {
-    like: (who, n, avatar) => {
-      board.like(who, avatar, n);
-      crabLike(who, avatar, n);
+  tickAudience(
+    dt,
+    {
+      like: (who, n, avatar) => {
+        board.like(who, avatar, n);
+        crabLike(who, avatar, n);
+      },
+      gift: (nickname, coins, avatar) => {
+        if (isLifeGift(coins)) {
+          arenaLife(nickname, avatar, 1);
+          note({ event: 'life gift', source: 'simulated', nickname, coins });
+          return;
+        }
+        const berries = berriesPerGift(undefined, coins, settings.pricing, settings.otherGifts);
+        if (!berries) return;
+        board.gift(nickname, avatar, berries);
+        thankGift(nickname, avatar, berries);
+        note({ event: 'gift', source: 'simulated', nickname, berries });
+      },
     },
-    gift: (nickname, coins, avatar) => {
-      if (isLifeGift(coins)) {
-        arenaLife(nickname, avatar, 1);
-        note({ event: 'life gift', source: 'simulated', nickname, coins });
-        return;
-      }
-      const berries = berriesPerGift(undefined, coins, settings.pricing, settings.otherGifts);
-      if (!berries) return;
-      board.gift(nickname, avatar, berries);
-      thankGift(nickname, avatar, berries);
-      note({ event: 'gift', source: 'simulated', nickname, berries });
-    },
-  });
+    Math.random,
+    // In the qualifying, far fewer gifts: the likes race must show.
+    qualifying() ? qualifyingGifts(audienceSize()) : undefined,
+  );
 }
 
 window.receiveEvent = receiveFeedEvent;
