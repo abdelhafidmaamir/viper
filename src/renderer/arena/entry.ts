@@ -19,6 +19,7 @@ import {
   arena,
   leave,
   options,
+  places,
   cellX,
   cellY,
   lifeHooks,
@@ -180,24 +181,24 @@ export function arenaLike(nickname: string, avatar: string | undefined, n: numbe
 }
 
 /**
- * Viewers who gave during a battle (or its end screen), in the order they gave: each is qualified
- * for the next round, a paid seat locked first at the qualifying. More of them than places: the
- * first get the seats and the others keep their place in this list for the round after.
+ * Seats of the next round reserved during this battle: at most half the places, first come first
+ * served, by anyone who gives (playing or not). Each reserving giver is told once on the alert
+ * card and starts the next qualifying on a gold egg. Once they are taken, a gift is only a gift.
  */
 export const nextSeats: string[] = [];
-/** Givers told this round, on the alert card, that they are qualified: once each. */
-const announced = new Set<string>();
+export const reservable = (): number => Math.floor(places() / 2);
 export function qualifyNext(nickname: string): void {
-  if (!nextSeats.includes(nickname)) nextSeats.push(nickname);
-  if (announced.has(nickname) || nickname === PILOT.key) return;
-  announced.add(nickname);
+  if (nickname === PILOT.key || nextSeats.includes(nickname) || nextSeats.length >= reservable())
+    return;
+  nextSeats.push(nickname);
   const v = arena.viewers.get(nickname);
   alertQualified({ nickname, avatar: v?.avatar });
 }
-/** A new round: each giver may be told once more. */
-export const newRoundAnnounced = (): void => {
-  announced.clear();
-};
+/**
+ * Gifts sent during the end screen: qualifying gifts, each locking a seat at the qualifying that
+ * opens next, after the reserved ones.
+ */
+export const endGifts: string[] = [];
 
 /** A big gift's shield, on the snake or kept for the one about to be born. */
 function shield(v: Viewer, s: Snake | undefined): void {
@@ -206,10 +207,10 @@ function shield(v: Viewer, s: Snake | undefined): void {
 }
 
 /**
- * A gift, already priced in berries by the control room's list: in the qualifying it locks a seat
- * and its berries wait in the flower for the battle; in the battle the flower pours them to the
- * giver's snake (round.ts), and whoever gives in the battle or its end screen, playing or not, is
- * qualified for the next round (nextSeats). A big gift gives a shield.
+ * A gift, already priced in berries by the control room's list: in the qualifying (or the end
+ * screen before it) it locks a seat and its berries wait in the flower for the battle; in the
+ * battle the flower pours them to the giver's snake (round.ts), and the first givers reserve the
+ * next round's seats while some are left (nextSeats). A big gift gives a shield.
  */
 export function arenaGift(nickname: string, avatar: string | undefined, berries: number): void {
   if (!nickname || berries <= 0 || nickname === PILOT.key) return;
@@ -217,8 +218,10 @@ export function arenaGift(nickname: string, avatar: string | undefined, berries:
   v.acts.push(arena.clock);
   v.gifted += berries;
   if (qualifying()) qualHooks.gift(v);
-  else {
-    if (arena.phase !== 'end') v.battle += berries;
+  else if (arena.phase === 'end') {
+    if (!endGifts.includes(nickname)) endGifts.push(nickname);
+  } else {
+    v.battle += berries;
     qualifyNext(nickname);
   }
   const s = snakeOf(nickname);
@@ -231,8 +234,8 @@ export const isLifeGift = (coins: number): boolean => TUNING.lifeOn && coins ===
 
 /**
  * Extra-life gifts, `n` of them: one more life each for the giver's snake, up to the most a snake
- * holds. Without a snake, the lives wait for the next one. In the qualifying the gift locks a seat;
- * outside it, the giver is qualified for the next round, as with any gift.
+ * holds. Without a snake, the lives wait for the next one. It counts as a gift for the seats: in the
+ * qualifying it locks one, in the battle it may reserve one for the next round.
  */
 export function arenaLife(nickname: string, avatar: string | undefined, n: number): void {
   if (!nickname || n <= 0 || nickname === PILOT.key) return;
@@ -244,6 +247,8 @@ export function arenaLife(nickname: string, avatar: string | undefined, n: numbe
   if (s) s.idle = 0;
   if (qualifying()) {
     if (!s) qualHooks.gift(v);
+  } else if (arena.phase === 'end') {
+    if (!endGifts.includes(nickname)) endGifts.push(nickname);
   } else qualifyNext(nickname);
 }
 

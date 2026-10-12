@@ -33,6 +33,7 @@ import {
   BOOST,
   FLIGHT,
   nextSeats,
+  reservable,
   POP_TIME,
   QUEUE,
   fired,
@@ -191,7 +192,26 @@ const MOVE = 0.6;
  */
 const MOUNDS = [70, 46, 30];
 /** The podium stands at the beach's right end: `x3` is the 3rd's spot, the rightmost. */
-const podium = { k: 0, at: -1, x3: 0, u: 0, scale: 1, crownY: -1 };
+const podium = { k: 0, at: -1, x3: 0, u: 0, scale: 1, crownY: -1, left: 70 };
+/** A reserved seat's share of a podium place, and its mound's height. */
+const RESERVED = 0.85,
+  RESERVED_H = 22;
+
+/** Where the i-th reserved seat of the next round stands, on the beach's left. */
+const reservedX = (i: number): number => podium.left + podium.u * RESERVED * (i + 0.5);
+
+/** Height of the reserved seats' sand at x: a small mound each, flat on top. */
+function reservedHeight(x: number): number {
+  if (podium.k <= 0.001) return 0;
+  const w = podium.u * RESERVED * 0.45;
+  let h = 0;
+  for (let i = 0; i < reservable(); i++) {
+    const v = Math.abs(x - reservedX(i)) / w,
+      f = v < 0.45 ? 1 : v < 1 ? 0.5 + 0.5 * Math.cos((Math.PI * (v - 0.45)) / 0.55) : 0;
+    h = Math.max(h, RESERVED_H * f);
+  }
+  return h * podium.k;
+}
 
 /**
  * Where the player ranked `r` (0 the first) stands: the 1st in the podium's middle, the 2nd on
@@ -206,6 +226,7 @@ function podiumX(r: number): number {
 /** Height of the podium's sand at x, above the crabs' line. */
 function podiumHeight(x: number): number {
   if (podium.k <= 0.001) return 0;
+  if (x < podium.x3 - (Math.max(3, places()) + 0.6) * podium.u) return reservedHeight(x);
   const w = podium.u * 0.62;
   let h = 0;
   MOUNDS.forEach((top, r) => {
@@ -288,8 +309,19 @@ function paintSand(from: number, to: number, base: number, height: (x: number) =
 /** The mounds of the podium, painted on the beach before the crabs that stand on them. */
 export function paintPodium(rise: number): void {
   if (podium.k <= 0.01 || podium.u <= 0) return;
-  const w = podium.u * 0.62;
-  paintSand(podiumX(1) - w - 8, podiumX(2) + w + 8, beachLine(rise) - 4, podiumHeight);
+  const w = podium.u * 0.62,
+    base = beachLine(rise) - 4;
+  paintSand(podiumX(1) - w - 8, podiumX(2) + w + 8, base, podiumHeight);
+  // The next round's reserved seats: as many mounds as can be reserved, filling in order.
+  const rw = podium.u * RESERVED * 0.5;
+  paintSand(reservedX(0) - rw, reservedX(reservable() - 1) + rw, base, reservedHeight);
+  // A player who reserved stays on the podium: their mound holds a gold egg.
+  nextSeats.forEach((n, i) => {
+    if (!alive().some((s) => !s.wild && s.nickname === n)) return;
+    const x = reservedX(i),
+      y = base - RESERVED_H * podium.k - 14;
+    paintStillEgg(ctx, x, y, arena.clock + i, { gold: true });
+  });
 }
 
 /**
@@ -316,11 +348,10 @@ export function layOutBeach(): void {
     width = right - margin,
     spots: CrabSpot[] = [];
   raisePodium();
-  const extra = qualifying()
-    ? 0
-    : nextSeats.filter((n) => !alive().some((s) => !s.wild && s.nickname === n)).length;
-  podium.u = width / (Math.max(3, places()) + 0.4 + (extra ? extra * 0.8 + 0.4 : 0));
+  // On the left, the next round's reserved seats; the podium on the right.
+  podium.u = width / (Math.max(3, places()) + 0.4 + reservable() * RESERVED + 0.5);
   podium.x3 = right - podium.u / 2;
+  podium.left = margin;
   // In the battle the sleepers show the players who have not liked lately: a like is speed.
   setSleeperPool(
     qualifying()
@@ -350,15 +381,16 @@ export function layOutBeach(): void {
   const players = alive()
       .filter((s) => !s.wild)
       .sort((p, q) => p.id - q.id),
-    // Next round's: battle givers without a snake, in a small group on the left.
-    waiting = nextSeats.filter((n) => !players.some((s) => s.nickname === n)),
     unit = podium.u,
     scale = Math.max(0.55, Math.min(1, (unit - 10) / (2 * PHOTO)));
-  waiting.forEach((nickname, i) => {
+  // The next round's reserved seats, filled in order: a giver without a snake stands there, gold;
+  // a player's crab stays on the podium, gold, and its reserved mound holds a gold egg.
+  nextSeats.forEach((nickname, i) => {
+    if (players.some((s) => s.nickname === nickname)) return;
     spots.push({
       nickname,
       avatar: arena.viewers.get(nickname)?.avatar,
-      x: margin + unit * 0.5 + i * unit * 0.8,
+      x: reservedX(i),
       ring: GOLD,
     });
   });

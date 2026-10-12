@@ -134,8 +134,13 @@ function paintActor(a: Actor, t: number, risky: string | null): void {
   const c = ctx,
     locked = isGold(a.nickname),
     onBoard = a.leaving || !!seatOf(a.nickname) || challengers.includes(a.nickname),
-    // Going back to the beach, its name and number fade out at once: one name per animal.
-    leavingWords = a.leaving ? Math.max(0, 1 - a.t / 0.2) : 1,
+    // Going back to the beach, its name and number fade out at once; coming up from the beach,
+    // they show only as it arrives: one name per animal, never on the sand or the sea.
+    leavingWords = a.leaving
+      ? Math.max(0, 1 - a.t / 0.2)
+      : a.rising
+        ? Math.max(0, Math.min(1, (a.t / a.dur - 0.7) / 0.3))
+        : 1,
     r = a.r * bumpOf(a.nickname),
     // At 0:00 the names and numbers fade: the hatch takes over.
     words = qual.t > QUALIFY.time ? Math.max(0, 1 - (qual.t - QUALIFY.time) / QUALIFY.freeze) : 1;

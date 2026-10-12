@@ -130,6 +130,7 @@ export function arenaPodium(): {
   avatar?: string | undefined;
   berries: number;
   likes: number;
+  berriesAlways: boolean;
 }[] {
   return arena.ranking
     .filter((r) => r.nickname !== PILOT.key)
@@ -138,6 +139,7 @@ export function arenaPodium(): {
       avatar: r.avatar,
       berries: r.eaten,
       likes: 0,
+      berriesAlways: true,
     }));
 }
 

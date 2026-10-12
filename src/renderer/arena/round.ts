@@ -27,18 +27,10 @@ import {
   updateMode,
   type Sight,
 } from './ai.ts';
-import {
-  isPilot,
-  newRoundAnnounced,
-  nextSeats,
-  qualifyNext,
-  stepQueue,
-  updateFlights,
-} from './entry.ts';
+import { endGifts, isPilot, nextSeats, stepQueue, updateFlights } from './entry.ts';
 import {
   QUALIFY,
   endQualifying,
-  locked,
   qualifying,
   showing,
   startQualifying,
@@ -71,56 +63,26 @@ import {
 /** Share of the head's pace the tail gives up while the snake grows (state.ts GROW_SHARE). */
 const GROW_SHARE = 0.5;
 
-/**
- * Givers whose paid berries were not all eaten when the round ended: still in the flower (gifts
- * from viewers without a snake, or sent during the end screen) or lying on the board, in the
- * order they gave, with the berries left (the flower shows them as it seats them).
- */
-function owedSeats(): Pour[] {
-  const out: Pour[] = [];
-  for (const q of game.queue)
-    if (q.n > 0 && q.nickname !== '' && !out.some((o) => o.nickname === q.nickname))
-      out.push({ ...q, total: q.n });
-  let id = -1000;
-  for (const f of arena.food) {
-    if (f.by === '') continue;
-    const o = out.find((x) => x.nickname === f.by);
-    if (o) {
-      o.n += f.value;
-      o.total += f.value;
-    } else
-      out.push({
-        id: id--,
-        nickname: f.by,
-        avatar: arena.viewers.get(f.by)?.avatar,
-        n: f.value,
-        total: f.value,
-        title: '',
-      });
-  }
-  return out;
+/** A giver's gifts still in the flower, for it to show as it seats them (or one berry's worth). */
+function pourOf(nickname: string, id: number): Pour {
+  const q = game.queue.find((p) => p.nickname === nickname && p.n > 0);
+  return q
+    ? { ...q, total: q.n }
+    : { id, nickname, avatar: arena.viewers.get(nickname)?.avatar, n: 1, total: 1, title: '' };
 }
 
 /**
- * A new round (hooks.round). No berry carries over: the board and the flower empty, and whoever
- * paid for berries not yet eaten gets a locked seat in the qualifying that opens now instead.
+ * A new round (hooks.round). No berry carries over: the board and the flower empty, uneaten
+ * berries leave with the round. The qualifying opens with the seats reserved during the battle
+ * on gold eggs first, then the end screen's gifts, which lock seats as qualifying gifts do.
  * Feed's round keeps its own carry-over; here its flower is emptied after it.
  */
 export function arenaRound(roundTime: number): void {
-  // Battle givers first, in the order they gave, then givers whose berries went uneaten.
-  const uneaten = owedSeats(),
-    owed: Pour[] = nextSeats.map(
-      (n) =>
-        uneaten.find((o) => o.nickname === n) ?? {
-          id: -2000 - nextSeats.indexOf(n),
-          nickname: n,
-          avatar: arena.viewers.get(n)?.avatar,
-          n: 1,
-          total: 1,
-          title: '',
-        },
-    );
-  for (const o of uneaten) if (!owed.some((x) => x.nickname === o.nickname)) owed.push(o);
+  const owed: Pour[] = [...nextSeats, ...endGifts.filter((n) => !nextSeats.includes(n))].map(
+    (n, i) => pourOf(n, -2000 - i),
+  );
+  nextSeats.length = 0;
+  endGifts.length = 0;
   game.queue = [];
   game.pour = null;
   arena.round++;
@@ -147,11 +109,7 @@ export function arenaRound(roundTime: number): void {
     v.gifted = 0;
     v.battle = 0;
   }
-  newRoundAnnounced();
   startQualifying(owed);
-  // Those seated leave the list; the others keep their priority for the round after.
-  for (let i = nextSeats.length - 1; i >= 0; i--)
-    if (locked.includes(nextSeats[i] ?? '')) nextSeats.splice(i, 1);
   shownGifts.clear();
   if (QUALIFY.time <= 0) endQualifying();
 }
@@ -630,8 +588,6 @@ function finish(): void {
     played: { backed, likesOnly: arena.played.size - backed },
   });
   if (arena.log.length > 200) arena.log.shift();
-  // Berries paid for and not eaten: their givers are qualified for the next round.
-  for (const o of owedSeats()) qualifyNext(o.nickname);
   // The headline's count: every berry the snakes ate, the sum of the podium's own counts and the
   // wild snakes'.
   game.eaten = arena.snakes.reduce((n, s) => n + s.eaten, 0);

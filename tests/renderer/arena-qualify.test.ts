@@ -140,7 +140,7 @@ describe('snake arena: the qualifying', () => {
     expect(holders()).toEqual(['gold1', 'gold2', 'p', 's', 'q', 'r']);
   });
 
-  it('one swap at the cut every 1.5 s at most', () => {
+  it('one swap at the cut every 0.6 s at most', () => {
     fresh();
     for (let i = 0; i < 6; i++) like(`seat${String(i)}`, 10);
     run(0.5);
@@ -160,6 +160,19 @@ describe('snake arena: the qualifying', () => {
     }
     expect(swaps).toBeGreaterThan(0);
     expect(swaps).toBeLessThanOrEqual(Math.floor(6 / QUALIFY.swapGap) + 1);
+  });
+
+  it('the seats are right within a second: several pending swaps clear one after another', () => {
+    fresh();
+    for (let i = 0; i < 6; i++) like(`seat${String(i)}`, 10 + i);
+    run(0.5);
+    // Three challengers pass three seats at once.
+    like('up1', 40);
+    like('up2', 30);
+    like('up3', 20);
+    run(2);
+    for (const n of ['up1', 'up2', 'up3']) expect(seated(n)).toBe(true);
+    for (const n of ['seat0', 'seat1', 'seat2']) expect(seated(n)).toBe(false);
   });
 
   it('a seat a gift holds is never lost, whatever the likes', () => {
@@ -227,7 +240,7 @@ describe('snake arena: the qualifying', () => {
     expect(qualLikes.size).toBe(0);
   });
 
-  it('no berry carries over: an unspent giver gets a locked seat at the next qualifying instead', () => {
+  it('no berry carries over: the flower empties; a battle giver holds a reserved seat', () => {
     fresh({ roundLength: 60 });
     like('p1', 30);
     like('p2', 20);
@@ -399,18 +412,40 @@ describe('snake arena: the battle', () => {
     expect(nextSeats).toHaveLength(0);
   });
 
-  it('more battle givers than places: the first get the seats, the others keep priority for the round after', () => {
+  it('in the battle at most half the places can be reserved, first come; only those are told', () => {
     fresh({ roundLength: 120 });
+    setAlertsOn(true);
     like('a1', 30);
     like('a2', 20);
     toBattle();
-    for (let i = 0; i < 8; i++) give(`donor${String(i)}`, 5);
+    resetAlerts();
+    for (let i = 0; i < 5; i++) give(`donor${String(i)}`, 5);
+    expect(nextSeats).toEqual(['donor0', 'donor1', 'donor2']);
+    const { current, queued } = alertsState();
+    expect((current ? 1 : 0) + queued).toBe(3);
     const a2 = snakeOf('a2');
     if (a2) kill(a2, null, 'accident');
     run(15);
     expect(qualifying()).toBe(true);
-    expect(holders()).toEqual(['donor0', 'donor1', 'donor2', 'donor3', 'donor4', 'donor5']);
-    expect(nextSeats).toEqual(['donor6', 'donor7']);
+    expect(holders().slice(0, 3)).toEqual(['donor0', 'donor1', 'donor2']);
+    expect(seated('donor3')).toBe(false);
+    expect(nextSeats).toHaveLength(0);
+  });
+
+  it('a gift in the end screen locks a seat at the next qualifying, after the reserved ones', () => {
+    fresh({ roundLength: 120 });
+    like('b1', 30);
+    like('b2', 20);
+    toBattle();
+    give('early', 5);
+    const b2 = snakeOf('b2');
+    if (b2) kill(b2, null, 'accident');
+    run(2);
+    expect(game.full).toBeGreaterThanOrEqual(0);
+    give('late', 5);
+    run(13);
+    expect(qualifying()).toBe(true);
+    expect(holders().slice(0, 2)).toEqual(['early', 'late']);
   });
 
   it("the end screen's podium counts the berries each snake ate, gift or plain, in the result order", () => {

@@ -18,6 +18,8 @@ interface Line {
   readonly avatar?: string | undefined;
   readonly berries: number;
   readonly likes: number;
+  /** Snake Arena's podium: the berry count shows even at 0. */
+  readonly berriesAlways?: boolean;
 }
 
 /** This round's ranking: berries given first, likes to break a tie and to rank those who only like. */
@@ -90,7 +92,7 @@ function stats(line: Line, x: number, y: number, size: number, align: 'center' |
     icon = size * 0.95,
     gap = size * 0.3,
     parts: { sprite: HTMLCanvasElement; text: string; color: string }[] = [];
-  if (line.berries > 0)
+  if (line.berries > 0 || line.berriesAlways)
     parts.push({ sprite: berrySprite(0, line.nickname), text: num(line.berries), color: '#fff' });
   if (line.likes > 0)
     parts.push({
@@ -119,7 +121,13 @@ function stats(line: Line, x: number, y: number, size: number, align: 'center' |
 
 /** One number per person, easy to read on a phone: the berries they gave, or their likes if none. */
 function score(line: Line, x: number, y: number, size: number, align: 'center' | 'right'): void {
-  stats(line.berries > 0 ? { ...line, likes: 0 } : { ...line, berries: 0 }, x, y, size, align);
+  stats(
+    line.berries > 0 || line.berriesAlways ? { ...line, likes: 0 } : { ...line, berries: 0 },
+    x,
+    y,
+    size,
+    align,
+  );
 }
 
 /** One place on the podium: the photo springs up, medal and crown, the name, what they gave. */

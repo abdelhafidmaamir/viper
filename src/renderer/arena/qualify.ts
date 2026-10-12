@@ -48,9 +48,9 @@ export const QUALIFY = {
   /** Seconds of the qualifying; 0 skips it (tests of the battle alone). */
   time: 30,
   /** Seconds at least between two seats changing hands on likes. */
-  swapGap: 1.5,
-  /** Seconds at least between two reorders of the ranking on screen. */
-  reorderGap: 1,
+  swapGap: 0.6,
+  /** Seconds at least between two changes in the challengers' row. */
+  reorderGap: 0.6,
   /** Seconds everything holds still at 0:00 before the eggs hatch. */
   freeze: 0.5,
   /** The first challenger this close to the weakest seat (share of its number) puts it at risk. */
@@ -59,7 +59,7 @@ export const QUALIFY = {
   challengers: 3,
   /** Seconds of a slide in the ranking, of a swap across the cut, of a flight to or from the beach. */
   slide: 0.6,
-  swap: 0.9,
+  swap: 0.6,
   fly: 0.9,
   /** Seconds the flower shows a gift's giver before their picture leaves it for the egg. */
   show: 0.9,
@@ -127,6 +127,8 @@ export interface Actor {
   leaving: boolean;
   /** Flying from the flower to a gift's egg, which turns gold as it lands. */
   gift: boolean;
+  /** Rising from its animal on the beach: its name and number show once it is nearly there. */
+  rising: boolean;
 }
 export const actors = new Map<string, Actor>();
 
@@ -225,6 +227,7 @@ function aim(
       arc: how.arc ?? 0,
       leaving: false,
       gift: how.gift ?? false,
+      rising: !how.from,
     };
     actors.set(nickname, a);
     return;
@@ -267,6 +270,7 @@ function glide(dt: number): void {
     a.y = a.from.y + dy * u + (dx / len) * bow * a.arc - lift;
     a.r = a.from.r + (a.to.r - a.from.r) * u;
     a.alpha = a.from.alpha + (a.to.alpha - a.from.alpha) * u;
+    if (a.rising && a.t >= a.dur) a.rising = false;
     if (a.gift && a.t >= a.dur) {
       a.gift = false;
       golden.add(n);
@@ -590,7 +594,8 @@ export function stepQualifying(dt: number): void {
  * line together, on gentle opposite arcs.
  */
 function swap(): void {
-  const first = challengers[0] ?? waiting()[0],
+  // The best liker without a seat, wherever they stand: the screen is right within a second.
+  const first = waiting()[0],
     seat = weakest();
   if (
     qual.swapT < QUALIFY.swapGap ||
