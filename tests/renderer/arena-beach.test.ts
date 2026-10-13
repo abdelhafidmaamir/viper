@@ -321,8 +321,10 @@ describe('the snake arena beach', () => {
       expect(xs[k]).toBeLessThan(xs[k - 1] ?? 0);
       expect((xs[k - 1] ?? 0) - (xs[k] ?? 0)).toBeGreaterThan(width);
     }
-    // The 1st and 2nd right of the comments (81 % of the width); everybody on screen.
-    expect(xs[1]).toBeGreaterThan(0.81 * W);
+    // The 1st and 2nd right of the comments (81 % of the width), the 2nd half its picture clear;
+    // everybody on screen.
+    // (A face is drawn 28 of the 32 units its picture spans.)
+    expect((xs[1] ?? 0) - ((at[1]?.r ?? 0) * 28) / 32 / 2).toBeGreaterThan(0.81 * W);
     expect((xs[0] ?? 0) + (at[0]?.r ?? 0) * 1.8).toBeLessThan(W);
     expect((xs[7] ?? 0) - width / 2).toBeGreaterThan(0);
     // The podium steps down from the right; from the 4th on, all at ground level.

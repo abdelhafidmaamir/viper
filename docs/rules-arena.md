@@ -13,21 +13,26 @@ the RESULT ranks them. Then the next qualifying opens.
 
 ## 1. The qualifying (30 s)
 
-The board holds no snake: one egg per place (`places`, 6 by default) in two rows, ranked 1st (top
-left) to last, a cut line under them and the three best challengers under it. Code:
-`qualify.ts` (rules) and `qualify-paint.ts` (screen).
+The board holds no snake: one egg per place (`places`, 8 by default) in two rows (4 and 4, 7 cells
+apart), ranked 1st (top left) to last, evenly spaced between the clock's pill and a cut line, and
+the three best challengers under the line, spread across the board. A name is cut to its column.
+Code: `qualify.ts` (rules) and `qualify-paint.ts` (screen).
 
-| Element  | Rule                                                                                                                                 |
-| -------- | ------------------------------------------------------------------------------------------------------------------------------------ |
-| Counts   | Everyone starts at 0, last round's players and winner too. No free seat                                                              |
-| Like     | A prod heart pops on the liker's badge (or over their crab on the beach); the number rolls up                                        |
-| Free egg | Taken at once by the best liker without a seat                                                                                       |
-| The cut  | The best liker without a seat passes the weakest like seat: the two cross the line together, at most one swap every 0.6 s            |
-| Gift     | Locks a seat: the flower opens on the giver, their picture flies to an egg that turns gold. A full board: the weakest like seat goes |
-| Order    | Strict at every moment: paid seats first, in the order the gifts came, then like seats, most likes first                             |
-| At risk  | The weakest like seat's egg trembles and its badge pulses red when the first challenger is within 10 %                               |
-| All paid | Likes can change nothing more: the qualifying ends at once                                                                           |
-| Text     | Only the clock pill, "QUALIFYING 0:24" (French "QUALIFICATIONS"), smaller than the battle's; it beats in the last 5 s                |
+It opens with the next batch of the paid queue (see below), as many as the places, on gold eggs in
+queue order: each picture flies from the flower to its egg, one after the other. The seats left
+follow the rules here.
+
+| Element  | Rule                                                                                                                                                                                                    |
+| -------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Counts   | Everyone starts at 0, last round's players and winner too. No free seat                                                                                                                                 |
+| Like     | A prod heart pops on the liker's badge (or over their crab on the beach); the number rolls up                                                                                                           |
+| Free egg | Taken at once by the best liker without a seat                                                                                                                                                          |
+| The cut  | The best liker without a seat passes the weakest like seat: the two cross the line together, at most one swap every 0.6 s                                                                               |
+| Gift     | Locks a seat: the flower opens on the giver, their picture flies to an egg that turns gold. A full board: the weakest like seat goes. Every seat paid, or the clock out: the giver joins the paid queue |
+| Order    | Strict at every moment: paid seats first, in the order the gifts came, then like seats, most likes first                                                                                                |
+| At risk  | The weakest like seat's egg trembles and its badge pulses red when the first challenger is within 10 %                                                                                                  |
+| All paid | Likes can change nothing more: the qualifying ends at once                                                                                                                                              |
+| Text     | Only the clock pill, "QUALIFYING 0:24" (French "QUALIFICATIONS"), smaller than the battle's; it beats in the last 5 s                                                                                   |
 
 A paid seat shows no badge: its gold egg and the gold outline on the photo say it. The beach shows
 the newest likers' crabs, in one compact group; the sleeping crab (above the board, top right)
@@ -61,17 +66,34 @@ sees danger late and is the preferred prey, unless it is among the two biggest (
 moves a player up at once. `backing` set to strong (the default) turns the tiers on; `superAI`
 gives every snake the strong brain instead.
 
-Reserved seats: during the battle at most half the next round's seats (3 of 6) can be reserved,
-first come, by anyone who gives, playing or not. Each is told once on the bottom alert card,
-"{name} QUALIFIED FOR THE NEXT ROUND", and their crab waits gold on one of three small mounds on
-the beach's left (a player's crab stays on the podium, gold, and its mound holds a gold egg). Once
-the three are taken a gift is only a gift.
+During the battle a gift is just a gift on the board: a player's gives berries to their snake and
+lifts their tier; a non-player's gets the flower's thanks and nothing more. Either way the giver
+joins the paid queue (below). No seat is shown or held during the battle.
 
-The beach during the battle: the players' crabs on a podium of sand on the right, the 1st on the
-highest mound in the middle under a fixed crown, the 2nd on its left, the 3rd on its right, the
-others beside it at ground level, each with a flag of its snake's colour. The order is the
-board's. A fallen player's crab buries itself. The sleeping crab shows the players in turn, a bolt
-in its heart: a like is speed.
+The beach during the battle: the players' crabs on a podium of sand in the beach's right part, the
+1st on the right on the highest mound under a fixed crown, the 2nd in the middle on a lower mound,
+the 3rd on its left lower still, the others at ground level further left, the ranking going on
+right to left (4th, 5th, ...), each with a flag of its snake's colour. The order is the board's,
+re-sorted at most once a second, every move eased over 0.6 s. TikTok's comments cover the screen's
+lower left up to about 81 % of its width: the 1st and the 2nd stand right of that line, and with 8
+players no two crabs touch (smaller crabs when needed). A fallen player's crab buries itself. The
+sleeping crab shows the players in turn, a bolt in its heart: a like is speed.
+
+## The paid queue
+
+Seats are bought in the qualifying, or in line for the next rounds. Whoever gives outside the
+qualifying (the battle, its countdown, the end screen, or a qualifying where every seat is already
+paid) joins the paid queue: one place per viewer, first come first served, no limit; more gifts do
+not move them. Each round takes the next batch from its front, as many as the places (4, 6 or 8),
+and opens its qualifying with them on gold eggs; the rest waits for the following rounds. A batch
+that fills every seat ends the qualifying at once (the "All paid" rule).
+
+The only signal is the bottom alert card, once, at the gift: "{name} PLAYS NEXT ROUND (#3)" while
+the place is within the next batch, "{name} IS #12 IN LINE" after it (French "{name} JOUE LA
+PROCHAINE MANCHE (#3)", "{name} EST #12 DANS LA FILE"). The queue lasts the session and survives a
+reload of the game window (stored under `viper-arena-paid-queue`); a viewer who left the live keeps
+their place and their snake plays as any snake. The control room lists it read only (Setup tab,
+"Paid queue" card): position and name, the next round's batch marked.
 
 The ring round the board is the clock, full at GO and emptying clockwise from the top centre.
 
@@ -81,8 +103,7 @@ The battle ends when the clock runs out or when one viewer's snake is left. The 
 one standing, else the biggest at 0:00. Feed's end screen: "{name} WINS", then this round's podium
 in the result order (survivors by size, then the last to fall), each with the berries their snake
 ate, 0 included; the headline counts the same berries. No berry carries over: the flower and the
-board empty. The reserved givers start the next qualifying on gold eggs, then the end screen's
-gifts, which lock seats as qualifying gifts do.
+board empty. A gift during the end screen locks nothing: its giver joins the paid queue.
 
 ## Lives and the pilot
 
@@ -100,7 +121,7 @@ apart, under `viper-arena-settings`, and do not travel with the supporters list.
 
 | Setting      | Values                | Default  | Setting       | Values            | Default |
 | ------------ | --------------------- | -------- | ------------- | ----------------- | ------- |
-| `places`     | 4, 6, 8               | 6        | `roundLength` | 60 to 300 s       | 120     |
+| `places`     | 4, 6, 8               | 8        | `roundLength` | 60 to 300 s       | 120     |
 | `entryLikes` | 25, 50, 100, 150, 200 | 100      | `giftBerries` | `owner`, `shared` | `owner` |
 | `likeBoost`  | on, off               | on       | `wildSnakes`  | 0, 2, 4, 6        | 4       |
 | `boostCap`   | 3, 6, 10 s            | 6        | `speed`       | 5 to 9 cells/s    | 7       |

@@ -203,7 +203,7 @@ const podium = { k: 0, at: -1, x1: 0, u: 0, scale: 1, crownY: -1 };
 const CRAB_W = 112,
   FLAG = 1.8 * PHOTO,
   SPACE = 12,
-  EDGE = 24,
+  EDGE = 14,
   COMMENTS = 0.81,
   /** Ground between the podium's 3rd and the 4th, in places. */
   STEP_DOWN = 0.4;
@@ -219,7 +219,7 @@ function podiumX(r: number): number {
 
 /**
  * The podium's size for `n` players on the beach from `left` to `right`: as big as it can be (at
- * most full size) with the 2nd's picture centre right of the comments, every animal on the beach
+ * most full size) with half the 2nd's picture right of the comments, every animal on the beach
  * and no two touching.
  */
 export function podiumFor(
@@ -228,8 +228,8 @@ export function podiumFor(
   right: number,
 ): { x1: number; u: number; scale: number; width: number } {
   const far = Math.max(3, n) - 1 + STEP_DOWN,
-    // The 1st's flag stays on screen; the 2nd stands right of the comments.
-    second = (right - EDGE - SPACE - COMMENTS * W) / (FLAG + CRAB_W),
+    // The 1st's flag stays on screen; the 2nd stands right of the comments, half its picture clear.
+    second = (right - EDGE - SPACE - COMMENTS * W) / (FLAG + CRAB_W + PHOTO / 2),
     // The last one's claws stay on the beach.
     all = (right - EDGE - left - SPACE * far) / (FLAG + CRAB_W * far + CRAB_W / 2),
     scale = Math.max(0.55, Math.min(1, second, all)),
