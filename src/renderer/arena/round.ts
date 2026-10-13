@@ -27,7 +27,7 @@ import {
   updateMode,
   type Sight,
 } from './ai.ts';
-import { endGifts, fired, isPilot, nextSeats, stepQueue, updateFlights } from './entry.ts';
+import { fired, isPilot, stepQueue, takePaidBatch, updateFlights, type Queued } from './entry.ts';
 import {
   QUALIFY,
   endQualifying,
@@ -64,25 +64,28 @@ import {
 const GROW_SHARE = 0.5;
 
 /** A giver's gifts still in the flower, for it to show as it seats them (or one berry's worth). */
-function pourOf(nickname: string, id: number): Pour {
+function pourOf({ nickname, avatar }: Queued, id: number): Pour {
   const q = game.queue.find((p) => p.nickname === nickname && p.n > 0);
   return q
     ? { ...q, total: q.n }
-    : { id, nickname, avatar: arena.viewers.get(nickname)?.avatar, n: 1, total: 1, title: '' };
+    : {
+        id,
+        nickname,
+        avatar: arena.viewers.get(nickname)?.avatar ?? avatar,
+        n: 1,
+        total: 1,
+        title: '',
+      };
 }
 
 /**
  * A new round (hooks.round). No berry carries over: the board and the flower empty, uneaten
- * berries leave with the round. The qualifying opens with the seats reserved during the battle
- * on gold eggs first, then the end screen's gifts, which lock seats as qualifying gifts do.
+ * berries leave with the round. The qualifying opens with the next batch of the paid queue on gold
+ * eggs, in queue order; the rest of the queue waits for the rounds after.
  * Feed's round keeps its own carry-over; here its flower is emptied after it.
  */
 export function arenaRound(roundTime: number): void {
-  const owed: Pour[] = [...nextSeats, ...endGifts.filter((n) => !nextSeats.includes(n))].map(
-    (n, i) => pourOf(n, -2000 - i),
-  );
-  nextSeats.length = 0;
-  endGifts.length = 0;
+  const owed: Pour[] = takePaidBatch().map((q, i) => pourOf(q, -2000 - i));
   game.queue = [];
   game.pour = null;
   arena.round++;
@@ -211,8 +214,9 @@ function dropNear(s: Snake, by: string): void {
  */
 function flower(dt: number): void {
   // In the qualifying the flower opens on each gift that locks a seat, as long as it shows it. In
-  // the battle a gift from a viewer without a snake opens it too, for a moment, as any gift does:
-  // its berries stay in it (they buy the giver a seat at the next qualifying).
+  // the battle a gift from a viewer without a snake opens it too, for a moment, as any gift does,
+  // and nothing more: its berries stay in it and leave with the round (the giver is in the paid
+  // queue, entry.ts).
   const outsider = (): Pour | undefined => {
     if (game.pour && shownGifts.has(game.pour.id) && game.pourT < OUTSIDER_SHOW) return game.pour;
     return game.queue.find(

@@ -157,16 +157,25 @@ export const isLocked = (nickname: string | null): boolean =>
 export const isGold = (nickname: string | null): boolean =>
   !!nickname && golden.has(nickname) && isLocked(nickname);
 
-/** Seats' cells: the first row takes the larger half, each row spread evenly across the board. */
+/**
+ * Seats' cells: the first row takes the larger half, each row spread evenly across the board, the
+ * same whole number of cells between two eggs (8 places: 4 a row, 7 cells apart).
+ */
 export function seatCells(n: number): number[] {
   const out: number[] = [],
     rows = n <= 3 ? [n] : [Math.ceil(n / 2), Math.floor(n / 2)];
   rows.forEach((count, r) => {
     const y = EGG_ROWS[rows.length === 1 ? 1 : r] ?? 0;
-    for (let i = 0; i < count; i++)
-      out.push(cellId(Math.round(((i + 0.5) * FCOLS) / count - 0.5), y));
+    out.push(...rowCells(count).map((x) => cellId(x, y)));
   });
   return out;
+}
+
+/** `count` columns evenly spread across the board, centred. */
+function rowCells(count: number): number[] {
+  const gap = Math.floor(FCOLS / Math.max(1, count)),
+    first = Math.round((FCOLS - 1 - gap * (count - 1)) / 2);
+  return Array.from({ length: count }, (_, i) => first + gap * i);
 }
 
 /** Where a seat's picture sits, over its egg. */
@@ -176,16 +185,10 @@ export function seatSpot(i: number): { x: number; y: number; r: number } {
   return { x: p.x, y: p.y - PHOTO_ABOVE, r: SEAT_R };
 }
 
-/** Where the i-th challenger stands, under the first row's columns. */
+/** Where the i-th challenger stands: their row spread evenly across the board, centred. */
 export function challengerSpot(i: number): { x: number; y: number; r: number } {
-  const first = Math.min(seats.length, Math.ceil(seats.length / 2)),
-    cols = Math.max(QUALIFY.challengers, first),
-    seat = seats[Math.min(i, first - 1)],
-    x =
-      first >= QUALIFY.challengers && seat
-        ? toPx(cellX(seat.cell), 0).x
-        : toPx(Math.round(((i + 0.5) * FCOLS) / cols - 0.5), 0).x;
-  return { x, y: CHALLENGER_Y, r: CHALLENGER_R };
+  const x = rowCells(QUALIFY.challengers)[i] ?? 0;
+  return { x: toPx(x, 0).x, y: CHALLENGER_Y, r: CHALLENGER_R };
 }
 
 /** Where a like heart lands on a picture of the board: its badge, under the photo. */
@@ -293,8 +296,8 @@ function roll(dt: number): void {
 }
 
 /**
- * The qualifying opens: the eggs are laid empty, every count starts at 0. `owed` are the givers
- * whose berries were not all eaten last round: each gets a locked seat, shown by the flower.
+ * The qualifying opens: the eggs are laid empty, every count starts at 0. `owed` is this round's
+ * batch of the paid queue: each gets a locked seat in that order, shown by the flower.
  */
 export function startQualifying(owed: readonly Pour[] = []): void {
   qualLikes.clear();
@@ -331,14 +334,14 @@ function weakest(): Seat | undefined {
 
 /**
  * A gift locks a seat for its giver: theirs, an empty one, or the weakest unlocked holder's. The
- * flower shows the gift, then the picture flies from it to the egg.
+ * flower shows the gift, then the picture flies from it to the egg. False when every seat is paid.
  */
-function lockSeat(v: Viewer, pour?: Pour): void {
-  if (locked.includes(v.nickname)) return;
+function lockSeat(v: Viewer, pour?: Pour): boolean {
+  if (locked.includes(v.nickname)) return true;
   let seat = seated(v.nickname);
   if (!seat) {
     seat = seats.find((s) => !s.holder) ?? weakest();
-    if (!seat) return;
+    if (!seat) return false;
     if (seat.holder) out(seat.holder);
     seat.holder = v.nickname;
     challengers = challengers.filter((n) => n !== v.nickname);
@@ -357,6 +360,7 @@ function lockSeat(v: Viewer, pour?: Pour): void {
       },
     t: shows.length ? -0.1 : 0,
   });
+  return true;
 }
 
 /** A holder loses their seat. */
@@ -372,9 +376,8 @@ qualHooks.like = (nickname, n) => {
   qualLikes.set(nickname, (qualLikes.get(nickname) ?? 0) + n);
   if (!seated(nickname) && !challengers.includes(nickname)) queueLike(nickname);
 };
-qualHooks.gift = (v) => {
-  if (!frozen()) lockSeat(v);
-};
+// Once the clock is out, or every seat is paid, a gift goes to the paid queue (entry.ts).
+qualHooks.gift = (v) => !frozen() && lockSeat(v);
 
 /** The gift the flower shows now, if any: round.ts opens the flower on it. */
 export const showing = (): Pour | null => {

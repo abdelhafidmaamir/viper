@@ -4,13 +4,14 @@
 // picture on the beach: every BOOST.likes of them fire a speed boost, the ring flashing, the
 // animal running on the spot and the snake dashing. A gift during the qualifying locks a seat; in
 // the battle its berries pour from the flower to the giver's snake, the giver's alone, and make it
-// grow. Comments do nothing.
+// grow. Any gift outside the qualifying also puts its giver in the paid queue for the next rounds.
+// Comments do nothing.
 //
 // The pilot player, "Skohlds", shows newcomers how it works: it likes a little during the
 // qualifying like any viewer and plays when it gets a seat. It is the game's own: no ranking, no
 // crown, no thanks, no alert, no journal row, no supporters list.
 
-import { alertQualified } from '../feed/alerts.ts';
+import { alertQueued } from '../feed/alerts.ts';
 import { crabFaces, crabGone, crabRun } from '../feed/crabs.ts';
 import { H, W } from '../engine/layout.ts';
 import {
@@ -38,11 +39,14 @@ import {
 export const PILOT = { name: 'Skohlds', key: 'S​', likes: 1 };
 let pilotOn = false;
 
-/** The qualifying's own rules (qualify.ts), set there: likes count in its race, a gift locks a seat. */
+/**
+ * The qualifying's own rules (qualify.ts), set there: likes count in its race, a gift locks a seat
+ * (false when it cannot: the clock is out, or every seat is paid).
+ */
 export const qualHooks: {
   like: (nickname: string, n: number) => void;
-  gift: (v: Viewer) => void;
-} = { like: () => undefined, gift: () => undefined };
+  gift: (v: Viewer) => boolean;
+} = { like: () => undefined, gift: () => false };
 
 const qualifying = (): boolean => arena.phase === 'qualify';
 
@@ -184,24 +188,46 @@ export function arenaLike(nickname: string, avatar: string | undefined, n: numbe
 }
 
 /**
- * Seats of the next round reserved during this battle: at most half the places, first come first
- * served, by anyone who gives (playing or not). Each reserving giver is told once on the alert
- * card and starts the next qualifying on a gold egg. Once they are taken, a gift is only a gift.
+ * The paid queue: whoever gives outside the qualifying (in the battle, the countdown or the end
+ * screen, or once every seat of a qualifying is paid) takes the next place in it, one place per
+ * viewer, first come first served, with no limit; more gifts do not move them. Each qualifying
+ * opens with the first `places()` of it on gold eggs (round.ts), the rest wait for the rounds
+ * after. Each giver is told once, on the alert card, when they join. It lasts the session and
+ * survives a reload of the game window (link.ts); a viewer who left the live keeps their place.
  */
-export const nextSeats: string[] = [];
-export const reservable = (): number => Math.floor(places() / 2);
-export function qualifyNext(nickname: string): void {
-  if (nickname === PILOT.key || nextSeats.includes(nickname) || nextSeats.length >= reservable())
-    return;
-  nextSeats.push(nickname);
-  const v = arena.viewers.get(nickname);
-  alertQualified({ nickname, avatar: v?.avatar });
+export interface Queued {
+  readonly nickname: string;
+  readonly avatar?: string | undefined;
 }
+export const paidQueue: Queued[] = [];
+/** Called whenever the queue changes: link.ts saves it. */
+export const paidHooks = { changed: (): void => undefined };
+
+export function joinPaidQueue(nickname: string, avatar: string | undefined): void {
+  if (nickname === PILOT.key || paidQueue.some((q) => q.nickname === nickname)) return;
+  paidQueue.push({ nickname, avatar });
+  const place = paidQueue.length;
+  alertQueued({ nickname, avatar }, place, place <= places());
+  paidHooks.changed();
+}
+
+/** This round's paid seats: the first `places()` of the queue, which leave it. */
+export function takePaidBatch(): Queued[] {
+  const batch = paidQueue.splice(0, places());
+  if (batch.length) paidHooks.changed();
+  return batch;
+}
+
 /**
- * Gifts sent during the end screen: qualifying gifts, each locking a seat at the qualifying that
- * opens next, after the reserved ones.
+ * What a gift buys besides its berries: in the qualifying a seat, while one can be locked; else a
+ * place in the paid queue. In the battle (and its countdown) it also lifts the player's tier.
  */
-export const endGifts: string[] = [];
+function buySeat(v: Viewer, n: number): void {
+  if (qualifying()) {
+    if (qualHooks.gift(v)) return;
+  } else if (arena.phase !== 'end') v.battle += n;
+  joinPaidQueue(v.nickname, v.avatar);
+}
 
 /** A big gift's shield, on the snake or kept for the one about to be born. */
 function shield(v: Viewer, s: Snake | undefined): void {
@@ -210,23 +236,17 @@ function shield(v: Viewer, s: Snake | undefined): void {
 }
 
 /**
- * A gift, already priced in berries by the control room's list: in the qualifying (or the end
- * screen before it) it locks a seat and its berries wait in the flower for the battle; in the
- * battle the flower pours them to the giver's snake (round.ts), and the first givers reserve the
- * next round's seats while some are left (nextSeats). A big gift gives a shield.
+ * A gift, already priced in berries by the control room's list: in the qualifying it locks a seat
+ * and its berries wait in the flower for the battle; in the battle the flower pours them to the
+ * giver's snake (round.ts). Outside the qualifying the giver joins the paid queue. A big gift
+ * gives a shield.
  */
 export function arenaGift(nickname: string, avatar: string | undefined, berries: number): void {
   if (!nickname || berries <= 0 || nickname === PILOT.key) return;
   const v = viewer(nickname, avatar);
   v.acts.push(arena.clock);
   v.gifted += berries;
-  if (qualifying()) qualHooks.gift(v);
-  else if (arena.phase === 'end') {
-    if (!endGifts.includes(nickname)) endGifts.push(nickname);
-  } else {
-    v.battle += berries;
-    qualifyNext(nickname);
-  }
+  buySeat(v, berries);
   const s = snakeOf(nickname);
   if (s) s.idle = 0;
   if (TUNING.shieldGift > 0 && berries >= TUNING.shieldGift) shield(v, s);
@@ -238,21 +258,16 @@ export const isLifeGift = (coins: number): boolean => TUNING.lifeOn && coins ===
 /**
  * Extra-life gifts, `n` of them: one more life each for the giver's snake, up to the most a snake
  * holds. Without a snake, the lives wait for the next one. It counts as a gift for the seats: in the
- * qualifying it locks one, in the battle it may reserve one for the next round.
+ * qualifying it locks one, outside it the giver joins the paid queue.
  */
 export function arenaLife(nickname: string, avatar: string | undefined, n: number): void {
   if (!nickname || n <= 0 || nickname === PILOT.key) return;
   const v = viewer(nickname, avatar);
   v.acts.push(arena.clock);
   addLives(v, n);
-  if (!qualifying() && arena.phase !== 'end') v.battle += n;
+  buySeat(v, n);
   const s = snakeOf(nickname);
   if (s) s.idle = 0;
-  if (qualifying()) {
-    if (!s) qualHooks.gift(v);
-  } else if (arena.phase === 'end') {
-    if (!endGifts.includes(nickname)) endGifts.push(nickname);
-  } else qualifyNext(nickname);
 }
 
 // ---- the likers on the beach, during the qualifying -----------------------------------------

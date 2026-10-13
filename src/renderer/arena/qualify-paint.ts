@@ -9,7 +9,7 @@
 import { ctx } from '../engine/canvas.ts';
 import { GOLD } from '../engine/palette.ts';
 import { bigHeart } from '../feed/alert-fx.ts';
-import { BOARD_W, FX0 } from '../feed/grid.ts';
+import { BOARD_W, FCELL, FCOLS, FX0 } from '../feed/grid.ts';
 import { FONT, paintFace } from '../feed/paint.ts';
 import { bumpOf, paintStillEgg } from './board-paint.ts';
 import { nameOf } from './entry.ts';
@@ -41,10 +41,10 @@ function fit(name: string, max: number): string {
   return n + '…';
 }
 
-/** Room for a name: the gap between two columns of the first row. */
-function column(): number {
+/** Room for a name: the gap between two eggs of the first row (or two challengers). */
+export function column(): number {
   const first = Math.max(1, Math.ceil(seats.length / 2));
-  return BOARD_W / Math.max(first, QUALIFY.challengers) - 16;
+  return Math.floor(FCOLS / Math.max(first, QUALIFY.challengers)) * FCELL - 16;
 }
 
 function paintName(name: string, x: number, y: number): void {

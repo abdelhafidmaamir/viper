@@ -3,7 +3,7 @@ import { beforeAll, describe, expect, it } from 'vitest';
 import { ARENA_DEFAULTS, type ArenaSettings } from '../../src/shared/arena-protocol.ts';
 import { BERRY_STAY, chooseNext, updateMode } from '../../src/renderer/arena/ai.ts';
 import { advanceArena, newArenaRound, setArenaSettings } from '../../src/renderer/arena/arena.ts';
-import { flights, likePops, queue, rings, nextSeats } from '../../src/renderer/arena/entry.ts';
+import { flights, likePops, queue, rings, paidQueue } from '../../src/renderer/arena/entry.ts';
 import { countOnArena } from '../../src/renderer/arena/link.ts';
 import { CATCH_UP, moveInto } from '../../src/renderer/arena/round.ts';
 import {
@@ -43,7 +43,7 @@ function fresh(extra: Partial<ArenaSettings> = {}, seed = 7): void {
   flights.length = 0;
   likePops.length = 0;
   game.queue = [];
-  nextSeats.length = 0;
+  paidQueue.length = 0;
   newRound();
   run(4);
 }

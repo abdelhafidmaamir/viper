@@ -292,6 +292,44 @@ function arenaCard(arena: ArenaSide, reason: Reason): FeedView {
 }
 
 /**
+ * The paid queue, read only: whoever gave outside a qualifying, first in line first, so the
+ * operator can tell a viewer where they stand. The first ones (as many as there are places) play
+ * the next round on paid seats.
+ */
+function paidQueueCard(arena: ArenaSide): FeedView {
+  const list = h('div', { class: 'paid-queue' });
+  const card = createCard({ title: 'Paid queue' }, [
+    h('p', {
+      class: 'field__caption',
+      text: 'Gifts outside the qualifying. Each round takes the first ones, up to the number of snakes.',
+    }),
+    list,
+  ]);
+  let shown: string | null = null;
+  return {
+    el: card.el,
+    update() {
+      const board = arena.state(),
+        names = board?.paidQueue ?? [],
+        places = board?.settings.places ?? 0,
+        key = [String(places), ...names].join('|');
+      if (key === shown) return;
+      shown = key;
+      list.replaceChildren(
+        ...(names.length
+          ? names.map((name, i) =>
+              h('p', {
+                class: 'card__line',
+                text: `${String(i + 1)}. ${name}${i < places ? ' (next round)' : ''}`,
+              }),
+            )
+          : [h('p', { class: 'card__line', text: 'Nobody in line' })]),
+      );
+    },
+  };
+}
+
+/**
  * The extra-life gift, next to the gift prices: a gift at its price gives the giver's snake a life
  * instead of berries. Off until switched on.
  */
@@ -393,13 +431,17 @@ export function arenaRoom(
     screens: {
       live: liveScreen(store, dispatch, pressArm, arena),
       rehearsal: createRehearsalScreen(dispatch, { nearFullBoard: false }),
-      // The game's own settings first, then Feed's.
+      // The game's own settings and its paid queue first, then Feed's.
       setup: withCard(
-        createSetupScreen(dispatch, () => controlsReason(store.get()), {
-          nearFullBoard: false,
-          snakeAppearance: false,
-          tabCount: 4,
-        }),
+        withCard(
+          createSetupScreen(dispatch, () => controlsReason(store.get()), {
+            nearFullBoard: false,
+            snakeAppearance: false,
+            tabCount: 4,
+          }),
+          paidQueueCard(arena),
+          true,
+        ),
         arenaCard(arena, () => controlsReason(store.get())),
         true,
       ),

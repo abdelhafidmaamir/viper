@@ -86,7 +86,7 @@ export interface ArenaSettings {
 export type ArenaSettingName = keyof ArenaSettings;
 
 export const ARENA_DEFAULTS: ArenaSettings = {
-  places: 6,
+  places: 8,
   entryLikes: 100,
   giftEntry: true,
   likeBoost: true,
@@ -129,6 +129,8 @@ export interface ArenaState {
   readonly snakes?: ArenaSnakeCount;
   /** Snakes that boxed themselves in this round. */
   readonly trapped?: number;
+  /** The paid queue's names, first in line first: the next rounds' paid seats. */
+  readonly paidQueue?: readonly string[];
 }
 
 export interface ArenaStateMessage {

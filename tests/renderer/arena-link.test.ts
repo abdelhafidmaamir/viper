@@ -6,7 +6,7 @@ import {
   type ArenaSettingName,
 } from '../../src/shared/arena-protocol.ts';
 import { newArenaRound, setArenaSettings } from '../../src/renderer/arena/arena.ts';
-import { queue, rings, nextSeats } from '../../src/renderer/arena/entry.ts';
+import { queue, rings, paidQueue } from '../../src/renderer/arena/entry.ts';
 import { locked, qualLikes } from '../../src/renderer/arena/qualify.ts';
 import {
   ARENA_STORAGE_KEY,
@@ -15,8 +15,10 @@ import {
   arenaSnapshot,
   arenaStorage,
   countOnArena,
+  PAID_QUEUE_KEY,
   linkArenaControl,
   restoreArenaSettings,
+  restorePaidQueue,
 } from '../../src/renderer/arena/link.ts';
 import { arena } from '../../src/renderer/arena/rules.ts';
 import {
@@ -74,7 +76,7 @@ describe('arena link', () => {
     rings.clear();
     queue.length = 0;
     game.queue = [];
-    nextSeats.length = 0;
+    paidQueue.length = 0;
     arena.snakes = [];
     arena.food = [];
     arena.foodAt.clear();
@@ -208,5 +210,37 @@ describe('arena link', () => {
     stop();
     vi.advanceTimersByTime(2000);
     expect(sent).toHaveLength(1);
+  });
+
+  it('the paid queue is saved as it changes, read back after a reload and shown to the room', () => {
+    vi.useFakeTimers();
+    const map = new Map<string, string>(),
+      sent: unknown[] = [];
+    const stop = linkArenaControl(
+      { storage: store(map) },
+      { postMessage: (message) => sent.push(message), addEventListener: () => undefined },
+    );
+    newArenaRound();
+    // Two givers outside the qualifying: in line, saved.
+    arena.phase = 'play';
+    receiveFeedEvent({ type: 'gift', name: 'Rosa', n: 1, nickname: 'ana' });
+    receiveFeedEvent({ type: 'gift', name: 'Rosa', n: 1, nickname: 'ben' });
+    expect(paidQueue.map((q) => q.nickname)).toEqual(['ana', 'ben']);
+    expect(JSON.parse(map.get(PAID_QUEUE_KEY) ?? '[]')).toHaveLength(2);
+    vi.advanceTimersByTime(500);
+    expect(decodeArenaState(sent.at(-1))?.paidQueue).toEqual(['ana', 'ben']);
+    stop();
+    // The window reloads: the queue comes back as it was; anything broken is left out.
+    paidQueue.length = 0;
+    map.set(
+      PAID_QUEUE_KEY,
+      JSON.stringify([
+        ...(JSON.parse(map.get(PAID_QUEUE_KEY) ?? '[]') as unknown[]),
+        { nick: 1 },
+        'x',
+      ]),
+    );
+    restorePaidQueue(store(map));
+    expect(paidQueue.map((q) => q.nickname)).toEqual(['ana', 'ben']);
   });
 });

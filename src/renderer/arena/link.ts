@@ -20,12 +20,14 @@ import { board, type FeedLinkDeps } from '../feed/control-link.ts';
 import { note } from '../feed/journal.ts';
 import { gift, like } from '../feed/state.ts';
 import { arenaGift, arenaLike, arenaStatus, setArenaSettings } from './arena.ts';
-import { arenaLife, isLifeGift } from './entry.ts';
+import { arenaLife, isLifeGift, nameOf, paidHooks, paidQueue, type Queued } from './entry.ts';
 
 type Store = FeedLinkDeps['storage'];
 
 /** The game's tuning values, under a key of their own next to the renamed Feed ones. */
 export const ARENA_STORAGE_KEY = 'viper-arena-game';
+/** The paid queue, kept so a reload of the game window loses nobody's place. */
+export const PAID_QUEUE_KEY = 'viper-arena-paid-queue';
 
 const FEED_PREFIX = 'viper-feed-',
   ARENA_PREFIX = 'viper-arena-';
@@ -87,6 +89,26 @@ export function restoreArenaSettings(storage: Store): void {
   setArenaSettings({ ...arenaSettings });
 }
 
+/** The paid queue saved before a reload, read back: anything unreadable is left out. */
+export function restorePaidQueue(storage: Store): void {
+  let saved: unknown;
+  try {
+    saved = JSON.parse(safely(() => storage.getItem(PAID_QUEUE_KEY)) ?? '[]');
+  } catch {
+    saved = [];
+  }
+  const list: Queued[] = [];
+  if (Array.isArray(saved))
+    for (const item of saved as unknown[]) {
+      if (typeof item !== 'object' || item === null) continue;
+      const { nickname, avatar } = item as Record<string, unknown>;
+      if (typeof nickname !== 'string' || !nickname || list.some((q) => q.nickname === nickname))
+        continue;
+      list.push({ nickname, avatar: typeof avatar === 'string' ? avatar : undefined });
+    }
+  paidQueue.splice(0, paidQueue.length, ...list);
+}
+
 export interface ArenaLinkDeps {
   readonly storage: Store;
 }
@@ -110,6 +132,7 @@ export function arenaSnapshot(): ArenaState {
     secondsLeft: s.secondsLeft,
     snakes: s.snakes,
     trapped: s.trapped,
+    paidQueue: paidQueue.map((q) => nameOf(q.nickname)),
   };
 }
 
@@ -122,11 +145,17 @@ export interface ArenaChannel {
 }
 
 /**
- * Restores the tuning values, applies the arena's commands and publishes the board twice a
- * second, on the channel Feed's link also uses. Returns a disposer; the channel is Feed's to close.
+ * Restores the tuning values and the paid queue, keeps the queue saved, applies the arena's
+ * commands and publishes the board twice a second, on the channel Feed's link also uses. Returns a disposer; the channel is Feed's to close.
  */
 export function linkArenaControl(deps: ArenaLinkDeps, channel: ArenaChannel): () => void {
   restoreArenaSettings(deps.storage);
+  restorePaidQueue(deps.storage);
+  paidHooks.changed = () => {
+    safely(() => {
+      deps.storage.setItem(PAID_QUEUE_KEY, JSON.stringify(paidQueue));
+    });
+  };
   channel.addEventListener('message', ({ data }) => {
     if (!isArenaCommand(data)) return;
     try {

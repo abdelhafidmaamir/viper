@@ -19,8 +19,8 @@ import { FONT, crown, paintFace } from './paint.ts';
 import { LOTUS, paintBloom, paintLoosePetals, visitNumber } from './welcome.ts';
 
 /**
- * 'kill' and 'qualified' are Snake Arena's: a snake eliminated, a giver qualified for the next
- * round. Feed never sends them.
+ * 'kill' and 'qualified' are Snake Arena's: a snake eliminated, a giver's place in the paid queue
+ * for the next rounds. Feed never sends them.
  */
 export type AlertKind = 'join' | 'like' | 'share' | 'follow' | 'kill' | 'qualified';
 
@@ -135,7 +135,7 @@ const PHRASES: Readonly<Record<AlertKind, readonly I18nKey[]>> = {
   share: ['share.0', 'share.1'],
   follow: ['follow.0', 'follow.1'],
   kill: ['kill.0'],
-  qualified: ['arena.qualified'],
+  qualified: ['arena.playsNext', 'arena.inLine'],
 };
 
 /** What the sound layer listens to. */
@@ -277,16 +277,24 @@ export function alertKill(
   if (queue.length > 5) queue.length = 5;
 }
 
-/** Snake Arena: a giver qualified for the next round, their photo and name on the plain card. */
-export function alertQualified(who: { nickname: string; avatar?: string | undefined }): void {
+/**
+ * Snake Arena: a giver joined the paid queue at `place`, their photo and name on the plain card:
+ * "plays next round (#3)" while the place is in the next round's batch, "#12 in line" after it.
+ * The place rides in `likes`, the number the card's sentence reads.
+ */
+export function alertQueued(
+  who: { nickname: string; avatar?: string | undefined },
+  place: number,
+  nextRound: boolean,
+): void {
   if (!who.nickname || !alertsOn) return;
   const next: Alert = {
     kind: 'qualified',
     nickname: who.nickname,
     avatar: who.avatar,
     by: undefined,
-    likes: 0,
-    phrase: 'arena.qualified',
+    likes: place,
+    phrase: nextRound ? 'arena.playsNext' : 'arena.inLine',
     visit: 0,
     supporter: undefined,
     ranked: false,

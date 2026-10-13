@@ -15,7 +15,7 @@ export const TOTAL = FCOLS * FROWS;
 
 export const TUNING = {
   /** Snakes on the board at once: one per colour, so 8 at most. */
-  places: 6,
+  places: 8,
   /** With few viewers, wild snakes make up the numbers to this many. */
   wildUpTo: 4,
   startLen: 8, // cells

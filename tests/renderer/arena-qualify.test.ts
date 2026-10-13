@@ -14,21 +14,32 @@ import {
   fired,
   flights,
   likePops,
-  nextSeats,
+  paidQueue,
   queue,
   rings,
 } from '../../src/renderer/arena/entry.ts';
 import { arenaPodium, eatenBy } from '../../src/renderer/arena/arena.ts';
-import { alertsState, resetAlerts, setAlertsOn } from '../../src/renderer/feed/alerts.ts';
+import {
+  alertsState,
+  resetAlerts,
+  setAlertsOn,
+  updateAlerts,
+} from '../../src/renderer/feed/alerts.ts';
+import { tr } from '../../src/renderer/engine/i18n.ts';
 import { countOnArena } from '../../src/renderer/arena/link.ts';
 import {
+  CUT_Y,
   QUALIFY,
+  SEAT_R,
+  challengerSpot,
   isGold,
   locked,
   qualLikes,
   qualifying,
+  seatSpot,
   seats,
 } from '../../src/renderer/arena/qualify.ts';
+import { column } from '../../src/renderer/arena/qualify-paint.ts';
 import { FIELD, tierOf } from '../../src/renderer/arena/round.ts';
 import { EMERGE, alive, arena, kill, snakeOf } from '../../src/renderer/arena/rules.ts';
 import { board } from '../../src/renderer/feed/control-link.ts';
@@ -41,7 +52,7 @@ const run = (seconds: number): void => {
 
 /** A new round, seeded: the qualifying opens on an empty board. */
 function fresh(extra: Partial<ArenaSettings> = {}, seed = 7): void {
-  setArenaSettings({ ...ARENA_DEFAULTS, pilot: false, wildSnakes: 0, ...extra });
+  setArenaSettings({ ...ARENA_DEFAULTS, places: 6, pilot: false, wildSnakes: 0, ...extra });
   let s = seed;
   arena.rand = () => ((s = (s * 16807) % 2147483647) - 1) / 2147483646;
   arena.viewers.clear();
@@ -51,7 +62,7 @@ function fresh(extra: Partial<ArenaSettings> = {}, seed = 7): void {
   flights.length = 0;
   likePops.length = 0;
   game.queue = [];
-  nextSeats.length = 0;
+  paidQueue.length = 0;
   // Nothing left from a test before: no berry lying on the board, no snake.
   arena.food = [];
   arena.foodAt.clear();
@@ -66,6 +77,7 @@ const give = (nickname: string, berries: number): void => {
   board.gift(nickname, undefined, berries, true);
 };
 const holders = (): (string | null)[] => seats.map((s) => s.holder);
+const inLine = (): string[] => paidQueue.map((q) => q.nickname);
 const seated = (nickname: string): boolean => holders().includes(nickname);
 
 /** Runs the qualifying out: 0:00, the freeze, the countdown over the closed eggs and GO. */
@@ -89,6 +101,39 @@ describe('snake arena: the qualifying', () => {
     expect(qualLikes.size).toBe(0);
     expect(alive()).toHaveLength(0);
     expect(game.ready).toBe(-1);
+  });
+
+  it('8 places by default: two rows of 4 eggs evenly spaced, pictures, names and badges clear of each other', () => {
+    expect(ARENA_DEFAULTS.places).toBe(8);
+    fresh({ places: ARENA_DEFAULTS.places });
+    expect(seats).toHaveLength(8);
+    const spots = seats.map((_, i) => seatSpot(i)),
+      rows = [spots.slice(0, 4), spots.slice(4)];
+    for (const row of rows) {
+      // One line, the same gap between every two.
+      expect(new Set(row.map((p) => p.y)).size).toBe(1);
+      const gaps = row.slice(1).map((p, i) => p.x - (row[i]?.x ?? 0));
+      expect(new Set(gaps).size).toBe(1);
+      // A name is cut to its column, a badge is narrower than a picture's column: no two touch.
+      for (const g of gaps) {
+        expect(g).toBeGreaterThan(column() + 8);
+        expect(g).toBeGreaterThan(2 * SEAT_R + 40);
+      }
+    }
+    // The picture's name above it (34 px), its badge under it (46 px), its egg under that.
+    const top = (p: { y: number; r: number }): number => p.y - p.r - 6 - 34,
+      bottom = (p: { y: number; r: number }): number => p.y + 112 + 30;
+    const [r1, r2] = rows.map((row) => row[0] ?? { x: 0, y: 0, r: 0 });
+    if (!r1 || !r2) throw new Error('two rows');
+    // Under the clock's pill, the two rows apart, all of it above the cut and the challengers.
+    expect(top(r1)).toBeGreaterThan(300);
+    expect(bottom(r1)).toBeLessThan(top(r2));
+    expect(bottom(r2)).toBeLessThan(CUT_Y);
+    const ch = challengerSpot(0);
+    expect(ch.y - ch.r - 40).toBeGreaterThan(CUT_Y);
+    // The two gaps (pill to row 1, row 1 to row 2, row 2 to the cut) within a third of each other.
+    const gaps = [top(r1) - 296, top(r2) - bottom(r1), CUT_Y - bottom(r2)];
+    expect(Math.max(...gaps) / Math.min(...gaps)).toBeLessThan(1.35);
   });
 
   it('a liker takes a free egg at once; at the cut the bigger number goes up; a gift takes the weakest like seat, then the next', () => {
@@ -240,7 +285,7 @@ describe('snake arena: the qualifying', () => {
     expect(qualLikes.size).toBe(0);
   });
 
-  it('no berry carries over: the flower empties; a battle giver holds a reserved seat', () => {
+  it('no berry carries over: the flower empties; a battle giver plays the next round on a paid seat', () => {
     fresh({ roundLength: 60 });
     like('p1', 30);
     like('p2', 20);
@@ -389,21 +434,24 @@ describe('snake arena: the battle', () => {
     expect(payer.backing).toBe(1);
   });
 
-  it('a gift in the battle qualifies its giver for the next round, a paid seat first, told once', () => {
+  it('a gift in the battle puts its giver in the paid queue, one place each, told once', () => {
     fresh({ roundLength: 120 });
     setAlertsOn(true);
     like('player', 30);
     like('rival', 20);
     toBattle();
     resetAlerts();
-    // A viewer without a snake, then a player: both qualified, in the order they gave.
+    // A viewer without a snake, then a player: both in line, in the order they gave; more gifts
+    // from the same viewer do not move them.
     give('outsider', 10);
     give('outsider', 10);
     give('player', 5);
-    expect(nextSeats).toEqual(['outsider', 'player']);
+    give('outsider', 10);
+    expect(inLine()).toEqual(['outsider', 'player']);
     // One card each, however many gifts.
     const { current, queued } = alertsState();
     expect((current ? 1 : 0) + queued).toBe(2);
+    // The player's gift still lifts its snake's tier.
     const p = snakeOf('player');
     if (p) expect(tierOf(p)).toBe(1);
     const r = snakeOf('rival');
@@ -412,30 +460,90 @@ describe('snake arena: the battle', () => {
     expect(qualifying()).toBe(true);
     expect(holders().slice(0, 2)).toEqual(['outsider', 'player']);
     expect(locked.slice(0, 2)).toEqual(['outsider', 'player']);
-    expect(nextSeats).toHaveLength(0);
+    expect(inLine()).toHaveLength(0);
   });
 
-  it('in the battle at most half the places can be reserved, first come; only those are told', () => {
+  it('a non-player gift in the battle is a gift and a place in line, nothing on the board', () => {
+    fresh({ roundLength: 120 });
+    like('a1', 30);
+    like('a2', 20);
+    toBattle();
+    const before = alive().length;
+    give('stranger', 10);
+    run(1);
+    // No snake comes in, no seat is held now: only the flower's thanks and the queue.
+    expect(alive()).toHaveLength(before);
+    expect(snakeOf('stranger')).toBeUndefined();
+    expect(inLine()).toEqual(['stranger']);
+  });
+
+  it('each round takes the next batch of the queue, as many as the places (6); the rest waits', () => {
     fresh({ roundLength: 120 });
     setAlertsOn(true);
     like('a1', 30);
     like('a2', 20);
     toBattle();
-    resetAlerts();
-    for (let i = 0; i < 5; i++) give(`donor${String(i)}`, 5);
-    expect(nextSeats).toEqual(['donor0', 'donor1', 'donor2']);
-    const { current, queued } = alertsState();
-    expect((current ? 1 : 0) + queued).toBe(3);
+    const card = (): string => {
+      updateAlerts(0.01);
+      const a = alertsState().current;
+      return a ? tr(a.phrase, { n: a.likes, name: a.nickname }) : '';
+    };
+    for (let i = 0; i < 8; i++) {
+      resetAlerts();
+      give(`donor${String(i)}`, 5);
+      const said = card();
+      // #6 plays the next round with 6 places, #7 waits in line.
+      if (i === 5) expect(said).toBe('donor5 PLAYS NEXT ROUND (#6)');
+      if (i === 6) expect(said).toBe('donor6 IS #7 IN LINE');
+    }
+    expect(inLine()).toHaveLength(8);
     const a2 = snakeOf('a2');
     if (a2) kill(a2, null, 'accident');
     run(15);
+    // The first six on gold eggs, in queue order: every seat is paid, the qualifying ends at once.
     expect(qualifying()).toBe(true);
-    expect(holders().slice(0, 3)).toEqual(['donor0', 'donor1', 'donor2']);
-    expect(seated('donor3')).toBe(false);
-    expect(nextSeats).toHaveLength(0);
+    expect(holders()).toEqual(['donor0', 'donor1', 'donor2', 'donor3', 'donor4', 'donor5']);
+    expect(inLine()).toEqual(['donor6', 'donor7']);
+    let waited = 0;
+    while (qualifying() && waited < 12) {
+      // A gift in such a short qualifying joins the queue.
+      if (waited === 0) give('late', 5);
+      run(0.1);
+      waited += 0.1;
+    }
+    expect(waited).toBeLessThan(12);
+    expect(inLine()).toEqual(['donor6', 'donor7', 'late']);
+    // The round after: the rest of the queue first.
+    const any = alive().find((s) => !s.wild);
+    run(READY_TIME + 1);
+    for (const s of alive()) if (s !== any) kill(s, null, 'accident');
+    run(15);
+    expect(qualifying()).toBe(true);
+    expect(holders().slice(0, 3)).toEqual(['donor6', 'donor7', 'late']);
+    expect(inLine()).toHaveLength(0);
   });
 
-  it('a gift in the end screen locks a seat at the next qualifying, after the reserved ones', () => {
+  it('with 8 places, #3 plays the next round and #12 is in line', () => {
+    fresh({ roundLength: 120, places: 8 });
+    setAlertsOn(true);
+    like('a1', 30);
+    like('a2', 20);
+    toBattle();
+    const said: string[] = [];
+    for (let i = 1; i <= 12; i++) {
+      resetAlerts();
+      give(`d${String(i)}`, 5);
+      updateAlerts(0.01);
+      const a = alertsState().current;
+      said.push(a ? tr(a.phrase, { n: a.likes, name: a.nickname }) : '');
+    }
+    expect(said[2]).toBe('d3 PLAYS NEXT ROUND (#3)');
+    expect(said[7]).toBe('d8 PLAYS NEXT ROUND (#8)');
+    expect(said[8]).toBe('d9 IS #9 IN LINE');
+    expect(said[11]).toBe('d12 IS #12 IN LINE');
+  });
+
+  it('a gift in the end screen joins the paid queue, behind the battle givers', () => {
     fresh({ roundLength: 120 });
     like('b1', 30);
     like('b2', 20);
@@ -446,6 +554,9 @@ describe('snake arena: the battle', () => {
     run(2);
     expect(game.full).toBeGreaterThanOrEqual(0);
     give('late', 5);
+    // Nothing is locked in the end screen: the giver only takes a place in line.
+    expect(locked).not.toContain('late');
+    expect(inLine()).toEqual(['early', 'late']);
     run(13);
     expect(qualifying()).toBe(true);
     expect(holders().slice(0, 2)).toEqual(['early', 'late']);

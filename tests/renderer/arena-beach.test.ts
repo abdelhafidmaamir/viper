@@ -3,14 +3,20 @@ import { beforeAll, beforeEach, describe, expect, it } from 'vitest';
 import { ARENA_DEFAULTS } from '../../src/shared/arena-protocol.ts';
 import { setCtx } from '../../src/renderer/engine/canvas.ts';
 import { advanceArena, newArenaRound, setArenaSettings } from '../../src/renderer/arena/arena.ts';
-import { layOutBeach, paintBeachRings } from '../../src/renderer/arena/beach.ts';
+import {
+  SLEEPER_SPOT,
+  layOutBeach,
+  paintBeachRings,
+  podiumFor,
+} from '../../src/renderer/arena/beach.ts';
+import { W } from '../../src/renderer/engine/layout.ts';
 import {
   arenaLike,
   flights,
   likePops,
   queue,
   rings,
-  nextSeats,
+  paidQueue,
 } from '../../src/renderer/arena/entry.ts';
 import { countOnArena } from '../../src/renderer/arena/link.ts';
 import {
@@ -30,6 +36,7 @@ import {
   crabLike,
   crabsState,
   paintCrabs,
+  setSleeperSpot,
   sleepersState,
 } from '../../src/renderer/feed/crabs.ts';
 import { game, hooks, newRound } from '../../src/renderer/feed/state.ts';
@@ -219,7 +226,7 @@ function fresh(): void {
   flights.length = 0;
   likePops.length = 0;
   game.queue = [];
-  nextSeats.length = 0;
+  paidQueue.length = 0;
   newRound();
   for (let i = 0; i < 120; i++) advanceArena(1 / 30);
   clearCrabs();
@@ -262,10 +269,12 @@ describe('the snake arena beach', () => {
       newArenaRound();
     };
     countOnArena();
+    // As the arena's window does: the sleeping crab above the board, the beach all the players'.
+    setSleeperSpot(SLEEPER_SPOT);
   });
   beforeEach(fresh);
 
-  it("the podium stands in the board's order: the crowned snake on the 1st mound, the highest", () => {
+  it("the podium stands in the board's order, right to left: the crowned snake on the 1st mound, the highest", () => {
     const ana = playing('ana', row(5, 12, 5)),
       bo = playing('bo', row(9, 12, 5)),
       cy = playing('cy', row(13, 12, 5));
@@ -279,9 +288,9 @@ describe('the snake arena beach', () => {
       a = face(end, 'ana'),
       b = face(end, 'bo'),
       c = face(end, 'cy');
-    // The 1st in the podium's middle and highest, the 2nd on its left, the 3rd on its right.
+    // The 1st on the right and highest, the 2nd in the middle, lower, the 3rd on its left, lower still.
     expect(b.x).toBeLessThan(a.x);
-    expect(c.x).toBeGreaterThan(a.x);
+    expect(c.x).toBeLessThan(b.x);
     expect(a.y).toBeLessThan(b.y);
     expect(b.y).toBeLessThan(c.y);
     // A new leader: the animals trade mounds, eased, and the crowned one ends on the 1st.
@@ -291,6 +300,59 @@ describe('the snake arena beach', () => {
     expect(arena.crown).toBe(bo.id);
     const after = frames(2).at(-1);
     expect(Math.abs(face(after, 'bo').x - a.x)).toBeLessThan(9);
+  });
+
+  it('eight players: the ranking runs right to left, the 1st and 2nd right of the comments, no two animals touching', () => {
+    const lens = [30, 26, 22, 18, 15, 13, 11, 9],
+      names = lens.map((_, k) => `p${String(k)}`),
+      snakes = names.map((n, k) => playing(n, row(1 + 3 * k, 12, 5)));
+    snakes.forEach((s, k) => {
+      s.len = lens[k] ?? 8;
+    });
+    const top = snakes[0];
+    if (top) top.eaten = 1;
+    advanceArena(1 / 30);
+    const end = frames(3).at(-1),
+      at = names.map((n) => face(end, n)),
+      xs = at.map((f) => f.x),
+      { width } = podiumFor(8, 20, W);
+    for (let k = 1; k < 8; k++) {
+      // Right to left, and never two animals touching.
+      expect(xs[k]).toBeLessThan(xs[k - 1] ?? 0);
+      expect((xs[k - 1] ?? 0) - (xs[k] ?? 0)).toBeGreaterThan(width);
+    }
+    // The 1st and 2nd right of the comments (81 % of the width); everybody on screen.
+    expect(xs[1]).toBeGreaterThan(0.81 * W);
+    expect((xs[0] ?? 0) + (at[0]?.r ?? 0) * 1.8).toBeLessThan(W);
+    expect((xs[7] ?? 0) - width / 2).toBeGreaterThan(0);
+    // The podium steps down from the right; from the 4th on, all at ground level.
+    const ys = at.map((f) => f.y);
+    expect(ys[0]).toBeLessThan(ys[1] ?? 0);
+    expect(ys[1]).toBeLessThan(ys[2] ?? 0);
+    expect(ys[2]).toBeLessThan(ys[3] ?? 0);
+    for (let k = 4; k < 8; k++) expect(Math.abs((ys[k] ?? 0) - (ys[3] ?? 0))).toBeLessThan(3);
+  });
+
+  it('the beach changes its order at most once a second', () => {
+    const ana = playing('ana', row(5, 12, 5)),
+      bo = playing('bo', row(9, 12, 5)),
+      cy = playing('cy', row(13, 12, 5));
+    ana.eaten = 1;
+    ana.len = 20;
+    bo.len = 10;
+    cy.len = 9;
+    advanceArena(1 / 30);
+    frames(2);
+    const x = (f: Frame | undefined, n: string): number => face(f, n).x;
+    // cy passes bo, then bo passes cy back a moment later: the beach waits a second between.
+    cy.len = 12;
+    frames(0.2);
+    bo.len = 14;
+    const soon = frames(0.4).at(-1);
+    // Still cy ahead (on the right of bo) 0.6 s after its pass.
+    expect(x(soon, 'cy')).toBeGreaterThan(x(soon, 'bo'));
+    const later = frames(2).at(-1);
+    expect(x(later, 'bo')).toBeGreaterThan(x(later, 'cy'));
   });
 
   it("in the battle a player's likes fill the ring round its animal, and 100 fire a boost", () => {

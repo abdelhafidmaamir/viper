@@ -32,8 +32,6 @@ import {
 import {
   BOOST,
   FLIGHT,
-  nextSeats,
-  reservable,
   POP_TIME,
   QUEUE,
   fired,
@@ -44,7 +42,7 @@ import {
 } from './entry.ts';
 import { bigHeart } from '../feed/alert-fx.ts';
 import { QUALIFY, actors, badgeOf, challengers, qualLeft, qualifying, seatOf } from './qualify.ts';
-import { TUNING, alive, arena, places } from './rules.ts';
+import { TUNING, alive, arena } from './rules.ts';
 
 const smooth = (v: number): number => {
   const x = Math.max(0, Math.min(1, v));
@@ -180,53 +178,68 @@ export function paintArenaTime(): void {
 
 /** A picture's radius at full size. */
 const PHOTO = 39;
-/** The players' order on the beach: the board's. */
+/** The players' order on the beach: the board's, changing at most once every RANK_GAP seconds. */
 let ranking: string[] = [];
+let rankedAt = -Infinity;
+const RANK_GAP = 1;
 /** Seconds of a crab's move to its new place, eased. */
 const MOVE = 0.6;
 
 /**
- * The podium on the sand during the battle: three mounds, the 1st's in the middle and highest,
- * the 2nd's on its left lower, the 3rd's on its right lower still; the other players stand at
- * ground level beside it. In the qualifying the mounds flatten into the beach.
+ * The podium on the sand during the battle, at the beach's right end: three mounds, the 1st's on
+ * the right and highest, the 2nd's in the middle lower, the 3rd's on its left lower still; the
+ * other players stand at ground level on the podium's left, the ranking going on right to left.
+ * In the qualifying the mounds flatten into the beach.
  */
 const MOUNDS = [70, 46, 30];
-/** The podium stands at the beach's right end: `x3` is the 3rd's spot, the rightmost. */
-const podium = { k: 0, at: -1, x3: 0, u: 0, scale: 1, crownY: -1, left: 70 };
-/** A reserved seat's share of a podium place, and its mound's height. */
-const RESERVED = 0.85,
-  RESERVED_H = 22;
+/** `x1` is the 1st's spot, the rightmost; `u` the space from one place to the next. */
+const podium = { k: 0, at: -1, x1: 0, u: 0, scale: 1, crownY: -1 };
+/**
+ * The podium's measures, in pixels at full size: an animal's width, claws out; the room its flag
+ * takes on the right of its picture; the space between two animals; the screen's right edge kept
+ * clear. TikTok's comments cover the screen's lower left up to about COMMENTS of its width: the
+ * 1st and 2nd stand right of it, the others may go under it.
+ */
+const CRAB_W = 112,
+  FLAG = 1.8 * PHOTO,
+  SPACE = 12,
+  EDGE = 24,
+  COMMENTS = 0.81,
+  /** Ground between the podium's 3rd and the 4th, in places. */
+  STEP_DOWN = 0.4;
 
-/** Where the i-th reserved seat of the next round stands, on the beach's left. */
-const reservedX = (i: number): number => podium.left + podium.u * RESERVED * (i + 0.5);
-
-/** Height of the reserved seats' sand at x: a small mound each, flat on top. */
-function reservedHeight(x: number): number {
-  if (podium.k <= 0.001) return 0;
-  const w = podium.u * RESERVED * 0.45;
-  let h = 0;
-  for (let i = 0; i < reservable(); i++) {
-    const v = Math.abs(x - reservedX(i)) / w,
-      f = v < 0.45 ? 1 : v < 1 ? 0.5 + 0.5 * Math.cos((Math.PI * (v - 0.45)) / 0.55) : 0;
-    h = Math.max(h, RESERVED_H * f);
-  }
-  return h * podium.k;
+/**
+ * Where the player ranked `r` (0 the first) stands: the 1st on the right, the 2nd in the middle,
+ * the 3rd on its left; the others at ground level further left, the 4th nearest.
+ */
+function podiumX(r: number): number {
+  const { x1, u } = podium;
+  return r < 3 ? x1 - r * u : x1 - (r + STEP_DOWN) * u;
 }
 
 /**
- * Where the player ranked `r` (0 the first) stands: the 1st in the podium's middle, the 2nd on
- * its left, the 3rd on its right; the others at ground level on the podium's left, the 4th
- * nearest.
+ * The podium's size for `n` players on the beach from `left` to `right`: as big as it can be (at
+ * most full size) with the 2nd's picture centre right of the comments, every animal on the beach
+ * and no two touching.
  */
-function podiumX(r: number): number {
-  const { x3, u } = podium;
-  return r === 0 ? x3 - u : r === 1 ? x3 - 2 * u : r === 2 ? x3 : x3 - (r + 0.4) * u;
+export function podiumFor(
+  n: number,
+  left: number,
+  right: number,
+): { x1: number; u: number; scale: number; width: number } {
+  const far = Math.max(3, n) - 1 + STEP_DOWN,
+    // The 1st's flag stays on screen; the 2nd stands right of the comments.
+    second = (right - EDGE - SPACE - COMMENTS * W) / (FLAG + CRAB_W),
+    // The last one's claws stay on the beach.
+    all = (right - EDGE - left - SPACE * far) / (FLAG + CRAB_W * far + CRAB_W / 2),
+    scale = Math.max(0.55, Math.min(1, second, all)),
+    u = CRAB_W * scale + SPACE;
+  return { x1: right - EDGE - FLAG * scale, u, scale, width: CRAB_W * scale };
 }
 
 /** Height of the podium's sand at x, above the crabs' line. */
 function podiumHeight(x: number): number {
   if (podium.k <= 0.001) return 0;
-  if (x < podium.x3 - (Math.max(3, places()) + 0.6) * podium.u) return reservedHeight(x);
   const w = podium.u * 0.62;
   let h = 0;
   MOUNDS.forEach((top, r) => {
@@ -311,17 +324,7 @@ export function paintPodium(rise: number): void {
   if (podium.k <= 0.01 || podium.u <= 0) return;
   const w = podium.u * 0.62,
     base = beachLine(rise) - 4;
-  paintSand(podiumX(1) - w - 8, podiumX(2) + w + 8, base, podiumHeight);
-  // The next round's reserved seats: as many mounds as can be reserved, filling in order.
-  const rw = podium.u * RESERVED * 0.5;
-  paintSand(reservedX(0) - rw, reservedX(reservable() - 1) + rw, base, reservedHeight);
-  // A player who reserved stays on the podium: their mound holds a gold egg.
-  nextSeats.forEach((n, i) => {
-    if (!alive().some((s) => !s.wild && s.nickname === n)) return;
-    const x = reservedX(i),
-      y = base - RESERVED_H * podium.k - 14;
-    paintStillEgg(ctx, x, y, arena.clock + i, { gold: true });
-  });
+  paintSand(podiumX(2) - w - 8, podiumX(0) + w + 8, base, podiumHeight);
 }
 
 /**
@@ -337,9 +340,9 @@ export const SLEEPER_SPOT = { x: 966, y: 263, scale: 1.05 };
  * The beach on Feed's ground line, laid out each frame, clear of the sleeping crabs on the right.
  * During the qualifying, the newest likers without a picture on the board, in the order they came
  * up from the sand. Otherwise one animal per viewer's snake on the podium: the biggest on the
- * highest mound, crowned, the 2nd and 3rd on the lower ones, the others beside it at ground level,
- * each with a flag of its snake's colour; one change of rank a second at most, eased; a fallen
- * player's animal buries itself where it stands.
+ * highest mound on the right, crowned, the 2nd and 3rd on the lower ones to its left, the others
+ * further left at ground level, each with a flag of its snake's colour; one change of rank a
+ * second at most, eased; a fallen player's animal buries itself where it stands.
  */
 export function layOutBeach(): void {
   // The sleeper lies above the board (main.ts): the beach is all the animals'.
@@ -348,10 +351,6 @@ export function layOutBeach(): void {
     width = right - margin,
     spots: CrabSpot[] = [];
   raisePodium();
-  // On the left, the next round's reserved seats; the podium on the right.
-  podium.u = width / (Math.max(3, places()) + 0.4 + reservable() * RESERVED + 0.5);
-  podium.x3 = right - podium.u / 2;
-  podium.left = margin;
   // In the battle the sleepers show the players who have not liked lately: a like is speed.
   setSleeperPool(
     qualifying()
@@ -379,47 +378,35 @@ export function layOutBeach(): void {
     return;
   }
   const players = alive()
-      .filter((s) => !s.wild)
-      .sort((p, q) => p.id - q.id),
-    unit = podium.u,
-    scale = Math.max(0.55, Math.min(1, (unit - 10) / (2 * PHOTO)));
-  // The next round's reserved seats, filled in order: a giver without a snake stands there, gold;
-  // a player's crab stays on the podium, gold, and its reserved mound holds a gold egg.
-  nextSeats.forEach((nickname, i) => {
-    if (players.some((s) => s.nickname === nickname)) return;
-    spots.push({
-      nickname,
-      avatar: arena.viewers.get(nickname)?.avatar,
-      x: reservedX(i),
-      ring: GOLD,
-    });
-  });
-  podium.scale = scale;
+    .filter((s) => !s.wild)
+    .sort((p, q) => p.id - q.id);
+  const size = podiumFor(players.length, 20, Math.min(W, sleepersFrom()));
+  podium.x1 = size.x1;
+  podium.u = size.u;
+  podium.scale = size.scale;
   // The players stand in the board's order: the crowned snake on the 1st mound, then the others,
-  // the biggest first (ties keep their places). The animals ease to their new places.
+  // the biggest first (ties keep their places), re-sorted at most once a second. The animals
+  // ease to their new places.
   ranking = ranking.filter((n) => players.some((s) => s.nickname === n));
   for (const s of players) if (!ranking.includes(s.nickname)) ranking.push(s.nickname);
   const lenOf = (n: string): number => players.find((s) => s.nickname === n)?.len ?? 0,
     crowned = players.find((s) => s.id === arena.crown)?.nickname,
-    was = [...ranking];
-  ranking.sort(
-    (p, q) =>
-      Number(q === crowned) - Number(p === crowned) ||
-      Math.floor(lenOf(q)) - Math.floor(lenOf(p)) ||
-      was.indexOf(p) - was.indexOf(q),
-  );
+    sorted = [...ranking].sort(
+      (p, q) =>
+        Number(q === crowned) - Number(p === crowned) ||
+        Math.floor(lenOf(q)) - Math.floor(lenOf(p)) ||
+        ranking.indexOf(p) - ranking.indexOf(q),
+    );
+  if (sorted.join() !== ranking.join() && arena.clock - rankedAt >= RANK_GAP) {
+    ranking = sorted;
+    rankedAt = arena.clock;
+  }
   ranking.forEach((nickname, i) => {
     const s = players.find((p) => p.nickname === nickname);
     if (!s) return;
-    spots.push({
-      nickname,
-      avatar: s.avatar,
-      x: podiumX(i),
-      // A gift in this battle: next round's seat is theirs, the outline says it.
-      ring: nextSeats.includes(nickname) ? GOLD : COLOURS[s.colour],
-    });
+    spots.push({ nickname, avatar: s.avatar, x: podiumX(i), ring: COLOURS[s.colour] });
   });
-  setCrabSpots(spots, { scale, lane: 0, step: unit, ...walks });
+  setCrabSpots(spots, { scale: podium.scale, lane: 0, step: podium.u, ...walks });
 }
 
 /**

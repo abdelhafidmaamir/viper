@@ -11,7 +11,7 @@ import {
   likePops,
   queue,
   rings,
-  nextSeats,
+  paidQueue,
 } from '../../src/renderer/arena/entry.ts';
 import { countOnArena } from '../../src/renderer/arena/link.ts';
 import {
@@ -57,7 +57,7 @@ function fresh(extra: Partial<ArenaSettings> = {}, seed = 7): void {
   flights.length = 0;
   likePops.length = 0;
   game.queue = [];
-  nextSeats.length = 0;
+  paidQueue.length = 0;
   newRound();
   run(4);
 }

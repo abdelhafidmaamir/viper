@@ -5,7 +5,7 @@ import { describe, expect, it } from 'vitest';
 
 import { ARENA_DEFAULTS } from '../../src/shared/arena-protocol.ts';
 import { advanceArena, newArenaRound, setArenaSettings } from '../../src/renderer/arena/arena.ts';
-import { BOOST, arenaLike, nextSeats } from '../../src/renderer/arena/entry.ts';
+import { BOOST, arenaLike, paidQueue } from '../../src/renderer/arena/entry.ts';
 import { countOnArena } from '../../src/renderer/arena/link.ts';
 import { QUALIFY, qualifying } from '../../src/renderer/arena/qualify.ts';
 import { tierOf } from '../../src/renderer/arena/round.ts';
@@ -53,7 +53,7 @@ describe.skipIf(!ROUNDS)('snake arena: survival tiers, measured', () => {
     let played = 0;
     newRound();
     for (let round = 0; round < ROUNDS; round++) {
-      nextSeats.length = 0;
+      paidQueue.length = 0;
       game.queue = [];
       arena.food = [];
       arena.foodAt.clear();
