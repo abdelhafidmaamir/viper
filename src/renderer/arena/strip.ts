@@ -1,17 +1,16 @@
 // Snake Arena: the like strip, in the battle only. One row of compact chips just under the board's
-// bottom line, centred, above the alert card: one for every living player from GO, 0 % included
-// (an empty ring is an invitation), in the qualifying's seat order for the whole battle; a player
+// bottom line, centred, above the alert card: one for every living player from GO, the pilot
+// included, an empty ring included, in the qualifying's seat order for the whole battle; a player
 // who falls loses theirs, eased out, and the others slide together. Every chip is STRIP.size times
-// the base chip; a row wider than the screen less STRIP.margin each side (7 or 8 players) is
-// scaled down evenly to fit, its top kept under the line. A chip: the player's photo in the red
-// ring of their likes toward the next speed boost, the goal a bolt badge on the ring at the upper
-// right (the ring starts just past it and runs clockwise back to it); no number, the ring says it.
-// Full, the chip turns gold, the badge lights and a big lit bolt shows beside the photo for a
-// moment, while the alert card says SPEED BOOST; then the ring starts again from what was left
-// over. Small
-// hearts pop over a chip at each like. Painted after the alert card, so its rising particles pass
-// behind the strip. The battle over, the strip goes at once: nothing of it shows over the end
-// screen.
+// the base chip; a row wider than the screen less STRIP.margin each side (8 players) is scaled down
+// evenly to fit, its top kept under the line. A chip is the player's photo in the red ring of
+// their likes toward the next speed boost, the goal a bolt badge on the ring at the upper right
+// (the ring starts just past it and runs clockwise back to it), and nothing else: no number, no
+// word. Full, the chip turns gold, the badge lights and a big lit bolt shows over the photo's lower
+// right for a moment, while the alert card says SPEED BOOST; then the ring starts again from what
+// was left over. Small hearts pop over a chip at each like. Painted after the alert card, so its
+// rising particles pass behind the strip. The battle over, the strip goes at once: nothing of it
+// shows over the end screen.
 
 import { ctx } from '../engine/canvas.ts';
 import { GOLD } from '../engine/palette.ts';
@@ -21,24 +20,23 @@ import { BOARD_H, FY0 } from '../feed/grid.ts';
 import { paintFace } from '../feed/paint.ts';
 import { W } from '../engine/layout.ts';
 import { COLOURS } from './board-paint.ts';
-import { BOOST, fired, isPilot, likeHooks, rings } from './entry.ts';
+import { BOOST, fired, likeHooks, nameOf, rings } from './entry.ts';
 import { alive, arena, snakeOf } from './rules.ts';
 
 /**
- * A base chip, in game units: its size and the gap between two, the left padding, the ringed
- * photo's box, the gap to the number, the number's room and the right padding; the photo's and the
- * ring's radii.
+ * A base chip, in game units: its size and the gap between two, the padding each side of the
+ * ringed photo's box; the photo's and the ring's radii, the ring's width; the bolt badge's radius.
  */
 export const CHIP = {
-  w: 134,
-  h: 64,
+  w: 104,
+  h: 86,
   gap: 8,
   pad: 14,
-  box: 54,
-  mid: 10,
-  text: 40,
-  photo: 17,
-  ring: 24,
+  box: 76,
+  photo: 24,
+  ring: 34,
+  line: 8,
+  badge: 20,
 };
 
 export const STRIP = {
@@ -121,7 +119,7 @@ function progress(nickname: string): { fill: number; full: boolean } {
 /** The players of the battle, alive, as the strip shows them. */
 const players = (): string[] =>
   alive()
-    .filter((s) => !s.wild && !isPilot(s) && s.in)
+    .filter((s) => !s.wild && s.in)
     .sort((p, q) => p.id - q.id)
     .map((s) => s.nickname);
 
@@ -177,8 +175,9 @@ export function stepStrip(): void {
       if (told.get(nickname) === when) continue;
       told.set(nickname, when);
       const s = snakeOf(nickname);
-      if (s && !s.wild && !isPilot(s) && arena.clock - when < 1)
-        alertBoost({ nickname, avatar: s.avatar }, light(COLOURS[s.colour]));
+      // The pilot's boost shows as any player's, under its name on screen.
+      if (s && !s.wild && arena.clock - when < 1)
+        alertBoost({ nickname: nameOf(nickname), avatar: s.avatar }, light(COLOURS[s.colour]));
     }
 }
 
@@ -199,7 +198,7 @@ const smooth = (v: number): number => {
 /** A chip's middle: its top on the row's. */
 const midOf = (chip: Chip): number => STRIP.top + (CHIP.h / 2) * chip.k;
 
-/** One chip at (x, y): the pill, the ringed photo with its badge, the number or the big bolt. */
+/** One chip at (x, y): the pill, the ringed photo with its badge, and the big bolt when full. */
 function paintChip(chip: Chip, y: number): void {
   const c = ctx,
     s = snakeOf(chip.nickname),
@@ -226,7 +225,7 @@ function paintChip(chip: Chip, y: number): void {
   const start = BADGE + GAP,
     span = Math.PI * 2 - 2 * GAP;
   c.lineCap = 'round';
-  c.lineWidth = 6;
+  c.lineWidth = CHIP.line;
   c.strokeStyle = 'rgba(255,255,255,0.2)';
   c.beginPath();
   c.arc(px, y, CHIP.ring, start, start + span);
@@ -239,18 +238,18 @@ function paintChip(chip: Chip, y: number): void {
     c.stroke();
   }
   // The goal: the bolt badge on the ring, lit when the ring is full.
-  const bx = px + Math.cos(BADGE) * CHIP.ring + 2,
-    by = y + Math.sin(BADGE) * CHIP.ring - 2;
+  const bx = px + Math.cos(BADGE) * CHIP.ring + 3,
+    by = y + Math.sin(BADGE) * CHIP.ring - 3;
   c.fillStyle = full ? GOLD : 'rgba(14,16,20,0.96)';
   c.beginPath();
-  c.arc(bx, by, 14, 0, Math.PI * 2);
+  c.arc(bx, by, CHIP.badge, 0, Math.PI * 2);
   c.fill();
-  c.lineWidth = 2.8;
+  c.lineWidth = 3.6;
   c.strokeStyle = full ? '#fff4c2' : 'rgba(242,193,78,0.85)';
   c.stroke();
-  paintCardBolt(bx, by + 0.6, 21, full);
-  // A full ring: a big lit bolt beside the photo for a moment. No number, ever: the ring says it.
-  if (full) paintCardBolt(left + CHIP.pad + CHIP.box + CHIP.mid + CHIP.text / 2, y, 34, true);
+  paintCardBolt(bx, by + 0.8, CHIP.badge * 1.5, full);
+  // A full ring: a big lit bolt over the photo's lower right for a moment. No number, ever.
+  if (full) paintCardBolt(px + CHIP.photo * 0.95, y + CHIP.photo * 0.85, 40, true);
   c.restore();
 }
 

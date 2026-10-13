@@ -268,7 +268,8 @@ describe('snake arena: the alert card and the like strip', () => {
       expect(new Set(row.map((c) => c.top.toFixed(2))).size).toBe(1);
       expect(row[0]?.top).toBeGreaterThan(STRIP.line);
       // 4 and 6 at 1.2 times; 8 shrink evenly to fit the screen less the margin each side.
-      for (const c of row) expect(c.k).toBeCloseTo(n <= 6 ? STRIP.size : 0.922, 2);
+      const fit = (W - 2 * STRIP.margin) / (8 * CHIP.w + 7 * CHIP.gap);
+      for (const c of row) expect(c.k).toBeCloseTo(n <= 6 ? STRIP.size : fit, 2);
       expect(row[0]?.left).toBeGreaterThanOrEqual(STRIP.margin - 0.5);
       expect(row.at(-1)?.right).toBeLessThanOrEqual(W - STRIP.margin + 0.5);
       for (let i = 1; i < row.length; i++)

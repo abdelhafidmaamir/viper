@@ -11,7 +11,7 @@
 // egg turns gold as it lands. The seats keep a strict order: the paid ones first in the order the
 // gifts came, then the most likes. Every number on screen rolls up to the likes counted (hearts pop
 // round the picture with each like, entry.ts), and the rules read those same numbers. Nothing
-// presses: the clock just counts down, no seat is ever shown at risk. Everything moves eased,
+// presses: the clock is the ring alone, no seat is ever shown at risk. Everything moves eased,
 // slowly enough to follow.
 //
 // At 0:00 everything freezes for QUALIFY.freeze seconds and the challengers fade; then Feed's

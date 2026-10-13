@@ -19,6 +19,8 @@ import { advanceArena, newArenaRound, setArenaSettings } from '../../src/rendere
 import { likePopSpots, paintArenaTime } from '../../src/renderer/arena/beach.ts';
 import {
   BOOST,
+  PILOT,
+  PILOT_LIKES,
   arenaLike,
   fired,
   flights,
@@ -28,6 +30,7 @@ import {
   queue,
   rings,
   takePaidBatch,
+  updatePilot,
 } from '../../src/renderer/arena/entry.ts';
 import {
   ARENA_STORAGE_KEY,
@@ -47,7 +50,21 @@ import {
 } from '../../src/renderer/arena/qualify.ts';
 import { paintActors, paintSeats } from '../../src/renderer/arena/qualify-paint.ts';
 import { arena, kill, snakeOf } from '../../src/renderer/arena/rules.ts';
-import { paintStrip, resetStrip, stepStrip, stripState } from '../../src/renderer/arena/strip.ts';
+import {
+  ARENA_ALERTS,
+  paintStrip,
+  resetStrip,
+  stepStrip,
+  stripState,
+} from '../../src/renderer/arena/strip.ts';
+import {
+  alertsState,
+  resetAlerts,
+  setAlertLook,
+  setAlertsOn,
+  setLikeAlerts,
+  updateAlerts,
+} from '../../src/renderer/feed/alerts.ts';
 import { board } from '../../src/renderer/feed/control-link.ts';
 import { READY_TIME, game, hooks, newRound } from '../../src/renderer/feed/state.ts';
 
@@ -349,5 +366,94 @@ describe('snake arena: "Gifts buy seats", off by default', () => {
     expect(paidQueue.map((q) => q.nickname)).toEqual(['stranger']);
     setArenaSettings({ ...ARENA_DEFAULTS, places: 6, pilot: false, wildSnakes: 0 });
     expect(paidQueue).toHaveLength(0);
+  });
+});
+
+describe('snake arena: the pilot likes as an engaged viewer', () => {
+  beforeAll(() => {
+    hooks.round = () => {
+      newArenaRound();
+    };
+    countOnArena();
+  });
+
+  it('bursts of 5 to 15 likes every 0.5 to 1 s in the qualifying, hearts round its picture', () => {
+    fresh({ pilot: true });
+    let pops = 0;
+    for (let i = 0; i < Math.round((QUALIFY.time - 1) / STEP); i++) {
+      advanceArena(STEP);
+      pops = Math.max(pops, likePops.filter((h) => h.nickname === PILOT.key).length);
+    }
+    const likes = qualLikes.get(PILOT.key) ?? 0,
+      seconds = QUALIFY.time - 1;
+    expect(likes).toBeGreaterThanOrEqual(
+      (seconds / PILOT_LIKES.gap[1]) * PILOT_LIKES.burst[0] * 0.8,
+    );
+    expect(likes).toBeLessThanOrEqual((seconds / PILOT_LIKES.gap[0] + 1) * PILOT_LIKES.burst[1]);
+    expect(holders()).toContain(PILOT.key);
+    expect(pops).toBeGreaterThan(0);
+    setArenaSettings({ ...ARENA_DEFAULTS, pilot: false });
+  });
+
+  it("its likes get the like card in the qualifying, as a viewer's do", () => {
+    fresh({ pilot: true });
+    setAlertsOn(true);
+    setAlertLook(ARENA_ALERTS);
+    setLikeAlerts(true);
+    resetAlerts();
+    run(2);
+    updateAlerts(0.01);
+    const card = alertsState().current;
+    expect(card?.kind).toBe('like');
+    expect(card?.nickname).toBe(PILOT.name);
+    setLikeAlerts(false);
+    setArenaSettings({ ...ARENA_DEFAULTS, pilot: false });
+  });
+
+  it('in the battle, a speed boost every 15 to 25 s, its chip on the strip', () => {
+    fresh({ pilot: true });
+    like('ana', 3);
+    run(QUALIFY.time + QUALIFY.freeze + READY_TIME + 0.5);
+    expect(arena.phase).toBe('play');
+    expect(snakeOf(PILOT.key)).toBeDefined();
+    stepStrip();
+    expect(stripState().some((c) => c.nickname === PILOT.key)).toBe(true);
+    // A boost: its snake dashes and grows, its chip turns gold, the card names it.
+    setAlertsOn(true);
+    setAlertLook(ARENA_ALERTS);
+    resetAlerts();
+    const snake = snakeOf(PILOT.key),
+      grow = snake?.grow ?? 0;
+    for (let i = 0; i < Math.round(30 / STEP) && !fired.has(PILOT.key); i++) {
+      arena.clock += STEP;
+      updatePilot(STEP);
+    }
+    expect(fired.has(PILOT.key)).toBe(true);
+    expect(snake?.boost ?? 0).toBeGreaterThan(0);
+    expect(snake?.grow ?? 0).toBeGreaterThan(grow);
+    stepStrip();
+    expect(stripState().find((c) => c.nickname === PILOT.key)?.full).toBe(true);
+    updateAlerts(0.01);
+    expect(alertsState().current?.kind).toBe('boost');
+    expect(alertsState().current?.nickname).toBe(PILOT.name);
+    // Its pace alone, the board held still: the boosts it fires over 100 s.
+    BOOST.likes = 100;
+    const boosts: number[] = [];
+    let last = fired.get(PILOT.key);
+    for (let i = 0; i < Math.round(100 / STEP); i++) {
+      arena.clock += STEP;
+      updatePilot(STEP);
+      const now = fired.get(PILOT.key);
+      if (now !== undefined && now !== last) boosts.push(now);
+      last = now;
+    }
+    expect(boosts.length).toBeGreaterThanOrEqual(4);
+    expect(boosts.length).toBeLessThanOrEqual(7);
+    for (let i = 1; i < boosts.length; i++) {
+      const gap = (boosts[i] ?? 0) - (boosts[i - 1] ?? 0);
+      expect(gap).toBeGreaterThanOrEqual(PILOT_LIKES.boostEvery[0] - 1.5);
+      expect(gap).toBeLessThanOrEqual(PILOT_LIKES.boostEvery[1] + 1.5);
+    }
+    setArenaSettings({ ...ARENA_DEFAULTS, pilot: false });
   });
 });

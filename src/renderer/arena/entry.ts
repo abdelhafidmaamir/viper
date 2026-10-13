@@ -11,10 +11,13 @@
 // line, the qualifying goes by likes alone and a gift gives what a gift gives. Comments do
 // nothing.
 //
-// The pilot player, "Skohlds", shows newcomers how it works: it likes a little during the
-// qualifying like any viewer and plays when it gets a seat. It is the game's own: no ranking, no
-// crown, no thanks, no alert, no journal row, no supporters list.
+// The pilot player, "Skohlds", shows newcomers how it works: it likes as an engaged viewer does,
+// in bursts through the qualifying and steadily through the battle, and plays when it gets a seat.
+// Its likes and boosts show as a viewer's do (hearts, the like card, its chip, the SPEED BOOST
+// card), but it is the game's own: no ranking, no crown, no win, no journal row, no supporters
+// list.
 
+import { alertViewer } from '../feed/alerts.ts';
 import { crabFaces, crabGone, crabRun } from '../feed/crabs.ts';
 import { H, W } from '../engine/layout.ts';
 import {
@@ -35,11 +38,10 @@ import {
 } from './rules.ts';
 
 /**
- * The pilot player's name on screen and the likes it sends per second in the qualifying. It plays
- * under a key no viewer can have, an "S" and an invisible space: its picture is the prod initials
- * circle, "S".
+ * The pilot player's name on screen. It plays under a key no viewer can have, an "S" and an
+ * invisible space: its picture is the prod initials circle, "S".
  */
-export const PILOT = { name: 'Skohlds', key: 'S​', likes: 1 };
+export const PILOT = { name: 'Skohlds', key: 'S​' };
 let pilotOn = false;
 
 /**
@@ -193,6 +195,11 @@ export function arenaLike(nickname: string, avatar: string | undefined, n: numbe
   if (!nickname || n <= 0 || nickname === PILOT.key) return;
   const v = viewer(nickname, avatar);
   v.acts.push(arena.clock);
+  likeLands(nickname, n);
+}
+
+/** What a like does on the board, a viewer's or the pilot's: the same path for both. */
+function likeLands(nickname: string, n: number): void {
   if (qualifying()) {
     qualHooks.like(nickname, n);
     pop(nickname, n);
@@ -433,18 +440,54 @@ export function setPilot(on: boolean): void {
 
 export const pilotPlaying = (): boolean => pilotOn;
 
-/** The pilot likes steadily during the qualifying, as a viewer would with a trickle of likes. */
-let pilotLikes = 0;
+/**
+ * How the pilot likes, as an engaged viewer does: in the qualifying, bursts of `burst` likes (from
+ * the first number to the second) every `gap` seconds; in the battle, a burst every `gap` seconds
+ * too, sized so that its likes fire a speed boost every `boostEvery` seconds, whatever the likes
+ * for a boost are set to. Each range is drawn from anew: a burst's size, the next gap, and the
+ * time to the next boost each time one fires.
+ */
+export const PILOT_LIKES = {
+  burst: [5, 15],
+  gap: [0.5, 1],
+  boostEvery: [15, 25],
+} as const;
+
+/** A whole or fractional value drawn evenly between a range's two ends. */
+const between = (range: readonly [number, number]): number =>
+  range[0] + (range[1] - range[0]) * arena.rand();
+
+/** The pilot's pace: seconds to its next burst, likes owed in the battle, the boost it aims at. */
+const pilot = { wait: 0, owed: 0, period: 20, boost: -Infinity };
+
+/**
+ * The pilot likes as a viewer would, through the same path: hearts round its picture and the like
+ * card in the qualifying, its ring on the beach and on the strip in the battle.
+ */
 export function updatePilot(dt: number): void {
-  if (!pilotOn || !qualifying()) return;
+  const battle = arena.phase === 'play';
+  if (!pilotOn || (!qualifying() && !battle)) return;
   viewer(PILOT.key);
-  pilotLikes += PILOT.likes * dt;
-  if (pilotLikes < 1) return;
-  const n = Math.floor(pilotLikes);
-  pilotLikes -= n;
-  qualHooks.like(PILOT.key, n);
-  pop(PILOT.key, n);
-  land(PILOT.key, n);
+  const boosted = fired.get(PILOT.key) ?? -Infinity;
+  if (battle && boosted !== pilot.boost) {
+    // A boost fired (or the battle began): the next one in a new while.
+    pilot.boost = boosted;
+    pilot.period = between(PILOT_LIKES.boostEvery);
+  }
+  // Likes owed in the battle only: none carry over from the qualifying or a round before.
+  pilot.owed = battle ? pilot.owed + (BOOST.likes / pilot.period) * dt : 0;
+  pilot.wait -= dt;
+  if (pilot.wait > 0) return;
+  pilot.wait = between(PILOT_LIKES.gap);
+  let n: number;
+  if (battle) {
+    n = Math.floor(pilot.owed);
+    pilot.owed -= n;
+  } else n = Math.round(between(PILOT_LIKES.burst));
+  if (n <= 0) return;
+  likeLands(PILOT.key, n);
+  // The like card, as a viewer's like gets one (only while the arena shows like cards).
+  alertViewer('like', PILOT.name, undefined, n);
 }
 
 /** The name under a picture. */

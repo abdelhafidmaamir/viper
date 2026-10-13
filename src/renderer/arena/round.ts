@@ -36,6 +36,7 @@ import {
   stepQueue,
   takePaidBatch,
   updateFlights,
+  updatePilot,
   type Queued,
 } from './entry.ts';
 import {
@@ -800,6 +801,7 @@ export function stepArena(dt: number): void {
     return;
   }
   arena.time += dt;
+  updatePilot(dt);
   house(dt);
   moveAll(dt);
   crown();
