@@ -28,7 +28,16 @@ import {
   updateMode,
   type Sight,
 } from './ai.ts';
-import { fired, isPilot, stepQueue, takePaidBatch, updateFlights, type Queued } from './entry.ts';
+import {
+  anyGiftBuys,
+  fired,
+  isPilot,
+  paidHooks,
+  stepQueue,
+  takePaidBatch,
+  updateFlights,
+  type Queued,
+} from './entry.ts';
 import {
   QUALIFY,
   endQualifying,
@@ -115,6 +124,8 @@ export function arenaRound(roundTime: number): void {
   }
   startQualifying(owed);
   shownGifts.clear();
+  seatCards.length = 0;
+  cardShown.clear();
   if (QUALIFY.time <= 0) endQualifying();
 }
 
@@ -216,24 +227,34 @@ function dropNear(s: Snake, by: string): void {
 function flower(dt: number): void {
   // In the qualifying the flower opens on each gift that locks a seat, as long as it shows it. In
   // the battle a gift from a viewer without a snake opens it too, for a moment, as any gift does,
-  // and nothing more: its berries stay in it and leave with the round (the giver is in the paid
-  // queue, entry.ts).
+  // and nothing more: its berries stay in it and leave with the round. With no seat price, that
+  // gift bought a place in the paid queue (entry.ts): its card shows a gold egg. With one, it is a
+  // plain gift: its card shows the berry, in the qualifying too. The seat gift brings no berries:
+  // outside the qualifying it has a card of its own, a gold egg, first in turn.
   const outsider = (): Pour | undefined => {
     if (game.pour && shownGifts.has(game.pour.id) && game.pourT < OUTSIDER_SHOW) return game.pour;
     return game.queue.find(
       (p) => p.nickname !== '' && !snakeOf(p.nickname) && !shownGifts.has(p.id),
     );
   };
+  const seatCard = (): Pour | undefined =>
+    game.pour && cardShown.has(game.pour.id) && game.pourT < OUTSIDER_SHOW
+      ? game.pour
+      : seatCards[0];
   const q = qualifying()
-    ? showing()
-    : (game.queue.find((p) => p.nickname !== '' && snakeOf(p.nickname)) ?? outsider());
+    ? (showing() ?? (anyGiftBuys() ? null : outsider()))
+    : (seatCard() ??
+      game.queue.find((p) => p.nickname !== '' && snakeOf(p.nickname)) ??
+      outsider());
   if (q && q.id !== game.pour?.id) {
     game.pour = q;
     game.pourT = 0;
-    if (!qualifying() && !snakeOf(q.nickname)) {
+    if (q === seatCards[0]) {
+      seatCards.shift();
+      cardShown.add(q.id);
+    } else if (game.queue.includes(q) && !snakeOf(q.nickname)) {
       shownGifts.add(q.id);
-      // A viewer without a snake buys a place in the paid queue: the card shows a gold egg.
-      q.seat = true;
+      if (!qualifying() && anyGiftBuys()) q.seat = true;
     }
   }
   game.pourT += dt;
@@ -244,7 +265,8 @@ function flower(dt: number): void {
   // Nothing leaves the flower before GO: gifts wait in it and pour once the battle is on.
   while (q && arena.dropT >= every && arena.phase === 'play') {
     const s = snakeOf(q.nickname);
-    if (!s?.in) break;
+    // A seat gift's card has no berry to give.
+    if (!s?.in || !game.queue.includes(q)) break;
     arena.dropT -= every;
     dropNear(s, q.nickname);
     if (--q.n <= 0) game.queue.splice(game.queue.indexOf(q), 1);
@@ -255,6 +277,20 @@ function flower(dt: number): void {
 /** Gifts from viewers without a snake the flower has shown this round, and for how long. */
 const shownGifts = new Set<number>(),
   OUTSIDER_SHOW = 1.6;
+
+/**
+ * Seat gifts outside the qualifying, waiting for the flower (entry.ts paidHooks.card), and those
+ * it has shown this round. One card per viewer at a time: a streak of the seat gift is one card.
+ */
+const seatCards: Pour[] = [],
+  cardShown = new Set<number>();
+let cardId = -1_000_000;
+paidHooks.card = (nickname, avatar) => {
+  const showingTheirs =
+    game.pour?.nickname === nickname && cardShown.has(game.pour.id) && game.pourT < OUTSIDER_SHOW;
+  if (showingTheirs || seatCards.some((c) => c.nickname === nickname)) return;
+  seatCards.push({ id: cardId--, nickname, avatar, n: 1, total: 1, title: '', seat: true });
+};
 
 /**
  * Plain berries for everyone during the battle: FIELD.count of them on the board at all times,

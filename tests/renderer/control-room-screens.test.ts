@@ -4,7 +4,10 @@
  */
 import { beforeAll, describe, expect, it } from 'vitest';
 
+import type { ArenaSide } from '../../src/renderer/arena-control/arena-state.ts';
+import { seatCard } from '../../src/renderer/arena-control/cards.ts';
 import { pricingCard } from '../../src/renderer/feed-control/money.ts';
+import { ARENA_DEFAULTS, type ArenaSettings } from '../../src/shared/arena-protocol.ts';
 import { createSetupScreen } from '../../src/renderer/feed-control/screens.ts';
 import type { FeedControlState, FeedControlStore } from '../../src/renderer/feed-control/store.ts';
 import type { FeedState } from '../../src/shared/feed-protocol.ts';
@@ -289,6 +292,43 @@ describe('Arena and Feed control room screens', () => {
       const text = allText(card.el as unknown as MockEl);
       expect(text).toContain('% of a round');
       expect(text).toContain('a round needs');
+    });
+  });
+  describe('Arena Money tab: seat price', () => {
+    const arenaSide = (settings: Partial<ArenaSettings>): ArenaSide => ({
+      state: () => ({ settings: { ...ARENA_DEFAULTS, ...settings }, secondsLeft: 60 }),
+      pending: () => ({}),
+      send: () => {
+        return;
+      },
+    });
+    const linked = makeState({ gameState: makeGameState(), lastStateAt: 4500, now: 5000 });
+
+    it('shows the seat price, its caption and the value in use', () => {
+      const card = seatCard(arenaSide({ seatPrice: 99 }), () => {
+        return;
+      });
+      card.update(linked);
+      const text = allText(card.el as unknown as MockEl);
+      expect(text).toContain('Seat price');
+      expect(text).toContain('Coin value of the gift that buys a seat. 0: any gift buys one.');
+      expect(text).toContain('In use: the 99-coin gift buys a seat');
+      const find = (el: MockEl): MockEl | undefined =>
+        el.tagName === 'INPUT' ? el : el.children.map(find).find(Boolean);
+      expect(find(card.el as unknown as MockEl)?.value).toBe('99');
+    });
+
+    it('0 reads as any gift; the same price as the life gift is flagged', () => {
+      const any = seatCard(arenaSide({}), () => {
+        return;
+      });
+      any.update(linked);
+      expect(allText(any.el as unknown as MockEl)).toContain('In use: any gift buys a seat');
+      const clash = seatCard(arenaSide({ seatPrice: 30, lifeOn: true, lifePrice: 30 }), () => {
+        return;
+      });
+      clash.update(linked);
+      expect(allText(clash.el as unknown as MockEl)).toContain('gives a life, not a seat');
     });
   });
 });

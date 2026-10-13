@@ -30,6 +30,11 @@ export const ARENA_PLAIN_EVERY = [15, 25, 40, 60] as const;
 export const ARENA_PLAIN_AMOUNTS = [1, 2, 3, 5] as const;
 /** Coins of the one gift that gives an extra life instead of berries, when the life gift is on. */
 export const ARENA_LIFE_PRICES = [10, 20, 30, 99, 199] as const;
+/**
+ * Highest coin value the seat gift can be set to, the gift price rows' own bound. The seat gift's
+ * value is typed in the control room, a whole number of coins; 0 means any gift buys a seat.
+ */
+export const ARENA_SEAT_PRICE_MAX = 50000;
 /** Most lives a snake can hold. */
 export const ARENA_MAX_LIVES = [1, 2, 3, 5] as const;
 /** Share of its length a snake keeps when a life brings it back. */
@@ -69,6 +74,11 @@ export interface ArenaSettings {
   readonly backing: ArenaBacking;
   /** Seconds without a like before a queue animal walks away (ARENA_QUEUE_IDLES). */
   readonly queueIdle: number;
+  /**
+   * Coin value of the one gift that buys a seat in the qualifying, or a place in the paid queue
+   * outside it; that gift gives no berries. 0: any gift buys one (control room, Money tab).
+   */
+  readonly seatPrice: number;
   /** The extra-life gift is on (control room, Money tab). */
   readonly lifeOn: boolean;
   /** The extra-life gift's price in coins (ARENA_LIFE_PRICES). */
@@ -100,6 +110,7 @@ export const ARENA_DEFAULTS: ArenaSettings = {
   plainAmount: 1,
   backing: 'strong',
   queueIdle: 5,
+  seatPrice: 0,
   lifeOn: false,
   lifePrice: 30,
   maxLives: 3,
@@ -186,6 +197,13 @@ export function sanitizeArenaSetting<K extends ArenaSettingName>(
       return ARENA_GIFT_BERRIES.includes(value as ArenaGiftBerries) ? ok(value) : undefined;
     case 'lifePrice':
       return listed(ARENA_LIFE_PRICES, value) ? ok(value) : undefined;
+    case 'seatPrice':
+      return typeof value === 'number' &&
+        Number.isInteger(value) &&
+        value >= 0 &&
+        value <= ARENA_SEAT_PRICE_MAX
+        ? ok(value)
+        : undefined;
     case 'maxLives':
       return listed(ARENA_MAX_LIVES, value) ? ok(value) : undefined;
     case 'lifeKeep':
@@ -210,6 +228,16 @@ export function sanitizeArenaSetting<K extends ArenaSettingName>(
       return typeof value === 'boolean' ? ok(value) : undefined;
   }
   return undefined;
+}
+
+/**
+ * The seat gift's value as the operator typed it: a whole number of coins from 0 to
+ * ARENA_SEAT_PRICE_MAX. Anything else, an empty entry included, keeps `last`.
+ */
+export function readSeatPrice(typed: string, last: number): number {
+  const text = typed.trim();
+  if (!/^\d+$/.test(text)) return last;
+  return sanitizeArenaSetting('seatPrice', Number(text)) ?? last;
 }
 
 /**

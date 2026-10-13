@@ -20,7 +20,16 @@ import { board, type FeedLinkDeps } from '../feed/control-link.ts';
 import { note } from '../feed/journal.ts';
 import { gift, like } from '../feed/state.ts';
 import { arenaGift, arenaLike, arenaStatus, setArenaSettings } from './arena.ts';
-import { arenaLife, isLifeGift, nameOf, paidHooks, paidQueue, type Queued } from './entry.ts';
+import {
+  arenaLife,
+  arenaSeat,
+  isLifeGift,
+  isSeatGift,
+  nameOf,
+  paidHooks,
+  paidQueue,
+  type Queued,
+} from './entry.ts';
 
 type Store = FeedLinkDeps['storage'];
 
@@ -57,11 +66,13 @@ export function countOnArena(): void {
     gift(nickname, avatar, berries, live);
     arenaGift(nickname, avatar, berries);
   };
-  // The life gift's price buys a life, not berries, whatever the price list says.
-  board.instead = isLifeGift;
+  // The life gift's price buys a life, and the seat gift's a seat, never berries, whatever the
+  // price list says. The life wins when both have the same price.
+  board.instead = (coins) => isLifeGift(coins) || isSeatGift(coins);
   board.unpriced = (nickname, avatar, coins, n) => {
-    if (!isLifeGift(coins)) return false;
-    arenaLife(nickname, avatar, n);
+    if (isLifeGift(coins)) arenaLife(nickname, avatar, n);
+    else if (isSeatGift(coins)) arenaSeat(nickname, avatar, n);
+    else return false;
     return true;
   };
   board.like = (nickname, avatar, n) => {

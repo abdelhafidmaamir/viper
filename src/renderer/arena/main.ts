@@ -53,7 +53,7 @@ import {
   SLEEPER_SPOT,
 } from './arena.ts';
 import { AUDIENCE, audienceSize, qualifyingGifts, setAudience, tickAudience } from './audience.ts';
-import { arenaLife, isLifeGift } from './entry.ts';
+import { arenaLife, arenaSeat, isLifeGift, isSeatGift } from './entry.ts';
 import { arenaStorage, countOnArena, linkArenaControl } from './link.ts';
 import { alive } from './rules.ts';
 import { ARENA_ALERTS, paintStrip } from './strip.ts';
@@ -115,6 +115,11 @@ function simulate(dt: number): void {
         if (isLifeGift(coins)) {
           arenaLife(nickname, avatar, 1);
           note({ event: 'life gift', source: 'simulated', nickname, coins });
+          return;
+        }
+        if (isSeatGift(coins)) {
+          arenaSeat(nickname, avatar, 1);
+          note({ event: 'seat gift', source: 'simulated', nickname, coins });
           return;
         }
         const berries = berriesPerGift(undefined, coins, settings.pricing, settings.otherGifts);

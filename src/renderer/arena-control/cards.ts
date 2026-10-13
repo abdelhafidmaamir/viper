@@ -5,6 +5,7 @@
 import {
   ARENA_BACKING,
   ARENA_BOOST_CAPS,
+  ARENA_DEFAULTS,
   ARENA_ENTRY_LIKES,
   ARENA_GIFT_BERRIES,
   ARENA_LIFE_KEEPS,
@@ -14,8 +15,10 @@ import {
   ARENA_ROUND_LENGTHS,
   ARENA_SHIELD_GIFTS,
   ARENA_QUEUE_IDLES,
+  ARENA_SEAT_PRICE_MAX,
   ARENA_SPEEDS,
   ARENA_WILD_SNAKES,
+  readSeatPrice,
   type ArenaBacking,
   type ArenaGiftBerries,
   type ArenaSettingName,
@@ -25,7 +28,7 @@ import { createButton } from '../control/ui/components/button.ts';
 import { createCard } from '../control/ui/components/card.ts';
 import { createSegmented, type SegmentedView } from '../control/ui/components/segmented.ts';
 import { createToggle, type ToggleView } from '../control/ui/components/toggle.ts';
-import { h, setText, setVar } from '../control/ui/dom.ts';
+import { h, setDisabled, setHidden, setText, setVar } from '../control/ui/dom.ts';
 import {
   ambienceCard,
   bridgeCard,
@@ -330,6 +333,101 @@ function paidQueueCard(arena: ArenaSide): FeedView {
 }
 
 /**
+ * The seat gift, next to the gift prices: the coin value of the one gift that buys a seat in the
+ * qualifying, or a place in the paid queue outside it, typed in a field like the price rows'. That
+ * gift gives no berries. 0, the default: any gift buys one. Enter or leaving the field applies it;
+ * an empty or wrong entry puts the value in use back.
+ */
+export function seatCard(arena: ArenaSide, dispatch: Dispatch): FeedView {
+  const coins = h('input', {
+    class: 'input',
+    attrs: {
+      type: 'number',
+      min: '0',
+      max: String(ARENA_SEAT_PRICE_MAX),
+      placeholder: 'coins',
+      'aria-label': 'Seat price in coins',
+    },
+  });
+  /** The value in use, or sent and still pending: what a wrong entry falls back to. */
+  let last = ARENA_DEFAULTS.seatPrice,
+    shown: number | null = null,
+    editing = false;
+  const commit = (): void => {
+    const value = readSeatPrice(coins.value, last);
+    editing = false;
+    shown = value;
+    coins.value = String(value);
+    if (value === last) return;
+    last = value;
+    arena.send({ cmd: 'arena-setting', name: 'seatPrice', value });
+  };
+  coins.addEventListener('input', () => {
+    editing = true;
+  });
+  coins.addEventListener('change', commit);
+  // A rehearsal gift at this value, to see what it buys.
+  const test = createButton({
+    label: 'Test',
+    variant: 'secondary',
+    onPress: () => {
+      if (last >= 1) dispatch({ cmd: 'gift', gift: 'rose', count: 1, coins: last });
+    },
+  });
+  const status = h('p', { class: 'field__caption', attrs: { role: 'status' } });
+  const clash = h('p', { class: 'card__line tone-warn' });
+  const card = createCard({ title: 'Seat price' }, [
+    h('p', {
+      class: 'field__caption',
+      text: 'Coin value of the gift that buys a seat. 0: any gift buys one.',
+    }),
+    h('div', { class: 'tier' }, [
+      coins,
+      h('span', { class: 'field__caption', text: 'coins' }),
+      test.el,
+    ]),
+    status,
+    clash,
+  ]);
+  return {
+    el: card.el,
+    update(state) {
+      const settings = arena.state()?.settings,
+        p = resolvePending(settings?.seatPrice, arena.pending().seatPrice, state.now),
+        value = typeof p.value === 'number' ? p.value : null;
+      if (value !== null) last = value;
+      if (!editing && value !== null && value !== shown) {
+        coins.value = String(value);
+        shown = value;
+      }
+      setDisabled(coins, controlsReason(state) !== null);
+      test.update({ reason: rehearsalReason(state) ?? (last > 0 ? null : 'Any gift buys a seat') });
+      setText(
+        status,
+        p.status === 'pending'
+          ? 'Sending…'
+          : p.status === 'error'
+            ? 'The game did not take it.'
+            : editing
+              ? 'Edited: Enter to apply.'
+              : value === null
+                ? ''
+                : value === 0
+                  ? 'In use: any gift buys a seat.'
+                  : `In use: the ${String(value)}-coin gift buys a seat, and gives no berries.`,
+      );
+      const same =
+        value !== null && value > 0 && settings?.lifeOn === true && settings.lifePrice === value;
+      setText(
+        clash,
+        same ? 'The extra-life gift has the same price: that gift gives a life, not a seat.' : '',
+      );
+      setHidden(clash, !same);
+    },
+  };
+}
+
+/**
  * The extra-life gift, next to the gift prices: a gift at its price gives the giver's snake a life
  * instead of berries. Off until switched on.
  */
@@ -425,6 +523,7 @@ export function arenaRoom(
   arena: ArenaSide,
 ): FeedRoom {
   const pricing = pricingCard(store, dispatch, { roundInfo: false }),
+    seat = seatCard(arena, dispatch),
     life = lifeCard(arena, () => controlsReason(store.get()));
   return {
     title: 'Viper Arena',
@@ -445,10 +544,15 @@ export function arenaRoom(
         arenaCard(arena, () => controlsReason(store.get())),
         true,
       ),
+      // The gift prices, then what the two special gifts buy: a seat, a life.
       money: {
-        el: h('div', { class: 'screen screen--money' }, [pricing.el, life.el]),
+        el: h('div', { class: 'screen screen--money' }, [
+          pricing.el,
+          h('div', { class: 'column' }, [seat.el, life.el]),
+        ]),
         update: (state) => {
           pricing.update(state);
+          seat.update(state);
           life.update(state);
         },
       },

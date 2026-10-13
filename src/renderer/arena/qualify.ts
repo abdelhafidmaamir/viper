@@ -332,6 +332,16 @@ function weakest(): Seat | undefined {
   return best;
 }
 
+/** A card of its own for the flower, one gift and no berry: the seat gift, or a seat owed. */
+const card = (v: Viewer): Pour => ({
+  id: showId--,
+  nickname: v.nickname,
+  avatar: v.avatar,
+  n: 1,
+  total: 1,
+  title: '',
+});
+
 /**
  * A gift locks a seat for its giver: theirs, an empty one, or the weakest unlocked holder's. The
  * flower shows the gift, then the picture flies from it to the egg. False when every seat is paid.
@@ -350,15 +360,7 @@ function lockSeat(v: Viewer, pour?: Pour): boolean {
   locked.push(v.nickname);
   // The flower shows what the gift bought, a seat: a gold egg on its card (a copy: the berries
   // waiting in the flower show as berries when they pour in the battle).
-  const shown = pour ??
-    game.queue.find((q) => q.nickname === v.nickname) ?? {
-      id: showId--,
-      nickname: v.nickname,
-      avatar: v.avatar,
-      n: 1,
-      total: 1,
-      title: '',
-    };
+  const shown = pour ?? game.queue.find((q) => q.nickname === v.nickname) ?? card(v);
   shows.push({ pour: { ...shown, seat: true }, t: shows.length ? -0.1 : 0 });
   return true;
 }
@@ -376,8 +378,9 @@ qualHooks.like = (nickname, n) => {
   qualLikes.set(nickname, (qualLikes.get(nickname) ?? 0) + n);
   if (!seated(nickname) && !challengers.includes(nickname)) queueLike(nickname);
 };
-// Once the clock is out, or every seat is paid, a gift goes to the paid queue (entry.ts).
-qualHooks.gift = (v) => !frozen() && lockSeat(v);
+// Once the clock is out, or every seat is paid, a gift goes to the paid queue (entry.ts). The seat
+// gift brings no berries: its card is its own, never the giver's earlier gifts.
+qualHooks.gift = (v, entry) => !frozen() && lockSeat(v, entry ? card(v) : undefined);
 
 /** The gift the flower shows now, if any: round.ts opens the flower on it. */
 export const showing = (): Pour | null => {
