@@ -486,15 +486,16 @@ describe('snake arena: the battle', () => {
     const card = (): string => {
       updateAlerts(0.01);
       const a = alertsState().current;
-      return a ? tr(a.phrase, { n: a.likes, name: a.nickname }) : '';
+      // The card's words, and its badge: the place in line.
+      return a ? `${tr(a.phrase, { name: a.nickname })} #${String(a.likes)}` : '';
     };
     for (let i = 0; i < 8; i++) {
       resetAlerts();
       give(`donor${String(i)}`, 5);
       const said = card();
       // #6 plays the next round with 6 places, #7 waits in line.
-      if (i === 5) expect(said).toBe('donor5 PLAYS NEXT ROUND (#6)');
-      if (i === 6) expect(said).toBe('donor6 IS #7 IN LINE');
+      if (i === 5) expect(said).toBe('donor5 PLAYS NEXT ROUND #6');
+      if (i === 6) expect(said).toBe('donor6 IS IN LINE #7');
     }
     expect(inLine()).toHaveLength(8);
     const a2 = snakeOf('a2');
@@ -535,12 +536,12 @@ describe('snake arena: the battle', () => {
       give(`d${String(i)}`, 5);
       updateAlerts(0.01);
       const a = alertsState().current;
-      said.push(a ? tr(a.phrase, { n: a.likes, name: a.nickname }) : '');
+      said.push(a ? `${tr(a.phrase, { name: a.nickname })} #${String(a.likes)}` : '');
     }
-    expect(said[2]).toBe('d3 PLAYS NEXT ROUND (#3)');
-    expect(said[7]).toBe('d8 PLAYS NEXT ROUND (#8)');
-    expect(said[8]).toBe('d9 IS #9 IN LINE');
-    expect(said[11]).toBe('d12 IS #12 IN LINE');
+    expect(said[2]).toBe('d3 PLAYS NEXT ROUND #3');
+    expect(said[7]).toBe('d8 PLAYS NEXT ROUND #8');
+    expect(said[8]).toBe('d9 IS IN LINE #9');
+    expect(said[11]).toBe('d12 IS IN LINE #12');
   });
 
   it("the flower's card shows a gold egg for a gift that buys a seat, the berry for a player's battle gift", () => {

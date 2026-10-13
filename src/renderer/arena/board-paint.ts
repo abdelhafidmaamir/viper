@@ -259,10 +259,10 @@ function photoOf(s: Snake, t: number): { x: number; y: number; r: number; name: 
 }
 
 /**
- * paint.paintHead for one snake, under every body: the viewer's photo floats above the head on
- * its stem, both outlined in the snake's own colour so each face is matched to its body, its name
- * above it, its lives by it. The bodies are painted over it: a photo never hides a body. No ring:
- * the likes' ring is on the player's animal on the beach.
+ * paint.paintHead for one snake: the viewer's photo floats above the head on its stem, both
+ * outlined in the snake's own colour so each face is matched to its body, its name above it, its
+ * lives by it. Over the bodies; the heads are painted over it again (paintSnakes). No ring: the
+ * likes' ring is on the player's animal on the beach.
  */
 function paintPhoto(s: Snake, t: number): void {
   const c = ctx,
@@ -595,9 +595,14 @@ function paintBoost(s: Snake, trace: Point[], t: number): void {
   c.restore();
 }
 
+/** Points of a trace (three a cell) redrawn over the photos: the head and its first neck segment. */
+const HEAD_POINTS = 5;
+
 /**
- * Every living snake, the smallest first so the big ones lie on top. The photos, their stems and
- * names go under the bodies, so no body is ever hidden; the crowns and the boost bolts over all.
+ * Every living snake, the smallest first so the big ones lie on top, then the photos over the
+ * bodies (people pay to see their picture), then every head with its first neck segment over the
+ * photos, so where each snake is and where it goes always shows; the crowns and the boost bolts
+ * over all.
  */
 export function paintSnakes(
   c: CanvasRenderingContext2D,
@@ -607,18 +612,21 @@ export function paintSnakes(
 ): void {
   paintDying(c, a, e);
   const live = alive().sort((p, q) => p.len - q.len),
-    // A picture shows once its snake is out of the egg; the crowned picture last, on top.
-    heads = placePhotos(t);
-  for (const s of heads) paintPhoto(s, t);
+    traces = new Map<Snake, Point[]>();
   for (const s of live) {
     if (s.cells.length) {
       const trace = traceOf(s);
+      traces.set(s, trace);
       paintBody(c, a, s, trace, e);
       paintGulps(s, trace);
       paintBoost(s, trace, t);
     }
     if (s.egg) paintEggOf(c, s);
   }
+  // A picture shows once its snake is out of the egg; the crowned picture last, on top.
+  const heads = placePhotos(t);
+  for (const s of heads) paintPhoto(s, t);
+  for (const [s, trace] of traces) if (s.in) paintBody(c, a, s, trace.slice(0, HEAD_POINTS), e);
   for (const s of live) if (s.in && s.wild) paintHeadMarks(s, t);
   for (const s of heads) paintHeadMarks(s, t);
 }

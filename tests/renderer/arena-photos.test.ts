@@ -1,9 +1,9 @@
-// The players' photos and the bodies, measured on a headless battle of 8 at 30 frames a second.
+// The players' photos and the heads, measured on a headless battle of 8 at 30 frames a second.
 // Long: it runs only when asked,
 //   ARENA_PHOTOS=60 npx vitest run tests/renderer/arena-photos.test.ts
-// The photos are painted under the bodies, so no body is ever hidden by one; this prints how often
-// a body lies over more than half of a photo (the photo's readability), and how often a crown or
-// a boost bolt, the only marks painted over the bodies, touches a body.
+// The photos lie over the bodies and every head (with its first neck segment) over the photos, so
+// no head is ever hidden by one; this prints how often a crown or a boost bolt, the only marks
+// painted over the heads, touches one, and how often heads cover more than half of a photo.
 import { describe, expect, it } from 'vitest';
 
 import { ARENA_DEFAULTS } from '../../src/shared/arena-protocol.ts';
@@ -12,36 +12,13 @@ import { setAudience, tickAudience } from '../../src/renderer/arena/audience.ts'
 import { photoPlace, placePhotos } from '../../src/renderer/arena/board-paint.ts';
 import { countOnArena } from '../../src/renderer/arena/link.ts';
 import { qualifying } from '../../src/renderer/arena/qualify.ts';
-import { TUNING, arena, occupancy } from '../../src/renderer/arena/rules.ts';
+import { TUNING, alive, arena } from '../../src/renderer/arena/rules.ts';
 import { board } from '../../src/renderer/feed/control-link.ts';
-import { FCELL, FCOLS, FROWS, FX0, FY0 } from '../../src/renderer/feed/grid.ts';
+import { FCELL, FCOLS, FX0, FY0 } from '../../src/renderer/feed/grid.ts';
 import { hooks, newRound } from '../../src/renderer/feed/state.ts';
 
 const SECONDS = Number(process.env.ARENA_PHOTOS ?? 0);
 const STEP = 1 / 30;
-
-/** Whether a point lies on a body: a body is narrower than its cell, so the cell's inner part. */
-function onBody(x: number, y: number, occ: Int16Array): boolean {
-  const cx = Math.floor((x - FX0) / FCELL),
-    cy = Math.floor((y - FY0) / FCELL);
-  if (cx < 0 || cy < 0 || cx >= FCOLS || cy >= FROWS || !occ[cy * FCOLS + cx]) return false;
-  const u = (x - FX0) / FCELL - cx,
-    v = (y - FY0) / FCELL - cy;
-  return u > 0.15 && u < 0.85 && v > 0.15 && v < 0.85;
-}
-
-/** Share of a disc lying on bodies, sampled on a fine grid. */
-function covered(x: number, y: number, r: number, occ: Int16Array): number {
-  let n = 0,
-    on = 0;
-  for (let dy = -r; dy <= r; dy += 4)
-    for (let dx = -r; dx <= r; dx += 4) {
-      if (dx * dx + dy * dy > r * r) continue;
-      n++;
-      if (onBody(x + dx, y + dy, occ)) on++;
-    }
-  return on / Math.max(1, n);
-}
 
 describe.skipIf(!SECONDS)('snake arena: photos and bodies, measured', () => {
   it(`${String(SECONDS)} s of a battle of 8`, () => {
@@ -83,37 +60,57 @@ describe.skipIf(!SECONDS)('snake arena: photos and bodies, measured', () => {
     let frames = 0,
       shown = 0,
       half = 0,
-      some = 0,
-      marks = 0;
+      marked = 0;
+    const R = TUNING.photoR,
+      HEAD = FCELL * 0.65;
     for (let f = 0; f < SECONDS / STEP; f++) {
       room();
       advanceArena(STEP);
       // A round can end early: the last viewer standing.
       if ((arena.phase as string) !== 'play') break;
       frames++;
-      const { occ } = occupancy();
-      let marked = false;
+      // Each head and its first neck segment, as discs: the head, then two along the neck.
+      const discs: { x: number; y: number; r: number }[] = [];
+      for (const s of alive()) {
+        if (!s.in || !s.cells.length) continue;
+        const hx = FX0 + (s.x + 0.5) * FCELL,
+          hy = FY0 + (s.y + 0.5) * FCELL,
+          n = s.cells[1] ?? s.cells[0] ?? 0,
+          nx = FX0 + ((n % FCOLS) + 0.5) * FCELL,
+          ny = FY0 + (Math.floor(n / FCOLS) + 0.5) * FCELL;
+        discs.push({ x: hx, y: hy, r: HEAD });
+        for (const u of [0.5, 1])
+          discs.push({ x: hx + (nx - hx) * u, y: hy + (ny - hy) * u, r: HEAD * 0.8 });
+      }
+      const onHead = (x: number, y: number): boolean =>
+        discs.some((d) => (d.x - x) ** 2 + (d.y - y) ** 2 < d.r * d.r);
+      let touched = false;
       for (const s of placePhotos(arena.clock)) {
         const p = photoPlace(s);
         if (!p) continue;
         shown++;
-        const share = covered(p.x, p.y, TUNING.photoR, occ);
-        if (share > 0) some++;
-        if (share > 0.5) half++;
-        // The crown over the name, the bolt at the photo's top right: painted over the bodies.
-        const crowned = arena.crown === s.id,
-          bolt = s.boost > 0;
-        if (
-          (crowned && covered(p.x, p.y - TUNING.photoR - 26 - 22, 22, occ) > 0) ||
-          (bolt && covered(p.x + TUNING.photoR * 0.82, p.y - TUNING.photoR * 0.82, 14, occ) > 0)
-        )
-          marked = true;
+        let n = 0,
+          on = 0;
+        for (let dy = -R; dy <= R; dy += 4)
+          for (let dx = -R; dx <= R; dx += 4) {
+            if (dx * dx + dy * dy > R * R) continue;
+            n++;
+            if (onHead(p.x + dx, p.y + dy)) on++;
+          }
+        if (on > n / 2) half++;
+        // The crown over the name, the bolt at the photo's top right: painted over the heads.
+        const crown = { x: p.x, y: p.y - R - 26 - 22, r: 22 },
+          bolt = { x: p.x + R * 0.82, y: p.y - R * 0.82, r: 14 },
+          meets = (m: { x: number; y: number; r: number }): boolean =>
+            discs.some((d) => (d.x - m.x) ** 2 + (d.y - m.y) ** 2 < (d.r + m.r) ** 2);
+        if ((arena.crown === s.id && meets(crown)) || (s.boost > 0 && meets(bolt))) touched = true;
       }
-      if (marked) marks++;
+      if (touched) marked++;
     }
     const pc = (n: number, of: number): string => `${((100 * n) / Math.max(1, of)).toFixed(1)} %`;
     process.stderr.write(
-      `PHOTOS ${String(frames)} frames: bodies hidden by a photo 0 (painted under them); photos with a body over part of them ${pc(some, shown)}, over more than half ${pc(half, shown)} of photo-frames; frames where a crown or bolt touches a body ${pc(marks, frames)}\n`,
+      `PHOTOS ${String(frames)} frames: heads hidden by a photo 0 (painted over them); frames where a crown or bolt touches a head ${pc(marked, frames)}; photo-frames more than half covered by heads ${pc(half, shown)}
+`,
     );
     expect(frames).toBeGreaterThan(0);
   });

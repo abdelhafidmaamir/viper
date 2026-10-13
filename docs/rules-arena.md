@@ -47,18 +47,18 @@ closed eggs and every egg bursts at GO, in one beat. Empty eggs hatch wild snake
 Only the qualified snakes play: nobody comes in during the battle and a dead snake leaves its place
 empty.
 
-| Element  | Rule                                                                                                                                                                                                                                                                                                 |
-| -------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| Look     | Feed's snake in one of the 8 prod colours; the viewer's photo floats above the head, its name above it                                                                                                                                                                                               |
-| Photo    | Follows the head through a damped spring; photos push each other apart, a smaller snake's name gives way to a bigger one's. Photos, stems and names are painted under the bodies, so no body is ever hidden; the crown and the boost bolt over everything                                            |
-| Speed    | `speed` cells a second, up to 15% slower at 60 cells                                                                                                                                                                                                                                                 |
-| Likes    | A player's likes fill the red ring round their crab on the beach; every `entryLikes` likes (100) fire a 4 s speed boost and grow the snake by 3 cells                                                                                                                                                |
-| Boost    | The snake dashes with speed streaks in its colour and a bolt by its photo; the crab runs on the spot with the same bolt                                                                                                                                                                              |
-| Gifts    | Berries from the flower in the giver's colour, for the giver's snake (`giftBerries`): growth                                                                                                                                                                                                         |
-| Catch-up | A gift berry grows a snake by a full cell, half a cell once it leads the second biggest by a fifth or more; plain berries a full cell                                                                                                                                                                |
-| Food     | 3 plain berries on the board at all times, each popping up away from every head, a new one 2 s after one is eaten                                                                                                                                                                                    |
-| Death    | A head into another snake's body, or the smaller head in a head-on. Never by its own body. A shield or the newborn's grace turns a head away from a body while it has another way; cornered with only another snake's body to go, it dies there (trapped): nothing ever passes through another snake |
-| Crown    | Nobody's at GO; the first snake to eat, then the biggest viewer's snake (a tie keeps it where it is). Never a wild snake                                                                                                                                                                             |
+| Element  | Rule                                                                                                                                                                                                                                                                                                                         |
+| -------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Look     | Feed's snake in one of the 8 prod colours; the viewer's photo floats above the head, its name above it                                                                                                                                                                                                                       |
+| Photo    | Follows the head through a damped spring; photos push each other apart, a smaller snake's name gives way to a bigger one's. Photos, stems and names lie over the bodies, and every head with its first neck segment over the photos, so where a snake is and goes always shows; the crown and the boost bolt over everything |
+| Speed    | `speed` cells a second, up to 15% slower at 60 cells                                                                                                                                                                                                                                                                         |
+| Likes    | A player's likes fill the red ring round their crab on the beach; every `entryLikes` likes (100) fire a 4 s speed boost and grow the snake by 3 cells                                                                                                                                                                        |
+| Boost    | The snake dashes with speed streaks in its colour and a bolt by its photo; the crab runs on the spot with the same bolt                                                                                                                                                                                                      |
+| Gifts    | Berries from the flower in the giver's colour, for the giver's snake (`giftBerries`): growth                                                                                                                                                                                                                                 |
+| Catch-up | A gift berry grows a snake by a full cell, half a cell once it leads the second biggest by a fifth or more; plain berries a full cell                                                                                                                                                                                        |
+| Food     | 3 plain berries on the board at all times, each popping up away from every head, a new one 2 s after one is eaten                                                                                                                                                                                                            |
+| Death    | A head into another snake's body, or the smaller head in a head-on. Never by its own body. A shield or the newborn's grace turns a head away from a body while it has another way; cornered with only another snake's body to go, it dies there (trapped): nothing ever passes through another snake                         |
+| Crown    | Nobody's at GO; the first snake to eat, then the biggest viewer's snake (a tie keeps it where it is). Never a wild snake                                                                                                                                                                                                     |
 
 Survival tiers, never shown: a player who gives during this battle plays the strongest brain and is
 rarely chased (tier 1); a paid seat plays a good brain (tier 2); a like seat plays the basic brain,
@@ -88,14 +88,37 @@ not move them. Each round takes the next batch from its front, as many as the pl
 and opens its qualifying with them on gold eggs; the rest waits for the following rounds. A batch
 that fills every seat ends the qualifying at once (the "All paid" rule).
 
-The only signal is the bottom alert card, once, at the gift: "{name} PLAYS NEXT ROUND (#3)" while
-the place is within the next batch, "{name} IS #12 IN LINE" after it (French "{name} JOUE LA
-PROCHAINE MANCHE (#3)", "{name} EST #12 DANS LA FILE"). The queue lasts the session and survives a
+The only signal is the alert card, once, at the gift: "{name} PLAYS NEXT ROUND" with a gold "#3"
+badge and a small gold egg while the place is within the next batch, "{name} IS IN LINE" with a
+white "#12" badge after it (French "{name} JOUE LA PROCHAINE MANCHE", "{name} EST DANS LA FILE"),
+gold eggs around it. The flower's card for that gift shows a gold egg. The queue lasts the session and survives a
 reload of the game window (stored under `viper-arena-paid-queue`); a viewer who left the live keeps
 their place and their snake plays as any snake. The control room lists it read only (Setup tab,
 "Paid queue" card): position and name, the next round's batch marked.
 
 The ring round the board is the clock, full at GO and emptying clockwise from the top centre.
+
+## Alerts and the like strip
+
+The alert card sits under the board, below the like strip, the size of Feed's. Its order of
+importance: the game's cards first (a snake eliminated, a speed boost reached, a place in the paid
+queue), which never expire; then the stream's (follows, shares, returning supporters, welcomes);
+then likes ("{name} dropped 20 likes, thank you!"), during the qualifying only and when nothing
+else waits. During the battle likes are never on the card: the strip shows them.
+
+The like strip, in the battle only: a row of compact chips just under the board's bottom line,
+centred, one for every living player from GO, 0 % included, in the qualifying's seat order for the
+whole battle (likes never reshuffle it). A player who falls loses their chip, eased out, and the
+others slide together. Up to 6 chips keep their full size (64 high); with 7 or 8 every chip
+shrinks evenly so the row fits the board's width. A chip holds the player's photo (outlined in
+their snake's light colour) in the red ring of their likes toward the next speed boost
+(`entryLikes`, 100), and the percentage. The goal is a bolt badge on the ring at the photo's upper
+right: the ring starts just past it and runs clockwise back to it. At 100 % the chip turns gold,
+the badge lights and a big lit bolt replaces the number for about 1.5 s, while the card shows
+"SPEED BOOST!" (French "TURBO !"): the photo in a full gold ring, a lit bolt, the name in the
+snake's colour, speed lines, gold bolts around it; then the ring starts again from what was left
+over. Small hearts pop over a chip at each like. The strip is painted over the card's particles,
+which rise behind it. Code: `strip.ts`, the card in `feed/alerts.ts` (Arena-only paths).
 
 ## 3. The result
 

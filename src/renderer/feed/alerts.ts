@@ -8,6 +8,11 @@
 // something), then likes, then plain joins. A card on screen gives way to a more important one
 // once it has been readable for a moment, and a like card only stays past its time when nobody
 // is waiting. Waiting joins and likes expire; follows, shares and supporters never do.
+//
+// Snake Arena sets its own order and look (setAlertLook): its game cards first (a snake
+// eliminated, a speed boost reached, a place in the paid queue), then the stream's (follows,
+// shares, supporters, welcomes), then likes, during its qualifying only (setLikeAlerts); a smaller
+// card lower under the board, below its like strip. Feed never calls either.
 
 import { ctx } from '../engine/canvas.ts';
 import { tr, type I18nKey } from '../engine/i18n.ts';
@@ -19,10 +24,10 @@ import { FONT, crown, paintFace } from './paint.ts';
 import { LOTUS, paintBloom, paintLoosePetals, visitNumber } from './welcome.ts';
 
 /**
- * 'kill' and 'qualified' are Snake Arena's: a snake eliminated, a giver's place in the paid queue
- * for the next rounds. Feed never sends them.
+ * 'kill', 'qualified' and 'boost' are Snake Arena's: a snake eliminated, a giver's place in the
+ * paid queue for the next rounds, a player's likes reaching a speed boost. Feed never sends them.
  */
-export type AlertKind = 'join' | 'like' | 'share' | 'follow' | 'kill' | 'qualified';
+export type AlertKind = 'join' | 'like' | 'share' | 'follow' | 'kill' | 'qualified' | 'boost';
 
 interface Alert {
   kind: AlertKind;
@@ -52,6 +57,8 @@ interface Alert {
   ranked: boolean;
   /** For a kill: the snake that did it, its photo at the card's right end. */
   by?: { nickname: string; avatar?: string | undefined } | undefined;
+  /** For a speed boost: the snake's colour, light, for the name and the photo's outline. */
+  tint?: string | undefined;
 }
 
 interface Heart {
@@ -68,12 +75,23 @@ interface Heart {
   phase: number;
 }
 
-const CX = W / 2,
-  // Sized for a phone screen: the viewer's photo and name must read at a glance on a live.
-  CY = FY0 + BOARD_H + 132,
-  CARD_W = 790,
-  CARD_H = 114,
-  AVATAR = 86;
+/**
+ * Where the card sits and its size: Feed's, sized for a phone screen (the viewer's photo and name
+ * must read at a glance on a live). `arena` switches Snake Arena's order of importance on.
+ */
+const look = {
+  cx: W / 2,
+  cy: FY0 + BOARD_H + 132,
+  w: 790,
+  h: 114,
+  avatar: 86,
+  text: 38,
+  arena: false,
+};
+/** Snake Arena's card: its place, size and order (Feed never calls it). */
+export function setAlertLook(next: Partial<typeof look>): void {
+  Object.assign(look, next);
+}
 const STAY: Readonly<Record<AlertKind, number>> = {
   join: 3.2,
   like: 3.8,
@@ -81,6 +99,7 @@ const STAY: Readonly<Record<AlertKind, number>> = {
   follow: 3.8,
   kill: 4,
   qualified: 4,
+  boost: 3,
 };
 /** Icons bursting when a card comes up; likes burst one per like instead. */
 const BURST: Readonly<Record<AlertKind, number>> = {
@@ -88,9 +107,11 @@ const BURST: Readonly<Record<AlertKind, number>> = {
   like: 0,
   share: 14,
   follow: 12,
-  // A kill's card comes up plain: no blossoms; a qualified giver's too.
+  // A kill's card comes up plain: no particles. The arena's paid queue throws gold eggs, its
+  // speed boost gold bolts.
   kill: 0,
-  qualified: 0,
+  qualified: 8,
+  boost: 9,
 };
 const FADE = 0.35;
 /** A card is readable for at least this long before a more important one may cut it. */
@@ -106,12 +127,21 @@ const RANKED_EXTRA = 1.5;
 /** Seconds a waiting card stays worth showing. Follows, shares and supporters never expire. */
 const EXPIRES: Readonly<Record<number, number>> = { 1: 10, 2: 6 };
 
-/** 0 first: follows, shares and returning supporters, then likes and ranked joins, plain joins last. */
+/**
+ * 0 first: follows, shares and returning supporters, then likes and ranked joins, plain joins last.
+ * In Snake Arena: its game cards, then the stream's (follows, shares, supporters, welcomes), then
+ * likes.
+ */
 const rank = (a: Pick<Alert, 'kind' | 'supporter' | 'ranked'>): number =>
+  look.arena ? arenaRank(a.kind) : feedRank(a);
+const arenaRank = (kind: AlertKind): number =>
+  kind === 'kill' || kind === 'qualified' || kind === 'boost' ? 0 : kind === 'like' ? 2 : 1;
+const feedRank = (a: Pick<Alert, 'kind' | 'supporter' | 'ranked'>): number =>
   a.kind === 'share' ||
   a.kind === 'follow' ||
   a.kind === 'kill' ||
   a.kind === 'qualified' ||
+  a.kind === 'boost' ||
   a.supporter !== undefined
     ? 0
     : a.kind === 'like' || a.ranked
@@ -124,6 +154,7 @@ const ACCENT: Readonly<Record<AlertKind, string>> = {
   join: '242,197,124',
   kill: '255,143,168',
   qualified: '242,197,124',
+  boost: '242,197,124',
 };
 /** Hearts per like event, at most: a flood of likes must not cover the screen. */
 const HEARTS_PER_EVENT = 24,
@@ -136,6 +167,7 @@ const PHRASES: Readonly<Record<AlertKind, readonly I18nKey[]>> = {
   follow: ['follow.0', 'follow.1'],
   kill: ['kill.0'],
   qualified: ['arena.playsNext', 'arena.inLine'],
+  boost: ['arena.boost'],
 };
 
 /** What the sound layer listens to. */
@@ -164,7 +196,20 @@ function pickPhrase(kind: AlertKind): I18nKey {
   return phrase;
 }
 
-let alertsOn = true;
+let alertsOn = true,
+  likeAlertsOn = true;
+
+/**
+ * Snake Arena's battle keeps likes off the card (its like strip shows them): off drops the likes
+ * waiting and cuts a like card on screen short. Feed never calls it.
+ */
+export function setLikeAlerts(on: boolean): void {
+  if (on === likeAlertsOn) return;
+  likeAlertsOn = on;
+  if (on) return;
+  for (let i = queue.length - 1; i >= 0; i--) if (queue[i]?.kind === 'like') queue.splice(i, 1);
+  if (current?.kind === 'like') current.stay = Math.min(current.stay, current.age + FADE);
+}
 
 /** The control room's "Viewer alerts" switch; off clears what is on screen. */
 export function setAlertsOn(on: boolean): void {
@@ -181,7 +226,7 @@ export function alertViewer(
   supporter?: number,
   ranked = false,
 ): void {
-  if (!nickname || !alertsOn) return;
+  if (!nickname || !alertsOn || (kind === 'like' && !likeAlertsOn)) return;
   if (kind === 'like') {
     const same = [current, ...queue].find((a) => a?.kind === 'like' && a.nickname === nickname);
     if (same) {
@@ -310,19 +355,58 @@ export function alertQueued(
   if (queue.length > 5) queue.length = 5;
 }
 
+/**
+ * Snake Arena: a player's likes reached a speed boost. The gold card: the photo in a full gold
+ * ring, a lit bolt, the name in the snake's colour over "SPEED BOOST!", gold bolts around it.
+ */
+export function alertBoost(
+  who: { nickname: string; avatar?: string | undefined },
+  tint: string,
+): void {
+  if (!who.nickname || !alertsOn) return;
+  const next: Alert = {
+    kind: 'boost',
+    nickname: who.nickname,
+    avatar: who.avatar,
+    by: undefined,
+    likes: 0,
+    phrase: 'arena.boost',
+    visit: 0,
+    supporter: undefined,
+    ranked: false,
+    age: 0,
+    shown: 0,
+    waited: 0,
+    stay: STAY.boost,
+    hearts: BURST.boost,
+    tint,
+  };
+  const at = queue.findIndex((a) => rank(a) > rank(next));
+  if (at < 0) queue.push(next);
+  else queue.splice(at, 0, next);
+  if (queue.length > 5) queue.length = 5;
+}
+
 /** A point on the card's outline, for icons to leave from. */
 function edgePoint(): { x: number; y: number; nx: number; ny: number } {
   const u = Math.random();
   if (u < 0.35)
-    return { x: CX - CARD_W / 2 + Math.random() * CARD_W, y: CY - CARD_H / 2, nx: 0, ny: -1 };
-  if (u < 0.5) return { x: CX - CARD_W / 2, y: CY + (Math.random() - 0.5) * CARD_H, nx: -1, ny: 0 };
-  if (u < 0.65) return { x: CX + CARD_W / 2, y: CY + (Math.random() - 0.5) * CARD_H, nx: 1, ny: 0 };
+    return {
+      x: look.cx - look.w / 2 + Math.random() * look.w,
+      y: look.cy - look.h / 2,
+      nx: 0,
+      ny: -1,
+    };
+  if (u < 0.5)
+    return { x: look.cx - look.w / 2, y: look.cy + (Math.random() - 0.5) * look.h, nx: -1, ny: 0 };
+  if (u < 0.65)
+    return { x: look.cx + look.w / 2, y: look.cy + (Math.random() - 0.5) * look.h, nx: 1, ny: 0 };
   // Around the photo, where the eye is: its left half only, so no icon drifts onto the text.
   const a = Math.PI / 2 + Math.random() * Math.PI,
-    ax = CX - CARD_W / 2 + 18 + AVATAR / 2;
+    ax = look.cx - look.w / 2 + 18 + look.avatar / 2;
   return {
-    x: ax + Math.cos(a) * (AVATAR / 2 + 4),
-    y: CY + Math.sin(a) * (AVATAR / 2 + 4),
+    x: ax + Math.cos(a) * (look.avatar / 2 + 4),
+    y: look.cy + Math.sin(a) * (look.avatar / 2 + 4),
     nx: Math.cos(a),
     ny: Math.sin(a),
   };
@@ -433,16 +517,24 @@ export function paintAlerts(): void {
         a.age < 0.5
           ? 0.9 + 0.1 * smooth(a.age / 0.3) + 0.04 * Math.sin((a.age / 0.5) * Math.PI)
           : 1;
-    if (show > 0.01) {
+    if (show > 0.01 && (a.kind === 'boost' || a.kind === 'qualified')) {
       c.save();
       c.globalAlpha = show;
-      c.translate(CX, CY + (1 - show) * 14);
+      c.translate(look.cx, look.cy + (1 - show) * 14);
       c.scale(pop, pop);
-      const x = -CARD_W / 2,
-        y = -CARD_H / 2;
+      if (a.kind === 'boost') paintBoostCard(a);
+      else paintQueueCard(a);
+      c.restore();
+    } else if (show > 0.01) {
+      c.save();
+      c.globalAlpha = show;
+      c.translate(look.cx, look.cy + (1 - show) * 14);
+      c.scale(pop, pop);
+      const x = -look.w / 2,
+        y = -look.h / 2;
       c.fillStyle = 'rgba(8,12,10,0.78)';
       c.beginPath();
-      c.roundRect(x, y, CARD_W, CARD_H, CARD_H / 2);
+      c.roundRect(x, y, look.w, look.h, look.h / 2);
       c.fill();
       // A supporter's card is gold, the colour of their big entrance.
       const accent =
@@ -462,20 +554,21 @@ export function paintAlerts(): void {
         c.strokeStyle = 'rgba(242,197,124,0.9)';
         c.stroke();
       }
-      const ax = x + 18 + AVATAR / 2;
+      const ax = x + 18 + look.avatar / 2;
       // A join is the viewer's first impression: the flower's petals open around their photo.
       // A moderator's welcome opens their blue lotus instead of the berry flower.
       const flower = a.supporter !== undefined && a.supporter < 0 ? LOTUS : undefined;
-      if (a.kind === 'join') paintBloom(ax, 0, AVATAR / 2, a.age, a.age, flower);
-      paintFace(a, ax, 0, AVATAR / 2, a.ranked ? 'rgb(242,197,124)' : `rgb(${accent})`);
-      if (a.supporter === 1) crown(ax, -AVATAR / 2 - 6, 1.1, { x: ax, y: 0, r: AVATAR / 2 });
+      if (a.kind === 'join') paintBloom(ax, 0, look.avatar / 2, a.age, a.age, flower);
+      paintFace(a, ax, 0, look.avatar / 2, a.ranked ? 'rgb(242,197,124)' : `rgb(${accent})`);
+      if (a.supporter === 1)
+        crown(ax, -look.avatar / 2 - 6, 1.1, { x: ax, y: 0, r: look.avatar / 2 });
       // Text: regular words in light, the name bold in gold, shrunk to fit one line.
       const [before, name, after] = sentence(a),
         // The bloom reaches past the photo: the welcome's text starts a little further right.
-        tx = ax + AVATAR / 2 + (a.kind === 'join' ? AVATAR * 0.6 : 18),
+        tx = ax + look.avatar / 2 + (a.kind === 'join' ? look.avatar * 0.6 : 18),
         // A kill keeps the right end for the winner's photo.
-        room = x + CARD_W - 24 - tx - (a.by ? AVATAR + 12 : 0);
-      if (a.by) paintFace(a.by, x + CARD_W - 18 - AVATAR / 2, 0, AVATAR / 2, GOLD);
+        room = x + look.w - 24 - tx - (a.by ? look.avatar + 12 : 0);
+      if (a.by) paintFace(a.by, x + look.w - 18 - look.avatar / 2, 0, look.avatar / 2, GOLD);
       const widths = (px: number): [number, number, number] => {
         c.font = `500 ${String(px)}px ${FONT}`;
         const b = c.measureText(before).width,
@@ -483,7 +576,7 @@ export function paintAlerts(): void {
         c.font = `800 ${String(px)}px ${FONT}`;
         return [b, c.measureText(name).width, af];
       };
-      let size = 38,
+      let size = look.text,
         [wB, wN, wA] = widths(size);
       while (size > 22 && wB + wN + wA > room) [wB, wN, wA] = widths(--size);
       c.textAlign = 'left';
@@ -498,7 +591,16 @@ export function paintAlerts(): void {
       // Repeat shares: a badge on the corner that jumps at each new one.
       // Loose petals along the card's edges; only the words tell a first visit from a return.
       if (a.kind === 'join')
-        paintLoosePetals(ax, 0, AVATAR / 2, a.age, 20, CARD_H / 2, CARD_W - AVATAR - 60, flower);
+        paintLoosePetals(
+          ax,
+          0,
+          look.avatar / 2,
+          a.age,
+          20,
+          look.h / 2,
+          look.w - look.avatar - 60,
+          flower,
+        );
       c.restore();
     }
   }
@@ -523,6 +625,147 @@ export function paintAlerts(): void {
     c.translate(-x, -y);
   }
   c.restore();
+}
+
+/** The arena's game cards: a dark pill, its outline lit in `edge`. */
+function pill(w: number, h: number, edge: string): void {
+  const c = ctx;
+  c.fillStyle = 'rgba(14,16,20,0.92)';
+  c.beginPath();
+  c.roundRect(-w / 2, -h / 2, w, h, h / 2);
+  c.fill();
+  c.lineWidth = 2.4;
+  c.strokeStyle = edge;
+  c.stroke();
+}
+
+/** The name cut to `max` pixels at the current font. */
+function fitName(name: string, max: number): string {
+  const c = ctx;
+  if (c.measureText(name).width <= max) return name;
+  let n = name;
+  while (n.length > 1 && c.measureText(n + '…').width > max) n = n.slice(0, -1);
+  return n + '…';
+}
+
+/** A lightning bolt, lit (gold) or not (faint), `size` tall, centred on (x, y). */
+export function paintCardBolt(x: number, y: number, size: number, lit: boolean): void {
+  const c = ctx;
+  c.save();
+  c.translate(x, y);
+  c.scale(size / 20, size / 20);
+  c.beginPath();
+  c.moveTo(3, -10);
+  c.lineTo(-6, 2);
+  c.lineTo(-0.5, 2);
+  c.lineTo(-3, 10);
+  c.lineTo(6.5, -2.5);
+  c.lineTo(1, -2.5);
+  c.closePath();
+  c.fillStyle = lit ? GOLD : 'rgba(255,255,255,0.3)';
+  c.fill();
+  c.lineWidth = 1.6;
+  c.strokeStyle = lit ? '#5c3b00' : 'rgba(0,0,0,0.4)';
+  c.stroke();
+  c.restore();
+}
+
+/**
+ * A speed boost reached, on a card the size of the stream's (look): the photo in a full gold ring,
+ * a lit bolt, the name in the snake's colour over "SPEED BOOST!", speed lines on the right.
+ */
+function paintBoostCard(a: Alert): void {
+  const c = ctx,
+    w = look.w,
+    h = look.h,
+    r = look.avatar / 2,
+    x = -w / 2,
+    tint = a.tint ?? '#fff';
+  pill(w, h, 'rgba(242,193,78,0.75)');
+  const px = x + 18 + r;
+  paintFace(a, px, 0, r, tint);
+  c.lineWidth = 7;
+  c.strokeStyle = GOLD;
+  c.beginPath();
+  c.arc(px, 0, r + 8, 0, Math.PI * 2);
+  c.stroke();
+  const bx = px + r + 40;
+  paintCardBolt(bx, 0, h * 0.5, true);
+  const tx = bx + 34,
+    size = Math.round(h * 0.3);
+  c.textAlign = 'left';
+  c.textBaseline = 'middle';
+  c.font = `800 ${String(size)}px ${FONT}`;
+  c.fillStyle = tint;
+  c.fillText(fitName(a.nickname, w * 0.5), tx, -h * 0.19);
+  c.font = `900 ${String(Math.round(size * 1.12))}px ${FONT}`;
+  c.fillStyle = GOLD;
+  c.fillText(tr('arena.boost'), tx, h * 0.2);
+  // Speed lines on the right.
+  c.strokeStyle = 'rgba(242,193,78,0.55)';
+  c.lineWidth = 5;
+  c.lineCap = 'round';
+  for (let i = 0; i < 3; i++) {
+    const y = -h * 0.2 + i * h * 0.18,
+      end = -x - 40 - (2 - i) * 10;
+    c.beginPath();
+    c.moveTo(end - 150, y);
+    c.lineTo(end, y);
+    c.stroke();
+  }
+}
+
+/**
+ * A place in the paid queue, on a card the size of the stream's (look): the photo and a small gold
+ * egg, the name and "PLAYS NEXT ROUND" with a gold "#3" badge, or "IS IN LINE" with a white "#12"
+ * badge past the next round's seats.
+ */
+function paintQueueCard(a: Alert): void {
+  const c = ctx,
+    next = a.phrase === 'arena.playsNext',
+    w = look.w,
+    h = look.h,
+    r = look.avatar / 2,
+    x = -w / 2;
+  pill(w, h, next ? 'rgba(242,193,78,0.6)' : 'rgba(255,255,255,0.18)');
+  const px = x + 18 + r;
+  paintFace(a, px, 0, r, next ? GOLD : 'rgba(255,255,255,0.85)');
+  const egg = burstSprite('qualified'),
+    es = h * 0.52;
+  c.drawImage(egg, px + r + 6, -es / 2, es, es);
+  // The badge at the right end.
+  const badge = `#${String(a.likes)}`,
+    bh = h * 0.5,
+    bw = bh * 1.5,
+    bx = x + w - 24 - bw;
+  c.fillStyle = next ? GOLD : 'rgba(255,255,255,0.92)';
+  c.beginPath();
+  c.roundRect(bx, -bh / 2, bw, bh, bh / 2);
+  c.fill();
+  c.textAlign = 'center';
+  c.textBaseline = 'middle';
+  c.font = `900 ${String(Math.round(bh * 0.55))}px ${FONT}`;
+  c.fillStyle = next ? '#3a2600' : '#14181d';
+  c.fillText(badge, bx + bw / 2, 1);
+  // The name in gold, then the words, shrunk to fit before the badge.
+  const words = tr(a.phrase).replace('{name}', '').trim(),
+    tx = px + r + 12 + es,
+    room = bx - 18 - tx;
+  let size = look.text;
+  const width = (px2: number): [number, number] => {
+    c.font = `800 ${String(px2)}px ${FONT}`;
+    return [c.measureText(a.nickname).width, c.measureText(' ' + words).width];
+  };
+  let [wn, ww] = width(size);
+  while (size > 20 && wn + ww > room) [wn, ww] = width(--size);
+  c.textAlign = 'left';
+  c.font = `800 ${String(size)}px ${FONT}`;
+  const name = fitName(a.nickname, Math.max(40, room - ww));
+  wn = c.measureText(name).width;
+  c.fillStyle = GOLD;
+  c.fillText(name, tx, 2);
+  c.fillStyle = '#fff';
+  c.fillText(' ' + words, tx + wn, 2);
 }
 
 /** Clears everything (tests, new session). */

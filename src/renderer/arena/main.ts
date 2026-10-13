@@ -13,7 +13,7 @@ import { berriesPerGift, type CrowdLevel } from '../../shared/feed-protocol.ts';
 import { bindCanvas, ctx } from '../engine/canvas.ts';
 import { H, OX, W, WF } from '../engine/layout.ts';
 import type { AmbienceFrame } from '../engine/types-api.ts';
-import { paintAlerts, updateAlerts } from '../feed/alerts.ts';
+import { paintAlerts, setAlertLook, setLikeAlerts, updateAlerts } from '../feed/alerts.ts';
 import {
   applyFeedCommand,
   board,
@@ -56,6 +56,7 @@ import { AUDIENCE, audienceSize, qualifyingGifts, setAudience, tickAudience } fr
 import { arenaLife, isLifeGift } from './entry.ts';
 import { arenaStorage, countOnArena, linkArenaControl } from './link.ts';
 import { alive } from './rules.ts';
+import { ARENA_ALERTS, paintStrip } from './strip.ts';
 
 let t = 0,
   last = performance.now() / 1000,
@@ -207,6 +208,8 @@ function step(dt: number): void {
   t += dt;
   simulate(dt);
   advanceArena(dt);
+  // Likes are on the card in the qualifying only: in the battle the like strip shows them.
+  setLikeAlerts(qualifying());
   updateAlerts(dt);
   // Supporter entrances wait while the board is not in play (qualifying, get ready, end screen).
   updateSupporters(dt, game.ready >= 0 || game.full >= 0 || qualifying());
@@ -231,6 +234,8 @@ function step(dt: number): void {
     paintReady();
     paintSupporters(t);
     paintAlerts();
+    // Over the alert card: its rising particles pass behind the strip.
+    paintStrip();
     a.update(dt, e);
   }
   snap = false;
@@ -268,6 +273,8 @@ function start(): void {
   setSleeperSpot(SLEEPER_SPOT);
   // The gift thanks at the top keeps its cards and photo, without the particles thrown around it.
   setFlowerMotes(false);
+  // The alert card: the arena's order, smaller and lower, under the like strip.
+  setAlertLook(ARENA_ALERTS);
   countOnArena();
   // One channel for both links: Feed's commands and state, and the arena's own.
   const channel = new BroadcastChannel(ARENA_CHANNEL),

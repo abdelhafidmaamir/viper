@@ -1,6 +1,7 @@
 // The little icons that burst around a viewer alert card, one icon per kind, all in the same
 // style as the like hearts: pink hearts for likes, gold sparkles for a join, blossoms for
-// a share, butterflies for a follow. Each is drawn once and stamped.
+// a share, butterflies for a follow; Snake Arena's gold bolts for a speed boost and gold eggs for
+// a place in its paid queue. Each is drawn once and stamped.
 
 import type { AlertKind } from './alerts.ts';
 
@@ -129,14 +130,51 @@ function follow(g: CanvasRenderingContext2D): void {
   g.stroke();
 }
 
+/** A gold lightning bolt (Snake Arena: a speed boost reached). */
+function bolt(g: CanvasRenderingContext2D): void {
+  g.beginPath();
+  g.moveTo(4, -14);
+  g.lineTo(-8, 3);
+  g.lineTo(-1, 3);
+  g.lineTo(-4, 14);
+  g.lineTo(8.5, -3.5);
+  g.lineTo(1.5, -3.5);
+  g.closePath();
+  const fill = g.createLinearGradient(0, -14, 0, 14);
+  fill.addColorStop(0, '#fff4c2');
+  fill.addColorStop(1, '#f2b94a');
+  g.fillStyle = fill;
+  g.fill();
+  g.lineWidth = 1.4;
+  g.strokeStyle = 'rgba(255,250,230,0.95)';
+  g.stroke();
+  shine(g, 1, -7);
+}
+
+/** A gold egg (Snake Arena: a place in the paid queue). */
+function egg(g: CanvasRenderingContext2D): void {
+  g.beginPath();
+  g.ellipse(0, 1, 9, 12, 0, 0, Math.PI * 2);
+  const fill = g.createLinearGradient(0, -12, 0, 13);
+  fill.addColorStop(0, '#fff4c2');
+  fill.addColorStop(1, '#f2b94a');
+  g.fillStyle = fill;
+  g.fill();
+  g.lineWidth = 1.4;
+  g.strokeStyle = 'rgba(255,250,230,0.95)';
+  g.stroke();
+  shine(g, -3, -5);
+}
+
 const DRAW: Readonly<Record<AlertKind, (g: CanvasRenderingContext2D) => void>> = {
   like: heart,
   join: sparkle,
   share,
   follow,
-  // Never burst (a kill's card has no icons, nor a qualified one's): here for the table.
+  // Never burst (a kill's card has no icons): here for the table.
   kill: share,
-  qualified: share,
+  qualified: egg,
+  boost: bolt,
 };
 
 export function burstSprite(kind: AlertKind): HTMLCanvasElement {

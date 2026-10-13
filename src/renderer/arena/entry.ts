@@ -50,6 +50,11 @@ export const qualHooks: {
 
 const qualifying = (): boolean => arena.phase === 'qualify';
 
+/** A player's like in the battle, for the like strip (strip.ts), set there. */
+export const likeHooks: { battle: (nickname: string, n: number) => void } = {
+  battle: () => undefined,
+};
+
 /** A picture flying from where a snake died to the new egg a life gives it. */
 export interface Flight {
   nickname: string;
@@ -185,6 +190,7 @@ export function arenaLike(nickname: string, avatar: string | undefined, n: numbe
   if (!s) return;
   s.idle = 0;
   land(nickname, n);
+  likeHooks.battle(nickname, n);
 }
 
 /**
