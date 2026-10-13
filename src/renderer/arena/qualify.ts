@@ -348,18 +348,18 @@ function lockSeat(v: Viewer, pour?: Pour): boolean {
     leaveQueue(v.nickname);
   }
   locked.push(v.nickname);
-  shows.push({
-    pour: pour ??
-      game.queue.find((q) => q.nickname === v.nickname) ?? {
-        id: showId--,
-        nickname: v.nickname,
-        avatar: v.avatar,
-        n: 1,
-        total: 1,
-        title: '',
-      },
-    t: shows.length ? -0.1 : 0,
-  });
+  // The flower shows what the gift bought, a seat: a gold egg on its card (a copy: the berries
+  // waiting in the flower show as berries when they pour in the battle).
+  const shown = pour ??
+    game.queue.find((q) => q.nickname === v.nickname) ?? {
+      id: showId--,
+      nickname: v.nickname,
+      avatar: v.avatar,
+      n: 1,
+      total: 1,
+      title: '',
+    };
+  shows.push({ pour: { ...shown, seat: true }, t: shows.length ? -0.1 : 0 });
   return true;
 }
 

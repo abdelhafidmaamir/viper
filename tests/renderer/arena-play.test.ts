@@ -5,7 +5,7 @@ import { BERRY_STAY, chooseNext, updateMode } from '../../src/renderer/arena/ai.
 import { advanceArena, newArenaRound, setArenaSettings } from '../../src/renderer/arena/arena.ts';
 import { flights, likePops, queue, rings, paidQueue } from '../../src/renderer/arena/entry.ts';
 import { countOnArena } from '../../src/renderer/arena/link.ts';
-import { CATCH_UP, moveInto } from '../../src/renderer/arena/round.ts';
+import { CATCH_UP, crossings, moveInto } from '../../src/renderer/arena/round.ts';
 import {
   alive,
   arena,
@@ -165,17 +165,82 @@ describe('snake arena: a snake never turns back onto its neck', () => {
     }
   });
 
-  it('boxed in ahead and on both sides, it passes over the least bad cell, never back', () => {
+  it("cornered with only another snake's body to go, it dies there, trapped: it never passes through", () => {
     fresh();
     const me = place('ana', [cellId(1, 0), cellId(2, 0)]);
     const other = place(null, [...col(0, 1, 6).reverse(), cellId(1, 1), cellId(2, 1)]);
     // Into the corner: the wall twice and another body; its neck is behind.
+    const was = crossings.n,
+      trapped = arena.deaths.trapped;
     moveInto(me, cellId(0, 0));
     expect(me.alive).toBe(true);
     expect(me.next).not.toBe(cellId(1, 0));
     expect(me.next).toBe(cellId(0, 1));
     moveInto(me, me.next);
-    expect(me.alive && other.alive).toBe(true);
+    expect(me.alive).toBe(false);
+    expect(other.alive).toBe(true);
+    expect(other.kills).toBe(1);
+    expect(arena.deaths.trapped).toBe(trapped + 1);
+    expect(crossings.n).toBe(was);
+  });
+
+  it("neither a newborn's grace nor a shield lets a cornered head through a body", () => {
+    for (const guard of ['safe', 'shield'] as const) {
+      fresh();
+      const me = place('ana', [cellId(1, 0), cellId(2, 0)]);
+      place(null, [...col(0, 1, 6).reverse(), cellId(1, 1), cellId(2, 1)]);
+      me[guard] = 3;
+      const was = crossings.n;
+      moveInto(me, cellId(0, 0));
+      moveInto(me, me.next);
+      expect(me.alive).toBe(false);
+      expect(crossings.n).toBe(was);
+    }
+  });
+
+  it("a newborn's grace turns its head away from a body while it has another way", () => {
+    fresh();
+    const me = place('ana', row(10, 10, 6));
+    const body = cellId(11, 10);
+    place(null, col(11, 4, 16));
+    me.safe = 3;
+    const was = crossings.n;
+    moveInto(me, body);
+    expect(me.alive).toBe(true);
+    expect(me.cells[0]).toBe(cellId(10, 10));
+    expect(me.next).not.toBe(body);
+    expect(crossings.n).toBe(was);
+  });
+
+  it('boxed in by its own body, it passes over it and lives', () => {
+    fresh();
+    // Head in the corner, its neck on the right, its own body below.
+    const me = place('ana', [
+      cellId(0, 0),
+      cellId(1, 0),
+      cellId(1, 1),
+      cellId(1, 2),
+      cellId(0, 2),
+      cellId(0, 1),
+    ]);
+    moveInto(me, cellId(0, 0));
+    expect(me.next).toBe(cellId(0, 1));
+    moveInto(me, me.next);
+    expect(me.alive).toBe(true);
+  });
+
+  it('a cornered snake with a life spends it: it comes back from an egg, never through the body', () => {
+    fresh({ lifeOn: true });
+    const me = place('ana', [cellId(1, 0), cellId(2, 0)]);
+    place(null, [...col(0, 1, 6).reverse(), cellId(1, 1), cellId(2, 1)]);
+    me.lives = 1;
+    const was = crossings.n;
+    moveInto(me, cellId(0, 0));
+    moveInto(me, me.next);
+    expect(me.alive).toBe(false);
+    const again = alive().find((s) => s.nickname === 'ana');
+    expect(again?.egg).toBeTruthy();
+    expect(crossings.n).toBe(was);
   });
 
   it('never reverses in a busy round, whatever the brain', () => {

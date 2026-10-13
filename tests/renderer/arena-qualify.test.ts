@@ -543,6 +543,32 @@ describe('snake arena: the battle', () => {
     expect(said[11]).toBe('d12 IS #12 IN LINE');
   });
 
+  it("the flower's card shows a gold egg for a gift that buys a seat, the berry for a player's battle gift", () => {
+    fresh({ roundLength: 120 });
+    like('player', 30);
+    like('rival', 20);
+    // A qualifying gift locks a seat: its card shows the gold egg.
+    give('payer', 10);
+    run(0.2);
+    expect(game.pour?.nickname).toBe('payer');
+    expect(game.pour?.seat).toBe(true);
+    // Its berries wait in the flower as berries: they pour in the battle.
+    expect(game.queue.find((q) => q.nickname === 'payer')?.seat).toBeFalsy();
+    toBattle();
+    run(3);
+    // A viewer without a snake buys a place in line: the gold egg.
+    give('stranger', 10);
+    run(0.1);
+    expect(game.pour?.nickname).toBe('stranger');
+    expect(game.pour?.seat).toBe(true);
+    run(2);
+    // A player's battle gift gives berries: the berry.
+    give('player', 5);
+    run(0.1);
+    expect(game.pour?.nickname).toBe('player');
+    expect(game.pour?.seat).toBeFalsy();
+  });
+
   it('a gift in the end screen joins the paid queue, behind the battle givers', () => {
     fresh({ roundLength: 120 });
     like('b1', 30);

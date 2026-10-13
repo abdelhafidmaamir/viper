@@ -229,7 +229,11 @@ function flower(dt: number): void {
   if (q && q.id !== game.pour?.id) {
     game.pour = q;
     game.pourT = 0;
-    if (!qualifying() && !snakeOf(q.nickname)) shownGifts.add(q.id);
+    if (!qualifying() && !snakeOf(q.nickname)) {
+      shownGifts.add(q.id);
+      // A viewer without a snake buys a place in the paid queue: the card shows a gold egg.
+      q.seat = true;
+    }
   }
   game.pourT += dt;
   game.dripT += dt;
@@ -328,9 +332,9 @@ function eatFood(s: Snake, f: Food): void {
 
 /**
  * Picks the cell the head slides into next: straight on, left or right, never back onto its neck.
- * A snake never dies by its own body: boxed in on those three cells, it passes over the least bad
- * of them for that step (the brains avoid it, so it almost never shows). With only walls and eggs
- * left, it is done.
+ * Boxed in on those three cells, it takes the least bad (boxedWay): over its own body, which never
+ * kills it; else into another snake's body, where it dies, trapped. Nothing ever passes through
+ * another snake. With only walls and eggs left, it is done.
  */
 function replan(s: Snake, sight: Sight): void {
   let n = chooseNext(s, sight, arena.rand);
@@ -343,14 +347,14 @@ function replan(s: Snake, sight: Sight): void {
   if (onBoard(s.next)) sight.reserved[s.next] = s.id + 1;
 }
 
-/** The cell a boxed-in head passes over on its next step, with whoever lies there (boxedWay). */
-const passing = new WeakMap<Snake, number>();
+/** The cell a cornered head takes next although another snake's body lies there (boxedWay). */
+const cornered = new WeakMap<Snake, number>();
 
 /**
  * Boxed in straight ahead and on both sides, the least bad of those three cells, never back onto
- * its neck: its own body, nearest its tail, passed over; else another snake's body, passed over
- * the same way, nobody hurt; else a cell another head is about to take. -1 when only walls and
- * eggs are left.
+ * its neck: its own body, nearest its tail, passed over (a snake never dies by its own body); else
+ * a free cell another head is about to take; else another snake's body, where it dies, trapped: it
+ * never passes through. An egg is solid: never taken. -1 when only walls and eggs are left.
  */
 function boxedWay(s: Snake, sight: Sight): number {
   const mine = s.id + 1,
@@ -363,13 +367,13 @@ function boxedWay(s: Snake, sight: Sight): number {
     const o = sight.occ[k] ?? 0,
       other = o && o !== mine ? arena.snakes.find((x) => x.id === o - 1) : undefined,
       egg = !!other?.egg && !other.egg.hatched,
-      r = o === mine ? 3 + s.cells.indexOf(k) / s.cells.length : egg ? 0 : o ? 2 : 1;
+      r = o === mine ? 3 + s.cells.indexOf(k) / s.cells.length : egg ? 0 : o ? 1 : 2;
     if (r > rank) {
       rank = r;
       best = k;
     }
   }
-  if (best >= 0 && rank < 3) passing.set(s, best);
+  if (best >= 0 && rank === 1) cornered.set(s, best);
   return best;
 }
 
@@ -411,6 +415,15 @@ function brood(s: Snake, dt: number, sight: Sight): void {
   if (egg.t >= SHELL_GONE) s.egg = null;
 }
 
+/**
+ * Heads that entered another living snake's body and lived: none should (measures and tests),
+ * counted on the snakes' real cells.
+ */
+export const crossings = { n: 0 };
+function noteCrossing(s: Snake, target: number): void {
+  if (arena.snakes.some((o) => o !== s && o.alive && o.cells.indexOf(target) > 0)) crossings.n++;
+}
+
 /** Whether a snake is still alive: read again after a kill may have changed it. */
 const stillAlive = (s: Snake): boolean => s.alive;
 
@@ -418,11 +431,11 @@ const stillAlive = (s: Snake): boolean => s.alive;
 function stepCell(s: Snake, sight: Sight): void {
   const target = s.next;
   if (onBoard(target)) {
-    // A boxed-in head passing over another snake's body (boxedWay) meets nobody there.
+    // A cornered head (boxedWay) has no other way than into this body: it dies there.
     const o = sight.occ[target] ?? 0,
-      over = passing.get(s) === target,
-      other = o && o !== s.id + 1 && !over ? arena.snakes.find((x) => x.id === o - 1) : undefined;
-    passing.delete(s);
+      trapped = cornered.get(s) === target,
+      other = o && o !== s.id + 1 ? arena.snakes.find((x) => x.id === o - 1) : undefined;
+    cornered.delete(s);
     if (other?.alive) {
       if (other.cells[0] === target) {
         // Head on head: the bigger survives; a shield or a newborn's grace spares either.
@@ -440,15 +453,17 @@ function stepCell(s: Snake, sight: Sight): void {
         }
         for (const c of other.cells) if (onBoard(c)) sight.occ[c] = 0;
       } else {
-        // An egg is solid and keeps its newborn safe; a shielded head turns away from any body.
-        if (s.shield > 0 || s.safe > 0 || (other.egg && !other.egg.hatched)) {
+        // An egg is solid and keeps its newborn safe; a shielded head, or a newborn's in its
+        // grace, turns away from any body while it has another way. Into a body it dies.
+        if ((other.egg && !other.egg.hatched) || (!trapped && (s.shield > 0 || s.safe > 0))) {
           s.sub = 0;
           replan(s, sight);
           return;
         }
         const at = other.cells.indexOf(target),
-          cause =
-            (other.mode === 'chase' && other.target === s.id) || at < other.speed * 4
+          cause = trapped
+            ? 'trapped'
+            : (other.mode === 'chase' && other.target === s.id) || at < other.speed * 4
               ? 'cutoff'
               : 'accident';
         kill(s, other, cause);
@@ -456,6 +471,7 @@ function stepCell(s: Snake, sight: Sight): void {
       }
     }
   }
+  noteCrossing(s, target);
   // The prod step (path.stepInto): the head takes the cell, the tail follows unless growth is owed.
   const before = s.cells.length,
     tail = s.cells[before - 1] ?? -1;

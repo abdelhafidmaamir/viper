@@ -22,17 +22,17 @@ It opens with the next batch of the paid queue (see below), as many as the place
 queue order: each picture flies from the flower to its egg, one after the other. The seats left
 follow the rules here.
 
-| Element  | Rule                                                                                                                                                                                                    |
-| -------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| Counts   | Everyone starts at 0, last round's players and winner too. No free seat                                                                                                                                 |
-| Like     | A prod heart pops on the liker's badge (or over their crab on the beach); the number rolls up                                                                                                           |
-| Free egg | Taken at once by the best liker without a seat                                                                                                                                                          |
-| The cut  | The best liker without a seat passes the weakest like seat: the two cross the line together, at most one swap every 0.6 s                                                                               |
-| Gift     | Locks a seat: the flower opens on the giver, their picture flies to an egg that turns gold. A full board: the weakest like seat goes. Every seat paid, or the clock out: the giver joins the paid queue |
-| Order    | Strict at every moment: paid seats first, in the order the gifts came, then like seats, most likes first                                                                                                |
-| At risk  | The weakest like seat's egg trembles and its badge pulses red when the first challenger is within 10 %                                                                                                  |
-| All paid | Likes can change nothing more: the qualifying ends at once                                                                                                                                              |
-| Text     | Only the clock pill, "QUALIFYING 0:24" (French "QUALIFICATIONS"), smaller than the battle's; it beats in the last 5 s                                                                                   |
+| Element  | Rule                                                                                                                                                                                                                                                         |
+| -------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| Counts   | Everyone starts at 0, last round's players and winner too. No free seat                                                                                                                                                                                      |
+| Like     | A prod heart pops on the liker's badge (or over their crab on the beach); the number rolls up                                                                                                                                                                |
+| Free egg | Taken at once by the best liker without a seat                                                                                                                                                                                                               |
+| The cut  | The best liker without a seat passes the weakest like seat: the two cross the line together, at most one swap every 0.6 s                                                                                                                                    |
+| Gift     | Locks a seat: the flower opens on the giver (a gold egg on its card, where Feed shows the berry), their picture flies to an egg that turns gold. A full board: the weakest like seat goes. Every seat paid, or the clock out: the giver joins the paid queue |
+| Order    | Strict at every moment: paid seats first, in the order the gifts came, then like seats, most likes first                                                                                                                                                     |
+| At risk  | The weakest like seat's egg trembles and its badge pulses red when the first challenger is within 10 %                                                                                                                                                       |
+| All paid | Likes can change nothing more: the qualifying ends at once                                                                                                                                                                                                   |
+| Text     | Only the clock pill, "QUALIFYING 0:24" (French "QUALIFICATIONS"), smaller than the battle's; it beats in the last 5 s                                                                                                                                        |
 
 A paid seat shows no badge: its gold egg and the gold outline on the photo say it. The beach shows
 the newest likers' crabs, in one compact group; the sleeping crab (above the board, top right)
@@ -47,18 +47,18 @@ closed eggs and every egg bursts at GO, in one beat. Empty eggs hatch wild snake
 Only the qualified snakes play: nobody comes in during the battle and a dead snake leaves its place
 empty.
 
-| Element  | Rule                                                                                                                                                  |
-| -------- | ----------------------------------------------------------------------------------------------------------------------------------------------------- |
-| Look     | Feed's snake in one of the 8 prod colours; the viewer's photo floats above the head, its name above it                                                |
-| Photo    | Follows the head through a damped spring; photos push each other apart, a smaller snake's name gives way to a bigger one's                            |
-| Speed    | `speed` cells a second, up to 15% slower at 60 cells                                                                                                  |
-| Likes    | A player's likes fill the red ring round their crab on the beach; every `entryLikes` likes (100) fire a 4 s speed boost and grow the snake by 3 cells |
-| Boost    | The snake dashes with speed streaks in its colour and a bolt by its photo; the crab runs on the spot with the same bolt                               |
-| Gifts    | Berries from the flower in the giver's colour, for the giver's snake (`giftBerries`): growth                                                          |
-| Catch-up | A gift berry grows a snake by a full cell, half a cell once it leads the second biggest by a fifth or more; plain berries a full cell                 |
-| Food     | 3 plain berries on the board at all times, each popping up away from every head, a new one 2 s after one is eaten                                     |
-| Death    | A head into another snake's body, or the smaller head in a head-on. Never by its own body. A shield or the newborn's grace spares                     |
-| Crown    | Nobody's at GO; the first snake to eat, then the biggest viewer's snake (a tie keeps it where it is). Never a wild snake                              |
+| Element  | Rule                                                                                                                                                                                                                                                                                                 |
+| -------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Look     | Feed's snake in one of the 8 prod colours; the viewer's photo floats above the head, its name above it                                                                                                                                                                                               |
+| Photo    | Follows the head through a damped spring; photos push each other apart, a smaller snake's name gives way to a bigger one's. Photos, stems and names are painted under the bodies, so no body is ever hidden; the crown and the boost bolt over everything                                            |
+| Speed    | `speed` cells a second, up to 15% slower at 60 cells                                                                                                                                                                                                                                                 |
+| Likes    | A player's likes fill the red ring round their crab on the beach; every `entryLikes` likes (100) fire a 4 s speed boost and grow the snake by 3 cells                                                                                                                                                |
+| Boost    | The snake dashes with speed streaks in its colour and a bolt by its photo; the crab runs on the spot with the same bolt                                                                                                                                                                              |
+| Gifts    | Berries from the flower in the giver's colour, for the giver's snake (`giftBerries`): growth                                                                                                                                                                                                         |
+| Catch-up | A gift berry grows a snake by a full cell, half a cell once it leads the second biggest by a fifth or more; plain berries a full cell                                                                                                                                                                |
+| Food     | 3 plain berries on the board at all times, each popping up away from every head, a new one 2 s after one is eaten                                                                                                                                                                                    |
+| Death    | A head into another snake's body, or the smaller head in a head-on. Never by its own body. A shield or the newborn's grace turns a head away from a body while it has another way; cornered with only another snake's body to go, it dies there (trapped): nothing ever passes through another snake |
+| Crown    | Nobody's at GO; the first snake to eat, then the biggest viewer's snake (a tie keeps it where it is). Never a wild snake                                                                                                                                                                             |
 
 Survival tiers, never shown: a player who gives during this battle plays the strongest brain and is
 rarely chased (tier 1); a paid seat plays a good brain (tier 2); a like seat plays the basic brain,
@@ -67,7 +67,7 @@ moves a player up at once. `backing` set to strong (the default) turns the tiers
 gives every snake the strong brain instead.
 
 During the battle a gift is just a gift on the board: a player's gives berries to their snake and
-lifts their tier; a non-player's gets the flower's thanks and nothing more. Either way the giver
+lifts their tier; a non-player's gets the flower's thanks (a gold egg on its card: it bought a place in line) and nothing more. Either way the giver
 joins the paid queue (below). No seat is shown or held during the battle.
 
 The beach during the battle: the players' crabs on a podium of sand in the beach's right part, the

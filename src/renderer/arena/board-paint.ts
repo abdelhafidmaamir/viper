@@ -33,6 +33,7 @@ import {
   snakeTrace,
   tintedBerrySprite,
 } from '../feed/paint.ts';
+import { flowerHooks } from '../feed/flower.ts';
 import { FALL_TIME, game } from '../feed/state.ts';
 import { bumps, faceOf, fired, shownName } from './entry.ts';
 import { FADE_OUT } from './round.ts';
@@ -249,28 +250,25 @@ export function bumpOf(nickname: string): number {
   return u >= 0 && u < 1 ? 1 + 0.15 * Math.sin(u * Math.PI) : 1;
 }
 
+/** Where a viewer's picture stands this frame, and its size (a bite squashes it a moment). */
+function photoOf(s: Snake, t: number): { x: number; y: number; r: number; name: number } {
+  const b = s.bite,
+    squash = b < 0.25 ? 1 + 0.22 * Math.sin((b / 0.25) * Math.PI) * (1 - b / 0.25) : 1,
+    spot = laidOut.get(s) ?? { ...photoSpot(s, toPx(s.x, s.y), t), name: 1 };
+  return { x: spot.x, y: spot.y, r: TUNING.photoR * squash, name: spot.name };
+}
+
 /**
- * paint.paintHead for one snake: the viewer's photo floats above the head on its stem, both
- * outlined in the snake's own colour so each face is matched to its body, its name above it and
- * the crown above the name when this snake leads. No ring: the likes' ring is on the player's
- * animal on the beach.
+ * paint.paintHead for one snake, under every body: the viewer's photo floats above the head on
+ * its stem, both outlined in the snake's own colour so each face is matched to its body, its name
+ * above it, its lives by it. The bodies are painted over it: a photo never hides a body. No ring:
+ * the likes' ring is on the player's animal on the beach.
  */
-function paintHead(s: Snake, t: number): void {
+function paintPhoto(s: Snake, t: number): void {
   const c = ctx,
     head = toPx(s.x, s.y),
-    b = s.bite,
-    squash = b < 0.25 ? 1 + 0.22 * Math.sin((b / 0.25) * Math.PI) * (1 - b / 0.25) : 1;
-  if (s.wild) {
-    if (arena.crown === s.id)
-      crown(head.x, head.y - 24 + Math.sin(t * 4) * 2, 0.8, { x: head.x, y: head.y, r: 16 });
-    return;
-  }
-  const crowned = arena.crown === s.id,
-    r = TUNING.photoR * squash,
     colour = COLOURS[s.colour],
-    spot = laidOut.get(s) ?? { ...photoSpot(s, head, t), name: 1 },
-    fx = spot.x,
-    fy = spot.y;
+    { x: fx, y: fy, r, name: shown } = photoOf(s, t);
   c.save();
   if (s.safe > 0) c.globalAlpha = 0.5 + 0.5 * Math.abs(Math.sin(s.born * 11));
   c.strokeStyle = colour;
@@ -288,18 +286,14 @@ function paintHead(s: Snake, t: number): void {
   c.fill();
   c.restore();
   paintFace(s, fx, fy, r, colour);
-  // The name above the picture, the crown above the name: nothing lies over the body.
-  if (crowned) crown(fx, fy - r - NAME_SIZE - 22, CROWN_SIZE, { x: fx, y: fy, r });
-  // Boosted: the bolt at the photo's top right, as on the player's animal on the beach.
-  paintBoostBolt(s, fx + r * 0.82, fy - r * 0.82, BOLT, t);
   // Lives: prod hearts in a row by the photo.
   paintSnakeHearts(s, fx, fy, r);
   const full = shownName(s),
     name = full.length > 16 ? full.slice(0, 15) + '…' : full;
   // Above the picture, read on a phone, with the prod outline; hidden while it would cover a
   // bigger snake's name.
-  if (spot.name > 0.01) {
-    c.globalAlpha *= spot.name;
+  if (shown > 0.01) {
+    c.globalAlpha *= shown;
     c.font = `800 ${String(NAME_SIZE)}px ${FONT}`;
     c.textAlign = 'center';
     c.textBaseline = 'bottom';
@@ -311,6 +305,25 @@ function paintHead(s: Snake, t: number): void {
     c.fillText(name, fx, fy - r - 6);
   }
   c.restore();
+}
+
+/**
+ * Over everything, bodies included: the crown above the leader's name (on a wild snake's head)
+ * and a boosted player's bolt at its photo's top right, as on its animal on the beach.
+ */
+function paintHeadMarks(s: Snake, t: number): void {
+  const head = toPx(s.x, s.y);
+  if (s.wild) {
+    if (arena.crown === s.id)
+      crown(head.x, head.y - 24 + Math.sin(t * 4) * 2, 0.8, { x: head.x, y: head.y, r: 16 });
+    return;
+  }
+  const { x, y, r } = photoOf(s, t);
+  ctx.save();
+  if (s.safe > 0) ctx.globalAlpha = 0.5 + 0.5 * Math.abs(Math.sin(s.born * 11));
+  if (arena.crown === s.id) crown(x, y - r - NAME_SIZE - 22, CROWN_SIZE, { x, y, r });
+  paintBoostBolt(s, x + r * 0.82, y - r * 0.82, BOLT, t);
+  ctx.restore();
 }
 
 /** Each picture's place this frame, apart from the others, and its name's opacity. */
@@ -582,7 +595,10 @@ function paintBoost(s: Snake, trace: Point[], t: number): void {
   c.restore();
 }
 
-/** Every living snake, the smallest first so the big ones lie on top; the photos over everything. */
+/**
+ * Every living snake, the smallest first so the big ones lie on top. The photos, their stems and
+ * names go under the bodies, so no body is ever hidden; the crowns and the boost bolts over all.
+ */
 export function paintSnakes(
   c: CanvasRenderingContext2D,
   a: Ambience,
@@ -590,7 +606,10 @@ export function paintSnakes(
   t: number,
 ): void {
   paintDying(c, a, e);
-  const live = alive().sort((p, q) => p.len - q.len);
+  const live = alive().sort((p, q) => p.len - q.len),
+    // A picture shows once its snake is out of the egg; the crowned picture last, on top.
+    heads = placePhotos(t);
+  for (const s of heads) paintPhoto(s, t);
   for (const s of live) {
     if (s.cells.length) {
       const trace = traceOf(s);
@@ -600,15 +619,25 @@ export function paintSnakes(
     }
     if (s.egg) paintEggOf(c, s);
   }
-  // A picture shows once its snake is out of the egg; the bigger pictures lie on top.
-  // The crowned picture last, on top.
-  const heads = live
+  for (const s of live) if (s.in && s.wild) paintHeadMarks(s, t);
+  for (const s of heads) paintHeadMarks(s, t);
+}
+
+/**
+ * The viewers' snakes whose pictures show, in painting order (the crowned one last), each
+ * picture laid out for this frame (`photoPlace`).
+ */
+export function placePhotos(t: number): Snake[] {
+  const heads = alive()
+    .sort((p, q) => p.len - q.len)
     .filter((s) => s.in && !s.wild)
     .sort((p, q) => Number(p.id === arena.crown) - Number(q.id === arena.crown));
   layOutHeads(heads, t);
-  for (const s of live) if (s.in && s.wild) paintHead(s, t);
-  for (const s of heads) paintHead(s, t);
+  return heads;
 }
+
+/** Where a snake's picture was laid out this frame, if it shows. */
+export const photoPlace = (s: Snake): { x: number; y: number } | undefined => laidOut.get(s);
 
 /**
  * The dying: the body as it pops (round.ts takes its cells away from the tail), the picture
@@ -704,6 +733,19 @@ export function paintStillEgg(
   c.fill();
   c.restore();
 }
+
+/** The arena's egg is about this tall at its own size (paintStillEgg). */
+const EGG_TALL = 54;
+
+// What a seat gift buys shows on the flower's card where Feed shows the berry: a gold egg.
+flowerHooks.seat = (c, x, y, size) => {
+  const k = (size * 0.55) / EGG_TALL;
+  c.save();
+  c.translate(x, y);
+  c.scale(k, k);
+  paintStillEgg(c, 0, -2, arena.clock, { gold: true });
+  c.restore();
+};
 
 /** The colour of the snake wearing the crown, null when nobody does. */
 export function crownColour(): string | null {

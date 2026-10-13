@@ -88,6 +88,14 @@ interface Mote {
   kind: 0 | 1 | 2;
   phase: number;
 }
+/**
+ * Snake Arena paints what a seat gift buys, a gold egg, where a gift shows its berry (pour.seat).
+ * Feed never sets it: its flower always shows the berry.
+ */
+export const flowerHooks: {
+  seat: ((c: CanvasRenderingContext2D, x: number, y: number, size: number) => void) | null;
+} = { seat: null };
+
 let motes: Mote[] = [];
 let motesAt = 0;
 
@@ -342,7 +350,14 @@ let seenPour = -1,
  * strokes, never blurred shadows: this is on screen for as long as gifts keep coming.
  */
 function paintWings(
-  pour: { id: number; nickname: string; total: number; title: string; carried?: boolean },
+  pour: {
+    id: number;
+    nickname: string;
+    total: number;
+    title: string;
+    carried?: boolean;
+    seat?: boolean;
+  },
   t: number,
 ): void {
   const c = ctx;
@@ -452,13 +467,16 @@ function paintWings(
         cw = what.width - COUNT_PAD,
         from = mid - (cw + 96) / 2,
         k = 1 + 0.42 * punch;
-      c.drawImage(
-        berrySprite(0, pour.nickname),
-        from + 38 - bs / 2,
-        FLOWER.y - bs / 2 + Math.sin(t * 5) * 3,
-        bs,
-        bs,
-      );
+      const seat = pour.seat ? flowerHooks.seat : null;
+      if (seat) seat(c, from + 38, FLOWER.y + Math.sin(t * 5) * 3, bs);
+      else
+        c.drawImage(
+          berrySprite(0, pour.nickname),
+          from + 38 - bs / 2,
+          FLOWER.y - bs / 2 + Math.sin(t * 5) * 3,
+          bs,
+          bs,
+        );
       c.save();
       c.translate(from + 96 + cw / 2, FLOWER.y + 2);
       c.rotate(-0.06);
