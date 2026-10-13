@@ -132,7 +132,7 @@ describe('snake arena: the alert card and the like strip', () => {
     alertViewer('follow', 'fan', undefined);
     alertQueued({ nickname: 'payer' }, 3, 1);
     alertKill({ nickname: 'fallen' }, null);
-    alertBoost({ nickname: 'fast' }, '#fff', 100);
+    alertBoost({ nickname: 'fast' }, '#fff');
     // The money cards in the order they came; the boost waited more than 3 s behind them and was
     // dropped; then the follow; the like waited longer than a like stays news, and was dropped.
     expect(shownInTurn()).toEqual(['qualified', 'kill', 'follow']);
@@ -144,7 +144,7 @@ describe('snake arena: the alert card and the like strip', () => {
   });
 
   it('money first: the paid queue and an elimination go before any speed boost, which is dropped after 3 s waiting', () => {
-    alertBoost({ nickname: 'fast' }, '#fff', 100);
+    alertBoost({ nickname: 'fast' }, '#fff');
     alertQueued({ nickname: 'payer' }, 3, 1);
     alertKill({ nickname: 'fallen' }, null);
     updateAlerts(0.01);
@@ -153,7 +153,7 @@ describe('snake arena: the alert card and the like strip', () => {
     expect(shownInTurn()).toEqual(['qualified', 'kill']);
     // A boost card on screen gives way to a paid-queue card once readable.
     resetAlerts();
-    alertBoost({ nickname: 'fast' }, '#fff', 100);
+    alertBoost({ nickname: 'fast' }, '#fff');
     updateAlerts(0.01);
     alertQueued({ nickname: 'payer' }, 4, 1);
     for (let i = 0; i < 8; i++) updateAlerts(0.25);
@@ -161,7 +161,7 @@ describe('snake arena: the alert card and the like strip', () => {
     // A boost still shows when no money card waits, before the stream's cards.
     resetAlerts();
     alertViewer('follow', 'fan', undefined);
-    alertBoost({ nickname: 'fast' }, '#fff', 100);
+    alertBoost({ nickname: 'fast' }, '#fff');
     expect(shownInTurn()).toEqual(['boost', 'follow']);
   });
 
@@ -311,7 +311,7 @@ describe('snake arena: the alert card and the like strip', () => {
     };
     try {
       setLanguage('en');
-      alertBoost({ nickname: 'fast' }, '#fff', 100);
+      alertBoost({ nickname: 'fast' }, '#fff');
       let row = card();
       expect(row?.text).toBe('fast hit 100 likes: SPEED BOOST');
       fits(row);
@@ -331,7 +331,7 @@ describe('snake arena: the alert card and the like strip', () => {
       fits(row);
       // A long name: the words shrink to 30 at most, then the name is cut.
       resetAlerts();
-      alertBoost({ nickname: 'averyveryverylongname_2026' }, '#fff', 100);
+      alertBoost({ nickname: 'averyveryverylongname_2026' }, '#fff');
       row = card();
       fits(row);
       expect(row?.text.endsWith(' hit 100 likes: SPEED BOOST')).toBe(true);
@@ -347,7 +347,7 @@ describe('snake arena: the alert card and the like strip', () => {
       expect(row?.text.endsWith(' est #12 dans la file : joue dans 2 manches')).toBe(true);
       fits(row, true);
       resetAlerts();
-      alertBoost({ nickname: 'fast' }, '#fff', 50);
+      alertBoost({ nickname: 'fast' }, '#fff');
       row = card();
       expect(row?.text).toBe('fast a atteint 50 likes : SPEED BOOST');
       fits(row, true);
@@ -364,7 +364,7 @@ describe('snake arena: the alert card and the like strip', () => {
       .filter((s) => !s.wild)
       .sort((p, q) => p.id - q.id);
     // Battle cards waiting and on screen: a boost, a place in the paid queue, an elimination.
-    alertBoost({ nickname: 'p1' }, '#fff', 100);
+    alertBoost({ nickname: 'p1' }, '#fff');
     updateAlerts(0.01);
     alertQueued({ nickname: 'payer' }, 3, 1);
     alertViewer('follow', 'fan', undefined);

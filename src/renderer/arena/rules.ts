@@ -43,6 +43,8 @@ export const TUNING = {
   dropRadius: 3,
   /** Coin value of the one gift that buys a seat (entry.ts isSeatGift); 0: any gift buys one. */
   seatPrice: 0,
+  /** Gifts buy seats and places in the paid queue (entry.ts giftsBuySeats); off by default. */
+  giftSeats: false,
   /** The extra-life gift: on or off, its price in coins, most lives held, length kept on a life. */
   lifeOn: false,
   lifePrice: 30,

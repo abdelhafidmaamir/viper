@@ -367,14 +367,13 @@ export function alertQueued(
 }
 
 /**
- * Snake Arena: a player's `likes` (the likes for one boost) reached a speed boost. The gold card:
- * the photo in a full gold ring, "{name} hit 100 likes: SPEED BOOST" and a lit bolt, the name in
- * the snake's colour, gold bolts around it.
+ * Snake Arena: a player's likes reached a speed boost. The gold card: the photo in a full gold
+ * ring, "{name} ⚡ SPEED BOOST" with a lit bolt, no number, the name in the snake's colour, gold
+ * bolts around it.
  */
 export function alertBoost(
   who: { nickname: string; avatar?: string | undefined },
   tint: string,
-  likes: number,
 ): void {
   if (!who.nickname || !alertsOn) return;
   const next: Alert = {
@@ -382,7 +381,7 @@ export function alertBoost(
     nickname: who.nickname,
     avatar: who.avatar,
     by: undefined,
-    likes,
+    likes: 0,
     phrase: 'arena.boost',
     visit: 0,
     supporter: undefined,
@@ -700,12 +699,26 @@ export function paintCardBolt(x: number, y: number, size: number, lit: boolean):
 /** A game card's words shrink to fit their row down to this size, then the name is cut. */
 export const GAME_TEXT_MIN = 30;
 
-/** One stretch of a game card's row: its words, colour and weight; the `name` may be cut to fit. */
+/**
+ * One stretch of a game card's row: its words, colour and weight; the `name` may be cut to fit. A
+ * `bolt` is the lit bolt drawn in the words' place, its text "⚡" read by tests only.
+ */
 interface Piece {
   readonly text: string;
   readonly colour: string;
   readonly weight: number;
   readonly name?: boolean;
+  readonly bolt?: boolean;
+}
+
+/** A bolt piece's width and height on a row of words at `size`. */
+const boltWidth = (size: number): number => size * 0.8;
+
+/** A piece's width on a row at `size`, the font set for it. */
+function pieceWidth(p: Piece, size: number): number {
+  if (p.bolt) return boltWidth(size);
+  ctx.font = `${String(p.weight)} ${String(size)}px ${FONT}`;
+  return ctx.measureText(p.text).width;
 }
 
 /** What the last game card painted on its row: for tests. */
@@ -716,10 +729,7 @@ let lastRow: { text: string; size: number; left: number; right: number; room: nu
 function fitRow(pieces: readonly Piece[], room: number): { size: number; pieces: Piece[] } {
   const c = ctx,
     width = (size: number, list: readonly Piece[]): number =>
-      list.reduce((sum, p) => {
-        c.font = `${String(p.weight)} ${String(size)}px ${FONT}`;
-        return sum + c.measureText(p.text).width;
-      }, 0);
+      list.reduce((sum, p) => sum + pieceWidth(p, size), 0);
   let size = look.text;
   while (size > GAME_TEXT_MIN && width(size, pieces) > room) size--;
   if (width(size, pieces) <= room) return { size, pieces: [...pieces] };
@@ -745,10 +755,13 @@ function paintRow(pieces: readonly Piece[], tx: number, room: number): number {
   c.textBaseline = 'middle';
   let x = tx;
   for (const p of row.pieces) {
-    c.font = `${String(p.weight)} ${String(row.size)}px ${FONT}`;
-    c.fillStyle = p.colour;
-    c.fillText(p.text, x, 2);
-    x += c.measureText(p.text).width;
+    const w = pieceWidth(p, row.size);
+    if (p.bolt) paintCardBolt(x + w / 2, 0, row.size * 1.05, true);
+    else {
+      c.fillStyle = p.colour;
+      c.fillText(p.text, x, 2);
+    }
+    x += w;
   }
   lastRow = {
     text: row.pieces.map((p) => p.text).join(''),
@@ -774,9 +787,9 @@ function pieces(a: Alert, text: string, colour: string): Piece[] {
 }
 
 /**
- * A speed boost reached, on Feed's card (look), one row: the photo in a full gold ring, "{name}
- * hit 100 likes: SPEED BOOST" (the name in the snake's colour, the last words in gold) and a lit
- * bolt.
+ * A speed boost reached, on Feed's card (look), one row: the photo in a full gold ring, "{name} ⚡
+ * SPEED BOOST" (the name in the snake's colour, a lit bolt for the "⚡", the words after it in
+ * gold). No number: the card thanks, it sets no target.
  */
 function paintBoostCard(a: Alert): void {
   const c = ctx,
@@ -793,21 +806,22 @@ function paintBoostCard(a: Alert): void {
   c.beginPath();
   c.arc(px, 0, r + 8, 0, Math.PI * 2);
   c.stroke();
-  // The words after the colon shout in gold: "SPEED BOOST".
-  const list = pieces(a, tr('arena.boost', { n: a.likes }), tint),
+  // The "⚡" is the lit bolt; the words after it shout in gold: "SPEED BOOST".
+  const list = pieces(a, tr('arena.boost'), tint),
     last = list.at(-1),
-    cut = last && !last.name ? last.text.lastIndexOf(':') + 1 : 0;
-  if (last && cut > 0) {
+    cut = last && !last.name ? last.text.indexOf('⚡') : -1;
+  if (last && cut >= 0) {
     list.pop();
     list.push(
-      { ...last, text: last.text.slice(0, cut) },
-      { text: last.text.slice(cut), colour: GOLD, weight: 900 },
+      ...[
+        { ...last, text: last.text.slice(0, cut) },
+        { text: '⚡', colour: GOLD, weight: 900, bolt: true },
+        { text: last.text.slice(cut + 1), colour: GOLD, weight: 900 },
+      ].filter((p) => p.text),
     );
   }
-  const bolt = h * 0.42,
-    tx = px + r + 28,
-    end = paintRow(list, tx, x + w - 28 - bolt * 0.7 - 10 - tx);
-  paintCardBolt(end + 10 + bolt * 0.35, 0, bolt, true);
+  const tx = px + r + 28;
+  paintRow(list, tx, x + w - 28 - tx);
 }
 
 /**

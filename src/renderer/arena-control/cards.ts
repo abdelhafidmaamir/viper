@@ -294,10 +294,16 @@ function arenaCard(arena: ArenaSide, reason: Reason): FeedView {
   };
 }
 
+/** Gifts buy seats, as the board last confirmed it or as sent and still pending. */
+function giftSeatsOn(state: FeedControlState, arena: ArenaSide): boolean {
+  const p = resolvePending(arena.state()?.settings.giftSeats, arena.pending().giftSeats, state.now);
+  return p.value === true;
+}
+
 /**
  * The paid queue, read only: whoever gave outside a qualifying, first in line first, so the
  * operator can tell a viewer where they stand. The first ones (as many as there are places) play
- * the next round on paid seats.
+ * the next round on paid seats. Hidden while gifts buy no seats: the queue is empty then.
  */
 function paidQueueCard(arena: ArenaSide): FeedView {
   const list = h('div', { class: 'paid-queue' });
@@ -311,7 +317,8 @@ function paidQueueCard(arena: ArenaSide): FeedView {
   let shown: string | null = null;
   return {
     el: card.el,
-    update() {
+    update(state) {
+      setHidden(card.el, !giftSeatsOn(state, arena));
       const board = arena.state(),
         names = board?.paidQueue ?? [],
         places = board?.settings.places ?? 0,
@@ -333,10 +340,35 @@ function paidQueueCard(arena: ArenaSide): FeedView {
 }
 
 /**
+ * Whether gifts buy seats at all, above the seat price: off, the default, no gift buys a seat or a
+ * place in the paid queue, the qualifying goes by likes alone, and the seat price waits greyed.
+ */
+export function giftSeatsCard(arena: ArenaSide, reason: Reason): FeedView {
+  const switches: Switch[] = [
+    toggle(
+      arena,
+      'giftSeats',
+      'Gifts buy seats',
+      'Off: the qualifying goes by likes alone, no gift buys a seat or a place in line, and the paid queue stays empty.',
+    ),
+  ];
+  const card = createCard(
+    { title: 'Paid seats' },
+    switches.map((w) => w.view.el),
+  );
+  return {
+    el: card.el,
+    update(state) {
+      updateTuning(state, arena, reason(), [], switches);
+    },
+  };
+}
+
+/**
  * The seat gift, next to the gift prices: the coin value of the one gift that buys a seat in the
  * qualifying, or a place in the paid queue outside it, typed in a field like the price rows'. That
  * gift gives no berries. 0, the default: any gift buys one. Enter or leaving the field applies it;
- * an empty or wrong entry puts the value in use back.
+ * an empty or wrong entry puts the value in use back. Greyed while gifts buy no seats.
  */
 export function seatCard(arena: ArenaSide, dispatch: Dispatch): FeedView {
   const coins = h('input', {
@@ -400,24 +432,35 @@ export function seatCard(arena: ArenaSide, dispatch: Dispatch): FeedView {
         coins.value = String(value);
         shown = value;
       }
-      setDisabled(coins, controlsReason(state) !== null);
-      test.update({ reason: rehearsalReason(state) ?? (last > 0 ? null : 'Any gift buys a seat') });
+      const on = giftSeatsOn(state, arena);
+      setDisabled(coins, controlsReason(state) !== null || !on);
+      test.update({
+        reason:
+          rehearsalReason(state) ??
+          (!on ? 'Gifts buy no seats' : last > 0 ? null : 'Any gift buys a seat'),
+      });
       setText(
         status,
-        p.status === 'pending'
-          ? 'Sending…'
-          : p.status === 'error'
-            ? 'The game did not take it.'
-            : editing
-              ? 'Edited: Enter to apply.'
-              : value === null
-                ? ''
-                : value === 0
-                  ? 'In use: any gift buys a seat.'
-                  : `In use: the ${String(value)}-coin gift buys a seat, and gives no berries.`,
+        !on
+          ? 'Off: gifts buy no seats.'
+          : p.status === 'pending'
+            ? 'Sending…'
+            : p.status === 'error'
+              ? 'The game did not take it.'
+              : editing
+                ? 'Edited: Enter to apply.'
+                : value === null
+                  ? ''
+                  : value === 0
+                    ? 'In use: any gift buys a seat.'
+                    : `In use: the ${String(value)}-coin gift buys a seat, and gives no berries.`,
       );
       const same =
-        value !== null && value > 0 && settings?.lifeOn === true && settings.lifePrice === value;
+        on &&
+        value !== null &&
+        value > 0 &&
+        settings?.lifeOn === true &&
+        settings.lifePrice === value;
       setText(
         clash,
         same ? 'The extra-life gift has the same price: that gift gives a life, not a seat.' : '',
@@ -523,6 +566,7 @@ export function arenaRoom(
   arena: ArenaSide,
 ): FeedRoom {
   const pricing = pricingCard(store, dispatch, { roundInfo: false }),
+    giftSeats = giftSeatsCard(arena, () => controlsReason(store.get())),
     seat = seatCard(arena, dispatch),
     life = lifeCard(arena, () => controlsReason(store.get()));
   return {
@@ -544,14 +588,16 @@ export function arenaRoom(
         arenaCard(arena, () => controlsReason(store.get())),
         true,
       ),
-      // The gift prices, then what the two special gifts buy: a seat, a life.
+      // The gift prices, then whether gifts buy seats, then what the two special gifts buy: a
+      // seat, a life.
       money: {
         el: h('div', { class: 'screen screen--money' }, [
           pricing.el,
-          h('div', { class: 'column' }, [seat.el, life.el]),
+          h('div', { class: 'column' }, [giftSeats.el, seat.el, life.el]),
         ]),
         update: (state) => {
           pricing.update(state);
+          giftSeats.update(state);
           seat.update(state);
           life.update(state);
         },

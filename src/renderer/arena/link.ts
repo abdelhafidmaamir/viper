@@ -100,8 +100,15 @@ export function restoreArenaSettings(storage: Store): void {
   setArenaSettings({ ...arenaSettings });
 }
 
-/** The paid queue saved before a reload, read back: anything unreadable is left out. */
+/**
+ * The paid queue saved before a reload, read back: anything unreadable is left out. While gifts
+ * buy no seats it stays empty.
+ */
 export function restorePaidQueue(storage: Store): void {
+  if (!arenaSettings.giftSeats) {
+    paidQueue.length = 0;
+    return;
+  }
   let saved: unknown;
   try {
     saved = JSON.parse(safely(() => storage.getItem(PAID_QUEUE_KEY)) ?? '[]');

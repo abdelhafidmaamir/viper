@@ -1,14 +1,14 @@
 // Snake Arena: the qualifying on screen, read without words. The seats' eggs in two ranked rows,
 // each holder's picture over its egg with their name above and their number of likes under it in
-// a heart badge; the cut line under the seats; the three best challengers under it. A swap is two
-// pictures crossing the line together, numbers in view, the bigger going up. The weakest seat's
-// egg trembles and its badge pulses red when the first challenger is close. A gift's seat has a
-// gold egg and a gold outline on its photo. No ring here: the red ring means speed, in the battle
-// only. Nothing written on the board: QUALIFYING is in the clock's pill (beach.ts).
+// a small badge (the hearts pop round the picture, beach.ts); the cut line under the seats; the
+// three best challengers under it. A swap is two pictures crossing the line together, numbers in
+// view, the bigger going up. Nothing presses: no seat is ever shown at risk, the cut line stays
+// still to the end. A gift's seat has a gold egg and a gold outline on its photo. No ring here:
+// the red ring means speed, in the battle only. Nothing written on the board: QUALIFYING is in the
+// clock's pill (beach.ts).
 
 import { ctx } from '../engine/canvas.ts';
 import { GOLD } from '../engine/palette.ts';
-import { bigHeart } from '../feed/alert-fx.ts';
 import { BOARD_W, FCELL, FCOLS, FX0 } from '../feed/grid.ts';
 import { FONT, paintFace } from '../feed/paint.ts';
 import { bumpOf, paintStillEgg } from './board-paint.ts';
@@ -17,13 +17,11 @@ import {
   CUT_Y,
   QUALIFY,
   actors,
-  atRisk,
   challengers,
   isGold,
   isLocked,
   likesOf,
   qual,
-  qualLeft,
   qualifying,
   seatOf,
   seatSpot,
@@ -63,40 +61,33 @@ function paintName(name: string, x: number, y: number): void {
   c.restore();
 }
 
-/** The heart badge: the prod heart and the number of likes, 34 bold, in a dark pill. */
-function paintBadge(n: number, x: number, y: number, alarm: number): void {
+/** The badge: the number of likes, 34 bold, in a dark pill; no icon (the hearts pop round the photo). */
+function paintBadge(n: number, x: number, y: number): void {
   const c = ctx,
     text = String(n);
   c.save();
   c.font = `900 34px ${FONT}`;
   const tw = c.measureText(text).width,
-    heart = 32,
-    w = heart + 8 + tw + 26,
+    w = Math.max(46, tw + 26),
     h = 46;
-  c.fillStyle = alarm > 0 ? `rgba(160,20,45,${String(0.55 + 0.35 * alarm)})` : 'rgba(8,12,10,0.82)';
+  c.fillStyle = 'rgba(8,12,10,0.82)';
   c.beginPath();
   c.roundRect(x - w / 2, y - h / 2, w, h, h / 2);
   c.fill();
-  c.drawImage(bigHeart(true), x - w / 2 + 12, y - heart / 2, heart, heart);
   c.fillStyle = '#fff';
-  c.textAlign = 'left';
+  c.textAlign = 'center';
   c.textBaseline = 'middle';
-  c.fillText(text, x - w / 2 + 12 + heart + 8, y + 2);
+  c.fillText(text, x, y + 2);
   c.restore();
 }
 
 /** The eggs, the empty seats' marks and the cut line, on the board under the pictures. */
 export function paintSeats(t: number): void {
   if (!qualifying()) return;
-  const c = ctx,
-    risk = atRisk(),
-    end = qualLeft() <= 5;
+  const c = ctx;
   seats.forEach((seat, i) => {
     const egg = toPx(cellX(seat.cell), cellY(seat.cell));
-    paintStillEgg(c, egg.x, egg.y, t + seat.cell, {
-      wobble: seat === risk,
-      gold: isGold(seat.holder),
-    });
+    paintStillEgg(c, egg.x, egg.y, t + seat.cell, { gold: isGold(seat.holder) });
     const a = seat.holder ? actors.get(seat.holder) : undefined;
     if (a && Math.hypot(a.x - seatSpot(i).x, a.y - seatSpot(i).y) < 60) return;
     // An open seat: a faint mark where a picture will sit.
@@ -111,18 +102,14 @@ export function paintSeats(t: number): void {
     c.stroke();
     c.restore();
   });
-  // The cut line: soft, in the frame's gold; it glows through the last seconds.
-  const glow = end ? 0.6 + 0.4 * Math.sin(t * 8) : 0,
-    fade = qual.t > QUALIFY.time ? Math.max(0, 1 - (qual.t - QUALIFY.time) / QUALIFY.freeze) : 1;
+  // The cut line: soft, in the frame's gold, the same to the end.
+  const fade =
+    qual.t > QUALIFY.time ? Math.max(0, 1 - (qual.t - QUALIFY.time) / QUALIFY.freeze) : 1;
   c.save();
-  c.globalAlpha = (0.45 + 0.5 * glow) * fade;
+  c.globalAlpha = 0.45 * fade;
   c.strokeStyle = GOLD;
   c.lineCap = 'round';
-  c.lineWidth = 4 + 3 * glow;
-  if (glow > 0) {
-    c.shadowColor = 'rgba(242,197,124,0.9)';
-    c.shadowBlur = 18 * glow;
-  }
+  c.lineWidth = 4;
   c.beginPath();
   c.moveTo(FX0 + 40, CUT_Y);
   c.lineTo(FX0 + BOARD_W - 40, CUT_Y);
@@ -130,7 +117,7 @@ export function paintSeats(t: number): void {
   c.restore();
 }
 
-function paintActor(a: Actor, t: number, risky: string | null): void {
+function paintActor(a: Actor, t: number): void {
   const c = ctx,
     locked = isGold(a.nickname),
     onBoard = a.leaving || !!seatOf(a.nickname) || challengers.includes(a.nickname),
@@ -161,9 +148,8 @@ function paintActor(a: Actor, t: number, risky: string | null): void {
   if (onBoard && words * leavingWords > 0) {
     c.globalAlpha *= words * leavingWords;
     paintName(nameOf(a.nickname), a.x, a.y - r - 6);
-    const alarm = risky === a.nickname ? 0.5 + 0.5 * Math.sin(t * 9) : 0;
     // A paid seat shows no badge: its gold egg and outline say it.
-    if (!isLocked(a.nickname)) paintBadge(n, a.x, a.y + r + 2, alarm);
+    if (!isLocked(a.nickname)) paintBadge(n, a.x, a.y + r + 2);
   }
   c.restore();
 }
@@ -171,10 +157,9 @@ function paintActor(a: Actor, t: number, risky: string | null): void {
 /** The pictures: the seats' holders, the challengers, and those going back to the beach. */
 export function paintActors(t: number): void {
   if (!qualifying()) return;
-  const risky = atRisk()?.holder ?? null;
   // The ones leaving first, under; the seats last, on top.
   const list = [...actors.values()].sort(
     (p, q) => Number(!!seatOf(p.nickname)) - Number(!!seatOf(q.nickname)),
   );
-  for (const a of list) paintActor(a, t, risky);
+  for (const a of list) paintActor(a, t);
 }

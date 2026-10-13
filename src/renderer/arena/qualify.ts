@@ -5,10 +5,14 @@
 //
 // The rule is read on screen: a seat changes hands only when the first challenger's number passes
 // the weakest seat's number, the two pictures crossing the cut line together, at most one swap
-// every QUALIFY.swapGap seconds. A gift locks a seat for its giver: the flower opens on their face
-// as for any gift, their picture leaves it for an egg that turns gold as it lands. The seats keep
-// a strict order: the paid ones first in the order the gifts came, then the most likes. Every number on screen rolls up to the likes counted (a heart pops on its
-// badge with each like, entry.ts), and the rules read those same numbers. Everything moves eased, slowly enough to follow.
+// every QUALIFY.swapGap seconds. While gifts buy seats (Money tab), a gift locks a seat for its
+// giver: the flower opens on their face as for any gift, their picture leaves it for a free egg,
+// or for the weakest like seat, whose holder crosses down to the challengers as in any swap; the
+// egg turns gold as it lands. The seats keep a strict order: the paid ones first in the order the
+// gifts came, then the most likes. Every number on screen rolls up to the likes counted (hearts pop
+// round the picture with each like, entry.ts), and the rules read those same numbers. Nothing
+// presses: the clock just counts down, no seat is ever shown at risk. Everything moves eased,
+// slowly enough to follow.
 //
 // At 0:00 everything freezes for QUALIFY.freeze seconds and the challengers fade; then Feed's
 // 3, 2, 1 plays over the closed eggs, and at GO every egg hatches in one beat (the empty ones hatch
@@ -53,8 +57,6 @@ export const QUALIFY = {
   reorderGap: 0.6,
   /** Seconds everything holds still at 0:00 before the eggs hatch. */
   freeze: 0.5,
-  /** The first challenger this close to the weakest seat (share of its number) puts it at risk. */
-  risk: 0.1,
   /** Challengers shown under the cut line. */
   challengers: 3,
   /** Seconds of a slide in the ranking, of a swap across the cut, of a flight to or from the beach. */
@@ -190,9 +192,6 @@ export function challengerSpot(i: number): { x: number; y: number; r: number } {
   const x = rowCells(QUALIFY.challengers)[i] ?? 0;
   return { x: toPx(x, 0).x, y: CHALLENGER_Y, r: CHALLENGER_R };
 }
-
-/** Where a like heart lands on a picture of the board: its badge, under the photo. */
-export const badgeOf = (a: Actor): { x: number; y: number } => ({ x: a.x, y: a.y + a.r + 2 });
 
 /** Ease in and out (cubic): every move starts and ends softly. */
 export const easeInOut = (v: number): number => {
@@ -343,8 +342,9 @@ const card = (v: Viewer): Pour => ({
 });
 
 /**
- * A gift locks a seat for its giver: theirs, an empty one, or the weakest unlocked holder's. The
- * flower shows the gift, then the picture flies from it to the egg. False when every seat is paid.
+ * A gift locks a seat for its giver: theirs, an empty one, or the weakest unlocked holder's, who
+ * crosses down to the first challenger's place as in any swap, quietly. The flower shows the gift,
+ * then the picture flies from it to the egg. False when every seat is paid.
  */
 function lockSeat(v: Viewer, pour?: Pour): boolean {
   if (locked.includes(v.nickname)) return true;
@@ -352,10 +352,17 @@ function lockSeat(v: Viewer, pour?: Pour): boolean {
   if (!seat) {
     seat = seats.find((s) => !s.holder) ?? weakest();
     if (!seat) return false;
-    if (seat.holder) out(seat.holder);
+    const down = seat.holder;
+    if (down) out(down);
     seat.holder = v.nickname;
     challengers = challengers.filter((n) => n !== v.nickname);
     leaveQueue(v.nickname);
+    if (down) {
+      challengers = [down, ...challengers.filter((n) => n !== down)].slice(0, QUALIFY.challengers);
+      qual.swapT = 0;
+      qual.reorderT = 0;
+      if (actors.has(down)) aim(down, challengerSpot(0), { dur: QUALIFY.swap, arc: -50 });
+    }
   }
   locked.push(v.nickname);
   // The flower shows what the gift bought, a seat: a gold egg on its card (a copy: the berries
@@ -537,17 +544,6 @@ function reorderChallengers(): boolean {
   return true;
 }
 
-/** The weakest seat is at risk: the first challenger is within QUALIFY.risk of its number. */
-export function atRisk(): Seat | undefined {
-  const seat = weakest(),
-    first = challengers[0];
-  if (!seat?.holder || !first || seats.some((s) => !s.holder)) return undefined;
-  const mine = likesOf(seat.holder);
-  return mine > 0 && likesOf(first) >= mine * (1 - QUALIFY.risk) ? seat : undefined;
-}
-
-let lastTick = 99;
-
 /** Every seat is held by a gift whose picture has landed. */
 export const allLocked = (): boolean =>
   seats.length > 0 && !shows.length && seats.every((s) => isGold(s.holder));
@@ -562,12 +558,6 @@ export function stepQualifying(dt: number): void {
     holdStill();
     if (qual.t >= QUALIFY.time + QUALIFY.freeze) endQualifying();
     return;
-  }
-  // Last 5 seconds: a tick each second (the prod bite's note, rising).
-  const left = Math.ceil(qualLeft());
-  if (left <= 5 && left !== lastTick) {
-    lastTick = left;
-    hooks.eat(5 - left);
   }
   // Every seat held by a gift: likes can change nothing more, the qualifying ends at once (once
   // the last gift's picture has landed on its egg).
@@ -662,7 +652,6 @@ function holdStill(): void {
 export function endQualifying(): void {
   arena.phase = 'ready';
   game.ready = 0;
-  lastTick = 99;
   shows.length = 0;
   const holders = seats.filter((s) => s.holder).length,
     wild = Math.max(0, Math.min(TUNING.wildUpTo, places()) - holders);

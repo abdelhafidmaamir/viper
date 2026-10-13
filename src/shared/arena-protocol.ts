@@ -79,6 +79,12 @@ export interface ArenaSettings {
    * outside it; that gift gives no berries. 0: any gift buys one (control room, Money tab).
    */
   readonly seatPrice: number;
+  /**
+   * Gifts buy seats: in the qualifying a seat, outside it a place in the paid queue (control room,
+   * Money tab). Off, the default: no gift ever buys either, the qualifying goes by likes alone, the
+   * paid queue stays empty.
+   */
+  readonly giftSeats: boolean;
   /** The extra-life gift is on (control room, Money tab). */
   readonly lifeOn: boolean;
   /** The extra-life gift's price in coins (ARENA_LIFE_PRICES). */
@@ -111,6 +117,7 @@ export const ARENA_DEFAULTS: ArenaSettings = {
   backing: 'strong',
   queueIdle: 5,
   seatPrice: 0,
+  giftSeats: false,
   lifeOn: false,
   lifePrice: 30,
   maxLives: 3,
@@ -221,6 +228,7 @@ export function sanitizeArenaSetting<K extends ArenaSettingName>(
     case 'plainAmount':
       return listed(ARENA_PLAIN_AMOUNTS, value) ? ok(value) : undefined;
     case 'giftEntry':
+    case 'giftSeats':
     case 'lifeOn':
     case 'likeBoost':
     case 'pilot':

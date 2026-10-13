@@ -21,7 +21,7 @@ import {
   paintLikePops,
 } from './beach.ts';
 import { paintBoardShade, paintFood, paintSnakes } from './board-paint.ts';
-import { BOOST, PILOT, QUEUE, isPilot, setPilot } from './entry.ts';
+import { BOOST, PILOT, QUEUE, clearPaidQueue, isPilot, setPilot } from './entry.ts';
 import { paintBeachHearts } from './lives.ts';
 import { paintActors, paintSeats } from './qualify-paint.ts';
 import { qualifying } from './qualify.ts';
@@ -42,6 +42,9 @@ export function setArenaSettings(next: ArenaSettings): void {
   TUNING.boostCap = next.boostCap;
   TUNING.shieldGift = next.shieldGift;
   TUNING.seatPrice = next.seatPrice;
+  TUNING.giftSeats = next.giftSeats;
+  // Off, nobody holds a place in line: the paid queue empties.
+  if (!next.giftSeats) clearPaidQueue();
   TUNING.lifeOn = next.lifeOn;
   TUNING.lifePrice = next.lifePrice;
   TUNING.maxLives = next.maxLives;
@@ -81,9 +84,9 @@ export function paintArena(
 }
 
 /** The ring round the board, the round's clock, over the board's darker shade. */
-export function paintArenaClock(t: number): void {
+export function paintArenaClock(): void {
   paintBoardShade();
-  paintArenaRing(t);
+  paintArenaRing();
 }
 
 /**

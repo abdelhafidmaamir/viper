@@ -1,8 +1,9 @@
 // Snake Arena: around the board. The ring as the clock (Feed's ring, full at the start of each
-// step and emptying with its time, the time left in a pill at its top, which says QUALIFYING
-// during the qualifying), the beach (during the qualifying the newest likers' animals; during the
+// step and emptying with its time, no digits; a pill at its top says QUALIFYING during the
+// qualifying), the beach (during the qualifying the newest likers' animals; during the
 // battle the players' animals on a podium of sand, each with its flag and its boost ring), the
-// likes' hearts popping on the qualifying board, and a picture flying to the new egg a life gives.
+// likes' hearts popping round the pictures on the qualifying board, and a picture flying to the new
+// egg a life gives.
 
 import { ctx } from '../engine/canvas.ts';
 import { tr } from '../engine/i18n.ts';
@@ -41,7 +42,7 @@ import {
   rings,
 } from './entry.ts';
 import { bigHeart } from '../feed/alert-fx.ts';
-import { QUALIFY, actors, badgeOf, challengers, qualLeft, qualifying, seatOf } from './qualify.ts';
+import { QUALIFY, actors, challengers, qualLeft, qualifying, seatOf } from './qualify.ts';
 import { TUNING, alive, arena } from './rules.ts';
 
 const smooth = (v: number): number => {
@@ -49,21 +50,14 @@ const smooth = (v: number): number => {
   return x * x * (3 - 2 * x);
 };
 
-/** "1:42" */
-export function clockText(seconds: number): string {
-  const s = Math.max(0, Math.ceil(seconds));
-  return `${String(Math.floor(s / 60))}:${String(s % 60).padStart(2, '0')}`;
-}
-
-/** The clock of the step on screen: the qualifying's, or the battle's. */
-function clockNow(): { left: number; length: number; urgent: boolean } | null {
-  if (qualifying()) {
-    const left = qualLeft();
-    return { left, length: QUALIFY.time, urgent: left <= 5 };
-  }
+/**
+ * The clock of the step on screen: the qualifying's or the battle's, calm to the end. Only the
+ * ring round the board shows it, emptying: no digits, no beat, no change of colour near the end.
+ */
+function clockNow(): { left: number; length: number } | null {
+  if (qualifying()) return { left: qualLeft(), length: QUALIFY.time };
   if (arena.phase !== 'play' && arena.phase !== 'ready') return null;
-  const left = Math.max(0, TUNING.roundTime - arena.time);
-  return { left, length: TUNING.roundTime, urgent: left <= 20 && arena.phase === 'play' };
+  return { left: Math.max(0, TUNING.roundTime - arena.time), length: TUNING.roundTime };
 }
 
 /**
@@ -86,12 +80,12 @@ function frame(x: number, y: number, w: number, h: number, r: number): void {
 
 /**
  * Feed's ring as the clock, in its colours, twice its width (read on a phone): full when the
- * step starts, emptying clockwise from the top centre to 0:00, full again at once at the next.
+ * step starts, emptying clockwise from the top centre to 0:00, full again at once at the next. The
+ * only clock on screen: no digits, and calm to the end.
  */
-export function paintArenaRing(t: number): void {
+export function paintArenaRing(): void {
   const clock = clockNow(),
     fill = clock ? Math.max(0, Math.min(1, clock.left / clock.length)) : 0,
-    urgent = clock?.urgent ?? false,
     tint = qualifying() ? undefined : (crownColour() ?? undefined),
     c = ctx,
     x = FX0 - 26,
@@ -107,13 +101,12 @@ export function paintArenaRing(t: number): void {
   frame(x, y, w, h, r);
   c.stroke();
   if (fill > 0.001) {
-    const glow = urgent ? 0.6 + 0.4 * Math.sin(t * 7) : 0.9;
     c.setLineDash([perim * fill, perim * 2]);
     c.lineDashOffset = 0;
     const g = c.createLinearGradient(x, y + h, x, y);
     g.addColorStop(0, RING_GREEN);
     g.addColorStop(1, GOLD);
-    c.strokeStyle = urgent ? `rgba(242,197,124,${String(0.25 * glow)})` : 'rgba(155,226,138,0.18)';
+    c.strokeStyle = 'rgba(155,226,138,0.18)';
     c.lineWidth = 34;
     frame(x, y, w, h, r);
     c.stroke();
@@ -126,53 +119,31 @@ export function paintArenaRing(t: number): void {
 const RING_GREEN = berryTint(null);
 
 /**
- * The time left in a pill at the ring's top centre, painted after the flower, which reaches over
- * it. In the qualifying it reads "QUALIFYING  0:24", smaller than the battle's, and beats once a
- * second in gold through the last five: the only word on the qualifying's screen.
+ * The word QUALIFYING in a pill at the ring's top centre during the qualifying, painted after the
+ * flower, which reaches over it: the only word on the qualifying's screen. No time in it, and no
+ * pill at all in the battle: the ring round the board alone shows the time left, emptying calmly.
  */
 export function paintArenaTime(): void {
-  const clock = clockNow();
-  if (!clock) return;
-  const q = qualifying(),
-    c = ctx,
-    x = FX0 + BOARD_W / 2,
-    y = FY0 - 30,
-    time = clockText(clock.left),
-    word = q ? tr('arena.qualifying') : '',
-    beat = q && clock.urgent && clock.left > 0 ? 1 - (clock.left % 1) : 0,
-    pop = 1 + 0.14 * Math.max(0, 1 - beat * 4),
-    // The battle's pill: the time at 40. The qualifying's is smaller: the word at 24, spaced a
-    // little, the time at 30, the pill a tenth lower and as wide as what it holds.
-    size = q ? 30 : 40,
-    h = q ? 47 : 52,
-    pad = q ? 16 : 15;
+  if (!qualifying()) return;
+  const c = ctx,
+    word = tr('arena.qualifying'),
+    // The word at 24, spaced a little, in a pill as wide as what it holds.
+    h = 47,
+    pad = 16;
   c.save();
-  c.translate(x, y);
-  if (beat > 0) c.scale(pop, pop);
+  c.translate(FX0 + BOARD_W / 2, FY0 - 30);
   c.textBaseline = 'middle';
   c.font = `900 24px ${FONT}`;
   c.letterSpacing = '1.5px';
-  const ww = word ? c.measureText(word).width : 0;
-  c.letterSpacing = '0px';
-  c.font = `900 ${String(size)}px ${FONT}`;
-  const gap = word ? 12 : 0,
-    tw = c.measureText(time).width,
-    w = ww + gap + tw + pad * 2;
+  const w = c.measureText(word).width + pad * 2;
   c.fillStyle = 'rgba(8,12,10,0.8)';
   c.beginPath();
   c.roundRect(-w / 2, -h / 2, w, h, h / 2);
   c.fill();
   c.textAlign = 'left';
-  if (word) {
-    c.font = `900 24px ${FONT}`;
-    c.letterSpacing = '1.5px';
-    c.fillStyle = '#fff';
-    c.fillText(word, -w / 2 + pad, 2);
-    c.letterSpacing = '0px';
-  }
-  c.font = `900 ${String(size)}px ${FONT}`;
-  c.fillStyle = clock.urgent ? GOLD : '#fff';
-  c.fillText(time, -w / 2 + pad + ww + gap, 2);
+  c.fillStyle = '#fff';
+  c.fillText(word, -w / 2 + pad, 2);
+  c.letterSpacing = '0px';
   c.restore();
 }
 
@@ -531,27 +502,57 @@ export function paintSleeperHeart(): void {
 const EGG_TALL = 54;
 
 /**
- * Each like on the qualifying board: the prod heart pops on the liker's badge, rises a little and
- * fades; a burst of likes pops one bigger heart. On the beach the animals show their own hearts.
+ * Each like on the qualifying board: prod hearts pop round the liker's picture, each leaving its
+ * edge at its own angle, rising a little and fading. On the beach the animals show their own hearts.
  */
 export function paintLikePops(): void {
   if (!qualifying()) return;
   const c = ctx,
     sprite = bigHeart(true);
-  for (const h of likePops) {
-    const a = actors.get(h.nickname);
-    if (!a || a.leaving) continue;
-    const at = badgeOf(a),
-      u = h.t / POP_TIME,
-      grow = Math.min(1, u / 0.25),
-      big = 1 + Math.min(0.8, Math.log10(Math.max(1, h.n)) * 0.4),
-      size = 30 * big * (0.6 + 0.4 * smooth(grow)),
-      y = at.y - 28 - 34 * smooth(u);
+  for (const p of likePopSpots()) {
+    const u = p.t / POP_TIME,
+      size = 30 * (0.6 + 0.4 * smooth(Math.min(1, u / 0.25))),
+      { x, y } = p;
     c.save();
     c.globalAlpha = 1 - smooth((u - 0.5) / 0.5);
-    c.drawImage(sprite, at.x - size / 2, y - size / 2, size, size);
+    c.drawImage(sprite, x - size / 2, y - size / 2, size, size);
     c.restore();
   }
+}
+
+interface PopSpot {
+  readonly nickname: string;
+  readonly x: number;
+  readonly y: number;
+  readonly t: number;
+  /** The centre and radius of the picture it pops round. */
+  readonly cx: number;
+  readonly cy: number;
+  readonly r: number;
+}
+
+/**
+ * Where each like heart of the qualifying board shows now: from its picture's edge, at its own
+ * angle, drifting out and up as it fades.
+ */
+export function likePopSpots(): PopSpot[] {
+  const out: PopSpot[] = [];
+  for (const h of likePops) {
+    const a = actors.get(h.nickname);
+    if (!a || a.leaving || h.t < 0) continue;
+    const u = smooth(h.t / POP_TIME),
+      edge = a.r + 10 + 14 * u;
+    out.push({
+      nickname: h.nickname,
+      x: a.x + Math.cos(h.angle) * edge,
+      y: a.y + Math.sin(h.angle) * edge - 30 * u,
+      t: h.t,
+      cx: a.x,
+      cy: a.y,
+      r: a.r,
+    });
+  }
+  return out;
 }
 
 /** A life used: the picture flies from where its snake fell to the new egg. */

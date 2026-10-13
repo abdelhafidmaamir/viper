@@ -224,7 +224,7 @@ function step(dt: number): void {
   if (c && a) {
     const e = frame(dt, arenaProgress());
     a.paintBack(c, e);
-    paintArenaClock(t);
+    paintArenaClock();
     paintArena(c, a, e, t);
     paintBites();
     a.paintFront(c, e);

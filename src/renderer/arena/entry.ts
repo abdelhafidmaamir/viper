@@ -1,19 +1,20 @@
-// Snake Arena: what viewers do. A like shows where it counts: a prod heart pops on the liker's
-// badge on the qualifying board, or over their animal on the beach. During the qualifying likes
+// Snake Arena: what viewers do. A like shows where it counts: prod hearts pop round the liker's
+// picture on the qualifying board, or over their animal on the beach. During the qualifying likes
 // count in the race for the seats (qualify.ts). In the battle a player's likes fill the red ring round their animal's
 // picture on the beach: every BOOST.likes of them fire a speed boost, the ring flashing, the
 // animal running on the spot and the snake dashing. A gift during the qualifying locks a seat; in
 // the battle its berries pour from the flower to the giver's snake, the giver's alone, and make it
 // grow. Any gift outside the qualifying also puts its giver in the paid queue for the next rounds.
 // With a seat price set (control room, Money tab), only the gift of that value buys the seat or
-// the place in line, and it gives no berries; every other gift gives berries only. Comments do
+// the place in line, and it gives no berries; every other gift gives berries only. All of this
+// only while gifts buy seats (Money tab, off by default): off, no gift buys a seat or a place in
+// line, the qualifying goes by likes alone and a gift gives what a gift gives. Comments do
 // nothing.
 //
 // The pilot player, "Skohlds", shows newcomers how it works: it likes a little during the
 // qualifying like any viewer and plays when it gets a seat. It is the game's own: no ranking, no
 // crown, no thanks, no alert, no journal row, no supporters list.
 
-import { alertQueued } from '../feed/alerts.ts';
 import { crabFaces, crabGone, crabRun } from '../feed/crabs.ts';
 import { H, W } from '../engine/layout.ts';
 import {
@@ -103,21 +104,26 @@ lifeHooks.reborn = flyToEgg;
 // ---- likes ---------------------------------------------------------------------------------
 
 /**
- * A like shows where it counts, never flying across the screen: in the qualifying a prod heart
- * pops on the liker's badge on the board (a liker's animal on the beach shows its own hearts, as
- * Feed's do), in the battle the player's animal on the beach shows them. One pop per like event,
- * a burst of likes is one bigger pop, at most POPS_MAX at once: past that a like still counts.
+ * A like shows where it counts, never flying across the screen: in the qualifying prod hearts pop
+ * round the liker's picture on the board (a liker's animal on the beach shows its own hearts, as
+ * Feed's do), in the battle the player's animal on the beach shows them. A like event pops 1 to
+ * POPS_EACH hearts (more for a burst), each leaving the picture's edge at its own angle, at most
+ * POPS_ONE in the air for one viewer and POPS_MAX in all: past that a like still counts.
  */
 export interface LikePop {
   nickname: string;
   n: number;
   t: number;
+  /** Where on the picture's edge the heart leaves from, in radians (-PI / 2 is the top). */
+  angle: number;
 }
 export const likePops: LikePop[] = [];
 export const POP_TIME = 0.6;
 const POPS_MAX = 24,
-  /** Likes from one viewer this close together share one pop. */
-  MERGE = 0.4;
+  POPS_EACH = 3,
+  POPS_ONE = 4;
+/** The next heart's place round the picture: a golden-ratio walk, spread and never random. */
+let turn = 0;
 /**
  * The battle's speed boosts: every `likes` likes of a player (control room, "Likes for a speed
  * boost") give `seconds` of speed, banked up to the "Likes boost, at most" cap, and grow the snake
@@ -151,11 +157,15 @@ function land(nickname: string, n: number): void {
   rings.set(nickname, ring);
 }
 
-/** A heart pops on the liker's picture on the qualifying board. */
+/** Hearts pop round the liker's picture on the qualifying board: a few, more for a burst. */
 function pop(nickname: string, n: number): void {
-  const same = likePops.find((h) => h.nickname === nickname && h.t < MERGE);
-  if (same) same.n += n;
-  else if (likePops.length < POPS_MAX) likePops.push({ nickname, n, t: 0 });
+  const hearts = Math.min(POPS_EACH, 1 + Math.floor(Math.log10(Math.max(1, n))));
+  let mine = likePops.filter((h) => h.nickname === nickname).length;
+  for (let i = 0; i < hearts && mine < POPS_ONE && likePops.length < POPS_MAX; i++, mine++) {
+    turn = (turn + 0.618034) % 1;
+    // Round the picture's top and sides, never under it, where its badge is.
+    likePops.push({ nickname, n, t: -i * 0.08, angle: -Math.PI / 2 + (turn - 0.5) * 3.4 });
+  }
 }
 
 /** Pictures on their way to a life's egg, and the likes' pops. */
@@ -218,11 +228,21 @@ export const paidHooks: {
   card: (nickname: string, avatar: string | undefined) => void;
 } = { changed: () => undefined, card: () => undefined };
 
+/**
+ * A giver takes the next place in the paid queue. No alert card says it (no reward is announced):
+ * the flower thanks them as for any gift, and the control room lists the queue.
+ */
 export function joinPaidQueue(nickname: string, avatar: string | undefined): void {
-  if (nickname === PILOT.key || paidQueue.some((q) => q.nickname === nickname)) return;
+  if (!TUNING.giftSeats || nickname === PILOT.key || paidQueue.some((q) => q.nickname === nickname))
+    return;
   paidQueue.push({ nickname, avatar });
-  const place = paidQueue.length;
-  alertQueued({ nickname, avatar }, place, roundsToPlay(place));
+  paidHooks.changed();
+}
+
+/** Nobody waits in line any more: gifts stopped buying seats. */
+export function clearPaidQueue(): void {
+  if (!paidQueue.length) return;
+  paidQueue.length = 0;
   paidHooks.changed();
 }
 
@@ -231,16 +251,17 @@ export const roundsToPlay = (place: number): number => Math.max(1, Math.ceil(pla
 
 /** This round's paid seats: the first `places()` of the queue, which leave it. */
 export function takePaidBatch(): Queued[] {
+  if (!TUNING.giftSeats) return [];
   const batch = paidQueue.splice(0, places());
   if (batch.length) paidHooks.changed();
   return batch;
 }
 
 /**
- * The seat has no gift of its own (`seatPrice` 0, the default): any gift buys it. Else only the
- * seat gift does (isSeatGift).
+ * Gifts buy seats and the seat has no gift of its own (`seatPrice` 0, the default): any gift buys
+ * it. Else only the seat gift does (isSeatGift), or none at all while gifts buy no seats.
  */
-export const anyGiftBuys = (): boolean => TUNING.seatPrice <= 0;
+export const anyGiftBuys = (): boolean => TUNING.giftSeats && TUNING.seatPrice <= 0;
 
 /**
  * What a gift buys for the seats: in the qualifying a seat, while one can be locked; else a place
@@ -248,6 +269,7 @@ export const anyGiftBuys = (): boolean => TUNING.seatPrice <= 0;
  * on a card of its own, since it brings no berries.
  */
 function buySeat(v: Viewer, entry = false): void {
+  if (!TUNING.giftSeats) return;
   if (qualifying()) {
     if (qualHooks.gift(v, entry)) return;
   } else if (entry) paidHooks.card(v.nickname, v.avatar);
@@ -287,11 +309,12 @@ export function arenaGift(nickname: string, avatar: string | undefined, berries:
 export const isLifeGift = (coins: number): boolean => TUNING.lifeOn && coins === TUNING.lifePrice;
 
 /**
- * The seat gift, if a seat price is set and `coins` is it. At the extra-life gift's price the life
- * wins: that gift gives a life, never a seat.
+ * The seat gift, if gifts buy seats, a seat price is set and `coins` is it. At the extra-life
+ * gift's price the life wins: that gift gives a life, never a seat. While gifts buy no seats it is
+ * a gift like any other, priced in berries.
  */
 export const isSeatGift = (coins: number): boolean =>
-  TUNING.seatPrice > 0 && coins === TUNING.seatPrice && !isLifeGift(coins);
+  TUNING.giftSeats && TUNING.seatPrice > 0 && coins === TUNING.seatPrice && !isLifeGift(coins);
 
 /**
  * Extra-life gifts, `n` of them: one more life each for the giver's snake, up to the most a snake

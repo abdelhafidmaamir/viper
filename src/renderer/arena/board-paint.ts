@@ -712,20 +712,20 @@ function paintEggOf(c: CanvasRenderingContext2D, s: Snake): void {
 }
 
 /**
- * The Duel's egg at rest, barely breathing, at the size of the arena's snakes; trembling when its
- * seat is at risk, its shell gold when a gift holds it.
+ * The Duel's egg at rest, barely breathing, at the size of the arena's snakes; its shell gold when
+ * a gift holds it.
  */
 export function paintStillEgg(
   c: CanvasRenderingContext2D,
   x: number,
   y: number,
   t: number,
-  look: { wobble?: boolean; gold?: boolean } = {},
+  look: { gold?: boolean } = {},
 ): void {
   c.save();
   c.translate(x, y);
   c.scale(FAT, FAT);
-  paintEgg(c, 0, 0, t, look.wobble ? 0.32 : 0.04);
+  paintEgg(c, 0, 0, t, 0.04);
   c.restore();
   if (!look.gold) return;
   c.save();

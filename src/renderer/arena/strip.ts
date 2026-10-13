@@ -5,9 +5,10 @@
 // the base chip; a row wider than the screen less STRIP.margin each side (7 or 8 players) is
 // scaled down evenly to fit, its top kept under the line. A chip: the player's photo in the red
 // ring of their likes toward the next speed boost, the goal a bolt badge on the ring at the upper
-// right (the ring starts just past it and runs clockwise back to it), and the percentage. At 100 %
-// the chip turns gold, the badge lights and a big lit bolt replaces the number for a moment, while
-// the alert card says SPEED BOOST; then the ring starts again from what was left over. Small
+// right (the ring starts just past it and runs clockwise back to it); no number, the ring says it.
+// Full, the chip turns gold, the badge lights and a big lit bolt shows beside the photo for a
+// moment, while the alert card says SPEED BOOST; then the ring starts again from what was left
+// over. Small
 // hearts pop over a chip at each like. Painted after the alert card, so its rising particles pass
 // behind the strip. The battle over, the strip goes at once: nothing of it shows over the end
 // screen.
@@ -17,7 +18,7 @@ import { GOLD } from '../engine/palette.ts';
 import { alertBoost, paintCardBolt } from '../feed/alerts.ts';
 import { burstSprite } from '../feed/alert-fx.ts';
 import { BOARD_H, FY0 } from '../feed/grid.ts';
-import { FONT, paintFace } from '../feed/paint.ts';
+import { paintFace } from '../feed/paint.ts';
 import { W } from '../engine/layout.ts';
 import { COLOURS } from './board-paint.ts';
 import { BOOST, fired, isPilot, likeHooks, rings } from './entry.ts';
@@ -177,7 +178,7 @@ export function stepStrip(): void {
       told.set(nickname, when);
       const s = snakeOf(nickname);
       if (s && !s.wild && !isPilot(s) && arena.clock - when < 1)
-        alertBoost({ nickname, avatar: s.avatar }, light(COLOURS[s.colour]), BOOST.likes);
+        alertBoost({ nickname, avatar: s.avatar }, light(COLOURS[s.colour]));
     }
 }
 
@@ -248,15 +249,8 @@ function paintChip(chip: Chip, y: number): void {
   c.strokeStyle = full ? '#fff4c2' : 'rgba(242,193,78,0.85)';
   c.stroke();
   paintCardBolt(bx, by + 0.6, 21, full);
-  const tx = left + CHIP.pad + CHIP.box + CHIP.mid + CHIP.text / 2;
-  if (full) paintCardBolt(tx, y, 34, true);
-  else {
-    c.font = `800 21px ${FONT}`;
-    c.textAlign = 'center';
-    c.textBaseline = 'middle';
-    c.fillStyle = '#fff';
-    c.fillText(`${String(Math.min(99, Math.floor(fill * 100)))}%`, tx, y + 1);
-  }
+  // A full ring: a big lit bolt beside the photo for a moment. No number, ever: the ring says it.
+  if (full) paintCardBolt(left + CHIP.pad + CHIP.box + CHIP.mid + CHIP.text / 2, y, 34, true);
   c.restore();
 }
 
