@@ -127,20 +127,38 @@ describe('snake arena: the alert card and the like strip', () => {
     resetAlerts();
   });
 
-  it('the card shows the game first (paid queue, elimination, then boost), then the stream, then likes', () => {
-    alertViewer('like', 'liker', undefined, 20);
+  it('the card shows the game first (elimination, then boost), then likes, then the stream', () => {
     alertViewer('follow', 'fan', undefined);
+    alertViewer('like', 'liker', undefined, 20);
     alertQueued({ nickname: 'payer' }, 3, 1);
     alertKill({ nickname: 'fallen' }, null);
     alertBoost({ nickname: 'fast' }, '#fff');
-    // The money cards in the order they came; the boost waited more than 3 s behind them and was
-    // dropped; then the follow; the like waited longer than a like stays news, and was dropped.
-    expect(shownInTurn()).toEqual(['qualified', 'kill', 'follow']);
-    // A welcome comes before a like too.
+    // The game's cards in the order they came; the boost waited more than 3 s behind them and was
+    // dropped; then the like, before the follow that came first.
+    expect(shownInTurn()).toEqual(['qualified', 'kill', 'like', 'follow']);
+    // A like comes before a welcome too.
     resetAlerts();
-    alertViewer('like', 'liker2', undefined, 20);
     alertViewer('join', 'newcomer', undefined);
-    expect(shownInTurn()).toEqual(['join', 'like']);
+    alertViewer('like', 'liker2', undefined, 20);
+    expect(shownInTurn()).toEqual(['like', 'join']);
+  });
+
+  it('a single like gives its card at least 5 hearts, a burst more', () => {
+    alertViewer('like', 'one', undefined, 1);
+    let hearts = 0;
+    for (let i = 0; i < 20; i++) {
+      updateAlerts(0.05);
+      hearts = Math.max(hearts, alertsState().hearts);
+    }
+    expect(hearts).toBeGreaterThanOrEqual(5);
+    resetAlerts();
+    alertViewer('like', 'many', undefined, 20);
+    hearts = 0;
+    for (let i = 0; i < 30; i++) {
+      updateAlerts(0.05);
+      hearts = Math.max(hearts, alertsState().hearts);
+    }
+    expect(hearts).toBeGreaterThanOrEqual(15);
   });
 
   it('money first: the paid queue and an elimination go before any speed boost, which is dropped after 3 s waiting', () => {
@@ -258,7 +276,7 @@ describe('snake arena: the alert card and the like strip', () => {
     run(0.1);
     expect(stripState().some((c) => c.nickname === 'stranger')).toBe(false);
   });
-  it('one row of chips, 1.2 times the base chip, under the line, inside the screen, never touching', () => {
+  it('one row of chips, as big as 6 allow, under the line, inside the screen, never touching', () => {
     for (const n of [4, 6, 8]) {
       battle(n);
       run(1);
@@ -267,7 +285,7 @@ describe('snake arena: the alert card and the like strip', () => {
       // One row: every chip's top on the same line, under the board's bottom line.
       expect(new Set(row.map((c) => c.top.toFixed(2))).size).toBe(1);
       expect(row[0]?.top).toBeGreaterThan(STRIP.line);
-      // 4 and 6 at 1.2 times; 8 shrink evenly to fit the screen less the margin each side.
+      // 4 and 6 at full size; 8 shrink evenly to fit the screen less the margin each side.
       const fit = (W - 2 * STRIP.margin) / (8 * CHIP.w + 7 * CHIP.gap);
       for (const c of row) expect(c.k).toBeCloseTo(n <= 6 ? STRIP.size : fit, 2);
       expect(row[0]?.left).toBeGreaterThanOrEqual(STRIP.margin - 0.5);
@@ -278,12 +296,15 @@ describe('snake arena: the alert card and the like strip', () => {
       expect(((row[0]?.left ?? 0) + (row.at(-1)?.right ?? 0)) / 2).toBeCloseTo(W / 2, 0);
       expect(ARENA_ALERTS.cy - ARENA_ALERTS.h / 2).toBeGreaterThan((row[0]?.bottom ?? 0) + 20);
     }
-    // 6 chips at 1.2: a chip is 1.2 times the base, a little wider than the board but on screen.
+    // 6 chips fill the screen's width less the margin each side; the photo and its ring fill a
+    // chip's height.
     battle(6);
     run(1);
     const six = stripState();
-    expect((six[0]?.right ?? 0) - (six[0]?.left ?? 0)).toBeCloseTo(CHIP.w * 1.2, 1);
-    expect(((six[0]?.bottom ?? 0) - (six[0]?.top ?? 0)) / CHIP.h).toBeCloseTo(1.2, 3);
+    expect(six[0]?.left).toBeCloseTo(STRIP.margin, 0);
+    expect(six.at(-1)?.right).toBeCloseTo(W - STRIP.margin, 0);
+    expect(((six[0]?.bottom ?? 0) - (six[0]?.top ?? 0)) / CHIP.h).toBeCloseTo(STRIP.size, 3);
+    expect(2 * (CHIP.ring + CHIP.line / 2)).toBeGreaterThan(CHIP.h * 0.85);
   });
 
   it('rounds to play: the next round within the places, then one more round for each batch', () => {

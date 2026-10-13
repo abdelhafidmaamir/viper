@@ -247,11 +247,15 @@ describe('snake arena: the seat price', () => {
     expect(berriesOf('streak')).toBe(0);
     run(0.1);
     expect(game.pour?.nickname).toBe('streak');
-    const first = game.pour?.id;
-    run(2);
-    // One card only: the flower does not open on the second step of the streak.
-    expect(game.pour?.id).toBe(first);
-    expect(game.closeT).toBeGreaterThan(0);
+    const first = game.pour?.id,
+      cards = new Set<number>();
+    for (let i = 0; i < 60; i++) {
+      run(1 / 30);
+      if (game.pour?.nickname === 'streak') cards.add(game.pour.id);
+    }
+    // One card only: the flower does not open on the second step of the streak (it may open for
+    // a plain berry, with nobody's picture).
+    expect([...cards]).toEqual([first]);
   });
 
   it('at the extra-life price, the life wins: a life, no seat; another life price buys no seat either', () => {

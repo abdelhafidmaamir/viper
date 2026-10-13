@@ -49,7 +49,8 @@ import {
   seats,
 } from '../../src/renderer/arena/qualify.ts';
 import { paintActors, paintSeats } from '../../src/renderer/arena/qualify-paint.ts';
-import { arena, kill, snakeOf } from '../../src/renderer/arena/rules.ts';
+import { FIELD } from '../../src/renderer/arena/round.ts';
+import { MOUTH_CELL, arena, cellX, cellY, kill, snakeOf } from '../../src/renderer/arena/rules.ts';
 import {
   ARENA_ALERTS,
   paintStrip,
@@ -227,21 +228,24 @@ describe('snake arena: calm', () => {
     const numbers = rec.texts.filter((t) => /\d/.test(t));
     expect(numbers.sort()).toEqual(['12', '7']);
     expect(rec.images.includes(bigHeart(true))).toBe(false);
-    // A like: a heart leaves the photo's edge, above its badge; a burst pops a few, never a flood.
+    // A single like: 5 hearts leave the photo's edge, above its badge, each at its own angle.
     like('ana', 1);
-    run(0.1);
-    const one = likePopSpots();
-    expect(one).toHaveLength(1);
-    for (const p of one) {
+    expect(likePops.filter((h) => h.nickname === 'ana')).toHaveLength(5);
+    run(0.3);
+    const spots = likePopSpots().filter((p) => p.nickname === 'ana');
+    expect(spots.length).toBeGreaterThanOrEqual(4);
+    expect(new Set(spots.map((p) => Math.round(p.x))).size).toBe(spots.length);
+    for (const p of spots) {
       expect(Math.hypot(p.x - p.cx, p.y - p.cy)).toBeGreaterThan(p.r);
       expect(p.y).toBeLessThan(p.cy + p.r);
     }
+    // More for a burst, up to a cap for one viewer: never a flood.
     likePops.length = 0;
     like('ben', 50);
-    expect(likePops.filter((h) => h.nickname === 'ben')).toHaveLength(2);
+    expect(likePops.filter((h) => h.nickname === 'ben')).toHaveLength(7);
     like('ben', 1000);
     like('ben', 1000);
-    expect(likePops.filter((h) => h.nickname === 'ben')).toHaveLength(4);
+    expect(likePops.filter((h) => h.nickname === 'ben')).toHaveLength(14);
     // The likes still count, every one of them.
     expect(qualLikes.get('ben')).toBe(2057);
   });
@@ -455,5 +459,80 @@ describe('snake arena: the pilot likes as an engaged viewer', () => {
       expect(gap).toBeLessThanOrEqual(PILOT_LIKES.boostEvery[1] + 1.5);
     }
     setArenaSettings({ ...ARENA_DEFAULTS, pilot: false });
+  });
+});
+
+describe('snake arena: plain berries come from the flower', () => {
+  beforeAll(() => {
+    hooks.round = () => {
+      newArenaRound();
+    };
+    countOnArena();
+  });
+
+  it('at GO the flower opens with nobody on it and drops the 3, one after the other, away from heads', () => {
+    fresh();
+    like('ana', 30);
+    like('ben', 20);
+    run(QUALIFY.time + QUALIFY.freeze + READY_TIME - 0.1);
+    const plain = (): number => arena.food.filter((f) => f.by === '' && !f.glow).length;
+    expect(plain()).toBe(0);
+    const counts: number[] = [];
+    let opened = false;
+    const seen = new Set<unknown>();
+    for (let i = 0; i < Math.round(2 / STEP); i++) {
+      advanceArena(STEP);
+      if (game.pour?.nickname === '') opened = true;
+      if (counts.at(-1) !== plain()) counts.push(plain());
+      for (const f of arena.food.filter((b) => b.by === '' && !seen.has(b))) {
+        seen.add(f);
+        // From the flower's mouth, onto a free cell away from every head.
+        expect(f.fx).toBe(MOUTH_CELL.x);
+        for (const sn of arena.snakes.filter((x) => x.alive)) {
+          const h = sn.cells[0] ?? -1;
+          expect(Math.abs(cellX(h) - f.x) + Math.abs(cellY(h) - f.y)).toBeGreaterThanOrEqual(
+            FIELD.clear - 1,
+          );
+        }
+      }
+    }
+    expect(opened).toBe(true);
+    expect(counts).toEqual([0, 1, 2, 3]);
+    // None due: the flower closes.
+    run(1.5);
+    expect(game.closeT).toBeGreaterThan(0);
+  });
+
+  it('a gift has the flower first: a plain berry waits until it is free', () => {
+    fresh();
+    like('ana', 30);
+    like('ben', 20);
+    run(QUALIFY.time + QUALIFY.freeze + READY_TIME + 2);
+    const plain = (): number => arena.food.filter((f) => f.by === '' && !f.glow).length;
+    expect(plain()).toBe(FIELD.count);
+    // One plain berry eaten, then a gift: its berries pour for seconds.
+    const one = arena.food.find((f) => f.by === '');
+    if (one) {
+      arena.food.splice(arena.food.indexOf(one), 1);
+      arena.foodAt.delete(one.cell);
+    }
+    give('ana', 40);
+    let pouring = 0,
+      was = plain(),
+      after = 0;
+    for (let i = 0; i < Math.round(12 / STEP); i++) {
+      advanceArena(STEP);
+      const now = plain();
+      if (game.queue.some((q) => q.nickname === 'ana')) {
+        pouring += STEP;
+        // While the gift has the flower, no plain berry leaves it.
+        expect(now).toBeLessThanOrEqual(was);
+        expect(game.pour?.nickname).toBe('ana');
+      } else if (now > was) after++;
+      was = now;
+    }
+    expect(pouring).toBeGreaterThan(2.5);
+    // Once the gift is poured, the plain berries due come.
+    expect(after).toBeGreaterThan(0);
   });
 });
