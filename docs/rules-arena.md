@@ -13,8 +13,8 @@ the RESULT ranks them. Then the next qualifying opens.
 
 ## 1. The qualifying (30 s)
 
-The board holds no snake: one egg per place (`places`, 8 by default) in two rows (4 and 4, 7 cells
-apart), ranked 1st (top left) to last, evenly spaced between the clock's pill and a cut line, and
+The board holds no snake: one egg per place (`places`, 6 by default) in two rows (3 and 3; with 8
+places 4 and 4, 7 cells apart), ranked 1st (top left) to last, evenly spaced between the clock's pill and a cut line, and
 the three best challengers under the line, spread across the board. A name is cut to its column.
 Code: `qualify.ts` (rules) and `qualify-paint.ts` (screen).
 
@@ -88,10 +88,12 @@ not move them. Each round takes the next batch from its front, as many as the pl
 and opens its qualifying with them on gold eggs; the rest waits for the following rounds. A batch
 that fills every seat ends the qualifying at once (the "All paid" rule).
 
-The only signal is the alert card, once, at the gift: "{name} PLAYS NEXT ROUND" with a gold "#3"
-badge and a small gold egg while the place is within the next batch, "{name} IS IN LINE" with a
-white "#12" badge after it (French "{name} JOUE LA PROCHAINE MANCHE", "{name} EST DANS LA FILE"),
-gold eggs around it. The flower's card for that gift shows a gold egg. The queue lasts the session and survives a
+The only signal is the alert card, once, at the gift: "{name} has a seat in the next round" with a
+gold "#3" badge and a small gold egg on the photo while the place is within the next batch;
+after it, "{name} is #12 in line: plays in 2 rounds", the rounds counted from the places (a
+place in the next batch never reads "in 1 rounds": it gets the first text). French "{name} a sa
+place à la prochaine manche", "{name} est #12 dans la file : joue dans 2 manches". Gold eggs
+around it. The flower's card for that gift shows a gold egg. The queue lasts the session and survives a
 reload of the game window (stored under `viper-arena-paid-queue`); a viewer who left the live keeps
 their place and their snake plays as any snake. The control room lists it read only (Setup tab,
 "Paid queue" card): position and name, the next round's batch marked.
@@ -100,23 +102,30 @@ The ring round the board is the clock, full at GO and emptying clockwise from th
 
 ## Alerts and the like strip
 
-The alert card sits under the board, below the like strip, the size of Feed's. Its order of
-importance, money first: an elimination and a place in the paid queue, which never expire; then a
+The alert card sits under the board, a small gap below the like strip, the size of Feed's (790 by
+114, photo 86, text 38). A game card reads on one row: its words shrink to fit down to 30, then the
+name is cut. Its order of importance, money first: an elimination and a place in the paid queue, which never expire; then a
 speed boost, shown only when neither waits and dropped after 3 s waiting (its gold chip showed
 it); then the stream's (follows, shares, returning supporters, welcomes); then likes ("{name}
-dropped 20 likes, thank you!"), during the qualifying only and when nothing else waits. During the battle likes are never on the card: the strip shows them.
+dropped 20 likes, thank you!"), during the qualifying only and when nothing else waits. During
+the battle likes are never on the card: the strip shows them. When the battle ends, its cards go
+at once (an elimination, a speed boost, a place in the paid queue, waiting or on screen) and the
+strip with them: nothing of the battle shows over the end screen. A gift during the end screen
+still shows its place: it belongs to the next round.
 
-The like strip, in the battle only: a row of compact chips just under the board's bottom line,
+The like strip, in the battle only: one row of compact chips just under the board's bottom line,
 centred, one for every living player from GO, 0 % included, in the qualifying's seat order for the
 whole battle (likes never reshuffle it). A player who falls loses their chip, eased out, and the
-others slide together. Up to 6 chips keep their full size (64 high); with 7 or 8 every chip
-shrinks evenly so the row fits the board's width. A chip holds the player's photo (outlined in
+others slide together. A chip is 1.2 times the base chip (77 high); 6 chips make a row a little
+wider than the board, inside the screen less 20 each side; with 7 or 8 every chip shrinks evenly
+so the row fits that width, its top kept under the line. A chip holds the player's photo (outlined in
 their snake's light colour) in the red ring of their likes toward the next speed boost
 (`entryLikes`, 100), and the percentage. The goal is a bolt badge on the ring at the photo's upper
 right: the ring starts just past it and runs clockwise back to it. At 100 % the chip turns gold,
 the badge lights and a big lit bolt replaces the number for about 1.5 s, while the card shows
-"SPEED BOOST!" (French "TURBO !"): the photo in a full gold ring, a lit bolt, the name in the
-snake's colour, speed lines, gold bolts around it; then the ring starts again from what was left
+"{name} hit 100 likes: SPEED BOOST" and a lit bolt (French "{name} a atteint 100 likes : SPEED
+BOOST", 100 being `entryLikes`): the photo in a full gold ring, the name in the snake's colour,
+"SPEED BOOST" in gold, gold bolts around it; then the ring starts again from what was left
 over. Small hearts pop over a chip at each like. The strip is painted over the card's particles,
 which rise behind it. Code: `strip.ts`, the card in `feed/alerts.ts` (Arena-only paths).
 
@@ -144,7 +153,7 @@ apart, under `viper-arena-settings`, and do not travel with the supporters list.
 
 | Setting      | Values                | Default  | Setting       | Values            | Default |
 | ------------ | --------------------- | -------- | ------------- | ----------------- | ------- |
-| `places`     | 4, 6, 8               | 8        | `roundLength` | 60 to 300 s       | 120     |
+| `places`     | 4, 6, 8               | 6        | `roundLength` | 60 to 300 s       | 120     |
 | `entryLikes` | 25, 50, 100, 150, 200 | 100      | `giftBerries` | `owner`, `shared` | `owner` |
 | `likeBoost`  | on, off               | on       | `wildSnakes`  | 0, 2, 4, 6        | 4       |
 | `boostCap`   | 3, 6, 10 s            | 6        | `speed`       | 5 to 9 cells/s    | 7       |
