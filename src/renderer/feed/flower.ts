@@ -534,14 +534,16 @@ export function paintFlower(t: number): void {
 function paintFlowerBody(t: number): void {
   const c = ctx,
     pour = game.pour,
-    shut = easeInOut(game.closeT / 0.7);
+    shut = easeInOut(game.closeT / 0.7),
+    // Snake Arena's plain berries open the flower with nobody's name (Feed never pours one).
+    someone = !!pour && pour.nickname !== '';
   // Each petal opens a beat after the previous one, with a soft spring; all close together.
   const openness = (i: number): number =>
     pour ? easeOutBack((game.pourT - i * 0.035) / 0.6) * (1 - shut) : 0;
   const open = openness(PETALS / 2),
     squeeze = 1 + 0.07 * Math.exp(-game.dripT * 14) * open,
     sway = 0.035 * Math.sin(t * 1.3);
-  if (flowerWings && pour) paintWings(pour, t);
+  if (flowerWings && pour && someone) paintWings(pour, t);
   c.save();
   c.translate(FLOWER.x, FLOWER.y);
   c.rotate(sway);
@@ -557,7 +559,8 @@ function paintFlowerBody(t: number): void {
   leaf(0.35 + 0.05 * Math.sin(t * 1.7), 110);
   leaf(Math.PI - 0.35 - 0.05 * Math.sin(t * 1.7 + 1), 110);
   // A bigger gift opens more rings of petals behind the usual two.
-  const rings = flowerWings && pour ? Math.min(2, Math.floor(levelOf(pour.total) / 2)) : 0;
+  const rings =
+    flowerWings && pour && someone ? Math.min(2, Math.floor(levelOf(pour.total) / 2)) : 0;
   for (let ring = rings; ring >= 1; ring--)
     for (let i = 0; i < PETALS + 3 * ring; i++) {
       const o = openness(i % PETALS),
@@ -578,7 +581,7 @@ function paintFlowerBody(t: number): void {
       petal(a, len, wide, pass ? 0 : 40);
     }
   c.restore();
-  if (pour && open > 0.05) {
+  if (pour && someone && open > 0.05) {
     const pop = easeOutBack(game.pourT / 0.45);
     c.save();
     c.globalAlpha = Math.min(1, open * 1.4);

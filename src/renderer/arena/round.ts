@@ -242,11 +242,13 @@ function flower(dt: number): void {
     game.pour && cardShown.has(game.pour.id) && game.pourT < OUTSIDER_SHOW
       ? game.pour
       : seatCards[0];
-  const q = qualifying()
+  const gift = qualifying()
     ? (showing() ?? (anyGiftBuys() ? null : outsider()))
     : (seatCard() ??
       game.queue.find((p) => p.nickname !== '' && snakeOf(p.nickname)) ??
       outsider());
+  // A gift has the flower first; with none, plain berries due open it with nobody's picture.
+  const q = gift ?? plainOpening();
   if (q && q.id !== game.pour?.id) {
     game.pour = q;
     game.pourT = 0;
@@ -273,6 +275,55 @@ function flower(dt: number): void {
     if (--q.n <= 0) game.queue.splice(game.queue.indexOf(q), 1);
   }
   if (arena.dropT > every) arena.dropT = every;
+  if (q && q === plain.pour) dropPlain(dt);
+}
+
+/**
+ * Plain berries due (house), and the flower's opening for them: nobody's picture, no card, no
+ * name. Each leaves the open flower PLAIN.gap seconds after the one before, falling onto a free
+ * cell away from every head; the flower closes once none is due.
+ */
+const PLAIN = { open: 0.35, gap: 0.35 };
+const plain: { due: number; t: number; pour: Pour | null } = { due: 0, t: 0, pour: null };
+let plainId = -3_000_000;
+
+/** The flower's opening for plain berries, while some are due in the battle; else none. */
+function plainOpening(): Pour | null {
+  if (arena.phase !== 'play' || plain.due <= 0) {
+    plain.pour = null;
+    return null;
+  }
+  // The opening goes on, or a new one starts (after a gift had the flower, say).
+  if (!plain.pour || game.pour !== plain.pour) {
+    plain.pour = { id: plainId--, nickname: '', n: 1, total: 1, title: '' };
+    plain.t = PLAIN.gap - PLAIN.open;
+  }
+  return plain.pour;
+}
+
+/** The open flower drops the next plain berry due, one after the other. */
+function dropPlain(dt: number): void {
+  plain.t += dt;
+  if (plain.t < PLAIN.gap || plain.due <= 0) return;
+  plain.t = 0;
+  const { occ } = occupancy(),
+    heads = alive()
+      .map((s) => s.cells[0] ?? -1)
+      .filter(onBoard),
+    far = (c: number): boolean =>
+      heads.every(
+        (h) => Math.abs(cellX(h) - cellX(c)) + Math.abs(cellY(h) - cellY(c)) >= FIELD.clear,
+      );
+  let cell = -1;
+  for (let tries = 0; tries < 80 && cell < 0; tries++) {
+    const c = freeCell(occ);
+    if (c >= 0 && far(c)) cell = c;
+  }
+  // No room away from the heads: it waits in the flower for the next try.
+  if (cell < 0) return;
+  placeFood(fromFlower(cell, 1, '', null));
+  plain.due--;
+  game.dripT = 0;
 }
 
 /** Gifts from viewers without a snake the flower has shown this round, and for how long. */
@@ -294,14 +345,18 @@ paidHooks.card = (nickname, avatar) => {
 };
 
 /**
- * Plain berries for everyone during the battle: FIELD.count of them on the board at all times,
- * each popping up in place on a free cell away from every head, a new one FIELD.delay seconds after
- * one is eaten. The flower gives only gifts.
+ * Plain berries for everyone during the battle: FIELD.count of them on the board or due at all
+ * times, a new one due FIELD.delay seconds after one is eaten (all of them at GO). Each comes from
+ * the flower, which opens for them with nobody's picture when no gift has it (flower, dropPlain),
+ * and falls onto a free cell at least FIELD.clear cells from every head.
  */
 export const FIELD = { count: 3, delay: 2, clear: 4 };
 function house(dt: number): void {
-  if (arena.phase !== 'play') return;
-  let out = 0;
+  if (arena.phase !== 'play') {
+    plain.due = 0;
+    return;
+  }
+  let out = plain.due;
   for (const f of arena.food) if (f.by === '' && !f.glow) out++;
   // Full: the clock waits; one eaten: a new one FIELD.delay seconds later (all of them at GO).
   if (out >= FIELD.count) {
@@ -311,24 +366,7 @@ function house(dt: number): void {
   arena.houseT -= dt;
   if (arena.houseT > 0) return;
   arena.houseT = FIELD.delay;
-  const { occ } = occupancy(),
-    heads = alive()
-      .map((s) => s.cells[0] ?? -1)
-      .filter(onBoard),
-    far = (c: number): boolean =>
-      heads.every(
-        (h) => Math.abs(cellX(h) - cellX(c)) + Math.abs(cellY(h) - cellY(c)) >= FIELD.clear,
-      );
-  for (let k = out; k < (arena.time < 0.5 ? FIELD.count : out + 1); k++) {
-    let cell = -1;
-    for (let tries = 0; tries < 80 && cell < 0; tries++) {
-      const c = freeCell(occ);
-      if (c >= 0 && far(c)) cell = c;
-    }
-    if (cell < 0) return;
-    // In place, landed: Feed's berry bounces as it appears.
-    placeFood({ ...fromFlower(cell, 1, '', null), t: FALL_TIME, fx: cellX(cell), fy: cellY(cell) });
-  }
+  plain.due += arena.time < 0.5 ? FIELD.count - out : 1;
 }
 
 /**

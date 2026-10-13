@@ -130,22 +130,22 @@ const RANKED_EXTRA = 1.5;
 /** Seconds a waiting card stays worth showing. Follows, shares and supporters never expire. */
 const EXPIRES: Readonly<Record<number, number>> = { 1: 10, 2: 6 };
 /**
- * Snake Arena's: a speed boost's card is dropped after 3 s waiting (its gold chip showed it), the
- * stream's after 10, likes after 6; an elimination and a place in the paid queue never.
+ * Snake Arena's: a speed boost's card is dropped after 3 s waiting (its gold chip showed it),
+ * likes after 6, the stream's after 10; an elimination and a place in the paid queue never.
  */
-const ARENA_EXPIRES: Readonly<Record<number, number>> = { 1: 3, 2: 10, 3: 6 };
+const ARENA_EXPIRES: Readonly<Record<number, number>> = { 1: 3, 2: 6, 3: 10 };
 const expiry = (a: Alert): number => (look.arena ? ARENA_EXPIRES : EXPIRES)[rank(a)] ?? Infinity;
 
 /**
  * 0 first: follows, shares and returning supporters, then likes and ranked joins, plain joins last.
- * In Snake Arena, money first: an elimination and a place in the paid queue, then a speed boost
- * (shown only when neither waits), then the stream's (follows, shares, supporters, welcomes), then
- * likes.
+ * In Snake Arena, the game first: an elimination and a place in the paid queue, then a speed boost
+ * (shown only when neither waits), then likes, then the stream's (follows, shares, supporters,
+ * welcomes).
  */
 const rank = (a: Pick<Alert, 'kind' | 'supporter' | 'ranked'>): number =>
   look.arena ? arenaRank(a.kind) : feedRank(a);
 const arenaRank = (kind: AlertKind): number =>
-  kind === 'kill' || kind === 'qualified' ? 0 : kind === 'boost' ? 1 : kind === 'like' ? 3 : 2;
+  kind === 'kill' || kind === 'qualified' ? 0 : kind === 'boost' ? 1 : kind === 'like' ? 2 : 3;
 const feedRank = (a: Pick<Alert, 'kind' | 'supporter' | 'ranked'>): number =>
   a.kind === 'share' ||
   a.kind === 'follow' ||
@@ -169,7 +169,13 @@ const ACCENT: Readonly<Record<AlertKind, string>> = {
 /** Hearts per like event, at most: a flood of likes must not cover the screen. */
 const HEARTS_PER_EVENT = 24,
   MAX_HEARTS = 70,
-  HEARTS_PER_SECOND = 20;
+  HEARTS_PER_SECOND = 20,
+  /** Snake Arena's like card: at least this many hearts for any like event, a single like too. */
+  ARENA_HEARTS_LEAST = 5;
+
+/** Hearts a like event of `n` likes gives its card: one per like, Snake Arena's at least a few. */
+const likeHearts = (n: number): number =>
+  Math.max(look.arena ? ARENA_HEARTS_LEAST : 0, Math.min(HEARTS_PER_EVENT, n));
 const PHRASES: Readonly<Record<AlertKind, readonly I18nKey[]>> = {
   join: ['join.0', 'join.1', 'join.2'],
   like: ['like.0', 'like.1'],
@@ -241,7 +247,7 @@ export function alertViewer(
     const same = [current, ...queue].find((a) => a?.kind === 'like' && a.nickname === nickname);
     if (same) {
       same.likes += n;
-      same.hearts += Math.min(HEARTS_PER_EVENT, n);
+      same.hearts += likeHearts(n);
       if (avatar) same.avatar = avatar;
       // Keep the card up while the likes keep coming, without replaying its entrance: only
       // while nobody waits, and never for ever, or one fast tapper would hold the spot.
@@ -292,7 +298,7 @@ export function alertViewer(
     shown: 0,
     waited: 0,
     stay: STAY[kind] + (ranked ? RANKED_EXTRA : 0),
-    hearts: kind === 'like' ? Math.min(HEARTS_PER_EVENT, n) : BURST[kind],
+    hearts: kind === 'like' ? likeHearts(n) : BURST[kind],
   };
   const at = queue.findIndex((a) => rank(a) > rank(next));
   if (at < 0) queue.push(next);

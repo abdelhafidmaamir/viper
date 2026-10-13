@@ -108,9 +108,10 @@ lifeHooks.reborn = flyToEgg;
 /**
  * A like shows where it counts, never flying across the screen: in the qualifying prod hearts pop
  * round the liker's picture on the board (a liker's animal on the beach shows its own hearts, as
- * Feed's do), in the battle the player's animal on the beach shows them. A like event pops 1 to
- * POPS_EACH hearts (more for a burst), each leaving the picture's edge at its own angle, at most
- * POPS_ONE in the air for one viewer and POPS_MAX in all: past that a like still counts.
+ * Feed's do), in the battle the player's animal on the beach shows them. A like event pops
+ * heartsFor(n) hearts, a single like 5, each leaving the picture's edge at its own angle, at most
+ * POPS_ONE in the air for one viewer and POPS_MAX in all (the frame rate holds): past that a like
+ * still counts.
  */
 export interface LikePop {
   nickname: string;
@@ -121,9 +122,12 @@ export interface LikePop {
 }
 export const likePops: LikePop[] = [];
 export const POP_TIME = 0.6;
-const POPS_MAX = 24,
-  POPS_EACH = 3,
-  POPS_ONE = 4;
+const POPS_MAX = 60,
+  POPS_ONE = 14;
+
+/** Hearts for a like event of `n` likes: 5 for one, two more for each tenfold, 11 at most. */
+export const heartsFor = (n: number): number =>
+  Math.min(11, 5 + 2 * Math.floor(Math.log10(Math.max(1, n))));
 /** The next heart's place round the picture: a golden-ratio walk, spread and never random. */
 let turn = 0;
 /**
@@ -159,14 +163,14 @@ function land(nickname: string, n: number): void {
   rings.set(nickname, ring);
 }
 
-/** Hearts pop round the liker's picture on the qualifying board: a few, more for a burst. */
+/** Hearts pop round the liker's picture on the qualifying board: plenty, more for a burst. */
 function pop(nickname: string, n: number): void {
-  const hearts = Math.min(POPS_EACH, 1 + Math.floor(Math.log10(Math.max(1, n))));
+  const hearts = heartsFor(n);
   let mine = likePops.filter((h) => h.nickname === nickname).length;
   for (let i = 0; i < hearts && mine < POPS_ONE && likePops.length < POPS_MAX; i++, mine++) {
     turn = (turn + 0.618034) % 1;
     // Round the picture's top and sides, never under it, where its badge is.
-    likePops.push({ nickname, n, t: -i * 0.08, angle: -Math.PI / 2 + (turn - 0.5) * 3.4 });
+    likePops.push({ nickname, n, t: -i * 0.05, angle: -Math.PI / 2 + (turn - 0.5) * 3.4 });
   }
 }
 

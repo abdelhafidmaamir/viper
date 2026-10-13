@@ -20,7 +20,7 @@ import { BOARD_H, FY0 } from '../feed/grid.ts';
 import { paintFace } from '../feed/paint.ts';
 import { W } from '../engine/layout.ts';
 import { COLOURS } from './board-paint.ts';
-import { BOOST, fired, likeHooks, nameOf, rings } from './entry.ts';
+import { BOOST, fired, heartsFor, likeHooks, nameOf, rings } from './entry.ts';
 import { alive, arena, snakeOf } from './rules.ts';
 
 /**
@@ -28,10 +28,10 @@ import { alive, arena, snakeOf } from './rules.ts';
  * ringed photo's box; the photo's and the ring's radii, the ring's width; the bolt badge's radius.
  */
 export const CHIP = {
-  w: 104,
+  w: 88,
   h: 86,
   gap: 8,
-  pad: 14,
+  pad: 6,
   box: 76,
   photo: 24,
   ring: 34,
@@ -39,11 +39,13 @@ export const CHIP = {
   badge: 20,
 };
 
+/** The row never comes closer than this to the screen's sides: past it, every chip shrinks. */
+const MARGIN = 20;
+
 export const STRIP = {
-  /** Every chip's size, times the base chip. */
-  size: 1.2,
-  /** The row never comes closer than this to the screen's sides: past it, every chip shrinks. */
-  margin: 20,
+  /** Every chip's size, times the base chip: as big as 6 chips in one row allow on the screen. */
+  size: (W - 2 * MARGIN) / (6 * CHIP.w + 5 * CHIP.gap),
+  margin: MARGIN,
   /** Seconds a chip stays gold once its ring is full. */
   full: 1.5,
   /** Seconds of a chip's coming and going. */
@@ -85,9 +87,10 @@ const chips: Chip[] = [];
 /** The battle's players in the qualifying's seat order (their snakes were laid in that order). */
 let order: string[] = [];
 let wasBattle = false;
-/** Small hearts over the chips, at each like. */
+/** Small hearts over the chips, at each like: plenty, at most POPS_ONE over one chip. */
 const pops: { nickname: string; dx: number; t: number; size: number }[] = [];
-const POPS_MAX = 30;
+const POPS_MAX = 60,
+  POPS_ONE = 14;
 /** Each player's last boost the strip has told the alert card about. */
 const told = new Map<string, number>();
 let at = -1;
@@ -98,12 +101,13 @@ const battle = (): boolean => arena.phase === 'play';
 export function stripLike(nickname: string, n: number): void {
   const chip = chips.find((c) => c.nickname === nickname && !c.leaving);
   if (!battle() || !chip) return;
-  const hearts = Math.min(3, 1 + Math.floor(Math.log10(Math.max(1, n))));
-  for (let i = 0; i < hearts && pops.length < POPS_MAX; i++)
+  const hearts = heartsFor(n);
+  let mine = pops.filter((h) => h.nickname === nickname).length;
+  for (let i = 0; i < hearts && mine < POPS_ONE && pops.length < POPS_MAX; i++, mine++)
     pops.push({
       nickname,
-      dx: (Math.random() - 0.5) * 60,
-      t: -i * 0.08,
+      dx: (Math.random() - 0.5) * CHIP.w,
+      t: -i * 0.05,
       size: 20 + Math.random() * 10,
     });
 }
