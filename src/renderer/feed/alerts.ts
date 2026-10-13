@@ -126,16 +126,23 @@ const RANKED_EXTRA = 1.5;
 
 /** Seconds a waiting card stays worth showing. Follows, shares and supporters never expire. */
 const EXPIRES: Readonly<Record<number, number>> = { 1: 10, 2: 6 };
+/**
+ * Snake Arena's: a speed boost's card is dropped after 3 s waiting (its gold chip showed it), the
+ * stream's after 10, likes after 6; an elimination and a place in the paid queue never.
+ */
+const ARENA_EXPIRES: Readonly<Record<number, number>> = { 1: 3, 2: 10, 3: 6 };
+const expiry = (a: Alert): number => (look.arena ? ARENA_EXPIRES : EXPIRES)[rank(a)] ?? Infinity;
 
 /**
  * 0 first: follows, shares and returning supporters, then likes and ranked joins, plain joins last.
- * In Snake Arena: its game cards, then the stream's (follows, shares, supporters, welcomes), then
+ * In Snake Arena, money first: an elimination and a place in the paid queue, then a speed boost
+ * (shown only when neither waits), then the stream's (follows, shares, supporters, welcomes), then
  * likes.
  */
 const rank = (a: Pick<Alert, 'kind' | 'supporter' | 'ranked'>): number =>
   look.arena ? arenaRank(a.kind) : feedRank(a);
 const arenaRank = (kind: AlertKind): number =>
-  kind === 'kill' || kind === 'qualified' || kind === 'boost' ? 0 : kind === 'like' ? 2 : 1;
+  kind === 'kill' || kind === 'qualified' ? 0 : kind === 'boost' ? 1 : kind === 'like' ? 3 : 2;
 const feedRank = (a: Pick<Alert, 'kind' | 'supporter' | 'ranked'>): number =>
   a.kind === 'share' ||
   a.kind === 'follow' ||
@@ -427,7 +434,7 @@ export function updateAlerts(dt: number): void {
   for (const a of queue) a.waited += dt;
   for (let i = queue.length - 1; i >= 0; i--) {
     const a = queue[i];
-    if (a && a.waited > (EXPIRES[rank(a)] ?? Infinity)) queue.splice(i, 1);
+    if (a && a.waited > expiry(a)) queue.splice(i, 1);
   }
   if (!current && queue.length) showNext();
   if (current) {

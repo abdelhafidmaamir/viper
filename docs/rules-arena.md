@@ -101,10 +101,10 @@ The ring round the board is the clock, full at GO and emptying clockwise from th
 ## Alerts and the like strip
 
 The alert card sits under the board, below the like strip, the size of Feed's. Its order of
-importance: the game's cards first (a snake eliminated, a speed boost reached, a place in the paid
-queue), which never expire; then the stream's (follows, shares, returning supporters, welcomes);
-then likes ("{name} dropped 20 likes, thank you!"), during the qualifying only and when nothing
-else waits. During the battle likes are never on the card: the strip shows them.
+importance, money first: an elimination and a place in the paid queue, which never expire; then a
+speed boost, shown only when neither waits and dropped after 3 s waiting (its gold chip showed
+it); then the stream's (follows, shares, returning supporters, welcomes); then likes ("{name}
+dropped 20 likes, thank you!"), during the qualifying only and when nothing else waits. During the battle likes are never on the card: the strip shows them.
 
 The like strip, in the battle only: a row of compact chips just under the board's bottom line,
 centred, one for every living player from GO, 0 % included, in the qualifying's seat order for the

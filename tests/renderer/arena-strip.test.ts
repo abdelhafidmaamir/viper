@@ -84,20 +84,42 @@ describe('snake arena: the alert card and the like strip', () => {
     resetAlerts();
   });
 
-  it('the card shows the game first (elimination, boost, paid queue), then the stream, then likes', () => {
+  it('the card shows the game first (paid queue, elimination, then boost), then the stream, then likes', () => {
     alertViewer('like', 'liker', undefined, 20);
     alertViewer('follow', 'fan', undefined);
     alertQueued({ nickname: 'payer' }, 3, true);
     alertKill({ nickname: 'fallen' }, null);
     alertBoost({ nickname: 'fast' }, '#fff');
-    // The game's three in the order they came, then the follow; the like waited behind them all
-    // longer than a like stays news, and was dropped.
-    expect(shownInTurn()).toEqual(['qualified', 'kill', 'boost', 'follow']);
+    // The money cards in the order they came; the boost waited more than 3 s behind them and was
+    // dropped; then the follow; the like waited longer than a like stays news, and was dropped.
+    expect(shownInTurn()).toEqual(['qualified', 'kill', 'follow']);
     // A welcome comes before a like too.
     resetAlerts();
     alertViewer('like', 'liker2', undefined, 20);
     alertViewer('join', 'newcomer', undefined);
     expect(shownInTurn()).toEqual(['join', 'like']);
+  });
+
+  it('money first: the paid queue and an elimination go before any speed boost, which is dropped after 3 s waiting', () => {
+    alertBoost({ nickname: 'fast' }, '#fff');
+    alertQueued({ nickname: 'payer' }, 3, true);
+    alertKill({ nickname: 'fallen' }, null);
+    updateAlerts(0.01);
+    // The boost came first but waits behind both.
+    expect(alertsState().current?.kind).toBe('qualified');
+    expect(shownInTurn()).toEqual(['qualified', 'kill']);
+    // A boost card on screen gives way to a paid-queue card once readable.
+    resetAlerts();
+    alertBoost({ nickname: 'fast' }, '#fff');
+    updateAlerts(0.01);
+    alertQueued({ nickname: 'payer' }, 4, true);
+    for (let i = 0; i < 8; i++) updateAlerts(0.25);
+    expect(alertsState().current?.kind).toBe('qualified');
+    // A boost still shows when no money card waits, before the stream's cards.
+    resetAlerts();
+    alertViewer('follow', 'fan', undefined);
+    alertBoost({ nickname: 'fast' }, '#fff');
+    expect(shownInTurn()).toEqual(['boost', 'follow']);
   });
 
   it('a game card never expires; a waiting like does', () => {
