@@ -22,17 +22,17 @@ It opens with the next batch of the paid queue (see below), as many as the place
 queue order: each picture flies from the flower to its egg, one after the other. The seats left
 follow the rules here.
 
-| Element  | Rule                                                                                                                                                                                                                                                         |
-| -------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
-| Counts   | Everyone starts at 0, last round's players and winner too. No free seat                                                                                                                                                                                      |
-| Like     | A prod heart pops on the liker's badge (or over their crab on the beach); the number rolls up                                                                                                                                                                |
-| Free egg | Taken at once by the best liker without a seat                                                                                                                                                                                                               |
-| The cut  | The best liker without a seat passes the weakest like seat: the two cross the line together, at most one swap every 0.6 s                                                                                                                                    |
-| Gift     | Locks a seat: the flower opens on the giver (a gold egg on its card, where Feed shows the berry), their picture flies to an egg that turns gold. A full board: the weakest like seat goes. Every seat paid, or the clock out: the giver joins the paid queue |
-| Order    | Strict at every moment: paid seats first, in the order the gifts came, then like seats, most likes first                                                                                                                                                     |
-| At risk  | The weakest like seat's egg trembles and its badge pulses red when the first challenger is within 10 %                                                                                                                                                       |
-| All paid | Likes can change nothing more: the qualifying ends at once                                                                                                                                                                                                   |
-| Text     | Only the clock pill, "QUALIFYING 0:24" (French "QUALIFICATIONS"), smaller than the battle's; it beats in the last 5 s                                                                                                                                        |
+| Element  | Rule                                                                                                                                                                                                                                                                                                                                                                                                                                 |
+| -------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| Counts   | Everyone starts at 0, last round's players and winner too. No free seat                                                                                                                                                                                                                                                                                                                                                              |
+| Like     | A prod heart pops on the liker's badge (or over their crab on the beach); the number rolls up                                                                                                                                                                                                                                                                                                                                        |
+| Free egg | Taken at once by the best liker without a seat                                                                                                                                                                                                                                                                                                                                                                                       |
+| The cut  | The best liker without a seat passes the weakest like seat: the two cross the line together, at most one swap every 0.6 s                                                                                                                                                                                                                                                                                                            |
+| Gift     | Locks a seat: the flower opens on the giver (a gold egg on its card, where Feed shows the berry), their picture flies to an egg that turns gold. A full board: the weakest like seat goes. Every seat paid, or the clock out: the giver joins the paid queue. With a seat price set, only the seat gift does this (see "The seat gift"); any other gift gets the flower's thanks with its berry, and its berries wait for the battle |
+| Order    | Strict at every moment: paid seats first, in the order the gifts came, then like seats, most likes first                                                                                                                                                                                                                                                                                                                             |
+| At risk  | The weakest like seat's egg trembles and its badge pulses red when the first challenger is within 10 %                                                                                                                                                                                                                                                                                                                               |
+| All paid | Likes can change nothing more: the qualifying ends at once                                                                                                                                                                                                                                                                                                                                                                           |
+| Text     | Only the clock pill, "QUALIFYING 0:24" (French "QUALIFICATIONS"), smaller than the battle's; it beats in the last 5 s                                                                                                                                                                                                                                                                                                                |
 
 A paid seat shows no badge: its gold egg and the gold outline on the photo say it. The beach shows
 the newest likers' crabs, in one compact group; the sleeping crab (above the board, top right)
@@ -68,7 +68,9 @@ gives every snake the strong brain instead.
 
 During the battle a gift is just a gift on the board: a player's gives berries to their snake and
 lifts their tier; a non-player's gets the flower's thanks (a gold egg on its card: it bought a place in line) and nothing more. Either way the giver
-joins the paid queue (below). No seat is shown or held during the battle.
+joins the paid queue (below). No seat is shown or held during the battle. With a seat price set,
+only the seat gift buys the place in line, and gives no berries; any other gift gives berries to
+a player's snake, and a non-player's gets the flower's thanks with its berry, no place in line.
 
 The beach during the battle: the players' crabs on a podium of sand in the beach's right part, the
 1st on the right on the highest mound under a fixed crown, the 2nd in the middle on a lower mound,
@@ -83,7 +85,7 @@ sleeping crab shows the players in turn, a bolt in its heart: a like is speed.
 
 Seats are bought in the qualifying, or in line for the next rounds. Whoever gives outside the
 qualifying (the battle, its countdown, the end screen, or a qualifying where every seat is already
-paid) joins the paid queue: one place per viewer, first come first served, no limit; more gifts do
+paid) joins the paid queue (with a seat price set, only the seat gift's giver): one place per viewer, first come first served, no limit; more gifts do
 not move them. Each round takes the next batch from its front, as many as the places (4, 6 or 8),
 and opens its qualifying with them on gold eggs; the rest waits for the following rounds. A batch
 that fills every seat ends the qualifying at once (the "All paid" rule).
@@ -97,6 +99,21 @@ around it. The flower's card for that gift shows a gold egg. The queue lasts the
 reload of the game window (stored under `viper-arena-paid-queue`); a viewer who left the live keeps
 their place and their snake plays as any snake. The control room lists it read only (Setup tab,
 "Paid queue" card): position and name, the next round's batch marked.
+
+## The seat gift
+
+`seatPrice`, set on the Money tab ("Seat price", a coin value typed like the gift price rows): 0,
+the default, and any gift buys a seat or a place in line, as above. Above 0, only a gift worth
+exactly that many coins does, one place per viewer, a streak of it included. It is an entry and
+nothing else, as the extra-life gift is only a life: it never drops berries, even from a player in
+the battle, whatever the gift prices say. In the qualifying it locks a seat (the flower's card
+shows a gold egg, "x1"); outside it the giver joins the paid queue, the alert card says it and the
+flower shows a gold egg for a moment, first in turn. Every other gift does what a gift does without
+a seat: berries from the price list, the flower's thanks with its berry. At the extra-life gift's
+price the life wins: that gift gives a life, never a seat, and the Money tab says so. With a seat
+price set the extra-life gift buys no seat, and neither do berries given by hand (Live tab). An
+empty or wrong entry (not a whole number from 0 to 50000) keeps the value in use. The Test button
+next to it sends a rehearsal gift at that value.
 
 The ring round the board is the clock, full at GO and emptying clockwise from the top centre.
 
@@ -135,14 +152,16 @@ The battle ends when the clock runs out or when one viewer's snake is left. The 
 one standing, else the biggest at 0:00. Feed's end screen: "{name} WINS", then this round's podium
 in the result order (survivors by size, then the last to fall), each with the berries their snake
 ate, 0 included; the headline counts the same berries. No berry carries over: the flower and the
-board empty. A gift during the end screen locks nothing: its giver joins the paid queue.
+board empty. A gift during the end screen locks nothing: its giver joins the paid queue (with a
+seat price set, only the seat gift's giver).
 
 ## Lives and the pilot
 
 - The extra-life gift, set on the Money tab (`lifeOn`, off by default): a gift at `lifePrice`
   coins gives a life instead of berries, up to `maxLives`, shown as prod hearts by the photo and
   under the crab. A snake with a life that dies comes back from a new egg in the same colour with
-  `lifeKeep` of its length.
+  `lifeKeep` of its length. It buys a seat as any gift does while `seatPrice` is 0, never once a
+  seat price is set.
 - `pilot` (off by default): the game's own player, "Skohlds", likes a little in the qualifying
   and plays when it gets a seat. It never ranks, never wears the crown, never wins.
 
@@ -151,14 +170,15 @@ board empty. A gift during the end screen locks nothing: its giver joins the pai
 `ArenaSettings`, stored under `viper-arena-game`. The Feed settings the arena uses are stored
 apart, under `viper-arena-settings`, and do not travel with the supporters list.
 
-| Setting      | Values                | Default  | Setting       | Values            | Default |
-| ------------ | --------------------- | -------- | ------------- | ----------------- | ------- |
-| `places`     | 4, 6, 8               | 6        | `roundLength` | 60 to 300 s       | 120     |
-| `entryLikes` | 25, 50, 100, 150, 200 | 100      | `giftBerries` | `owner`, `shared` | `owner` |
-| `likeBoost`  | on, off               | on       | `wildSnakes`  | 0, 2, 4, 6        | 4       |
-| `boostCap`   | 3, 6, 10 s            | 6        | `speed`       | 5 to 9 cells/s    | 7       |
-| `queueIdle`  | 3, 5, 10, 15 s        | 5        | `superAI`     | on, off           | off     |
-| `backing`    | off, light, strong    | `strong` | `pilot`       | on, off           | off     |
+| Setting      | Values                | Default  | Setting       | Values                    | Default |
+| ------------ | --------------------- | -------- | ------------- | ------------------------- | ------- |
+| `places`     | 4, 6, 8               | 6        | `roundLength` | 60 to 300 s               | 120     |
+| `entryLikes` | 25, 50, 100, 150, 200 | 100      | `giftBerries` | `owner`, `shared`         | `owner` |
+| `likeBoost`  | on, off               | on       | `wildSnakes`  | 0, 2, 4, 6                | 4       |
+| `boostCap`   | 3, 6, 10 s            | 6        | `speed`       | 5 to 9 cells/s            | 7       |
+| `queueIdle`  | 3, 5, 10, 15 s        | 5        | `superAI`     | on, off                   | off     |
+| `backing`    | off, light, strong    | `strong` | `pilot`       | on, off                   | off     |
+| `seatPrice`  | 0 to 50000 coins      | 0        | `lifePrice`   | 10, 20, 30, 99, 199 coins | 30      |
 
 `entryLikes` is now the likes for one speed boost; `queueIdle` the time a qualifying liker's crab
 stays on the beach without a like. `giftEntry`, `plainEvery` and `plainAmount` are kept in the
