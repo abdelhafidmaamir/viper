@@ -311,30 +311,18 @@ describe('snake arena: the alert card and the like strip', () => {
     };
     try {
       setLanguage('en');
+      // The boost card: no number, the bolt between the name and the words.
       alertBoost({ nickname: 'fast' }, '#fff');
       let row = card();
-      expect(row?.text).toBe('fast hit 100 likes: SPEED BOOST');
-      fits(row);
-      resetAlerts();
-      setArenaSettings({ ...ARENA_DEFAULTS, places: 6 });
-      joinPaidQueue('ravi2', undefined);
-      row = card();
-      expect(row?.text).toBe('ravi2 has a seat in the next round');
-      fits(row);
-      // Further back: the place and the rounds to wait, never "in 1 rounds".
-      resetAlerts();
-      paidQueue.length = 0;
-      for (let i = 0; i < 12; i++) paidQueue.push({ nickname: `q${String(i)}` });
-      joinPaidQueue('late', undefined);
-      row = card();
-      expect(row?.text).toBe('late is #13 in line: plays in 3 rounds');
+      expect(row?.text).toBe('fast ⚡ SPEED BOOST');
+      expect(row?.text).not.toMatch(/\d/);
       fits(row);
       // A long name: the words shrink to 30 at most, then the name is cut.
       resetAlerts();
       alertBoost({ nickname: 'averyveryverylongname_2026' }, '#fff');
       row = card();
       fits(row);
-      expect(row?.text.endsWith(' hit 100 likes: SPEED BOOST')).toBe(true);
+      expect(row?.text.endsWith(' ⚡ SPEED BOOST')).toBe(true);
       resetAlerts();
       setLanguage('fr');
       alertQueued({ nickname: 'ravi2' }, 3, 1);
@@ -349,7 +337,7 @@ describe('snake arena: the alert card and the like strip', () => {
       resetAlerts();
       alertBoost({ nickname: 'fast' }, '#fff');
       row = card();
-      expect(row?.text).toBe('fast a atteint 50 likes : SPEED BOOST');
+      expect(row?.text).toBe('fast ⚡ BOOST DE VITESSE');
       fits(row, true);
     } finally {
       setLanguage('en');
@@ -358,8 +346,15 @@ describe('snake arena: the alert card and the like strip', () => {
     }
   });
 
-  it('the battle over, nothing of it shows over the end screen; a gift during the end screen does', () => {
+  it('the battle over, nothing of it shows over the end screen; a gift then joins the line, no card', () => {
     battle(4);
+    setArenaSettings({
+      ...ARENA_DEFAULTS,
+      places: 4,
+      pilot: false,
+      wildSnakes: 0,
+      giftSeats: true,
+    });
     const seats = alive()
       .filter((s) => !s.wild)
       .sort((p, q) => p.id - q.id);
@@ -385,10 +380,12 @@ describe('snake arena: the alert card and the like strip', () => {
     const kinds = shownInTurn();
     expect(kinds.filter((k) => k === 'boost' || k === 'kill' || k === 'qualified')).toEqual([]);
     expect(kinds).toEqual(['follow']);
-    // A gift during the end screen: its place shows, it belongs to the next round.
+    // A gift during the end screen: a place in line for the next round, and no card says it.
     joinPaidQueue('later', undefined);
     updateAlerts(0.01);
-    expect(alertsState().current?.kind).toBe('qualified');
+    expect(paidQueue.map((q) => q.nickname)).toEqual(['later']);
+    expect(alertsState().current).toBeNull();
+    expect(alertsState().queued).toBe(0);
     paidQueue.length = 0;
   });
 });

@@ -5,7 +5,7 @@
 import { beforeAll, describe, expect, it } from 'vitest';
 
 import type { ArenaSide } from '../../src/renderer/arena-control/arena-state.ts';
-import { seatCard } from '../../src/renderer/arena-control/cards.ts';
+import { giftSeatsCard, paidQueueCard, seatCard } from '../../src/renderer/arena-control/cards.ts';
 import { pricingCard } from '../../src/renderer/feed-control/money.ts';
 import { ARENA_DEFAULTS, type ArenaSettings } from '../../src/shared/arena-protocol.ts';
 import { createSetupScreen } from '../../src/renderer/feed-control/screens.ts';
@@ -36,6 +36,7 @@ interface MockEl {
   removeAttribute(name: string): void;
   append(...items: (MockEl | string)[]): void;
   prepend(...items: (MockEl | string)[]): void;
+  replaceChildren(...items: MockEl[]): void;
   contains(other: MockEl | null): boolean;
   addEventListener(): void;
   focus(): void;
@@ -99,6 +100,9 @@ function makeMockEl(tag: string): MockEl {
         if (typeof item === 'string') el.textContent = item + el.textContent;
         else el.children.unshift(item);
       }
+    },
+    replaceChildren(...items: MockEl[]): void {
+      el.children = [...items];
     },
     contains(other: MockEl | null): boolean {
       if (other === null) return false;
@@ -296,7 +300,10 @@ describe('Arena and Feed control room screens', () => {
   });
   describe('Arena Money tab: seat price', () => {
     const arenaSide = (settings: Partial<ArenaSettings>): ArenaSide => ({
-      state: () => ({ settings: { ...ARENA_DEFAULTS, ...settings }, secondsLeft: 60 }),
+      state: () => ({
+        settings: { ...ARENA_DEFAULTS, giftSeats: true, ...settings },
+        secondsLeft: 60,
+      }),
       pending: () => ({}),
       send: () => {
         return;
@@ -316,6 +323,45 @@ describe('Arena and Feed control room screens', () => {
       const find = (el: MockEl): MockEl | undefined =>
         el.tagName === 'INPUT' ? el : el.children.map(find).find(Boolean);
       expect(find(card.el as unknown as MockEl)?.value).toBe('99');
+    });
+
+    it('"Gifts buy seats", off by default: the seat price greyed, the paid queue hidden', () => {
+      const find = (el: MockEl, tag: string): MockEl | undefined =>
+        el.tagName === tag ? el : el.children.map((c) => find(c, tag)).find(Boolean);
+      const sent: unknown[] = [];
+      const side = (on: boolean): ArenaSide => ({
+        state: () => ({
+          settings: { ...ARENA_DEFAULTS, giftSeats: on, seatPrice: 99 },
+          secondsLeft: 60,
+          paidQueue: ['ana'],
+        }),
+        pending: () => ({}),
+        send: (command) => {
+          sent.push(command);
+        },
+      });
+      expect(ARENA_DEFAULTS.giftSeats).toBe(false);
+      const off = side(false),
+        toggle = giftSeatsCard(off, () => null),
+        seat = seatCard(off, () => undefined),
+        line = paidQueueCard(off);
+      for (const view of [toggle, seat, line]) view.update(linked);
+      const root = toggle.el as unknown as MockEl,
+        button = find(root, 'BUTTON');
+      expect(allText(root)).toContain('Gifts buy seats');
+      expect(button?.getAttribute('aria-checked')).toBe('false');
+      expect(find(seat.el as unknown as MockEl, 'INPUT')?.disabled).toBe(true);
+      expect(allText(seat.el as unknown as MockEl)).toContain('Off: gifts buy no seats.');
+      expect((line.el as unknown as MockEl).hidden).toBe(true);
+      // On: the price can be typed, the queue shows.
+      const on = side(true),
+        seatOn = seatCard(on, () => undefined),
+        lineOn = paidQueueCard(on);
+      seatOn.update(linked);
+      lineOn.update(linked);
+      expect(find(seatOn.el as unknown as MockEl, 'INPUT')?.disabled).toBe(false);
+      expect((lineOn.el as unknown as MockEl).hidden).toBe(false);
+      expect(allText(lineOn.el as unknown as MockEl)).toContain('1. ana');
     });
 
     it('0 reads as any gift; the same price as the life gift is flagged', () => {

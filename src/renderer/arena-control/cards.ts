@@ -305,7 +305,7 @@ function giftSeatsOn(state: FeedControlState, arena: ArenaSide): boolean {
  * operator can tell a viewer where they stand. The first ones (as many as there are places) play
  * the next round on paid seats. Hidden while gifts buy no seats: the queue is empty then.
  */
-function paidQueueCard(arena: ArenaSide): FeedView {
+export function paidQueueCard(arena: ArenaSide): FeedView {
   const list = h('div', { class: 'paid-queue' });
   const card = createCard({ title: 'Paid queue' }, [
     h('p', {

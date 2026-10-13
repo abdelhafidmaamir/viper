@@ -1,0 +1,353 @@
+/**
+ * Snake Arena, calm: nothing on screen presses a viewer. The clock shows as the ring alone (the
+ * qualifying's pill says QUALIFYING, no digits; no pill in the battle), no tick, no seat at risk;
+ * a seat's badge is its like count with no icon, the hearts pop round the photo; the like strip's
+ * chips hold a ring and no number; no card announces a place in line; a gift seat swaps quietly.
+ * And the Money tab's "Gifts buy seats", off by default: off, no gift buys a seat or a place.
+ */
+import { beforeAll, describe, expect, it } from 'vitest';
+
+import {
+  ARENA_DEFAULTS,
+  readArenaSettings,
+  sanitizeArenaSetting,
+  type ArenaSettings,
+} from '../../src/shared/arena-protocol.ts';
+import { setCtx } from '../../src/renderer/engine/canvas.ts';
+import { bigHeart } from '../../src/renderer/feed/alert-fx.ts';
+import { advanceArena, newArenaRound, setArenaSettings } from '../../src/renderer/arena/arena.ts';
+import { likePopSpots, paintArenaTime } from '../../src/renderer/arena/beach.ts';
+import {
+  BOOST,
+  arenaLike,
+  fired,
+  flights,
+  isSeatGift,
+  likePops,
+  paidQueue,
+  queue,
+  rings,
+  takePaidBatch,
+} from '../../src/renderer/arena/entry.ts';
+import {
+  ARENA_STORAGE_KEY,
+  applyArenaCommand,
+  arenaSettings,
+  countOnArena,
+} from '../../src/renderer/arena/link.ts';
+import * as qualifyModule from '../../src/renderer/arena/qualify.ts';
+import {
+  QUALIFY,
+  actors,
+  challengers,
+  locked,
+  qualLikes,
+  qualifying,
+  seats,
+} from '../../src/renderer/arena/qualify.ts';
+import { paintActors, paintSeats } from '../../src/renderer/arena/qualify-paint.ts';
+import { arena, kill, snakeOf } from '../../src/renderer/arena/rules.ts';
+import { paintStrip, resetStrip, stepStrip, stripState } from '../../src/renderer/arena/strip.ts';
+import { board } from '../../src/renderer/feed/control-link.ts';
+import { READY_TIME, game, hooks, newRound } from '../../src/renderer/feed/state.ts';
+
+/** What a painter did: the words it wrote, the images it drew, the colours it filled with. */
+interface Painted {
+  texts: string[];
+  images: unknown[];
+  fills: string[];
+  scales: number;
+}
+
+/** A drawing context that draws nothing and writes down what it is asked. */
+function recordingCtx(rec: Painted): CanvasRenderingContext2D {
+  const props: Record<string, unknown> = { font: '10px sans-serif' };
+  const api: Record<string, unknown> = {
+    measureText: (text: string) => ({ width: text.length * 10 }),
+    createLinearGradient: () => ({ addColorStop: () => undefined }),
+    createRadialGradient: () => ({ addColorStop: () => undefined }),
+    fillText: (text: string) => {
+      rec.texts.push(text);
+    },
+    drawImage: (image: unknown) => {
+      rec.images.push(image);
+    },
+    scale: () => {
+      rec.scales++;
+    },
+  };
+  return new Proxy(
+    {},
+    {
+      get: (_, key: string) =>
+        key in api ? api[key] : key in props ? props[key] : () => undefined,
+      set: (_, key: string, value: unknown) => {
+        if (key === 'fillStyle' && typeof value === 'string') rec.fills.push(value);
+        props[key] = value;
+        return true;
+      },
+    },
+  ) as unknown as CanvasRenderingContext2D;
+}
+const g = globalThis as { document?: unknown };
+g.document ??= {
+  createElement: () => ({
+    width: 0,
+    height: 0,
+    getContext: () => recordingCtx({ texts: [], images: [], fills: [], scales: 0 }),
+  }),
+};
+
+/** Paints with `paint` on a recording context and returns what it did. */
+function record(paint: () => void): Painted {
+  const rec: Painted = { texts: [], images: [], fills: [], scales: 0 };
+  const previous = setCtx(recordingCtx(rec));
+  try {
+    paint();
+  } finally {
+    setCtx(previous);
+  }
+  return rec;
+}
+
+const STEP = 1 / 30;
+const run = (seconds: number): void => {
+  for (let i = 0; i < Math.round(seconds / STEP); i++) advanceArena(STEP);
+};
+
+/** A new round, seeded; gifts buy no seats unless `extra` says so (the default). */
+function fresh(extra: Partial<ArenaSettings> = {}): void {
+  setArenaSettings({ ...ARENA_DEFAULTS, places: 6, pilot: false, wildSnakes: 0, ...extra });
+  let s = 7;
+  arena.rand = () => ((s = (s * 16807) % 2147483647) - 1) / 2147483646;
+  arena.viewers.clear();
+  rings.clear();
+  fired.clear();
+  queue.length = 0;
+  flights.length = 0;
+  likePops.length = 0;
+  game.queue = [];
+  paidQueue.length = 0;
+  arena.food = [];
+  arena.foodAt.clear();
+  arena.snakes = [];
+  resetStrip();
+  newRound();
+}
+
+const like = (nickname: string, n: number): void => {
+  arenaLike(nickname, undefined, n);
+};
+const give = (nickname: string, berries: number): void => {
+  board.gift(nickname, undefined, berries, true);
+};
+const holders = (): (string | null)[] => seats.map((s) => s.holder);
+/** Names without digits: a digit painted on the board is a number, never part of a name. */
+const NAMES = ['ana', 'ben', 'cleo', 'dan', 'eve', 'fay', 'gus', 'hal'];
+
+describe('snake arena: calm', () => {
+  beforeAll(() => {
+    hooks.round = () => {
+      newArenaRound();
+    };
+    countOnArena();
+  });
+
+  it('the clock: the qualifying pill says QUALIFYING alone, the battle has none, no tick at the end', () => {
+    fresh();
+    like('ana', 5);
+    let ticks = 0;
+    const eat = hooks.eat;
+    hooks.eat = () => {
+      ticks++;
+    };
+    try {
+      run(QUALIFY.time - 6);
+      const early = record(paintArenaTime);
+      expect(early.texts).toEqual(['QUALIFYING']);
+      expect(early.scales).toBe(0);
+      // The last 5 seconds: no tick, no beat, still no digits.
+      run(5.5);
+      expect(ticks).toBe(0);
+      const late = record(paintArenaTime);
+      expect(late.texts).toEqual(['QUALIFYING']);
+      expect(late.scales).toBe(0);
+    } finally {
+      hooks.eat = eat;
+    }
+    run(1 + QUALIFY.freeze + READY_TIME);
+    expect(arena.phase).toBe('play');
+    expect(record(paintArenaTime).texts).toEqual([]);
+  });
+
+  it('no seat is ever at risk: no red badge, nothing exported to tell one', () => {
+    expect('atRisk' in qualifyModule).toBe(false);
+    fresh();
+    NAMES.slice(0, 6).forEach((n, i) => {
+      like(n, 20 + i);
+    });
+    run(1);
+    // A challenger right behind the weakest seat.
+    like('hal', 19);
+    run(1);
+    expect(challengers).toContain('hal');
+    const rec = record(() => {
+      paintSeats(1);
+      paintActors(1);
+    });
+    expect(rec.fills.some((f) => f.startsWith('rgba(160,20,45'))).toBe(false);
+  });
+
+  it("a seat's badge is its like count, with no heart icon; hearts pop round the photo", () => {
+    fresh();
+    like('ana', 12);
+    like('ben', 7);
+    run(1.2);
+    likePops.length = 0;
+    const rec = record(() => {
+      paintActors(1);
+    });
+    const numbers = rec.texts.filter((t) => /\d/.test(t));
+    expect(numbers.sort()).toEqual(['12', '7']);
+    expect(rec.images.includes(bigHeart(true))).toBe(false);
+    // A like: a heart leaves the photo's edge, above its badge; a burst pops a few, never a flood.
+    like('ana', 1);
+    run(0.1);
+    const one = likePopSpots();
+    expect(one).toHaveLength(1);
+    for (const p of one) {
+      expect(Math.hypot(p.x - p.cx, p.y - p.cy)).toBeGreaterThan(p.r);
+      expect(p.y).toBeLessThan(p.cy + p.r);
+    }
+    likePops.length = 0;
+    like('ben', 50);
+    expect(likePops.filter((h) => h.nickname === 'ben')).toHaveLength(2);
+    like('ben', 1000);
+    like('ben', 1000);
+    expect(likePops.filter((h) => h.nickname === 'ben')).toHaveLength(4);
+    // The likes still count, every one of them.
+    expect(qualLikes.get('ben')).toBe(2057);
+  });
+
+  it("the strip's chips: the ring and no number, before and at a boost", () => {
+    fresh();
+    NAMES.slice(0, 4).forEach((n) => {
+      like(n, 10);
+    });
+    run(QUALIFY.time + QUALIFY.freeze + READY_TIME + 0.5);
+    expect(arena.phase).toBe('play');
+    BOOST.likes = 100;
+    like('ana', 60);
+    run(0.2);
+    stepStrip();
+    expect(stripState().find((c) => c.nickname === 'ana')?.percent).toBe(60);
+    // The photos' initials are all the words a chip holds.
+    expect(record(paintStrip).texts.filter((t) => /[\d%]/.test(t))).toEqual([]);
+    like('ana', 50);
+    run(0.1);
+    stepStrip();
+    expect(stripState().find((c) => c.nickname === 'ana')?.full).toBe(true);
+    expect(record(paintStrip).texts.filter((t) => /[\d%]/.test(t))).toEqual([]);
+  });
+
+  it('gifts buy seats: a gift takes the weakest like seat with an ordinary swap, no trip to the beach', () => {
+    fresh({ giftSeats: true });
+    NAMES.slice(0, 6).forEach((n, i) => {
+      like(n, 20 + i);
+    });
+    run(1.5);
+    expect(holders().every((h) => h !== null)).toBe(true);
+    give('hal', 5);
+    // The weakest like seat's holder crosses down to the first challenger's place.
+    expect(holders()).toContain('hal');
+    expect(holders()).not.toContain('ana');
+    expect(challengers[0]).toBe('ana');
+    const down = actors.get('ana');
+    expect(down?.leaving).toBe(false);
+    run(QUALIFY.show + QUALIFY.fly + 0.2);
+    expect(locked).toEqual(['hal']);
+    expect(challengers).toContain('ana');
+  });
+});
+
+describe('snake arena: "Gifts buy seats", off by default', () => {
+  beforeAll(() => {
+    hooks.round = () => {
+      newArenaRound();
+    };
+    countOnArena();
+  });
+
+  it('is off by default, a switch, kept with the settings', () => {
+    expect(ARENA_DEFAULTS.giftSeats).toBe(false);
+    expect(readArenaSettings(null).giftSeats).toBe(false);
+    expect(sanitizeArenaSetting('giftSeats', true)).toBe(true);
+    expect(sanitizeArenaSetting('giftSeats', 'yes')).toBeUndefined();
+    const map = new Map<string, string>(),
+      storage = {
+        getItem: (key: string) => map.get(key) ?? null,
+        setItem: (key: string, value: string) => {
+          map.set(key, value);
+        },
+      };
+    applyArenaCommand({ cmd: 'arena-setting', name: 'giftSeats', value: true }, { storage });
+    expect(arenaSettings.giftSeats).toBe(true);
+    expect(readArenaSettings(map.get(ARENA_STORAGE_KEY)).giftSeats).toBe(true);
+    applyArenaCommand({ cmd: 'arena-setting', name: 'giftSeats', value: false }, { storage });
+    expect(readArenaSettings(map.get(ARENA_STORAGE_KEY)).giftSeats).toBe(false);
+  });
+
+  it('off: a qualifying gift buys no seat, the flower thanks the giver; the race is the likes', () => {
+    fresh();
+    NAMES.slice(0, 6).forEach((n, i) => {
+      like(n, 20 + i);
+    });
+    run(1.5);
+    const before = holders();
+    give('hal', 50);
+    run(0.3);
+    expect(holders()).toEqual(before);
+    expect(locked).toHaveLength(0);
+    expect(paidQueue).toHaveLength(0);
+    // The flower opens on the giver as for any gift: their berry, no gold egg.
+    expect(game.pour?.nickname).toBe('hal');
+    expect(game.pour?.seat).toBeFalsy();
+    // Likes alone decide: hal's likes take the weakest seat at the cut.
+    like('hal', 40);
+    run(1);
+    expect(holders()).toContain('hal');
+    expect(locked).toHaveLength(0);
+  });
+
+  it('off: a battle gift buys no place in line; a player gets berries; the seat price is a plain gift', () => {
+    fresh({ seatPrice: 99 });
+    expect(isSeatGift(99)).toBe(false);
+    like('ana', 30);
+    like('ben', 20);
+    run(QUALIFY.time + QUALIFY.freeze + READY_TIME + 0.5);
+    expect(arena.phase).toBe('play');
+    give('stranger', 10);
+    give('ana', 5);
+    expect(paidQueue).toHaveLength(0);
+    expect(game.queue.some((q) => q.nickname === 'ana' && !q.seat)).toBe(true);
+    run(0.5);
+    expect(game.pour?.seat).toBeFalsy();
+    // The next round opens with nobody on a paid seat.
+    expect(takePaidBatch()).toEqual([]);
+    const ben = snakeOf('ben');
+    if (ben) kill(ben, null, 'accident');
+    run(15);
+    expect(qualifying()).toBe(true);
+    expect(locked).toHaveLength(0);
+  });
+
+  it('switched off, the paid queue empties', () => {
+    fresh({ giftSeats: true });
+    like('ana', 30);
+    run(QUALIFY.time + QUALIFY.freeze + READY_TIME + 0.5);
+    give('stranger', 10);
+    expect(paidQueue.map((q) => q.nickname)).toEqual(['stranger']);
+    setArenaSettings({ ...ARENA_DEFAULTS, places: 6, pilot: false, wildSnakes: 0 });
+    expect(paidQueue).toHaveLength(0);
+  });
+});

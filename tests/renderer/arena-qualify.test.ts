@@ -29,7 +29,6 @@ import {
   setAlertsOn,
   updateAlerts,
 } from '../../src/renderer/feed/alerts.ts';
-import { tr } from '../../src/renderer/engine/i18n.ts';
 import { countOnArena } from '../../src/renderer/arena/link.ts';
 import {
   CUT_Y,
@@ -54,9 +53,19 @@ const run = (seconds: number): void => {
   for (let i = 0; i < Math.round(seconds / STEP); i++) advanceArena(STEP);
 };
 
-/** A new round, seeded: the qualifying opens on an empty board. */
+/**
+ * A new round, seeded: the qualifying opens on an empty board. Gifts buy seats here (the Money
+ * tab's switch on), unless a test says otherwise.
+ */
 function fresh(extra: Partial<ArenaSettings> = {}, seed = 7): void {
-  setArenaSettings({ ...ARENA_DEFAULTS, places: 6, pilot: false, wildSnakes: 0, ...extra });
+  setArenaSettings({
+    ...ARENA_DEFAULTS,
+    places: 6,
+    pilot: false,
+    wildSnakes: 0,
+    giftSeats: true,
+    ...extra,
+  });
   let s = seed;
   arena.rand = () => ((s = (s * 16807) % 2147483647) - 1) / 2147483646;
   arena.viewers.clear();
@@ -443,7 +452,7 @@ describe('snake arena: the battle', () => {
     expect(payer.backing).toBe(1);
   });
 
-  it('a gift in the battle puts its giver in the paid queue, one place each, told once', () => {
+  it('a gift in the battle puts its giver in the paid queue, one place each, no card', () => {
     fresh({ roundLength: 120 });
     setAlertsOn(true);
     like('player', 30);
@@ -457,9 +466,10 @@ describe('snake arena: the battle', () => {
     give('player', 5);
     give('outsider', 10);
     expect(inLine()).toEqual(['outsider', 'player']);
-    // One card each, however many gifts.
+    // No card announces a place in line: the flower thanks the giver as for any gift.
+    updateAlerts(0.01);
     const { current, queued } = alertsState();
-    expect((current ? 1 : 0) + queued).toBe(2);
+    expect((current ? 1 : 0) + queued).toBe(0);
     // The player's gift still lifts its snake's tier.
     const p = snakeOf('player');
     if (p) expect(tierOf(p)).toBe(1);
@@ -492,20 +502,7 @@ describe('snake arena: the battle', () => {
     like('a1', 30);
     like('a2', 20);
     toBattle();
-    const card = (): string => {
-      updateAlerts(0.01);
-      const a = alertsState().current;
-      // The card's words, and its badge: the place in line.
-      return a ? tr(a.phrase, { name: a.nickname, n: a.likes, r: a.rounds ?? 1 }) : '';
-    };
-    for (let i = 0; i < 8; i++) {
-      resetAlerts();
-      give(`donor${String(i)}`, 5);
-      const said = card();
-      // #6 plays the next round with 6 places, #7 waits in line.
-      if (i === 5) expect(said).toBe('donor5 has a seat in the next round');
-      if (i === 6) expect(said).toBe('donor6 is #7 in line: plays in 2 rounds');
-    }
+    for (let i = 0; i < 8; i++) give(`donor${String(i)}`, 5);
     expect(inLine()).toHaveLength(8);
     const a2 = snakeOf('a2');
     if (a2) kill(a2, null, 'accident');
@@ -533,24 +530,23 @@ describe('snake arena: the battle', () => {
     expect(inLine()).toHaveLength(0);
   });
 
-  it('with 8 places, #3 plays the next round and #12 is in line', () => {
+  it('with 8 places, the next round takes the first 8 in line; no card says where anyone stands', () => {
     fresh({ roundLength: 120, places: 8 });
     setAlertsOn(true);
     like('a1', 30);
     like('a2', 20);
     toBattle();
-    const said: string[] = [];
-    for (let i = 1; i <= 12; i++) {
-      resetAlerts();
-      give(`d${String(i)}`, 5);
-      updateAlerts(0.01);
-      const a = alertsState().current;
-      said.push(a ? tr(a.phrase, { name: a.nickname, n: a.likes, r: a.rounds ?? 1 }) : '');
-    }
-    expect(said[2]).toBe('d3 has a seat in the next round');
-    expect(said[7]).toBe('d8 has a seat in the next round');
-    expect(said[8]).toBe('d9 is #9 in line: plays in 2 rounds');
-    expect(said[11]).toBe('d12 is #12 in line: plays in 2 rounds');
+    resetAlerts();
+    for (let i = 1; i <= 12; i++) give(`d${String(i)}`, 5);
+    updateAlerts(0.01);
+    expect(alertsState().current).toBeNull();
+    expect(alertsState().queued).toBe(0);
+    const a2 = snakeOf('a2');
+    if (a2) kill(a2, null, 'accident');
+    run(15);
+    expect(qualifying()).toBe(true);
+    expect(holders()).toEqual(['d1', 'd2', 'd3', 'd4', 'd5', 'd6', 'd7', 'd8']);
+    expect(inLine()).toEqual(['d9', 'd10', 'd11', 'd12']);
   });
 
   it("the flower's card shows a gold egg for a gift that buys a seat, the berry for a player's battle gift", () => {

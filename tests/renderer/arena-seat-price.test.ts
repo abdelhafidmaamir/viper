@@ -66,7 +66,14 @@ function deps(): FeedLinkDeps {
 
 /** A new round, seeded: the qualifying opens on an empty board. */
 function fresh(extra: Partial<ArenaSettings> = {}, seed = 7): void {
-  setArenaSettings({ ...ARENA_DEFAULTS, places: 6, pilot: false, wildSnakes: 0, ...extra });
+  setArenaSettings({
+    ...ARENA_DEFAULTS,
+    places: 6,
+    pilot: false,
+    wildSnakes: 0,
+    giftSeats: true,
+    ...extra,
+  });
   let s = seed;
   arena.rand = () => ((s = (s * 16807) % 2147483647) - 1) / 2147483646;
   arena.viewers.clear();

@@ -71,7 +71,8 @@ describe('arena link', () => {
 
   beforeEach(() => {
     Object.assign(arenaSettings, ARENA_DEFAULTS);
-    setArenaSettings({ ...ARENA_DEFAULTS, pilot: false, wildSnakes: 0 });
+    // Gifts buy seats on the board here (the Money tab's switch on), unless a test says otherwise.
+    setArenaSettings({ ...ARENA_DEFAULTS, pilot: false, wildSnakes: 0, giftSeats: true });
     arena.viewers.clear();
     rings.clear();
     queue.length = 0;
@@ -131,7 +132,13 @@ describe('arena link', () => {
   it('a gift at the life price gives a life, not berries, only with the life gift on', () => {
     receiveFeedEvent({ type: 'gift', name: 'Hat', value: 30, nickname: 'off' });
     expect(arena.viewers.get('off')?.lives ?? 0).toBe(0);
-    setArenaSettings({ ...ARENA_DEFAULTS, pilot: false, wildSnakes: 0, lifeOn: true });
+    setArenaSettings({
+      ...ARENA_DEFAULTS,
+      pilot: false,
+      wildSnakes: 0,
+      giftSeats: true,
+      lifeOn: true,
+    });
     receiveFeedEvent({ type: 'gift', name: 'Hat', value: 30, nickname: 'liv' });
     expect(arena.viewers.get('liv')?.lives).toBe(1);
     expect(locked).toContain('liv');
@@ -214,7 +221,7 @@ describe('arena link', () => {
 
   it('the paid queue is saved as it changes, read back after a reload and shown to the room', () => {
     vi.useFakeTimers();
-    const map = new Map<string, string>(),
+    const map = new Map<string, string>([[ARENA_STORAGE_KEY, JSON.stringify({ giftSeats: true })]]),
       sent: unknown[] = [];
     const stop = linkArenaControl(
       { storage: store(map) },
@@ -242,5 +249,14 @@ describe('arena link', () => {
     );
     restorePaidQueue(store(map));
     expect(paidQueue.map((q) => q.nickname)).toEqual(['ana', 'ben']);
+    // Gifts switched off: the queue empties, its save too, and a reload brings nobody back.
+    const saved = { storage: store(map) };
+    applyArenaCommand({ cmd: 'arena-setting', name: 'giftSeats', value: false }, saved);
+    expect(paidQueue).toHaveLength(0);
+    expect(JSON.parse(map.get(PAID_QUEUE_KEY) ?? '[1]')).toEqual([]);
+    expect(JSON.parse(map.get(ARENA_STORAGE_KEY) ?? '{}')).toMatchObject({ giftSeats: false });
+    map.set(PAID_QUEUE_KEY, JSON.stringify([{ nickname: 'ana' }]));
+    restorePaidQueue(store(map));
+    expect(paidQueue).toHaveLength(0);
   });
 });
