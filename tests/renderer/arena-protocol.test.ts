@@ -44,9 +44,9 @@ describe('arena protocol', () => {
     }
   });
 
-  it('starts as Abdel set it: 8 snakes, a boost every 100 likes, berries for their giver, no shield, no life gift, the survival tiers on, two-minute battles', () => {
+  it('starts as Abdel set it: 6 snakes, a boost every 100 likes, berries for their giver, no shield, no life gift, the survival tiers on, two-minute battles', () => {
     expect(ARENA_DEFAULTS).toMatchObject({
-      places: 8,
+      places: 6,
       entryLikes: 100,
       giftEntry: true,
       giftBerries: 'owner',

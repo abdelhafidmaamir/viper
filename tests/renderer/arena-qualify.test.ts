@@ -1,6 +1,10 @@
 import { beforeAll, describe, expect, it } from 'vitest';
 
-import { ARENA_DEFAULTS, type ArenaSettings } from '../../src/shared/arena-protocol.ts';
+import {
+  ARENA_DEFAULTS,
+  sanitizeArenaSetting,
+  type ArenaSettings,
+} from '../../src/shared/arena-protocol.ts';
 import { advanceArena, newArenaRound, setArenaSettings } from '../../src/renderer/arena/arena.ts';
 import {
   audienceSize,
@@ -103,9 +107,14 @@ describe('snake arena: the qualifying', () => {
     expect(game.ready).toBe(-1);
   });
 
-  it('8 places by default: two rows of 4 eggs evenly spaced, pictures, names and badges clear of each other', () => {
-    expect(ARENA_DEFAULTS.places).toBe(8);
-    fresh({ places: ARENA_DEFAULTS.places });
+  it('6 places by default, 4 and 8 on offer', () => {
+    expect(ARENA_DEFAULTS.places).toBe(6);
+    expect(sanitizeArenaSetting('places', 4)).toBe(4);
+    expect(sanitizeArenaSetting('places', 8)).toBe(8);
+  });
+
+  it('8 places: two rows of 4 eggs evenly spaced, pictures, names and badges clear of each other', () => {
+    fresh({ places: 8 });
     expect(seats).toHaveLength(8);
     const spots = seats.map((_, i) => seatSpot(i)),
       rows = [spots.slice(0, 4), spots.slice(4)];
@@ -487,15 +496,15 @@ describe('snake arena: the battle', () => {
       updateAlerts(0.01);
       const a = alertsState().current;
       // The card's words, and its badge: the place in line.
-      return a ? `${tr(a.phrase, { name: a.nickname })} #${String(a.likes)}` : '';
+      return a ? tr(a.phrase, { name: a.nickname, n: a.likes, r: a.rounds ?? 1 }) : '';
     };
     for (let i = 0; i < 8; i++) {
       resetAlerts();
       give(`donor${String(i)}`, 5);
       const said = card();
       // #6 plays the next round with 6 places, #7 waits in line.
-      if (i === 5) expect(said).toBe('donor5 PLAYS NEXT ROUND #6');
-      if (i === 6) expect(said).toBe('donor6 IS IN LINE #7');
+      if (i === 5) expect(said).toBe('donor5 has a seat in the next round');
+      if (i === 6) expect(said).toBe('donor6 is #7 in line: plays in 2 rounds');
     }
     expect(inLine()).toHaveLength(8);
     const a2 = snakeOf('a2');
@@ -536,12 +545,12 @@ describe('snake arena: the battle', () => {
       give(`d${String(i)}`, 5);
       updateAlerts(0.01);
       const a = alertsState().current;
-      said.push(a ? `${tr(a.phrase, { name: a.nickname })} #${String(a.likes)}` : '');
+      said.push(a ? tr(a.phrase, { name: a.nickname, n: a.likes, r: a.rounds ?? 1 }) : '');
     }
-    expect(said[2]).toBe('d3 PLAYS NEXT ROUND #3');
-    expect(said[7]).toBe('d8 PLAYS NEXT ROUND #8');
-    expect(said[8]).toBe('d9 IS IN LINE #9');
-    expect(said[11]).toBe('d12 IS IN LINE #12');
+    expect(said[2]).toBe('d3 has a seat in the next round');
+    expect(said[7]).toBe('d8 has a seat in the next round');
+    expect(said[8]).toBe('d9 is #9 in line: plays in 2 rounds');
+    expect(said[11]).toBe('d12 is #12 in line: plays in 2 rounds');
   });
 
   it("the flower's card shows a gold egg for a gift that buys a seat, the berry for a player's battle gift", () => {

@@ -213,9 +213,12 @@ export function joinPaidQueue(nickname: string, avatar: string | undefined): voi
   if (nickname === PILOT.key || paidQueue.some((q) => q.nickname === nickname)) return;
   paidQueue.push({ nickname, avatar });
   const place = paidQueue.length;
-  alertQueued({ nickname, avatar }, place, place <= places());
+  alertQueued({ nickname, avatar }, place, roundsToPlay(place));
   paidHooks.changed();
 }
+
+/** In how many rounds the paid queue's `place` plays: 1 the next round, each round taking `places()`. */
+export const roundsToPlay = (place: number): number => Math.max(1, Math.ceil(place / places()));
 
 /** This round's paid seats: the first `places()` of the queue, which leave it. */
 export function takePaidBatch(): Queued[] {

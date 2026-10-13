@@ -14,8 +14,8 @@ import { game, repay } from '../feed/state.ts';
 export const TOTAL = FCOLS * FROWS;
 
 export const TUNING = {
-  /** Snakes on the board at once: one per colour, so 8 at most. */
-  places: 8,
+  /** Snakes on the board at once (6 by default, the settings say): one per colour, so 8 at most. */
+  places: 6,
   /** With few viewers, wild snakes make up the numbers to this many. */
   wildUpTo: 4,
   startLen: 8, // cells
@@ -548,7 +548,8 @@ export function kill(s: Snake, by: Snake | null, cause: Cause): void {
     by.kills++;
     arena.kills++;
   }
-  if (!s.wild) alertKill(s, by && !by.wild ? by : null);
+  // Only in the battle: nothing of it shows over the end screen.
+  if (!s.wild && arena.phase === 'play') alertKill(s, by && !by.wild ? by : null);
   if (arena.crown === s.id) arena.crown = -1;
 }
 

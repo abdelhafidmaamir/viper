@@ -9,10 +9,11 @@
 // once it has been readable for a moment, and a like card only stays past its time when nobody
 // is waiting. Waiting joins and likes expire; follows, shares and supporters never do.
 //
-// Snake Arena sets its own order and look (setAlertLook): its game cards first (a snake
-// eliminated, a speed boost reached, a place in the paid queue), then the stream's (follows,
-// shares, supporters, welcomes), then likes, during its qualifying only (setLikeAlerts); a smaller
-// card lower under the board, below its like strip. Feed never calls either.
+// Snake Arena sets its own order and place (setAlertLook): its game cards first (a snake
+// eliminated, a place in the paid queue, then a speed boost reached), then the stream's (follows,
+// shares, supporters, welcomes), then likes, during its qualifying only (setLikeAlerts); Feed's
+// card size, lower under the board, below its like strip. Its game cards read on one row, and go
+// at the battle's end (clearGameAlerts). Feed never calls any of these.
 
 import { ctx } from '../engine/canvas.ts';
 import { tr, type I18nKey } from '../engine/i18n.ts';
@@ -59,6 +60,8 @@ interface Alert {
   by?: { nickname: string; avatar?: string | undefined } | undefined;
   /** For a speed boost: the snake's colour, light, for the name and the photo's outline. */
   tint?: string | undefined;
+  /** For a place in the paid queue: in how many rounds the giver plays, 1 the next one. */
+  rounds?: number | undefined;
 }
 
 interface Heart {
@@ -330,14 +333,14 @@ export function alertKill(
 }
 
 /**
- * Snake Arena: a giver joined the paid queue at `place`, their photo and name on the plain card:
- * "plays next round (#3)" while the place is in the next round's batch, "#12 in line" after it.
- * The place rides in `likes`, the number the card's sentence reads.
+ * Snake Arena: a giver joined the paid queue at `place` and plays in `rounds` rounds (1 the next
+ * one): "{name} has a seat in the next round" with a gold "#3" badge, else "{name} is #12 in
+ * line: plays in 2 rounds". The place rides in `likes`, the number the card's sentence reads.
  */
 export function alertQueued(
   who: { nickname: string; avatar?: string | undefined },
   place: number,
-  nextRound: boolean,
+  rounds: number,
 ): void {
   if (!who.nickname || !alertsOn) return;
   const next: Alert = {
@@ -346,7 +349,8 @@ export function alertQueued(
     avatar: who.avatar,
     by: undefined,
     likes: place,
-    phrase: nextRound ? 'arena.playsNext' : 'arena.inLine',
+    rounds: Math.max(1, rounds),
+    phrase: rounds <= 1 ? 'arena.playsNext' : 'arena.inLine',
     visit: 0,
     supporter: undefined,
     ranked: false,
@@ -363,12 +367,14 @@ export function alertQueued(
 }
 
 /**
- * Snake Arena: a player's likes reached a speed boost. The gold card: the photo in a full gold
- * ring, a lit bolt, the name in the snake's colour over "SPEED BOOST!", gold bolts around it.
+ * Snake Arena: a player's `likes` (the likes for one boost) reached a speed boost. The gold card:
+ * the photo in a full gold ring, "{name} hit 100 likes: SPEED BOOST" and a lit bolt, the name in
+ * the snake's colour, gold bolts around it.
  */
 export function alertBoost(
   who: { nickname: string; avatar?: string | undefined },
   tint: string,
+  likes: number,
 ): void {
   if (!who.nickname || !alertsOn) return;
   const next: Alert = {
@@ -376,7 +382,7 @@ export function alertBoost(
     nickname: who.nickname,
     avatar: who.avatar,
     by: undefined,
-    likes: 0,
+    likes,
     phrase: 'arena.boost',
     visit: 0,
     supporter: undefined,
@@ -392,6 +398,20 @@ export function alertBoost(
   if (at < 0) queue.push(next);
   else queue.splice(at, 0, next);
   if (queue.length > 5) queue.length = 5;
+}
+
+/** Snake Arena's game cards: an elimination, a place in the paid queue, a speed boost. */
+const isGameCard = (a: Alert | null | undefined): boolean =>
+  a?.kind === 'kill' || a?.kind === 'qualified' || a?.kind === 'boost';
+
+/**
+ * Snake Arena: the battle is over. Its game cards go at once, waiting or on screen, with their
+ * icons: nothing of the battle shows over the end screen. The stream's cards stay.
+ */
+export function clearGameAlerts(): void {
+  for (let i = queue.length - 1; i >= 0; i--) if (isGameCard(queue[i])) queue.splice(i, 1);
+  if (isGameCard(current)) current = null;
+  hearts = hearts.filter((h) => h.owner === current);
 }
 
 /** A point on the card's outline, for icons to leave from. */
@@ -677,9 +697,86 @@ export function paintCardBolt(x: number, y: number, size: number, lit: boolean):
   c.restore();
 }
 
+/** A game card's words shrink to fit their row down to this size, then the name is cut. */
+export const GAME_TEXT_MIN = 30;
+
+/** One stretch of a game card's row: its words, colour and weight; the `name` may be cut to fit. */
+interface Piece {
+  readonly text: string;
+  readonly colour: string;
+  readonly weight: number;
+  readonly name?: boolean;
+}
+
+/** What the last game card painted on its row: for tests. */
+let lastRow: { text: string; size: number; left: number; right: number; room: number } | null =
+  null;
+
+/** The row at the size that fits `room`: the card's text size down to GAME_TEXT_MIN, then the name cut. */
+function fitRow(pieces: readonly Piece[], room: number): { size: number; pieces: Piece[] } {
+  const c = ctx,
+    width = (size: number, list: readonly Piece[]): number =>
+      list.reduce((sum, p) => {
+        c.font = `${String(p.weight)} ${String(size)}px ${FONT}`;
+        return sum + c.measureText(p.text).width;
+      }, 0);
+  let size = look.text;
+  while (size > GAME_TEXT_MIN && width(size, pieces) > room) size--;
+  if (width(size, pieces) <= room) return { size, pieces: [...pieces] };
+  const others = width(
+    size,
+    pieces.filter((p) => !p.name),
+  );
+  return {
+    size,
+    pieces: pieces.map((p) => {
+      if (!p.name) return p;
+      c.font = `${String(p.weight)} ${String(size)}px ${FONT}`;
+      return { ...p, text: fitName(p.text, Math.max(40, room - others)) };
+    }),
+  };
+}
+
+/** Paints a game card's words on one row from `tx`, within `room`; returns where the row ends. */
+function paintRow(pieces: readonly Piece[], tx: number, room: number): number {
+  const c = ctx,
+    row = fitRow(pieces, room);
+  c.textAlign = 'left';
+  c.textBaseline = 'middle';
+  let x = tx;
+  for (const p of row.pieces) {
+    c.font = `${String(p.weight)} ${String(row.size)}px ${FONT}`;
+    c.fillStyle = p.colour;
+    c.fillText(p.text, x, 2);
+    x += c.measureText(p.text).width;
+  }
+  lastRow = {
+    text: row.pieces.map((p) => p.text).join(''),
+    size: row.size,
+    left: tx,
+    right: x,
+    room,
+  };
+  return x;
+}
+
+/** The card's sentence split round the name, the name in `colour`, the words in light. */
+function pieces(a: Alert, text: string, colour: string): Piece[] {
+  const at = text.indexOf('{name}'),
+    name = a.nickname.length > 18 ? a.nickname.slice(0, 17) + '…' : a.nickname,
+    words = (t: string): Piece => ({ text: t, colour: 'rgba(255,255,255,0.9)', weight: 500 });
+  if (at < 0) return [words(text)];
+  return [
+    words(text.slice(0, at)),
+    { text: name, colour, weight: 800, name: true },
+    words(text.slice(at + 6)),
+  ].filter((p) => p.text);
+}
+
 /**
- * A speed boost reached, on a card the size of the stream's (look): the photo in a full gold ring,
- * a lit bolt, the name in the snake's colour over "SPEED BOOST!", speed lines on the right.
+ * A speed boost reached, on Feed's card (look), one row: the photo in a full gold ring, "{name}
+ * hit 100 likes: SPEED BOOST" (the name in the snake's colour, the last words in gold) and a lit
+ * bolt.
  */
 function paintBoostCard(a: Alert): void {
   const c = ctx,
@@ -696,36 +793,27 @@ function paintBoostCard(a: Alert): void {
   c.beginPath();
   c.arc(px, 0, r + 8, 0, Math.PI * 2);
   c.stroke();
-  const bx = px + r + 40;
-  paintCardBolt(bx, 0, h * 0.5, true);
-  const tx = bx + 34,
-    size = Math.round(h * 0.3);
-  c.textAlign = 'left';
-  c.textBaseline = 'middle';
-  c.font = `800 ${String(size)}px ${FONT}`;
-  c.fillStyle = tint;
-  c.fillText(fitName(a.nickname, w * 0.5), tx, -h * 0.19);
-  c.font = `900 ${String(Math.round(size * 1.12))}px ${FONT}`;
-  c.fillStyle = GOLD;
-  c.fillText(tr('arena.boost'), tx, h * 0.2);
-  // Speed lines on the right.
-  c.strokeStyle = 'rgba(242,193,78,0.55)';
-  c.lineWidth = 5;
-  c.lineCap = 'round';
-  for (let i = 0; i < 3; i++) {
-    const y = -h * 0.2 + i * h * 0.18,
-      end = -x - 40 - (2 - i) * 10;
-    c.beginPath();
-    c.moveTo(end - 150, y);
-    c.lineTo(end, y);
-    c.stroke();
+  // The words after the colon shout in gold: "SPEED BOOST".
+  const list = pieces(a, tr('arena.boost', { n: a.likes }), tint),
+    last = list.at(-1),
+    cut = last && !last.name ? last.text.lastIndexOf(':') + 1 : 0;
+  if (last && cut > 0) {
+    list.pop();
+    list.push(
+      { ...last, text: last.text.slice(0, cut) },
+      { text: last.text.slice(cut), colour: GOLD, weight: 900 },
+    );
   }
+  const bolt = h * 0.42,
+    tx = px + r + 28,
+    end = paintRow(list, tx, x + w - 28 - bolt * 0.7 - 10 - tx);
+  paintCardBolt(end + 10 + bolt * 0.35, 0, bolt, true);
 }
 
 /**
- * A place in the paid queue, on a card the size of the stream's (look): the photo and a small gold
- * egg, the name and "PLAYS NEXT ROUND" with a gold "#3" badge, or "IS IN LINE" with a white "#12"
- * badge past the next round's seats.
+ * A place in the paid queue, on Feed's card (look), one row: in the next round's batch, a small
+ * gold egg on the photo, "{name} has a seat in the next round" and a gold "#3" badge; further back,
+ * "{name} is #12 in line: plays in 2 rounds", the place in bold.
  */
 function paintQueueCard(a: Alert): void {
   const c = ctx,
@@ -735,51 +823,54 @@ function paintQueueCard(a: Alert): void {
     r = look.avatar / 2,
     x = -w / 2;
   pill(w, h, next ? 'rgba(242,193,78,0.6)' : 'rgba(255,255,255,0.18)');
-  const px = x + 18 + r;
+  const px = x + 18 + r,
+    tx = px + r + 18;
   paintFace(a, px, 0, r, next ? GOLD : 'rgba(255,255,255,0.85)');
-  const egg = burstSprite('qualified'),
-    es = h * 0.52;
-  c.drawImage(egg, px + r + 6, -es / 2, es, es);
-  // The badge at the right end.
-  const badge = `#${String(a.likes)}`,
-    bh = h * 0.5,
-    bw = bh * 1.5,
+  const place = `#${String(a.likes)}`,
+    text = tr(a.phrase, { n: a.likes, r: a.rounds ?? 1 });
+  if (!next) {
+    // The place reads bold in the sentence.
+    const list = pieces(a, text, GOLD).flatMap((p): Piece[] => {
+      const at = p.name ? -1 : p.text.indexOf(place);
+      return at < 0
+        ? [p]
+        : [
+            { ...p, text: p.text.slice(0, at) },
+            { text: place, colour: '#fff', weight: 800 },
+            { ...p, text: p.text.slice(at + place.length) },
+          ].filter((q) => q.text);
+    });
+    paintRow(list, tx, x + w - 28 - tx);
+    return;
+  }
+  // The gold badge at the right end, the egg just before it.
+  const bh = h * 0.52;
+  c.font = `900 ${String(Math.round(bh * 0.58))}px ${FONT}`;
+  const bw = Math.max(bh * 1.3, c.measureText(place).width + bh * 0.6),
     bx = x + w - 24 - bw;
-  c.fillStyle = next ? GOLD : 'rgba(255,255,255,0.92)';
+  c.fillStyle = GOLD;
   c.beginPath();
   c.roundRect(bx, -bh / 2, bw, bh, bh / 2);
   c.fill();
   c.textAlign = 'center';
   c.textBaseline = 'middle';
-  c.font = `900 ${String(Math.round(bh * 0.55))}px ${FONT}`;
-  c.fillStyle = next ? '#3a2600' : '#14181d';
-  c.fillText(badge, bx + bw / 2, 1);
-  // The name in gold, then the words, shrunk to fit before the badge.
-  const words = tr(a.phrase).replace('{name}', '').trim(),
-    tx = px + r + 12 + es,
-    room = bx - 18 - tx;
-  let size = look.text;
-  const width = (px2: number): [number, number] => {
-    c.font = `800 ${String(px2)}px ${FONT}`;
-    return [c.measureText(a.nickname).width, c.measureText(' ' + words).width];
-  };
-  let [wn, ww] = width(size);
-  while (size > 20 && wn + ww > room) [wn, ww] = width(--size);
-  c.textAlign = 'left';
-  c.font = `800 ${String(size)}px ${FONT}`;
-  const name = fitName(a.nickname, Math.max(40, room - ww));
-  wn = c.measureText(name).width;
-  c.fillStyle = GOLD;
-  c.fillText(name, tx, 2);
-  c.fillStyle = '#fff';
-  c.fillText(' ' + words, tx + wn, 2);
+  c.fillStyle = '#3a2600';
+  c.fillText(place, bx + bw / 2, 1);
+  // The small gold egg on the photo's lower right, like a seat's.
+  const es = h * 0.46;
+  c.drawImage(burstSprite('qualified'), px + r * 0.62 - es / 2, r * 0.5 - es / 2, es, es);
+  paintRow(pieces(a, text, GOLD), tx, bx - 16 - tx);
 }
+
+/** For tests: the words of the last game card painted, their size and where the row ran. */
+export const gameCardRow = (): typeof lastRow => lastRow;
 
 /** Clears everything (tests, new session). */
 export function resetAlerts(): void {
   queue.length = 0;
   current = null;
   hearts = [];
+  lastRow = null;
 }
 
 /** For tests: the alert on screen and the waiting ones. */

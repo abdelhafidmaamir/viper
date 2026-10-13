@@ -86,7 +86,7 @@ export interface ArenaSettings {
 export type ArenaSettingName = keyof ArenaSettings;
 
 export const ARENA_DEFAULTS: ArenaSettings = {
-  places: 8,
+  places: 6,
   entryLikes: 100,
   giftEntry: true,
   likeBoost: true,

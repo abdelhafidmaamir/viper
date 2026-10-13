@@ -1,52 +1,73 @@
-// Snake Arena: the like strip, in the battle only. A row of compact chips just under the board's
+// Snake Arena: the like strip, in the battle only. One row of compact chips just under the board's
 // bottom line, centred, above the alert card: one for every living player from GO, 0 % included
 // (an empty ring is an invitation), in the qualifying's seat order for the whole battle; a player
-// who falls loses theirs, eased out, and the others slide together. Up to STRIP.most chips keep
-// their full size; more are scaled down evenly to fit the board's width. A chip: the player's photo in the red ring of their likes toward the
-// next speed boost, the goal a bolt badge on the ring at the upper right (the ring starts just past
-// it and runs clockwise back to it), and the percentage. At 100 % the chip turns gold, the badge
-// lights and a big lit bolt replaces the number for a moment, while the alert card says SPEED
-// BOOST; then the ring starts again from what was left over. Small hearts pop over a chip at each
-// like. Painted after the alert card, so its rising particles pass behind the strip.
+// who falls loses theirs, eased out, and the others slide together. Every chip is STRIP.size times
+// the base chip; a row wider than the screen less STRIP.margin each side (7 or 8 players) is
+// scaled down evenly to fit, its top kept under the line. A chip: the player's photo in the red
+// ring of their likes toward the next speed boost, the goal a bolt badge on the ring at the upper
+// right (the ring starts just past it and runs clockwise back to it), and the percentage. At 100 %
+// the chip turns gold, the badge lights and a big lit bolt replaces the number for a moment, while
+// the alert card says SPEED BOOST; then the ring starts again from what was left over. Small
+// hearts pop over a chip at each like. Painted after the alert card, so its rising particles pass
+// behind the strip. The battle over, the strip goes at once: nothing of it shows over the end
+// screen.
 
 import { ctx } from '../engine/canvas.ts';
 import { GOLD } from '../engine/palette.ts';
 import { alertBoost, paintCardBolt } from '../feed/alerts.ts';
 import { burstSprite } from '../feed/alert-fx.ts';
-import { BOARD_H, BOARD_W, FY0 } from '../feed/grid.ts';
+import { BOARD_H, FY0 } from '../feed/grid.ts';
 import { FONT, paintFace } from '../feed/paint.ts';
 import { W } from '../engine/layout.ts';
 import { COLOURS } from './board-paint.ts';
 import { BOOST, fired, isPilot, likeHooks, rings } from './entry.ts';
 import { alive, arena, snakeOf } from './rules.ts';
 
+/**
+ * A base chip, in game units: its size and the gap between two, the left padding, the ringed
+ * photo's box, the gap to the number, the number's room and the right padding; the photo's and the
+ * ring's radii.
+ */
+export const CHIP = {
+  w: 134,
+  h: 64,
+  gap: 8,
+  pad: 14,
+  box: 54,
+  mid: 10,
+  text: 40,
+  photo: 17,
+  ring: 24,
+};
+
 export const STRIP = {
-  /** Chips at full size at most; past that every chip shrinks so the row fits the board. */
-  most: 6,
+  /** Every chip's size, times the base chip. */
+  size: 1.2,
+  /** The row never comes closer than this to the screen's sides: past it, every chip shrinks. */
+  margin: 20,
   /** Seconds a chip stays gold once its ring is full. */
   full: 1.5,
   /** Seconds of a chip's coming and going. */
   ease: 0.3,
-  /** The row's middle, in game units: under the board's bottom line, above the alert card. */
-  y: FY0 + BOARD_H + 84,
+  /** The board's bottom line, in game units: the ring round the board, its outer edge. */
+  line: FY0 + BOARD_H + 35,
+  /** The row's top: a little under the line. */
+  top: FY0 + BOARD_H + 56,
 };
 
 /**
- * The alert card under the strip (alerts.setAlertLook): the arena's order of importance, a card
- * the size of Feed's (never smaller), its top clear of the strip.
+ * The alert card under the strip (alerts.setAlertLook): the arena's order of importance, Feed's
+ * card size, its top a small gap under the row.
  */
 export const ARENA_ALERTS = {
   cx: W / 2,
-  cy: STRIP.y + 32 + 12 + 57,
+  cy: STRIP.top + CHIP.h * STRIP.size + 28 + 57,
   w: 790,
   h: 114,
   avatar: 86,
   text: 38,
   arena: true,
 };
-
-/** A chip, in game units: its size, its photo, its ring and the room for its number. */
-const CHIP = { w: 148, h: 64, gap: 8, pad: 18, photo: 17, ring: 24, box: 54, mid: 12, text: 44 };
 const RED = '#ff4d6d';
 /** The ring's gap round the badge, each side, in radians; the badge's direction. */
 const GAP = 0.55,
@@ -112,6 +133,11 @@ export function stepStrip(): void {
   at = arena.clock;
   const now = battle();
   if (now && !wasBattle) order = [];
+  // The battle is over: the strip goes at once, before the end screen's first frame.
+  if (!now && wasBattle) {
+    chips.length = 0;
+    pops.length = 0;
+  }
   wasBattle = now;
   const living = now ? players() : [];
   for (const n of living) if (!order.includes(n)) order.push(n);
@@ -123,7 +149,7 @@ export function stepStrip(): void {
       .map((n) => chips.find((c) => c.nickname === n && !c.leaving))
       .filter((c): c is Chip => !!c),
     full = row.length * CHIP.w + Math.max(0, row.length - 1) * CHIP.gap,
-    k = row.length > STRIP.most ? Math.min(1, BOARD_W / full) : 1,
+    k = Math.min(STRIP.size, (W - 2 * STRIP.margin) / Math.max(1, full)),
     step = (CHIP.w + CHIP.gap) * k,
     left = W / 2 - ((row.length - 1) * step) / 2,
     ease = 1 - Math.exp(-dt * 10);
@@ -151,7 +177,7 @@ export function stepStrip(): void {
       told.set(nickname, when);
       const s = snakeOf(nickname);
       if (s && !s.wild && !isPilot(s) && arena.clock - when < 1)
-        alertBoost({ nickname, avatar: s.avatar }, light(COLOURS[s.colour]));
+        alertBoost({ nickname, avatar: s.avatar }, light(COLOURS[s.colour]), BOOST.likes);
     }
 }
 
@@ -168,6 +194,9 @@ const smooth = (v: number): number => {
   const x = Math.max(0, Math.min(1, v));
   return x * x * (3 - 2 * x);
 };
+
+/** A chip's middle: its top on the row's. */
+const midOf = (chip: Chip): number => STRIP.top + (CHIP.h / 2) * chip.k;
 
 /** One chip at (x, y): the pill, the ringed photo with its badge, the number or the big bolt. */
 function paintChip(chip: Chip, y: number): void {
@@ -235,14 +264,14 @@ function paintChip(chip: Chip, y: number): void {
 export function paintStrip(): void {
   stepStrip();
   if (!chips.length) return;
-  const c = ctx,
-    y = STRIP.y;
-  for (const chip of chips) paintChip(chip, y);
+  const c = ctx;
+  for (const chip of chips) paintChip(chip, midOf(chip));
   const heart = burstSprite('like');
   for (const h of pops) {
     const chip = chips.find((k) => k.nickname === h.nickname);
     if (!chip || h.t < 0) continue;
     const u = h.t / 0.8,
+      y = midOf(chip),
       size = h.size * (0.6 + 0.4 * smooth(u / 0.3));
     c.save();
     c.globalAlpha = (1 - smooth((u - 0.5) / 0.5)) * smooth(chip.shown);
@@ -265,6 +294,10 @@ export function stripState(): {
   percent: number;
   x: number;
   k: number;
+  left: number;
+  right: number;
+  top: number;
+  bottom: number;
 }[] {
   return chips.map((c) => {
     const { fill, full } = progress(c.nickname);
@@ -275,6 +308,10 @@ export function stripState(): {
       percent: Math.floor(fill * 100),
       x: c.x,
       k: c.k,
+      left: c.x - (CHIP.w / 2) * c.k,
+      right: c.x + (CHIP.w / 2) * c.k,
+      top: midOf(c) - (CHIP.h / 2) * c.k,
+      bottom: midOf(c) + (CHIP.h / 2) * c.k,
     };
   });
 }

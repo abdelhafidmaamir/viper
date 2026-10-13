@@ -93,9 +93,9 @@ const en = {
   'arena.over': "TIME'S UP!",
   'arena.qualifying': 'QUALIFYING',
   'arena.wins': '{name} WINS',
-  'arena.playsNext': '{name} PLAYS NEXT ROUND',
-  'arena.inLine': '{name} IS IN LINE',
-  'arena.boost': 'SPEED BOOST!',
+  'arena.playsNext': '{name} has a seat in the next round',
+  'arena.inLine': '{name} is #{n} in line: plays in {r} rounds',
+  'arena.boost': '{name} hit {n} likes: SPEED BOOST',
   'kill.0': '{name} was eliminated',
   'kill.by': '{name} was eliminated by {q}',
   'welcome.new': 'First time here, welcome {name}!',
@@ -195,9 +195,9 @@ const fr: Translations = {
   'arena.over': 'TEMPS ÉCOULÉ !',
   'arena.qualifying': 'QUALIFICATIONS',
   'arena.wins': '{name} GAGNE',
-  'arena.playsNext': '{name} JOUE LA PROCHAINE MANCHE',
-  'arena.inLine': '{name} EST DANS LA FILE',
-  'arena.boost': 'TURBO !',
+  'arena.playsNext': '{name} a sa place à la prochaine manche',
+  'arena.inLine': '{name} est #{n} dans la file : joue dans {r} manches',
+  'arena.boost': '{name} a atteint {n} likes : SPEED BOOST',
   'kill.0': '{name} a été éliminé',
   'kill.by': '{name} a été éliminé par {q}',
   'welcome.new': 'Premier live ici, bienvenue {name} !',
@@ -224,7 +224,7 @@ export function setLanguage(lang: 'en' | 'fr'): void {
  */
 export function tr(
   key: I18nKey,
-  vars?: { name?: string; n?: number | string; q?: string },
+  vars?: { name?: string; n?: number | string; q?: string; r?: number | string },
 ): string {
   const dict = DICTS[activeLang];
   let text: string = dict[key];
@@ -232,6 +232,7 @@ export function tr(
     if (vars.name !== undefined) text = text.replace('{name}', vars.name);
     if (vars.n !== undefined) text = text.replace('{n}', String(vars.n));
     if (vars.q !== undefined) text = text.replace('{q}', vars.q);
+    if (vars.r !== undefined) text = text.replace('{r}', String(vars.r));
   }
   return text;
 }

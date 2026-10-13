@@ -6,6 +6,7 @@
 // next qualifying. Feed's round (state.ts) keeps the gifts and likes of the round for the flower,
 // the rankings and the end screen; this file drives its phases.
 
+import { clearGameAlerts } from '../feed/alerts.ts';
 import { FCOLS, FROWS } from '../feed/grid.ts';
 import { stepInto } from '../feed/path.ts';
 import {
@@ -647,6 +648,8 @@ function finish(): void {
   // wild snakes'.
   game.eaten = arena.snakes.reduce((n, s) => n + s.eaten, 0);
   game.full = 0;
+  // Nothing of the battle stays over the end screen: its cards go, waiting or on screen.
+  clearGameAlerts();
   hooks.full();
 }
 
