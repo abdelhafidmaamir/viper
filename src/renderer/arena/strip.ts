@@ -6,9 +6,8 @@
 // evenly to fit, its top kept under the line. A chip is the player's photo in the red ring of
 // their likes toward the next speed boost, the goal a bolt badge on the ring at the upper right
 // (the ring starts just past it and runs clockwise back to it), and nothing else: no number, no
-// word. Full, the chip turns gold, the badge lights and a big lit bolt shows over the photo's lower
-// right for a moment, while the alert card says SPEED BOOST; then the ring starts again from what
-// was left over. Small hearts pop over a chip at each like. Painted after the alert card, so its
+// word. Full, the chip turns gold and the badge lights for a moment, while the alert card says
+// SPEED BOOST; then the ring starts again from what was left over. Small hearts pop over a chip at each like. Painted after the alert card, so its
 // rising particles pass behind the strip. The battle over, the strip goes at once: nothing of it
 // shows over the end screen.
 
@@ -33,9 +32,9 @@ export const CHIP = {
   gap: 8,
   pad: 6,
   box: 76,
-  photo: 24,
-  ring: 34,
-  line: 8,
+  photo: 30,
+  ring: 35,
+  line: 4,
   badge: 20,
 };
 
@@ -43,8 +42,8 @@ export const CHIP = {
 const MARGIN = 20;
 
 export const STRIP = {
-  /** Every chip's size, times the base chip: as big as 6 chips in one row allow on the screen. */
-  size: (W - 2 * MARGIN) / (6 * CHIP.w + 5 * CHIP.gap),
+  /** Every chip's size, times the base chip: about 107 high, the ringed photo filling it. */
+  size: 1.24,
   margin: MARGIN,
   /** Seconds a chip stays gold once its ring is full. */
   full: 1.5,
@@ -252,8 +251,6 @@ function paintChip(chip: Chip, y: number): void {
   c.strokeStyle = full ? '#fff4c2' : 'rgba(242,193,78,0.85)';
   c.stroke();
   paintCardBolt(bx, by + 0.8, CHIP.badge * 1.5, full);
-  // A full ring: a big lit bolt over the photo's lower right for a moment. No number, ever.
-  if (full) paintCardBolt(px + CHIP.photo * 0.95, y + CHIP.photo * 0.85, 40, true);
   c.restore();
 }
 

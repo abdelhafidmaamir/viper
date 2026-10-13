@@ -60,11 +60,11 @@ export const QUALIFY = {
   /** Challengers shown under the cut line. */
   challengers: 3,
   /** Seconds of a slide in the ranking, of a swap across the cut, of a flight to or from the beach. */
-  slide: 0.6,
-  swap: 0.6,
+  slide: 0.9,
+  swap: 0.9,
   fly: 0.9,
   /** Seconds the flower shows a gift's giver before their picture leaves it for the egg. */
-  show: 0.9,
+  show: 1.6,
   /** Seconds a number takes to roll up to its new value. */
   roll: 0.3,
 };

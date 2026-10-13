@@ -13,7 +13,13 @@ import { berriesPerGift, type CrowdLevel } from '../../shared/feed-protocol.ts';
 import { bindCanvas, ctx } from '../engine/canvas.ts';
 import { H, OX, W, WF } from '../engine/layout.ts';
 import type { AmbienceFrame } from '../engine/types-api.ts';
-import { paintAlerts, setAlertLook, setLikeAlerts, updateAlerts } from '../feed/alerts.ts';
+import {
+  FEED_CARD_Y,
+  paintAlerts,
+  setAlertLook,
+  setLikeAlerts,
+  updateAlerts,
+} from '../feed/alerts.ts';
 import {
   applyFeedCommand,
   board,
@@ -24,7 +30,14 @@ import {
   settings,
   type FeedLinkDeps,
 } from '../feed/control-link.ts';
-import { crabLike, paintCrabs, setCrabRanks, setLikeCount, setSleeperSpot } from '../feed/crabs.ts';
+import {
+  crabLike,
+  paintCrabs,
+  setCrabRanks,
+  setLikeCount,
+  setSleeperInColour,
+  setSleeperSpot,
+} from '../feed/crabs.ts';
 import { paintFlower, setFlowerMotes } from '../feed/flower.ts';
 import { BOARD_H, BOARD_W, FCELL, FCOLS, FROWS, FX0, FY0 } from '../feed/grid.ts';
 import { paintReady } from '../feed/hud.ts';
@@ -55,7 +68,7 @@ import {
 import { AUDIENCE, audienceSize, qualifyingGifts, setAudience, tickAudience } from './audience.ts';
 import { arenaLife, arenaSeat, isLifeGift, isSeatGift } from './entry.ts';
 import { arenaStorage, countOnArena, linkArenaControl } from './link.ts';
-import { alive } from './rules.ts';
+import { alive, arena } from './rules.ts';
 import { ARENA_ALERTS, paintStrip } from './strip.ts';
 
 let t = 0,
@@ -209,12 +222,24 @@ function loop(ms: number): void {
   }
 }
 
+/**
+ * The alert card sits where Feed's does, except in the battle: the like strip is under the board
+ * then, and the card under the strip. It eases from one place to the other.
+ */
+let cardY = FEED_CARD_Y;
+function placeCard(dt: number): void {
+  const to = arena.phase === 'play' ? ARENA_ALERTS.cy : FEED_CARD_Y;
+  cardY += (to - cardY) * (1 - Math.exp(-dt * 10));
+  setAlertLook({ cy: cardY });
+}
+
 function step(dt: number): void {
   t += dt;
   simulate(dt);
   advanceArena(dt);
   // Likes are on the card in the qualifying only: in the battle the like strip shows them.
   setLikeAlerts(qualifying());
+  placeCard(dt);
   updateAlerts(dt);
   // Supporter entrances wait while the board is not in play (qualifying, get ready, end screen).
   updateSupporters(dt, game.ready >= 0 || game.full >= 0 || qualifying());
@@ -276,6 +301,8 @@ function start(): void {
   setCrabRanks(false);
   // The sleeping crab lies above the board, top right, a little smaller.
   setSleeperSpot(SLEEPER_SPOT);
+  // On the dark sky a grey crab is lost: it sleeps in the beach crabs' colours.
+  setSleeperInColour(true);
   // The gift thanks at the top keeps its cards and photo, without the particles thrown around it.
   setFlowerMotes(false);
   // The alert card: the arena's order, smaller and lower, under the like strip.

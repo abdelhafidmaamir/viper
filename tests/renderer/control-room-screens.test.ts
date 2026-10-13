@@ -5,7 +5,12 @@
 import { beforeAll, describe, expect, it } from 'vitest';
 
 import type { ArenaSide } from '../../src/renderer/arena-control/arena-state.ts';
-import { giftSeatsCard, paidQueueCard, seatCard } from '../../src/renderer/arena-control/cards.ts';
+import {
+  arenaCard,
+  giftSeatsCard,
+  paidQueueCard,
+  seatCard,
+} from '../../src/renderer/arena-control/cards.ts';
 import { pricingCard } from '../../src/renderer/feed-control/money.ts';
 import { ARENA_DEFAULTS, type ArenaSettings } from '../../src/shared/arena-protocol.ts';
 import { createSetupScreen } from '../../src/renderer/feed-control/screens.ts';
@@ -362,6 +367,27 @@ describe('Arena and Feed control room screens', () => {
       expect(find(seatOn.el as unknown as MockEl, 'INPUT')?.disabled).toBe(false);
       expect((lineOn.el as unknown as MockEl).hidden).toBe(false);
       expect(allText(lineOn.el as unknown as MockEl)).toContain('1. ana');
+    });
+
+    it("the Arena card keeps the flower's plain berry settings and the like heart switch", () => {
+      const sent: unknown[] = [];
+      const side: ArenaSide = {
+        state: () => ({ settings: { ...ARENA_DEFAULTS }, secondsLeft: 60 }),
+        pending: () => ({}),
+        send: (command) => {
+          sent.push(command);
+        },
+      };
+      const card = arenaCard(side, () => null);
+      card.update(linked);
+      const text = allText(card.el as unknown as MockEl);
+      // Never to be removed: the dispenser's two settings, as the control room shows them.
+      expect(text).toContain('Plain berries on the board');
+      expect(text).toContain('Plain berry delay');
+      for (const label of ['None', '1', '2', '3', '4', '5', '6']) expect(text).toContain(label);
+      for (const label of ['1 s', '2 s', '3 s', '5 s', '10 s', '15 s', '25 s'])
+        expect(text).toContain(label);
+      expect(text).toContain('Heart on like counts');
     });
 
     it('0 reads as any gift; the same price as the life gift is flagged', () => {

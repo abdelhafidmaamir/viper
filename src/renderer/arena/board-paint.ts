@@ -595,14 +595,10 @@ function paintBoost(s: Snake, trace: Point[], t: number): void {
   c.restore();
 }
 
-/** Points of a trace (three a cell) redrawn over the photos: the head and its first neck segment. */
-const HEAD_POINTS = 5;
-
 /**
- * Every living snake, the smallest first so the big ones lie on top, then the photos over the
- * bodies (people pay to see their picture), then every head with its first neck segment over the
- * photos, so where each snake is and where it goes always shows; the crowns and the boost bolts
- * over all.
+ * Every living snake, the smallest first so the big ones lie on top, bodies and heads; then every
+ * photo with its name, over all of them: no part of any snake, its own head included, is ever
+ * drawn over a player's photo. The crowns and the boost bolts over all.
  */
 export function paintSnakes(
   c: CanvasRenderingContext2D,
@@ -611,12 +607,10 @@ export function paintSnakes(
   t: number,
 ): void {
   paintDying(c, a, e);
-  const live = alive().sort((p, q) => p.len - q.len),
-    traces = new Map<Snake, Point[]>();
+  const live = alive().sort((p, q) => p.len - q.len);
   for (const s of live) {
     if (s.cells.length) {
       const trace = traceOf(s);
-      traces.set(s, trace);
       paintBody(c, a, s, trace, e);
       paintGulps(s, trace);
       paintBoost(s, trace, t);
@@ -626,7 +620,6 @@ export function paintSnakes(
   // A picture shows once its snake is out of the egg; the crowned picture last, on top.
   const heads = placePhotos(t);
   for (const s of heads) paintPhoto(s, t);
-  for (const [s, trace] of traces) if (s.in) paintBody(c, a, s, trace.slice(0, HEAD_POINTS), e);
   for (const s of live) if (s.in && s.wild) paintHeadMarks(s, t);
   for (const s of heads) paintHeadMarks(s, t);
 }

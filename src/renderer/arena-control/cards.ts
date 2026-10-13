@@ -12,6 +12,8 @@ import {
   ARENA_LIFE_PRICES,
   ARENA_MAX_LIVES,
   ARENA_PLACES,
+  ARENA_PLAIN_AMOUNTS,
+  ARENA_PLAIN_EVERY,
   ARENA_ROUND_LENGTHS,
   ARENA_SHIELD_GIFTS,
   ARENA_QUEUE_IDLES,
@@ -190,7 +192,7 @@ function updateTuning(
 }
 
 /** The game's tuning values. They apply at once, the round length from the next round. */
-function arenaCard(arena: ArenaSide, reason: Reason): FeedView {
+export function arenaCard(arena: ArenaSide, reason: Reason): FeedView {
   const rows: Tuning[] = [
     tuning(
       arena,
@@ -235,6 +237,20 @@ function arenaCard(arena: ArenaSide, reason: Reason): FeedView {
     ),
     tuning(
       arena,
+      'plainAmount',
+      'Plain berries on the board',
+      ARENA_PLAIN_AMOUNTS.map((value) => ({ value, label: value === 0 ? 'None' : String(value) })),
+      'In the battle the flower keeps this many plain berries on the board, for every snake.',
+    ),
+    tuning(
+      arena,
+      'plainEvery',
+      'Plain berry delay',
+      ARENA_PLAIN_EVERY.map((value) => ({ value, label: `${String(value)} s` })),
+      'Seconds before the flower drops a new one after one is eaten.',
+    ),
+    tuning(
+      arena,
       'wildSnakes',
       'Wild snakes while few play',
       ARENA_WILD_SNAKES.map((value) => ({
@@ -265,6 +281,12 @@ function arenaCard(arena: ArenaSide, reason: Reason): FeedView {
   const switches: Switch[] = [
     toggle(arena, 'likeBoost', 'Likes speed up the snake'),
     toggle(arena, 'pilot', 'Pilot player', "The game's own player, Skohlds, shows how it works."),
+    toggle(
+      arena,
+      'likeHeart',
+      'Heart on like counts',
+      "In the qualifying, the heart before each seat's and challenger's number of likes.",
+    ),
     toggle(
       arena,
       'superAI',

@@ -511,10 +511,10 @@ export function paintLikePops(): void {
     sprite = bigHeart(true);
   for (const p of likePopSpots()) {
     const u = p.t / POP_TIME,
-      size = 30 * (0.6 + 0.4 * smooth(Math.min(1, u / 0.25))),
+      size = 30 * Math.min(1, 0.3 + u * 6),
       { x, y } = p;
     c.save();
-    c.globalAlpha = 1 - smooth((u - 0.5) / 0.5);
+    c.globalAlpha = Math.max(0, 1 - u * u);
     c.drawImage(sprite, x - size / 2, y - size / 2, size, size);
     c.restore();
   }
@@ -532,20 +532,23 @@ interface PopSpot {
 }
 
 /**
- * Where each like heart of the qualifying board shows now: from its picture's edge, at its own
- * angle, drifting out and up as it fades.
+ * Where each like heart of the qualifying board shows now: from its picture's edge, on its side,
+ * drifting out, then floating up a little and swaying as it fades, as Feed's hearts do; never as
+ * high as the name over the picture.
  */
 export function likePopSpots(): PopSpot[] {
   const out: PopSpot[] = [];
   for (const h of likePops) {
     const a = actors.get(h.nickname);
     if (!a || a.leaving || h.t < 0) continue;
-    const u = smooth(h.t / POP_TIME),
-      edge = a.r + 10 + 14 * u;
+    const age = h.t / POP_TIME,
+      out1 = 1 - (1 - Math.min(1, age)) ** 3,
+      edge = a.r + 8 + (10 + 26 * h.reach) * out1,
+      sway = Math.sin(age * 5 + h.angle * 7) * 4;
     out.push({
       nickname: h.nickname,
-      x: a.x + Math.cos(h.angle) * edge,
-      y: a.y + Math.sin(h.angle) * edge - 30 * u,
+      x: a.x + Math.cos(h.angle) * edge + sway,
+      y: a.y + Math.sin(h.angle) * edge - 24 * age,
       t: h.t,
       cx: a.x,
       cy: a.y,

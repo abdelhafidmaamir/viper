@@ -216,36 +216,60 @@ describe('snake arena: calm', () => {
     expect(rec.fills.some((f) => f.startsWith('rgba(160,20,45'))).toBe(false);
   });
 
-  it("a seat's badge is its like count, with no heart icon; hearts pop round the photo", () => {
+  it("a seat's badge is its like count, the heart before it only while the switch is on", () => {
+    fresh();
+    expect(ARENA_DEFAULTS.likeHeart).toBe(true);
+    like('ana', 12);
+    like('ben', 7);
+    run(1.2);
+    likePops.length = 0;
+    const on = record(() => {
+      paintActors(1);
+    });
+    expect(on.texts.filter((t) => /\d/.test(t)).sort()).toEqual(['12', '7']);
+    expect(on.images.filter((i) => i === bigHeart(true))).toHaveLength(2);
+    // Switched off from the control room, live: the number alone.
+    const storage = { getItem: () => null, setItem: () => undefined };
+    applyArenaCommand({ cmd: 'arena-setting', name: 'likeHeart', value: false }, { storage });
+    const off = record(() => {
+      paintActors(1);
+    });
+    expect(off.texts.filter((t) => /\d/.test(t)).sort()).toEqual(['12', '7']);
+    expect(off.images.includes(bigHeart(true))).toBe(false);
+    applyArenaCommand({ cmd: 'arena-setting', name: 'likeHeart', value: true }, { storage });
+  });
+
+  it('hearts float on the sides of the photo, never over its name or its badge, a few a like', () => {
     fresh();
     like('ana', 12);
     like('ben', 7);
     run(1.2);
     likePops.length = 0;
-    const rec = record(() => {
-      paintActors(1);
-    });
-    const numbers = rec.texts.filter((t) => /\d/.test(t));
-    expect(numbers.sort()).toEqual(['12', '7']);
-    expect(rec.images.includes(bigHeart(true))).toBe(false);
-    // A single like: 5 hearts leave the photo's edge, above its badge, each at its own angle.
+    // A single like: 10 hearts, a beat apart, each from its own place on the photo's sides.
     like('ana', 1);
-    expect(likePops.filter((h) => h.nickname === 'ana')).toHaveLength(5);
-    run(0.3);
-    const spots = likePopSpots().filter((p) => p.nickname === 'ana');
-    expect(spots.length).toBeGreaterThanOrEqual(4);
-    expect(new Set(spots.map((p) => Math.round(p.x))).size).toBe(spots.length);
-    for (const p of spots) {
-      expect(Math.hypot(p.x - p.cx, p.y - p.cy)).toBeGreaterThan(p.r);
+    expect(likePops.filter((h) => h.nickname === 'ana')).toHaveLength(10);
+    const seen: { x: number; y: number; cx: number; cy: number; r: number }[] = [];
+    for (let i = 0; i < Math.round(1.6 / STEP); i++) {
+      advanceArena(STEP);
+      seen.push(...likePopSpots().filter((p) => p.nickname === 'ana'));
+    }
+    expect(seen.length).toBeGreaterThan(20);
+    for (const p of seen) {
+      // Beside the photo, never over its middle where the name and the badge are.
+      expect(Math.abs(p.x - p.cx)).toBeGreaterThan(p.r * 0.85);
+      // A heart's top stays under the name's baseline; its middle above the badge's middle.
+      expect(p.y - 15).toBeGreaterThan(p.cy - p.r - 6);
       expect(p.y).toBeLessThan(p.cy + p.r);
     }
-    // More for a burst, up to a cap for one viewer: never a flood.
-    likePops.length = 0;
+    // They float as Feed's do, about 1.3 s: gone a moment after the last leaves.
+    run(1);
+    expect(likePops.filter((h) => h.nickname === 'ana')).toHaveLength(0);
+    // More for a burst, up to a cap for one viewer: a flood never covers the photo.
     like('ben', 50);
-    expect(likePops.filter((h) => h.nickname === 'ben')).toHaveLength(7);
-    like('ben', 1000);
-    like('ben', 1000);
     expect(likePops.filter((h) => h.nickname === 'ben')).toHaveLength(14);
+    like('ben', 1000);
+    like('ben', 1000);
+    expect(likePops.filter((h) => h.nickname === 'ben')).toHaveLength(16);
     // The likes still count, every one of them.
     expect(qualLikes.get('ben')).toBe(2057);
   });
@@ -534,5 +558,84 @@ describe('snake arena: plain berries come from the flower', () => {
     expect(pouring).toBeGreaterThan(2.5);
     // Once the gift is poured, the plain berries due come.
     expect(after).toBeGreaterThan(0);
+  });
+});
+
+describe("snake arena: the flower's plain berry settings, applied at once", () => {
+  beforeAll(() => {
+    hooks.round = () => {
+      newArenaRound();
+    };
+    countOnArena();
+  });
+
+  const plainOut = (): number => arena.food.filter((f) => f.by === '' && !f.glow).length;
+  const toGo = (extra: Partial<ArenaSettings>): void => {
+    fresh(extra);
+    like('ana', 30);
+    like('ben', 20);
+    run(QUALIFY.time + QUALIFY.freeze + READY_TIME - 0.1);
+  };
+
+  it('"Plain berries on the board": 0 is none, the flower never opens for them; 1 keeps one', () => {
+    toGo({ plainAmount: 0 });
+    for (let i = 0; i < Math.round(4 / STEP); i++) {
+      advanceArena(STEP);
+      expect(plainOut()).toBe(0);
+      expect(game.pour?.nickname === '' && game.closeT === 0).toBe(false);
+    }
+    toGo({ plainAmount: 1 });
+    let most = 0;
+    for (let i = 0; i < Math.round(3 / STEP); i++) {
+      advanceArena(STEP);
+      most = Math.max(most, plainOut());
+    }
+    expect(most).toBe(1);
+  });
+
+  it('"Plain berry delay": a new one comes that many seconds after one is eaten', () => {
+    toGo({ plainAmount: 1, plainEvery: 5 });
+    run(2.5);
+    expect(plainOut()).toBe(1);
+    const one = arena.food.find((f) => f.by === '');
+    if (one) {
+      arena.food.splice(arena.food.indexOf(one), 1);
+      arena.foodAt.delete(one.cell);
+    }
+    let back = -1;
+    for (let i = 0; i < Math.round(9 / STEP) && back < 0; i++) {
+      advanceArena(STEP);
+      if (plainOut() > 0) back = (i + 1) * STEP;
+    }
+    // 5 s, then the flower opens (0.6 s) before the berry leaves it.
+    expect(back).toBeGreaterThan(4.9);
+    expect(back).toBeLessThan(6.2);
+  });
+
+  it('after the last plain berry the flower stays open about 1.5 s, then closes', () => {
+    toGo({ plainAmount: 1, plainEvery: 25 });
+    let dropped = -1,
+      closed = -1;
+    for (let i = 0; i < Math.round(6 / STEP) && closed < 0; i++) {
+      advanceArena(STEP);
+      if (dropped < 0 && plainOut() > 0) dropped = i * STEP;
+      if (dropped >= 0 && game.closeT > 0) closed = i * STEP;
+    }
+    expect(dropped).toBeGreaterThan(0);
+    expect(closed - dropped).toBeGreaterThan(1.3);
+    expect(closed - dropped).toBeLessThan(1.8);
+  });
+
+  it('the settings are kept and read back as the control room set them', () => {
+    expect(sanitizeArenaSetting('plainAmount', 0)).toBe(0);
+    expect(sanitizeArenaSetting('plainAmount', 6)).toBe(6);
+    expect(sanitizeArenaSetting('plainAmount', 7)).toBeUndefined();
+    expect(sanitizeArenaSetting('plainEvery', 1)).toBe(1);
+    expect(sanitizeArenaSetting('plainEvery', 4)).toBeUndefined();
+    expect(readArenaSettings(JSON.stringify({ plainAmount: 5, plainEvery: 10 }))).toMatchObject({
+      plainAmount: 5,
+      plainEvery: 10,
+    });
+    expect(readArenaSettings(null)).toMatchObject({ plainAmount: 3, plainEvery: 2 });
   });
 });

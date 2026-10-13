@@ -280,32 +280,45 @@ function flower(dt: number): void {
 
 /**
  * Plain berries due (house), and the flower's opening for them: nobody's picture, no card, no
- * name. Each leaves the open flower PLAIN.gap seconds after the one before, falling onto a free
- * cell away from every head; the flower closes once none is due.
+ * name. The petals open (PLAIN.open), the berries leave one after the other at the pace Feed's
+ * flower drips a gift's, each falling onto a free cell away from every head; after the last the
+ * flower stays open PLAIN.hold seconds, then closes as Feed's does.
  */
-const PLAIN = { open: 0.35, gap: 0.35 };
-const plain: { due: number; t: number; pour: Pour | null } = { due: 0, t: 0, pour: null };
+const PLAIN = { open: 0.6, hold: 1.5 };
+const plain: { due: number; t: number; hold: number; pour: Pour | null } = {
+  due: 0,
+  t: 0,
+  hold: 0,
+  pour: null,
+};
 let plainId = -3_000_000;
 
-/** The flower's opening for plain berries, while some are due in the battle; else none. */
+/** Feed's pace for a gift's berries leaving the flower: about 3 a second, faster for many. */
+const dripEvery = (n: number): number => 1 / Math.min(10, 3 + n / 12);
+
+/** The flower's opening for plain berries, while some are due in the battle or it holds open. */
 function plainOpening(): Pour | null {
-  if (arena.phase !== 'play' || plain.due <= 0) {
+  if (arena.phase !== 'play' || (plain.due <= 0 && plain.hold <= 0)) {
     plain.pour = null;
+    plain.hold = 0;
     return null;
   }
   // The opening goes on, or a new one starts (after a gift had the flower, say).
   if (!plain.pour || game.pour !== plain.pour) {
     plain.pour = { id: plainId--, nickname: '', n: 1, total: 1, title: '' };
-    plain.t = PLAIN.gap - PLAIN.open;
+    plain.t = -PLAIN.open;
   }
   return plain.pour;
 }
 
-/** The open flower drops the next plain berry due, one after the other. */
+/** The open flower drops the next plain berry due; after the last it holds open a while. */
 function dropPlain(dt: number): void {
+  if (plain.due <= 0) {
+    plain.hold -= dt;
+    return;
+  }
   plain.t += dt;
-  if (plain.t < PLAIN.gap || plain.due <= 0) return;
-  plain.t = 0;
+  if (plain.t < 0) return;
   const { occ } = occupancy(),
     heads = alive()
       .map((s) => s.cells[0] ?? -1)
@@ -323,6 +336,8 @@ function dropPlain(dt: number): void {
   if (cell < 0) return;
   placeFood(fromFlower(cell, 1, '', null));
   plain.due--;
+  plain.t = -dripEvery(plain.due + 1);
+  plain.hold = PLAIN.hold;
   game.dripT = 0;
 }
 
@@ -348,7 +363,8 @@ paidHooks.card = (nickname, avatar) => {
  * Plain berries for everyone during the battle: FIELD.count of them on the board or due at all
  * times, a new one due FIELD.delay seconds after one is eaten (all of them at GO). Each comes from
  * the flower, which opens for them with nobody's picture when no gift has it (flower, dropPlain),
- * and falls onto a free cell at least FIELD.clear cells from every head.
+ * and falls onto a free cell at least FIELD.clear cells from every head. The count and the delay
+ * are the control room's ("Plain berries on the board", "Plain berry delay"), applied at once.
  */
 export const FIELD = { count: 3, delay: 2, clear: 4 };
 function house(dt: number): void {

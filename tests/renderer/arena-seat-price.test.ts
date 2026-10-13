@@ -194,11 +194,14 @@ describe('snake arena: the seat price', () => {
     expect(game.pour?.seat).toBe(true);
     expect(game.pour?.total).toBe(1);
     expect(inLine()).toHaveLength(0);
-    // The plain gift is not thanked a second time when the battle starts.
+    // The plain gift is not thanked a second time when the battle starts (the flower may open
+    // for the plain berries, with nobody's picture).
     run(QUALIFY.time + QUALIFY.freeze + READY_TIME);
     expect(qualifying()).toBe(false);
-    run(0.2);
-    expect(game.closeT).toBeGreaterThan(0);
+    for (let i = 0; i < 30; i++) {
+      run(1 / 30);
+      expect(game.pour?.nickname).not.toBe('plain');
+    }
   });
 
   it('99: in the battle the seat gift buys a place in line and no berry, even from a player', () => {

@@ -9,6 +9,7 @@
 
 import { ctx } from '../engine/canvas.ts';
 import { GOLD } from '../engine/palette.ts';
+import { bigHeart } from '../feed/alert-fx.ts';
 import { BOARD_W, FCELL, FCOLS, FX0 } from '../feed/grid.ts';
 import { FONT, paintFace } from '../feed/paint.ts';
 import { bumpOf, paintStillEgg } from './board-paint.ts';
@@ -28,7 +29,7 @@ import {
   seats,
   type Actor,
 } from './qualify.ts';
-import { arena, cellX, cellY, toPx } from './rules.ts';
+import { arena, cellX, cellY, options, toPx } from './rules.ts';
 
 /** The name cut to fit `max` pixels at the current font. */
 function fit(name: string, max: number): string {
@@ -61,23 +62,33 @@ function paintName(name: string, x: number, y: number): void {
   c.restore();
 }
 
-/** The badge: the number of likes, 34 bold, in a dark pill; no icon (the hearts pop round the photo). */
+/**
+ * The badge: the number of likes, 34 bold, in a dark pill, the prod heart before it while the
+ * control room's "Heart on like counts" is on; the number alone when it is off.
+ */
 function paintBadge(n: number, x: number, y: number): void {
   const c = ctx,
-    text = String(n);
+    text = String(n),
+    heart = options.likeHeart ? 32 : 0;
   c.save();
   c.font = `900 34px ${FONT}`;
   const tw = c.measureText(text).width,
-    w = Math.max(46, tw + 26),
+    w = heart ? heart + 8 + tw + 26 : Math.max(46, tw + 26),
     h = 46;
   c.fillStyle = 'rgba(8,12,10,0.82)';
   c.beginPath();
   c.roundRect(x - w / 2, y - h / 2, w, h, h / 2);
   c.fill();
   c.fillStyle = '#fff';
-  c.textAlign = 'center';
   c.textBaseline = 'middle';
-  c.fillText(text, x, y + 2);
+  if (heart) {
+    c.drawImage(bigHeart(true), x - w / 2 + 12, y - heart / 2, heart, heart);
+    c.textAlign = 'left';
+    c.fillText(text, x - w / 2 + 12 + heart + 8, y + 2);
+  } else {
+    c.textAlign = 'center';
+    c.fillText(text, x, y + 2);
+  }
   c.restore();
 }
 

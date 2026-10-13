@@ -106,24 +106,40 @@ lifeHooks.reborn = flyToEgg;
 // ---- likes ---------------------------------------------------------------------------------
 
 /**
- * A like shows where it counts, never flying across the screen: in the qualifying prod hearts pop
- * round the liker's picture on the board (a liker's animal on the beach shows its own hearts, as
- * Feed's do), in the battle the player's animal on the beach shows them. A like event pops
- * heartsFor(n) hearts, a single like 5, each leaving the picture's edge at its own angle, at most
- * POPS_ONE in the air for one viewer and POPS_MAX in all (the frame rate holds): past that a like
- * still counts.
+ * A like shows where it counts, never flying across the screen: in the qualifying prod hearts
+ * float up round the liker's picture on the board, on its sides, clear of the name above and the
+ * badge under it (a liker's animal on the beach shows its own hearts, as Feed's do), in the battle
+ * the player's animal on the beach shows them. A like event sends QUALIFY_HEARTS times
+ * heartsFor(n) hearts, a beat apart, each leaving the picture's edge at its own place and floating
+ * as Feed's hearts do, at most POPS_ONE in the air for one viewer (a flood never covers the
+ * picture) and POPS_MAX in all: past that a like still counts.
  */
 export interface LikePop {
   nickname: string;
   n: number;
   t: number;
-  /** Where on the picture's edge the heart leaves from, in radians (-PI / 2 is the top). */
+  /**
+   * Where on the picture's edge the heart leaves from, in radians: on its left or right side,
+   * from a little above the middle to a little under it (0 is the right, PI the left).
+   */
   angle: number;
+  /** How much further out than the edge it flies, 0 to 1: the burst fills a band round the photo. */
+  reach: number;
 }
 export const likePops: LikePop[] = [];
-export const POP_TIME = 0.6;
-const POPS_MAX = 60,
-  POPS_ONE = 14;
+/** Seconds a heart floats, and the beat between two of one like event: Feed's hearts' own. */
+export const POP_TIME = 1.3,
+  POP_BEAT = 0.07;
+/**
+ * In the qualifying, QUALIFY_HEARTS times the hearts a like gets on a chip, to draw the eye: 10
+ * for a single like, at most POPS_ONE at once round one photo and POPS_MAX on the board (each
+ * heart is one stamped sprite).
+ */
+const QUALIFY_HEARTS = 2,
+  POPS_MAX = 120,
+  POPS_ONE = 16;
+/** Which side of the picture the next heart leaves from. */
+let side = 1;
 
 /** Hearts for a like event of `n` likes: 5 for one, two more for each tenfold, 11 at most. */
 export const heartsFor = (n: number): number =>
@@ -165,12 +181,21 @@ function land(nickname: string, n: number): void {
 
 /** Hearts pop round the liker's picture on the qualifying board: plenty, more for a burst. */
 function pop(nickname: string, n: number): void {
-  const hearts = heartsFor(n);
+  const hearts = heartsFor(n) * QUALIFY_HEARTS;
   let mine = likePops.filter((h) => h.nickname === nickname).length;
   for (let i = 0; i < hearts && mine < POPS_ONE && likePops.length < POPS_MAX; i++, mine++) {
     turn = (turn + 0.618034) % 1;
-    // Round the picture's top and sides, never under it, where its badge is.
-    likePops.push({ nickname, n, t: -i * 0.05, angle: -Math.PI / 2 + (turn - 0.5) * 3.4 });
+    side = -side;
+    // On the picture's sides only, from a little above its middle to a little under it: the name
+    // is above, the badge under. Some fly further out.
+    const rise = -0.25 + turn * 0.85;
+    likePops.push({
+      nickname,
+      n,
+      t: -i * POP_BEAT,
+      angle: side > 0 ? rise : Math.PI - rise,
+      reach: (i * 0.381966) % 1,
+    });
   }
 }
 

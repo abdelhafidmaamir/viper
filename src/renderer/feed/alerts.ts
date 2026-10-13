@@ -82,9 +82,11 @@ interface Heart {
  * Where the card sits and its size: Feed's, sized for a phone screen (the viewer's photo and name
  * must read at a glance on a live). `arena` switches Snake Arena's order of importance on.
  */
+/** The card's middle, Feed's: under the board. */
+export const FEED_CARD_Y = FY0 + BOARD_H + 132;
 const look = {
   cx: W / 2,
-  cy: FY0 + BOARD_H + 132,
+  cy: FEED_CARD_Y,
   w: 790,
   h: 114,
   avatar: 86,
@@ -171,7 +173,7 @@ const HEARTS_PER_EVENT = 24,
   MAX_HEARTS = 70,
   HEARTS_PER_SECOND = 20,
   /** Snake Arena's like card: at least this many hearts for any like event, a single like too. */
-  ARENA_HEARTS_LEAST = 5;
+  ARENA_HEARTS_LEAST = 2;
 
 /** Hearts a like event of `n` likes gives its card: one per like, Snake Arena's at least a few. */
 const likeHearts = (n: number): number =>

@@ -24,10 +24,10 @@ export type ArenaGiftBerries = (typeof ARENA_GIFT_BERRIES)[number];
 export const ARENA_WILD_SNAKES = [0, 2, 4, 6] as const;
 /** A small snake's speed, in cells per second (Feed's snake runs at 9). */
 export const ARENA_SPEEDS = [5, 6, 7, 8, 9] as const;
-/** Seconds between two drips of plain berries for everyone, give or take a fifth. */
-export const ARENA_PLAIN_EVERY = [15, 25, 40, 60] as const;
-/** Most plain berries in one drip (each drip drops 1 up to this many). */
-export const ARENA_PLAIN_AMOUNTS = [1, 2, 3, 5] as const;
+/** Seconds before the flower drops a new plain berry after one is eaten. */
+export const ARENA_PLAIN_EVERY = [1, 2, 3, 5, 10, 15, 25] as const;
+/** Plain berries the flower keeps on the board in the battle; 0 is none. */
+export const ARENA_PLAIN_AMOUNTS = [0, 1, 2, 3, 4, 5, 6] as const;
 /** Coins of the one gift that gives an extra life instead of berries, when the life gift is on. */
 export const ARENA_LIFE_PRICES = [10, 20, 30, 99, 199] as const;
 /**
@@ -66,9 +66,9 @@ export interface ArenaSettings {
   readonly wildSnakes: number;
   /** Speed in cells per second (ARENA_SPEEDS). */
   readonly speed: number;
-  /** Seconds between two plain drips (ARENA_PLAIN_EVERY). */
+  /** Seconds before a new plain berry after one is eaten (ARENA_PLAIN_EVERY). */
   readonly plainEvery: number;
-  /** Most plain berries per drip (ARENA_PLAIN_AMOUNTS). */
+  /** Plain berries kept on the board (ARENA_PLAIN_AMOUNTS). */
   readonly plainAmount: number;
   /** Gifts make a snake's brain smarter and safer (ARENA_BACKING). */
   readonly backing: ArenaBacking;
@@ -95,6 +95,8 @@ export interface ArenaSettings {
   readonly lifeKeep: number;
   /** The game's own player, "Viper", plays to show viewers how it works. */
   readonly pilot: boolean;
+  /** The qualifying's like counts show the prod heart before the number. */
+  readonly likeHeart: boolean;
   /** Every snake plays the strong brain; off, the calm one. */
   readonly superAI: boolean;
 }
@@ -112,8 +114,8 @@ export const ARENA_DEFAULTS: ArenaSettings = {
   giftBerries: 'owner',
   wildSnakes: 4,
   speed: 7,
-  plainEvery: 25,
-  plainAmount: 1,
+  plainEvery: 2,
+  plainAmount: 3,
   backing: 'strong',
   queueIdle: 5,
   seatPrice: 0,
@@ -123,6 +125,7 @@ export const ARENA_DEFAULTS: ArenaSettings = {
   maxLives: 3,
   lifeKeep: 0.5,
   pilot: false,
+  likeHeart: true,
   superAI: false,
 };
 
@@ -231,6 +234,7 @@ export function sanitizeArenaSetting<K extends ArenaSettingName>(
     case 'giftSeats':
     case 'lifeOn':
     case 'likeBoost':
+    case 'likeHeart':
     case 'pilot':
     case 'superAI':
       return typeof value === 'boolean' ? ok(value) : undefined;

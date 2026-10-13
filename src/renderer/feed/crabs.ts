@@ -950,6 +950,15 @@ export function setSleepers(n: number): void {
 }
 
 /** The control room's choice: how the sleeping crabs look. */
+/**
+ * Snake Arena's sleeper lies on the dark sky above the board, where a grey crab cannot be seen:
+ * its body is drawn in the beach crabs' own colours (Feed never calls this).
+ */
+let sleeperInColour = false;
+export function setSleeperInColour(on: boolean): void {
+  sleeperInColour = on;
+}
+
 export function setSleeperLook(l: SleeperLook): void {
   look = l;
 }
@@ -1273,7 +1282,7 @@ function sleepingCrab(body: Body, stir: Stir | undefined): HTMLCanvasElement {
     }
   }
   const out =
-    body === 'grey'
+    body === 'grey' && !sleeperInColour
       ? greyed(cv, stir ? (stirGrey ??= document.createElement('canvas')) : undefined)
       : cv;
   if (!stir) restingBodies.set(body, out);
@@ -1369,7 +1378,7 @@ function paintSleepersHere(t: number, low: number, reduced: boolean): void {
     kind = faceKindOf(look),
     dy = body === 'sunk' ? SINK : 0,
     // Grey parts keep the dimmed look of the sleepers; parts in colour are drawn whole.
-    bodyAlpha = body === 'grey' ? SLEEP_ALPHA : 1,
+    bodyAlpha = body === 'grey' && !sleeperInColour ? SLEEP_ALPHA : 1,
     faceAlpha = kind === 'grey' ? SLEEP_ALPHA : 1;
   reducedNow = reduced;
   for (const s of sleepers) {

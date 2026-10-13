@@ -143,14 +143,14 @@ describe('snake arena: the alert card and the like strip', () => {
     expect(shownInTurn()).toEqual(['like', 'join']);
   });
 
-  it('a single like gives its card at least 5 hearts, a burst more', () => {
+  it('a single like gives its card 2 hearts, a burst one a like up to the cap', () => {
     alertViewer('like', 'one', undefined, 1);
     let hearts = 0;
     for (let i = 0; i < 20; i++) {
       updateAlerts(0.05);
       hearts = Math.max(hearts, alertsState().hearts);
     }
-    expect(hearts).toBeGreaterThanOrEqual(5);
+    expect(hearts).toBe(2);
     resetAlerts();
     alertViewer('like', 'many', undefined, 20);
     hearts = 0;
@@ -223,9 +223,9 @@ describe('snake arena: the alert card and the like strip', () => {
     arenaLike(seats[7] ?? '', undefined, 40);
     run(0.5);
     expect(on()).toEqual(seats);
-    // Eight do not fit at full size: every chip shrinks evenly to fit the screen.
+    // Eight in one row, every chip the same size, inside the screen.
     const row = stripState().filter((c) => !c.leaving);
-    expect(row[0]?.k).toBeLessThan(STRIP.size);
+    expect(row[0]?.k).toBeLessThanOrEqual(STRIP.size);
     expect(new Set(row.map((c) => c.k.toFixed(3))).size).toBe(1);
     expect(row[0]?.left).toBeGreaterThanOrEqual(STRIP.margin - 0.5);
     expect(row.at(-1)?.right).toBeLessThanOrEqual(W - STRIP.margin + 0.5);
@@ -276,7 +276,7 @@ describe('snake arena: the alert card and the like strip', () => {
     run(0.1);
     expect(stripState().some((c) => c.nickname === 'stranger')).toBe(false);
   });
-  it('one row of chips, as big as 6 allow, under the line, inside the screen, never touching', () => {
+  it('one row of chips, about 107 high, under the line, inside the screen, never touching', () => {
     for (const n of [4, 6, 8]) {
       battle(n);
       run(1);
@@ -286,7 +286,7 @@ describe('snake arena: the alert card and the like strip', () => {
       expect(new Set(row.map((c) => c.top.toFixed(2))).size).toBe(1);
       expect(row[0]?.top).toBeGreaterThan(STRIP.line);
       // 4 and 6 at full size; 8 shrink evenly to fit the screen less the margin each side.
-      const fit = (W - 2 * STRIP.margin) / (8 * CHIP.w + 7 * CHIP.gap);
+      const fit = Math.min(STRIP.size, (W - 2 * STRIP.margin) / (8 * CHIP.w + 7 * CHIP.gap));
       for (const c of row) expect(c.k).toBeCloseTo(n <= 6 ? STRIP.size : fit, 2);
       expect(row[0]?.left).toBeGreaterThanOrEqual(STRIP.margin - 0.5);
       expect(row.at(-1)?.right).toBeLessThanOrEqual(W - STRIP.margin + 0.5);
@@ -296,14 +296,14 @@ describe('snake arena: the alert card and the like strip', () => {
       expect(((row[0]?.left ?? 0) + (row.at(-1)?.right ?? 0)) / 2).toBeCloseTo(W / 2, 0);
       expect(ARENA_ALERTS.cy - ARENA_ALERTS.h / 2).toBeGreaterThan((row[0]?.bottom ?? 0) + 20);
     }
-    // 6 chips fill the screen's width less the margin each side; the photo and its ring fill a
-    // chip's height.
+    // 6 chips about 107 high (the ringed photo 1.4 times the q23 one), the photo and its ring
+    // filling a chip's height.
     battle(6);
     run(1);
-    const six = stripState();
-    expect(six[0]?.left).toBeCloseTo(STRIP.margin, 0);
-    expect(six.at(-1)?.right).toBeCloseTo(W - STRIP.margin, 0);
-    expect(((six[0]?.bottom ?? 0) - (six[0]?.top ?? 0)) / CHIP.h).toBeCloseTo(STRIP.size, 3);
+    const six = stripState(),
+      tall = (six[0]?.bottom ?? 0) - (six[0]?.top ?? 0);
+    expect(tall).toBeGreaterThanOrEqual(105);
+    expect(tall).toBeLessThanOrEqual(110);
     expect(2 * (CHIP.ring + CHIP.line / 2)).toBeGreaterThan(CHIP.h * 0.85);
   });
 

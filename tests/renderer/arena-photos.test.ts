@@ -1,9 +1,9 @@
 // The players' photos and the heads, measured on a headless battle of 8 at 30 frames a second.
 // Long: it runs only when asked,
 //   ARENA_PHOTOS=60 npx vitest run tests/renderer/arena-photos.test.ts
-// The photos lie over the bodies and every head (with its first neck segment) over the photos, so
-// no head is ever hidden by one; this prints how often a crown or a boost bolt, the only marks
-// painted over the heads, touches one, and how often heads cover more than half of a photo.
+// The photos lie over every body and every head: no part of a snake is ever drawn over a photo.
+// This prints how often a crown or a boost bolt, painted over all, touches a head, and how often
+// heads lie under more than half of a photo.
 import { describe, expect, it } from 'vitest';
 
 import { ARENA_DEFAULTS } from '../../src/shared/arena-protocol.ts';
@@ -109,7 +109,7 @@ describe.skipIf(!SECONDS)('snake arena: photos and bodies, measured', () => {
     }
     const pc = (n: number, of: number): string => `${((100 * n) / Math.max(1, of)).toFixed(1)} %`;
     process.stderr.write(
-      `PHOTOS ${String(frames)} frames: heads hidden by a photo 0 (painted over them); frames where a crown or bolt touches a head ${pc(marked, frames)}; photo-frames more than half covered by heads ${pc(half, shown)}
+      `PHOTOS ${String(frames)} frames: snake parts over a photo 0 (photos painted over all); frames where a crown or bolt touches a head ${pc(marked, frames)}; photo-frames more than half over heads ${pc(half, shown)}
 `,
     );
     expect(frames).toBeGreaterThan(0);

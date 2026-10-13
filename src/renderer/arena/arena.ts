@@ -25,7 +25,7 @@ import { BOOST, PILOT, QUEUE, clearPaidQueue, isPilot, setPilot } from './entry.
 import { paintBeachHearts } from './lives.ts';
 import { paintActors, paintSeats } from './qualify-paint.ts';
 import { qualifying } from './qualify.ts';
-import { arenaRound, stepArena } from './round.ts';
+import { FIELD, arenaRound, stepArena } from './round.ts';
 import { TUNING, alive, arena, options, toPx } from './rules.ts';
 
 export { SLEEPER_SPOT, layOutBeach, paintArenaTime, paintPodium, qualifying };
@@ -49,11 +49,13 @@ export function setArenaSettings(next: ArenaSettings): void {
   TUNING.lifePrice = next.lifePrice;
   TUNING.maxLives = next.maxLives;
   TUNING.lifeKeep = next.lifeKeep;
-  TUNING.houseEvery = next.plainEvery;
-  TUNING.houseAmount = next.plainAmount;
+  // The flower's plain berries, applied at once: how many it keeps out, how soon a new one comes.
+  FIELD.count = next.plainAmount;
+  FIELD.delay = next.plainEvery;
   BOOST.likes = next.entryLikes;
   QUEUE.idle = next.queueIdle;
   options.likeBoost = next.likeBoost;
+  options.likeHeart = next.likeHeart;
   options.ownerOnly = next.giftBerries === 'owner';
   brain.super = next.superAI;
   brain.backing = next.backing;

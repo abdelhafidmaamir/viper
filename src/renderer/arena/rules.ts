@@ -30,14 +30,6 @@ export const TUNING = {
   /** Seconds a newborn cannot be hurt (it blinks). */
   safeTime: 3,
   roundTime: 120, // seconds
-  /**
-   * Plain berries for everyone, rare and few, so gifts are what makes a snake big: a drip every
-   * houseEvery seconds (give or take a fifth) of 1 to houseAmount berries, while fewer than
-   * houseMax lie out.
-   */
-  houseEvery: 25,
-  houseAmount: 1,
-  houseMax: 4,
   foodMax: 160,
   /** Where a gift's berries land: this close to the giver's head, in cells. */
   dropRadius: 3,
@@ -83,6 +75,8 @@ export const options = {
   ownerOnly: false,
   /** Likes speed up a snake that is in. */
   likeBoost: true,
+  /** The qualifying's like counts show the prod heart before the number. */
+  likeHeart: true,
 };
 
 export type Mode = 'eat' | 'chase' | 'defend';
