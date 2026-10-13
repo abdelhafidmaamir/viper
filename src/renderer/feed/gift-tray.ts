@@ -176,7 +176,7 @@ function paintChips(t: number): void {
     const bx = x + 392,
       bob = Math.sin(t * 5 + chip.slot) * 3,
       bs = 156 * (1 + 0.18 * punch);
-    c.drawImage(berrySprite(0), bx - bs / 2, ay - bs / 2 + bob, bs, bs);
+    c.drawImage(berrySprite(0, chip.nickname), bx - bs / 2, ay - bs / 2 + bob, bs, bs);
     const k = 1 + 0.42 * punch;
     c.save();
     c.translate(bx + 52, ay + 2);

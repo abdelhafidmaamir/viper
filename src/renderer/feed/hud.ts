@@ -14,26 +14,34 @@ const GREEN = berryTint(null);
 
 // ---- the ring ------------------------------------------------------------------------------
 
-/** Same rail as the duel (12 px outside the board); its fill is how full the board is. */
-export function paintRing(t: number): void {
+/**
+ * Same rail as the duel (12 px outside the board); its fill is how full the board is. Snake Arena
+ * fills it with the round's time instead, and says when it is nearly up.
+ */
+export function paintRing(
+  t: number,
+  fill = game.len / TOTAL,
+  urgent = TOTAL - cells() <= 20 && game.full < 0,
+  /** One colour for the fill in place of the green to gold (Snake Arena: the crown holder's). */
+  tint?: string,
+  /** How many times Feed's width the rail is drawn (Snake Arena: thicker, read on a phone). */
+  thick = 1,
+): void {
   const c = ctx,
     x = FX0 - 26,
     y = FY0 - 26,
     w = BOARD_W + 52,
     h = BOARD_H + 52,
     r = 30;
-  const fill = game.len / TOTAL,
-    left = TOTAL - cells(),
-    perim = 2 * (w + h) - 8 * r + 2 * Math.PI * r;
+  const perim = 2 * (w + h) - 8 * r + 2 * Math.PI * r;
   c.save();
-  c.lineWidth = 7;
+  c.lineWidth = 7 * thick;
   c.lineCap = 'round';
   c.strokeStyle = 'rgba(255,255,255,0.1)';
   c.beginPath();
   c.roundRect(x, y, w, h, r);
   c.stroke();
   // Drawn from the top center, clockwise, like the duel's timer.
-  const urgent = left <= 20 && game.full < 0;
   const glow = urgent ? 0.6 + 0.4 * Math.sin(t * 7) : 0.9;
   c.setLineDash([perim * fill, perim]);
   c.lineDashOffset = -(w / 2 - r);
@@ -41,12 +49,12 @@ export function paintRing(t: number): void {
   g.addColorStop(0, GREEN);
   g.addColorStop(1, GOLD);
   c.strokeStyle = urgent ? `rgba(242,197,124,${String(0.25 * glow)})` : 'rgba(155,226,138,0.18)';
-  c.lineWidth = 17;
+  c.lineWidth = 17 * thick;
   c.beginPath();
   c.roundRect(x, y, w, h, r);
   c.stroke();
-  c.strokeStyle = g;
-  c.lineWidth = 7;
+  c.strokeStyle = tint ?? g;
+  c.lineWidth = 7 * thick;
   c.stroke();
   c.restore();
 }

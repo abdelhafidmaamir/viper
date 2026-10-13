@@ -90,6 +90,14 @@ const en = {
   'feed.title.1000': 'ANCIENT OAK',
   'feed.carried': 'FROM LAST ROUND',
   'feed.carriedNext': '{n} berries carry over to the next round',
+  'arena.over': "TIME'S UP!",
+  'arena.qualifying': 'QUALIFYING',
+  'arena.wins': '{name} WINS',
+  'arena.playsNext': '{name} has a seat in the next round',
+  'arena.inLine': '{name} is #{n} in line: plays in {r} rounds',
+  'arena.boost': '{name} hit {n} likes: SPEED BOOST',
+  'kill.0': '{name} was eliminated',
+  'kill.by': '{name} was eliminated by {q}',
   'welcome.new': 'First time here, welcome {name}!',
   'welcome.back': 'Welcome back, {name}!',
   'welcome.supporter': 'Supporter {name} is back!',
@@ -184,6 +192,14 @@ const fr: Translations = {
   'feed.title.1000': 'CHÊNE ANCESTRAL',
   'feed.carried': 'MANCHE PRÉCÉDENTE',
   'feed.carriedNext': '{n} baies reportées à la manche suivante',
+  'arena.over': 'TEMPS ÉCOULÉ !',
+  'arena.qualifying': 'QUALIFICATIONS',
+  'arena.wins': '{name} GAGNE',
+  'arena.playsNext': '{name} a sa place à la prochaine manche',
+  'arena.inLine': '{name} est #{n} dans la file : joue dans {r} manches',
+  'arena.boost': '{name} a atteint {n} likes : SPEED BOOST',
+  'kill.0': '{name} a été éliminé',
+  'kill.by': '{name} a été éliminé par {q}',
   'welcome.new': 'Premier live ici, bienvenue {name} !',
   'welcome.back': 'Content de te revoir, {name} !',
   'welcome.supporter': 'Le soutien {name} est de retour !',
@@ -208,7 +224,7 @@ export function setLanguage(lang: 'en' | 'fr'): void {
  */
 export function tr(
   key: I18nKey,
-  vars?: { name?: string; n?: number | string; q?: string },
+  vars?: { name?: string; n?: number | string; q?: string; r?: number | string },
 ): string {
   const dict = DICTS[activeLang];
   let text: string = dict[key];
@@ -216,6 +232,7 @@ export function tr(
     if (vars.name !== undefined) text = text.replace('{name}', vars.name);
     if (vars.n !== undefined) text = text.replace('{n}', String(vars.n));
     if (vars.q !== undefined) text = text.replace('{q}', vars.q);
+    if (vars.r !== undefined) text = text.replace('{r}', String(vars.r));
   }
   return text;
 }

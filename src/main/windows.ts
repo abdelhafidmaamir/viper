@@ -44,8 +44,22 @@ function lockDown(
 }
 
 /** Window titles: OBS and LIVE Studio find the game window by title, one source per mode. */
-const GAME_TITLE: Readonly<Record<Mode, string>> = { duel: 'Viper Duel', feed: 'Viper Feed' };
-const GAME_PAGE: Readonly<Record<Mode, string>> = { duel: 'game.html', feed: 'feed.html' };
+export const GAME_TITLE: Readonly<Record<Mode, string>> = {
+  duel: 'Viper Duel',
+  feed: 'Viper Feed',
+  arena: 'Viper Arena',
+};
+const GAME_PAGE: Readonly<Record<Mode, string>> = {
+  duel: 'game.html',
+  feed: 'feed.html',
+  arena: 'arena.html',
+};
+/** The duel's control room is never captured, so its admin section is on. */
+const CONTROL_PAGE: Readonly<Record<Mode, string>> = {
+  duel: 'control.html?admin=1',
+  feed: 'feed-control.html',
+  arena: 'arena-control.html',
+};
 
 export interface GameWindowOptions {
   readonly mode: Mode;
@@ -70,7 +84,7 @@ export async function openGameWindow(
   origin: string,
   { mode, orientation, diagnostic, seed }: GameWindowOptions,
 ): Promise<BrowserWindow> {
-  // Feed the Snake is drawn for portrait only.
+  // Feed the Snake and Snake Arena are drawn for portrait only.
   const landscape = mode === 'duel' && orientation === 'landscape';
   const title = GAME_TITLE[mode];
   const win = new BrowserWindow({
@@ -85,8 +99,8 @@ export async function openGameWindow(
     webPreferences: {
       ...SECURE_PREFERENCES,
       backgroundThrottling: false,
-      // Feed the Snake's sound is part of the show: it plays without a click in its window.
-      ...(mode === 'feed' ? { autoplayPolicy: 'no-user-gesture-required' as const } : {}),
+      // Feed the Snake's sound is part of the show, the arena's too: it plays without a click.
+      ...(mode === 'duel' ? {} : { autoplayPolicy: 'no-user-gesture-required' as const }),
     },
   });
   lockDown(win, origin, title);
@@ -109,7 +123,7 @@ export async function openGameWindow(
   return win;
 }
 
-/** The private control room of a mode. It is never captured, so the admin section is enabled. */
+/** The private control room of a mode. */
 export async function openControlWindow(
   origin: string,
   mode: Mode,
@@ -127,9 +141,7 @@ export async function openControlWindow(
     webPreferences: SECURE_PREFERENCES,
   });
   lockDown(win, origin, title, onRequest);
-  await win.loadURL(
-    mode === 'duel' ? `${origin}/control.html?admin=1` : `${origin}/feed-control.html`,
-  );
+  await win.loadURL(`${origin}/${CONTROL_PAGE[mode]}`);
   return win;
 }
 

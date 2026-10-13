@@ -22,10 +22,10 @@ export interface FeedView {
   update(state: FeedControlState): void;
 }
 
-type Dispatch = (cmd: FeedCommand) => void;
-type PressArm = (key: ArmKey, execute: () => void) => void;
+export type Dispatch = (cmd: FeedCommand) => void;
+export type PressArm = (key: ArmKey, execute: () => void) => void;
 
-function createStatusBar(dispatch: Dispatch, pressArm: PressArm): FeedView {
+function createStatusBar(dispatch: Dispatch, pressArm: PressArm, name = 'Viper Feed'): FeedView {
   const gamePill = createPill();
   const bridgePill = createPill();
   const fpsPill = createPill();
@@ -43,7 +43,7 @@ function createStatusBar(dispatch: Dispatch, pressArm: PressArm): FeedView {
   });
 
   const title = h('div', { class: 'statusbar__group' }, [
-    h('span', { class: 'caps', text: 'Viper Feed' }),
+    h('span', { class: 'caps', text: name }),
     h('span', { class: 'chip__text', text: 'Control Room' }),
   ]);
 
@@ -110,6 +110,12 @@ function createStatusBar(dispatch: Dispatch, pressArm: PressArm): FeedView {
 
 type TabId = 'live' | 'money' | 'rehearsal' | 'setup';
 
+/** Another mode's room on this shell (Snake Arena): its name and a screen for each tab. */
+export interface FeedRoom {
+  readonly title: string;
+  readonly screens: Readonly<Record<TabId, FeedView>>;
+}
+
 const FEED_TABS: readonly { readonly id: TabId; readonly label: string; readonly key: string }[] = [
   { id: 'live', label: 'Live', key: '1' },
   { id: 'rehearsal', label: 'Rehearsal', key: '2' },
@@ -122,11 +128,12 @@ export function mountFeedApp(
   store: FeedControlStore,
   dispatch: Dispatch,
   pressArm: PressArm,
+  room?: FeedRoom,
 ): { unmount: () => void } {
-  const statusBar = createStatusBar(dispatch, pressArm);
+  const statusBar = createStatusBar(dispatch, pressArm, room?.title);
   const reason = () => controlsReason(store.get());
 
-  const screens: Record<TabId, FeedView> = {
+  const screens: Readonly<Record<TabId, FeedView>> = room?.screens ?? {
     live: createLiveScreen(store, dispatch, pressArm),
     money: createMoneyScreen(store, dispatch),
     rehearsal: createRehearsalScreen(dispatch),

@@ -146,7 +146,7 @@ function roundCard(dispatch: Dispatch, pressArm: (k: ArmKey, f: () => void) => v
   };
 }
 
-function bridgeCard(dispatch: Dispatch, reason: Reason): FeedView {
+export function bridgeCard(dispatch: Dispatch, reason: Reason): FeedView {
   const last = h('p', { class: 'card__line' });
   const error = h('p', { class: 'card__line tone-danger', attrs: { role: 'alert' } });
   const connect = createButton({
@@ -182,7 +182,7 @@ function bridgeCard(dispatch: Dispatch, reason: Reason): FeedView {
   };
 }
 
-function giftLeadersCard(): FeedView {
+export function giftLeadersCard(): FeedView {
   const rows: HTMLElement[] = [];
   for (let i = 0; i < 5; i++) rows.push(h('div', { class: 'card__line' }));
   const likesLine = h('p', { class: 'card__line' });
@@ -210,7 +210,7 @@ function giftLeadersCard(): FeedView {
 }
 
 /** Proof list: every live gift, what it was and the berries it gave. */
-function giftsCard(): FeedView {
+export function giftsCard(): FeedView {
   const rows = Array.from({ length: 12 }, () => h('p', { class: 'card__line' }));
   const card = createCard({ title: 'Gifts received' }, [
     h('p', {
@@ -247,7 +247,7 @@ function giftsCard(): FeedView {
  * Making up for a loss by hand: berries in a viewer's name, with their photo if they were seen
  * this live. They drop like a gift and count for the leaderboard. Works during a live.
  */
-function grantCard(dispatch: Dispatch, reason: Reason): FeedView {
+export function grantCard(dispatch: Dispatch, reason: Reason): FeedView {
   const nickname = h('input', {
     class: 'input',
     attrs: {
@@ -309,7 +309,7 @@ const GAP_OPTIONS = ENTRANCE_GAPS.map((value) => ({
  * Supporter entrances: gifters and moderators arriving get a big entrance over the board. How often
  * the same person gets it, a Skip for one that comes at a bad time, and rehearsal buttons.
  */
-function entrancesCard(dispatch: Dispatch, reason: Reason, rehearsal: Reason): FeedView {
+export function entrancesCard(dispatch: Dispatch, reason: Reason, rehearsal: Reason): FeedView {
   const gap = createSegmented({
     label: 'Same person, big entrance at most every',
     options: GAP_OPTIONS,
@@ -373,7 +373,7 @@ function entrancesCard(dispatch: Dispatch, reason: Reason, rehearsal: Reason): F
   };
 }
 
-function ambienceCard(dispatch: Dispatch, reason: Reason): FeedView {
+export function ambienceCard(dispatch: Dispatch, reason: Reason): FeedView {
   const weather = createSegmented({
     label: 'Weather',
     options: WEATHER_OPTIONS,

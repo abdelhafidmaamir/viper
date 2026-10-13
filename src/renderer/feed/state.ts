@@ -72,6 +72,8 @@ export interface Pour {
   /** Berries owed from the round before: the flower says so. */
   carried?: boolean;
   avatar?: string | undefined;
+  /** Snake Arena: a gift that buys a seat; the flower shows a gold egg, not a berry. Feed never sets it. */
+  seat?: boolean;
 }
 
 export interface Spark {

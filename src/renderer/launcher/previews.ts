@@ -420,3 +420,109 @@ export function mountFeedPreview(canvas: HTMLCanvasElement, reducedMotion: boole
     cancelAnimationFrame(rafId);
   };
 }
+
+// ---------------------------------------------------------------------------
+// Snake Arena preview
+// ---------------------------------------------------------------------------
+
+/** Each viewer's snake gets its own colour on the board. */
+const ARENA_COLORS = [GOLD, SHADOW, '#9be28a', '#f6b8c4'] as const;
+
+interface ArenaSnake {
+  segs: Seg[];
+  dir: Dir;
+}
+
+function initArenaSnakes(): ArenaSnake[] {
+  const starts: [number, number, Dir][] = [
+    [3, 2, { dx: 1, dy: 0 }],
+    [14, 8, { dx: -1, dy: 0 }],
+    [8, 9, { dx: 0, dy: -1 }],
+    [10, 1, { dx: 0, dy: 1 }],
+  ];
+  return starts.map(([x, y, dir]) => ({
+    segs: [0, 1, 2].map((i) => ({ x: x - dir.dx * i, y: y - dir.dy * i })),
+    dir,
+  }));
+}
+
+export function mountArenaPreview(canvas: HTMLCanvasElement, reducedMotion: boolean): () => void {
+  const ctxOrNull = canvas.getContext('2d');
+  if (!ctxOrNull) return () => undefined;
+  const ctx: CanvasRenderingContext2D = ctxOrNull;
+  const snakes = initArenaSnakes();
+  let berries: Seg[] = [
+    { x: 6, y: 5 },
+    { x: 12, y: 3 },
+    { x: 4, y: 8 },
+  ];
+  let rafId = 0;
+  let last = performance.now();
+  let tickAcc = 0;
+  const TICK_MS = 200;
+
+  function tick(): void {
+    snakes.forEach((snake, i) => {
+      const others = snakes.filter((_, j) => j !== i).flatMap((s) => s.segs);
+      const res = advanceSnake(snake.segs, snake.dir, berries, others);
+      // Now and then a snake turns by itself, so the four do not run in straight lines.
+      snake.dir =
+        Math.random() < 0.15
+          ? Math.random() < 0.5
+            ? turnLeft(res.dir)
+            : turnRight(res.dir)
+          : res.dir;
+      snake.segs = res.snake.slice(0, 6);
+      berries = berries.filter((b) => !(b.x === res.newHead.x && b.y === res.newHead.y));
+    });
+    const taken = new Set(
+      snakes.flatMap((s) => s.segs.map((p) => `${String(p.x)},${String(p.y)}`)),
+    );
+    while (berries.length < 3) {
+      const cell = { x: Math.floor(Math.random() * COLS), y: Math.floor(Math.random() * ROWS) };
+      if (!taken.has(`${String(cell.x)},${String(cell.y)}`)) berries.push(cell);
+    }
+  }
+
+  function draw(c: CanvasRenderingContext2D): void {
+    resizeCanvas(canvas);
+    const W = canvas.width;
+    const H = canvas.height;
+    const cw = W / COLS;
+    const ch = H / ROWS;
+    c.clearRect(0, 0, W, H);
+    c.fillStyle = BG;
+    c.fillRect(0, 0, W, H);
+    drawGrid(c, COLS, ROWS, cw, ch);
+    for (const b of berries) drawBerry(c, b.x, b.y, cw, ch);
+    snakes.forEach((s, i) => {
+      drawSnake(c, s.segs, ARENA_COLORS[i % ARENA_COLORS.length] ?? GOLD, cw, ch);
+    });
+  }
+
+  if (reducedMotion) {
+    draw(ctx);
+    return () => undefined;
+  }
+
+  function loop(now: number): void {
+    if (document.hidden) {
+      last = now;
+      rafId = requestAnimationFrame(loop);
+      return;
+    }
+    tickAcc += now - last;
+    last = now;
+    if (tickAcc >= TICK_MS) {
+      tickAcc -= TICK_MS;
+      tick();
+    }
+    draw(ctx);
+    rafId = requestAnimationFrame(loop);
+  }
+
+  rafId = requestAnimationFrame(loop);
+  return () => {
+    cancelAnimationFrame(rafId);
+  };
+}

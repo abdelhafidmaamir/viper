@@ -159,6 +159,19 @@ function showGiftThanks(): void {
 /** The moderators named in the control room, by TikTok @handle. */
 let modList = new Set<string>();
 
+/**
+ * Where a counted gift or like goes: the round (state.ts). Snake Arena points both at its own
+ * board as well (src/renderer/arena/link.ts); everything else here stays the same.
+ */
+export const board: {
+  gift: (nickname: string, avatar: string | undefined, berries: number, live?: boolean) => void;
+  like: (nickname: string, avatar: string | undefined, n: number) => void;
+  /** A gift at this price is something else than berries (Snake Arena's extra life). */
+  instead?: (coins: number) => boolean;
+  /** A gift that gives no berries, `n` of it at `coins` each: true when it was used anyway. */
+  unpriced?: (nickname: string, avatar: string | undefined, coins: number, n: number) => boolean;
+} = { gift, like };
+
 export interface FrameMetrics {
   readonly fps: number;
   readonly slowFrames: number;
@@ -174,6 +187,11 @@ export interface FeedLinkDeps {
   readonly crowd: () => CrowdLevel;
   /** A random name for test gifts sent without one. */
   readonly someone: () => string;
+  /**
+   * The settings travel with the supporters list to another computer (true unless said). Snake
+   * Arena keeps its own: the list carries Feed's.
+   */
+  readonly shareSettings?: boolean;
 }
 
 /** TikFinity is connected: a real live, where nothing fake may reach the board. */
@@ -331,7 +349,7 @@ export function receiveFeedEvent(ev: AudienceEvent | null | undefined): number {
     crabViewers(Math.max(0, Number(ev.total) || 0), ev.top);
   }
   if (ev?.type === 'like') {
-    like(ev.nickname ?? 'viewer', ev.avatar, n);
+    board.like(ev.nickname ?? 'viewer', ev.avatar, n);
     alertViewer('like', ev.nickname ?? '', ev.avatar, n);
     crabLike(ev.nickname ?? '', ev.avatar, n);
     noteLikes(id || who, n);
@@ -361,7 +379,7 @@ export function receiveFeedEvent(ev: AudienceEvent | null | undefined): number {
   if (id) supporterPhoto(id, ev?.avatar);
   if (ev?.type !== 'gift') return 0;
   const coins = giftCoins(ev.name ?? ev.gift, ev.value),
-    berries = priced(coins);
+    berries = board.instead?.(coins) ? 0 : priced(coins);
   note({
     event: 'gift',
     source: 'tiktok',
@@ -388,8 +406,8 @@ export function receiveFeedEvent(ev: AudienceEvent | null | undefined): number {
     coins: coins * n,
   });
   if (giftLog.length > GIFT_LOG) giftLog.length = GIFT_LOG;
-  if (!berries) return 0;
-  gift(ev.nickname ?? 'viewer', ev.avatar, berries * n, true);
+  if (!berries) return board.unpriced?.(ev.nickname ?? 'viewer', ev.avatar, coins, n) ? n : 0;
+  board.gift(ev.nickname ?? 'viewer', ev.avatar, berries * n, true);
   return n;
 }
 
@@ -559,9 +577,12 @@ export function applyFeedCommand(command: FeedCommand, deps: FeedLinkDeps): void
       {
         const nickname = command.nickname ?? deps.someone(),
           coins = giftCoins(undefined, command.coins) || FEED_GIFTS[command.gift],
-          berries = priced(coins) * count(command.count);
-        if (!berries) return;
-        gift(nickname, undefined, berries);
+          berries = (board.instead?.(coins) ? 0 : priced(coins)) * count(command.count);
+        if (!berries) {
+          board.unpriced?.(nickname, undefined, coins, count(command.count));
+          return;
+        }
+        board.gift(nickname, undefined, berries);
         thankGift(nickname, undefined, berries);
         note({
           event: 'gift',
@@ -575,7 +596,7 @@ export function applyFeedCommand(command: FeedCommand, deps: FeedLinkDeps): void
       return;
     case 'likes': {
       const who = command.nickname ?? deps.someone();
-      like(who, undefined, count(command.count));
+      board.like(who, undefined, count(command.count));
       crabLike(who, undefined, count(command.count));
       return;
     }
@@ -600,7 +621,7 @@ export function applyFeedCommand(command: FeedCommand, deps: FeedLinkDeps): void
       const nickname = command.nickname.trim().slice(0, 40),
         n = Math.max(1, Math.min(10000, Math.round(command.count) || 0));
       if (!nickname) return;
-      gift(nickname, photoOf(nickname), n, true);
+      board.gift(nickname, photoOf(nickname), n, true);
       thankGift(nickname, photoOf(nickname), n);
       giftLog.unshift({ at: Date.now(), nickname, name: 'Given by hand', count: 1, berries: n });
       note({ event: 'given back', source: 'manual', nickname, berries: n });
@@ -651,7 +672,7 @@ export function applyFeedCommand(command: FeedCommand, deps: FeedLinkDeps): void
         source: 'manual',
         detail: `${command.name} = ${String(settings[command.name])}`,
       });
-      supporterSettings(shared());
+      if (deps.shareSettings !== false) supporterSettings(shared());
       safely(() => {
         deps.storage.setItem(STORAGE_KEY, JSON.stringify(settings));
       });

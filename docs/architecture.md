@@ -1,8 +1,9 @@
 # Architecture
 
 How the app is put together. For the vocabulary see [concepts.md](concepts.md), for what the
-games do see [rules-duel.md](rules-duel.md) and [rules-feed.md](rules-feed.md), and for the
-reasons behind the choices below see [decisions.md](decisions.md).
+games do see [rules-duel.md](rules-duel.md), [rules-feed.md](rules-feed.md) and
+[rules-arena.md](rules-arena.md), and for the reasons behind the choices below see
+[decisions.md](decisions.md).
 
 ## Windows
 
@@ -17,6 +18,7 @@ and closes the launcher; "Change mode" in a control room does the reverse.
       +---------v---------+   BroadcastChannel   +-----v-------------+
       |   game.html       |<---- 'viper-duel' ---+  control.html     |
       |   feed.html       |<---- 'viper-feed' ---+  feed-control.html|
+      |   arena.html      |<--- 'viper-arena' ---+ arena-control.html|
       |   (on stream)     |  commands in,        |  (private)        |
       |                   |  state out (2 Hz)    |                   |
       +---------+---------+                      +-------------------+
@@ -28,7 +30,8 @@ and closes the launcher; "Change mode" in a control room does the reverse.
 
 Only one mode runs at a time. Each has its own channel and protocol
 (`src/shared/control-protocol.ts`, `src/shared/feed-protocol.ts`), so a change to one can't
-break the other. Pages ask the main process for a window change by navigating to a reserved
+break the other. Snake Arena is the exception: it plays inside Feed's scene, so it speaks Feed's
+protocol on its own channel and adds what only the arena has (`src/shared/arena-protocol.ts`). Pages ask the main process for a window change by navigating to a reserved
 path (`/__viper/open?mode=feed`, `/__viper/launcher`) that it intercepts, so no page needs a
 preload bridge.
 
@@ -43,7 +46,8 @@ Some things that look odd but are on purpose:
 - Background throttling is off: the game window is captured, not looked at, and Chromium drops
   hidden windows to about 1 fps.
 - All windows are sandboxed, can't navigate away, and keep their titles (capture tools pick
-  windows by title: `Viper Duel`, `Viper Feed`). A second launch just focuses the open ones.
+  windows by title: `Viper Duel`, `Viper Feed`, `Viper Arena`). A second launch just focuses the
+  open ones.
 - Settings still live under the old `Viper Duel` user data folder, so the rename to Viper didn't
   reset anything.
 
@@ -109,7 +113,38 @@ Its rules are its own and live in `feed/`:
 `feed-control/` is its control room, built from the same components as the duel's. `launcher/`
 is the first screen.
 
+## Snake Arena
+
+The third mode, one snake per viewer, plays its own board inside Feed's scene. Everything around
+the board (forest, ring, flower, alerts, entrances, end screen, journal, supporters) is Feed's,
+imported as it is. `arena/` holds the rest:
+
+| Module           | What's in it                                                           |
+| ---------------- | ---------------------------------------------------------------------- |
+| `main.ts`        | the frame loop: Feed's scene round the board, the simulated audience   |
+| `arena.ts`       | the board's face to the rest: settings, round, step, painters, status  |
+| `rules.ts`       | the state: snakes, food, eggs, deaths, lives, the tuning values        |
+| `round.ts`       | the frame's rules: phases, the flower's drip, steps, collisions, crown |
+| `ai.ts`          | the calm and strong brains, flood fill and look-ahead                  |
+| `entry.ts`       | likes, gifts, the queue on the beach, flights to the egg, the pilot    |
+| `board-paint.ts` | food, bodies with Feed's painter, heads, eggs, the dying               |
+| `beach.ts`       | the ring as a clock, the beach's layout, rings, flags, like hearts     |
+| `audience.ts`    | the rehearsal audience                                                 |
+| `link.ts`        | Feed's link on the arena's channel and storage, plus the tuning values |
+
+Feed's link hands every like and gift it counts to a `board` object; Feed points it at its round,
+the arena at its round and its board. The few Feed modules the arena needs to steer only gained
+optional parameters or switches it turns on (`crabs.ts` lays out a managed beach, `paint.ts`
+keeps one chevron sprite per colour and tints paid berries, `alerts.ts` has a `kill` card); with
+them off, Feed draws what it always drew. The Duel's egg is drawn by `engine/eggshell.ts`, shared.
+
+`arena-control/` is its control room: Feed's control room shell and cards on the arena's channel,
+with the arena's round card and, on the Setup tab, an Arena card for the tuning values.
+
 ## Persistence and sync (Feed)
+
+Snake Arena writes its journal and the same supporters list the same way. It has no round backup
+yet.
 
 Gifts are payments, so the Feed state that represents them is persisted outside the renderer. The
 renderer holds the state in memory; the main process pulls it on a timer with

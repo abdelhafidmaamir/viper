@@ -8,6 +8,7 @@ describe('parseConfig', () => {
       orientation: 'portrait',
       mode: null,
       rendererOrigin: null,
+      dataDir: null,
       diagnostic: null,
     });
   });
@@ -15,7 +16,12 @@ describe('parseConfig', () => {
   it('opens a mode directly, or leaves the choice to the launcher', () => {
     expect(parseConfig(['--mode=feed']).mode).toBe('feed');
     expect(parseConfig(['--mode=duel']).mode).toBe('duel');
+    expect(parseConfig(['--mode=arena']).mode).toBe('arena');
     expect(parseConfig([]).mode).toBeNull();
+  });
+
+  it('keeps its files in another folder for a rehearsal', () => {
+    expect(parseConfig(['--data-dir=rehearsal']).dataDir).toBe('rehearsal');
   });
 
   it('accepts landscape', () => {
@@ -27,6 +33,7 @@ describe('parseConfig', () => {
       orientation: 'portrait',
       mode: null,
       rendererOrigin: null,
+      dataDir: null,
       diagnostic: null,
     });
   });
@@ -77,7 +84,7 @@ describe('parseConfig', () => {
   });
 
   it.each([
-    [['--mode=race'], /--mode must be one of duel, feed/],
+    [['--mode=race'], /--mode must be one of duel, feed, arena/],
     [['--orientation=sideways'], /--orientation must be one of portrait, landscape/],
     [['--diagnostic=benchmark'], /--diagnostic must be one of/],
     [['--renderer-url=https://example.com'], /must be an http loopback URL/],

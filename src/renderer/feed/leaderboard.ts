@@ -18,6 +18,8 @@ interface Line {
   readonly avatar?: string | undefined;
   readonly berries: number;
   readonly likes: number;
+  /** Snake Arena's podium: the berry count shows even at 0. */
+  readonly berriesAlways?: boolean;
 }
 
 /** This round's ranking: berries given first, likes to break a tie and to rank those who only like. */
@@ -90,8 +92,8 @@ function stats(line: Line, x: number, y: number, size: number, align: 'center' |
     icon = size * 0.95,
     gap = size * 0.3,
     parts: { sprite: HTMLCanvasElement; text: string; color: string }[] = [];
-  if (line.berries > 0)
-    parts.push({ sprite: berrySprite(0), text: num(line.berries), color: '#fff' });
+  if (line.berries > 0 || line.berriesAlways)
+    parts.push({ sprite: berrySprite(0, line.nickname), text: num(line.berries), color: '#fff' });
   if (line.likes > 0)
     parts.push({
       sprite: burstSprite('like'),
@@ -119,7 +121,13 @@ function stats(line: Line, x: number, y: number, size: number, align: 'center' |
 
 /** One number per person, easy to read on a phone: the berries they gave, or their likes if none. */
 function score(line: Line, x: number, y: number, size: number, align: 'center' | 'right'): void {
-  stats(line.berries > 0 ? { ...line, likes: 0 } : { ...line, berries: 0 }, x, y, size, align);
+  stats(
+    line.berries > 0 || line.berriesAlways ? { ...line, likes: 0 } : { ...line, berries: 0 },
+    x,
+    y,
+    size,
+    align,
+  );
 }
 
 /** One place on the podium: the photo springs up, medal and crown, the name, what they gave. */
@@ -206,8 +214,17 @@ function likeChip(line: Line, rank: number, x: number, y: number, age: number): 
   c.restore();
 }
 
-/** The round is over: the headline, this round's podium, then the Hall of Fame's flowers. */
-export function paintRoundEnd(t: number, carried: number): void {
+/**
+ * The round is over: the headline, this round's podium, then the Hall of Fame's flowers. The
+ * headline says the board filled; Snake Arena's rounds end on time and say so, and bring their
+ * own podium (the battle's ranking) in place of the gifters'.
+ */
+export function paintRoundEnd(
+  t: number,
+  carried: number,
+  headline?: string,
+  podiumLines?: readonly Line[],
+): void {
   const c = ctx,
     a = game.full;
   if (a < 0) return;
@@ -228,7 +245,7 @@ export function paintRoundEnd(t: number, carried: number): void {
   c.shadowBlur = 30;
   c.fillStyle = GOLD;
   c.font = `900 60px ${FONT}`;
-  c.fillText(tr('feed.filled'), 0, 0);
+  c.fillText(headline ?? tr('feed.filled'), 0, 0);
   c.restore();
   c.fillStyle = 'rgba(255,255,255,0.85)';
   c.font = `700 26px ${FONT}`;
@@ -245,9 +262,7 @@ export function paintRoundEnd(t: number, carried: number): void {
 
   // This round: the podium, then #4 and #5.
   // This round: the gifters on the podium, then the top likers, each with their own moment.
-  const lines = roundRanking(20)
-      .filter((l) => l.berries > 0)
-      .slice(0, 3),
+  const lines = (podiumLines ?? roundRanking(20).filter((l) => l.berries > 0)).slice(0, 3),
     likes = [...game.likes.values()]
       .sort((p, q) => q.likes - p.likes)
       .slice(0, 3)
