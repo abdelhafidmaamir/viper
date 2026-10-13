@@ -206,6 +206,9 @@ let hearts: Heart[] = [];
 let heartClock = 0;
 const lastPhrase: Partial<Record<AlertKind, I18nKey>> = {};
 
+/** Snake Arena's like card says it one way only; Feed's takes its phrasings in turn. */
+const ARENA_LIKE_PHRASE: I18nKey = 'like.1';
+
 function pickPhrase(kind: AlertKind): I18nKey {
   const options = PHRASES[kind].filter((p) => p !== lastPhrase[kind]);
   const phrase =
@@ -283,7 +286,9 @@ export function alertViewer(
     likes: kind === 'like' ? n : 0,
     phrase:
       kind !== 'join'
-        ? pickPhrase(kind)
+        ? kind === 'like' && look.arena
+          ? ARENA_LIKE_PHRASE
+          : pickPhrase(kind)
         : supporter !== undefined
           ? supporter > 0
             ? 'welcome.top'

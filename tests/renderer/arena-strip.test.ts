@@ -143,6 +143,27 @@ describe('snake arena: the alert card and the like strip', () => {
     expect(shownInTurn()).toEqual(['like', 'join']);
   });
 
+  it('the like card says it one way only in the arena, as Feed says it both ways', () => {
+    const phrases = new Set<string>();
+    for (let i = 0; i < 6; i++) {
+      resetAlerts();
+      alertViewer('like', `fan${String(i)}`, undefined, 3);
+      updateAlerts(0.01);
+      phrases.add(alertsState().current?.phrase ?? '');
+    }
+    expect([...phrases]).toEqual(['like.1']);
+    setAlertLook({ arena: false });
+    phrases.clear();
+    for (let i = 0; i < 6; i++) {
+      resetAlerts();
+      alertViewer('like', `fan${String(i)}`, undefined, 3);
+      updateAlerts(0.01);
+      phrases.add(alertsState().current?.phrase ?? '');
+    }
+    expect([...phrases].sort()).toEqual(['like.0', 'like.1']);
+    setAlertLook(ARENA_ALERTS);
+  });
+
   it('a single like gives its card 2 hearts, a burst one a like up to the cap', () => {
     alertViewer('like', 'one', undefined, 1);
     let hearts = 0;

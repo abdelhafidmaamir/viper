@@ -141,8 +141,7 @@ The alert card is Feed's (790 by 114, photo 86, text 38), at Feed's place under 
 qualifying, the countdown and the end screen; in the battle it sits a small gap below the like
 strip, easing from one place to the other. A game card reads on one row: its words shrink to fit down to 30, then the
 name is cut. Its order of importance: an elimination, which never expires; then a speed boost, shown only
-when none waits and dropped after 3 s waiting (its gold chip showed it); then likes ("{name}
-dropped 20 likes, thank you!"), during the qualifying only, Feed's card (2 hearts for a single like, then one a like),
+when none waits and dropped after 3 s waiting (its gold chip showed it); then likes ("20 likes from {name}, love it!", the one phrasing the arena uses; Feed takes two in turn), during the qualifying only, Feed's card (2 hearts for a single like, then one a like),
 dropped after 6 s waiting; then the stream's (follows, shares, returning supporters, welcomes),
 dropped after 10 s waiting. During
 the battle likes are never on the card: the strip shows them. When the battle ends, its cards go
