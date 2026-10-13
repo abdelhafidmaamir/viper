@@ -16,7 +16,7 @@ const GREEN = berryTint(null);
 
 /**
  * Same rail as the duel (12 px outside the board); its fill is how full the board is. Snake Arena
- * fills it with the round's time instead, and says when it is nearly up.
+ * fills it with the round's time instead, calmly to the end.
  */
 export function paintRing(
   t: number,
