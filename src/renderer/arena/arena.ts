@@ -15,14 +15,14 @@ import {
   paintArenaTime,
   paintBeachRings,
   paintFlags,
-  paintLineEggs,
+  paintCrowdEggs,
   paintSleeperHeart,
   paintPodiumCrown,
   paintFlights,
   paintLikePops,
 } from './beach.ts';
 import { paintBoardShade, paintFood, paintSnakes } from './board-paint.ts';
-import { BOOST, PILOT, QUEUE, clearPaidQueue, isPilot, setPilot } from './entry.ts';
+import { BOOST, QUEUE, clearPaidQueue, isPilot, isPilotKey, setPilots } from './entry.ts';
 import { paintBeachHearts } from './lives.ts';
 import { paintActors, paintSeats } from './qualify-paint.ts';
 import { qualifying } from './qualify.ts';
@@ -64,7 +64,7 @@ export function setArenaSettings(next: ArenaSettings): void {
   options.ownerOnly = next.giftBerries === 'owner';
   brain.super = next.superAI;
   brain.backing = next.backing;
-  setPilot(next.pilot);
+  setPilots(next.pilot);
 }
 
 /** A new round: the board empties and whoever was in comes back. */
@@ -106,11 +106,18 @@ export function paintArenaBeach(t: number): void {
   paintBeachRings(t);
   paintSleeperHeart();
   paintBeachHearts();
-  paintLineEggs();
+  paintCrowdEggs();
   paintActors(t);
   paintLikePops();
   paintFlights();
 }
+
+/**
+ * Like cards on the alert card: in the qualifying, and all the time in continuous play (after the
+ * game's own cards, in the arena's order); never in the qualifying's battle, where the strip shows
+ * the likes.
+ */
+export const likeCards = (): boolean => qualifying() || arena.continuous;
 
 /** Share of the round gone, 0 to 1: the beach climbs with it, as with Feed's fill. */
 export const arenaProgress = (): number => Math.min(1, arena.time / TUNING.roundTime);
@@ -145,7 +152,7 @@ export function arenaPodium(): {
   berriesAlways: boolean;
 }[] {
   return arena.ranking
-    .filter((r) => r.nickname !== PILOT.key)
+    .filter((r) => !isPilotKey(r.nickname))
     .map((r) => ({
       nickname: r.nickname,
       avatar: r.avatar,

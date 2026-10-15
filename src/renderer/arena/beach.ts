@@ -154,6 +154,8 @@ const PHOTO = 39;
 let ranking: string[] = [];
 let rankedAt = -Infinity;
 const RANK_GAP = 1;
+/** In continuous play, the crabs' pictures this many times their usual size. */
+const PLAY_PHOTO = 1.25;
 /** Seconds of a crab's move to its new place, eased. */
 const MOVE = 0.6;
 
@@ -332,7 +334,8 @@ export function layOutBeach(): void {
           .filter((s) => !s.wild)
           .map((s) => s.nickname),
   );
-  const walks = { ease: MOVE, ground: podiumHeight };
+  // In continuous play the crabs hold bigger pictures, to be read on a phone.
+  const walks = { ease: MOVE, ground: podiumHeight, photo: arena.continuous ? PLAY_PHOTO : 1 };
   if (qualifying()) {
     // One compact group, evenly spaced (a picture's width between two), centred on the beach;
     // as animals come and go the others ease together, no gap left open.
@@ -516,14 +519,14 @@ export function paintSleeperHeart(): void {
 const EGG_TALL = 54;
 
 /**
- * Continuous play: a viewer waiting in line for a snake holds an egg, by their animal's picture on
- * the beach, at its upper right.
+ * Continuous play: every viewer not playing whose animal stands left of the podium holds an egg,
+ * by their animal's picture, at its upper right: one like hatches a snake of their own.
  */
-export function paintLineEggs(): void {
+export function paintCrowdEggs(): void {
   if (!arena.continuous) return;
   const c = ctx,
     faces = crabFaces();
-  for (const w of arena.line) {
+  for (const w of beachCrowd()) {
     const f = faces.get(w.nickname);
     if (!f) continue;
     const r = f.r * CRAB_PHOTO,

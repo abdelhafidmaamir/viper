@@ -56,6 +56,7 @@ import {
   arenaProgress,
   arenaPodium,
   layOutBeach,
+  likeCards,
   newArenaRound,
   paintArena,
   paintArenaBeach,
@@ -237,8 +238,9 @@ function step(dt: number): void {
   t += dt;
   simulate(dt);
   advanceArena(dt);
-  // Likes are on the card in the qualifying only: in the battle the like strip shows them.
-  setLikeAlerts(qualifying());
+  // Likes are on the card in the qualifying and in continuous play; in the qualifying's battle the
+  // like strip shows them.
+  setLikeAlerts(likeCards());
   placeCard(dt);
   updateAlerts(dt);
   // Supporter entrances wait while the board is not in play (qualifying, get ready, end screen).

@@ -75,7 +75,7 @@ describe('arena link', () => {
     setArenaSettings({
       ...ARENA_DEFAULTS,
       continuous: false,
-      pilot: false,
+      pilot: 0,
       wildSnakes: 0,
       giftSeats: true,
     });
@@ -141,7 +141,7 @@ describe('arena link', () => {
     setArenaSettings({
       ...ARENA_DEFAULTS,
       continuous: false,
-      pilot: false,
+      pilot: 0,
       wildSnakes: 0,
       giftSeats: true,
       lifeOn: true,

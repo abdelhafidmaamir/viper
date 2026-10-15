@@ -34,6 +34,7 @@ import {
   anyGiftBuys,
   fired,
   isPilot,
+  pickPilots,
   paidHooks,
   stepQueue,
   takePaidBatch,
@@ -100,6 +101,8 @@ function pourOf({ nickname, avatar }: Queued, id: number): Pour {
 export function arenaRound(roundTime: number): void {
   // Continuous play (continuous.ts) from this round on, or the qualifying's rounds: the switch
   // applies here. Owners keep their snakes, and their berries left on the board pour again.
+  // Every pilot shows a new supporter this round.
+  pickPilots();
   const owners = TUNING.continuous ? keepOwners() : null;
   arena.continuous = owners !== null;
   if (!owners) clearPlay();

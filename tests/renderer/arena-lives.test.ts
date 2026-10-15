@@ -51,7 +51,7 @@ function fresh(extra: Partial<ArenaSettings> = {}, seed = 7): void {
   setArenaSettings({
     ...ARENA_DEFAULTS,
     continuous: false,
-    pilot: false,
+    pilot: 0,
     wildSnakes: 0,
     lifeOn: true,
     ...extra,

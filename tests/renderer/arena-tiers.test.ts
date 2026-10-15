@@ -29,7 +29,7 @@ describe.skipIf(!ROUNDS)('snake arena: survival tiers, measured', () => {
     setArenaSettings({
       ...ARENA_DEFAULTS,
       continuous: false,
-      pilot: false,
+      pilot: 0,
       wildSnakes: 0,
       roundLength: 120,
     });

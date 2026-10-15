@@ -40,7 +40,7 @@ async function battles(from: number, to: number, continuous: boolean): Promise<R
   setArenaSettings({
     ...ARENA_DEFAULTS,
     places: 8,
-    pilot: false,
+    pilot: 0,
     wildSnakes: 0,
     roundLength: 120,
     continuous,

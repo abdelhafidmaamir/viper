@@ -21,13 +21,11 @@
 import { READY_TIME, hooks, game, type Pour } from '../feed/state.ts';
 import { FCOLS, MOUTH } from '../feed/grid.ts';
 import {
-  PILOT,
+  isPilotKey,
   bumps,
   clearQueue,
   faceOf,
   leaveQueue,
-  pilotAvatar,
-  pilotPlaying,
   qualHooks,
   queueLike,
   updatePilot,
@@ -569,7 +567,6 @@ export function stepQualifying(dt: number): void {
   qual.swapT += dt;
   qual.reorderT += dt;
   updatePilot(dt);
-  if (pilotPlaying() && !arena.viewers.has(PILOT.key)) viewer(PILOT.key, pilotAvatar());
   // Empty seats go to the best likers at once.
   for (const seat of seats) {
     if (seat.holder) continue;
@@ -667,7 +664,7 @@ export function endQualifying(): void {
     s.paid = !!v && isLocked(v.nickname);
     s.egg.t = EMERGE - HATCH_AT;
   }
-  arena.started = arena.snakes.filter((s) => s.alive && !s.wild && s.nickname !== PILOT.key).length;
+  arena.started = arena.snakes.filter((s) => s.alive && !s.wild && !isPilotKey(s.nickname)).length;
   seats.length = 0;
   challengers = [];
   actors.clear();

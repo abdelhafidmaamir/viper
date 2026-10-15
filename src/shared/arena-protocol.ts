@@ -41,6 +41,8 @@ export const ARENA_MAX_LIVES = [1, 2, 3, 5] as const;
 export const ARENA_LIFE_KEEPS = [0.25, 0.5, 0.75, 1] as const;
 /** Seconds without a like before a waiting animal leaves its queue spot. */
 export const ARENA_QUEUE_IDLES = [3, 5, 10, 15] as const;
+/** Pilot snakes: the game's own players, each under a top supporter's picture and name. */
+export const ARENA_PILOTS = [0, 1, 2, 3, 4] as const;
 /** Lives a player's snake holds at most in continuous play, one more per gift. */
 export const ARENA_LIVES_MAX = [1, 2, 3, 4, 5] as const;
 /** Seconds without a like before a player with no life left gives their snake back. */
@@ -97,8 +99,11 @@ export interface ArenaSettings {
   readonly maxLives: number;
   /** Share of length kept on a life (ARENA_LIFE_KEEPS). */
   readonly lifeKeep: number;
-  /** The game's own player, "Viper", plays to show viewers how it works. */
-  readonly pilot: boolean;
+  /**
+   * Pilot snakes (ARENA_PILOTS): the game's own players show viewers how it works, each under a top
+   * supporter's picture and name. Saved as on or off before: on reads as 2, off as 0.
+   */
+  readonly pilot: number;
   /** The qualifying's like counts show the prod heart before the number. */
   readonly likeHeart: boolean;
   /** Every snake plays the strong brain; off, the calm one. */
@@ -138,7 +143,7 @@ export const ARENA_DEFAULTS: ArenaSettings = {
   lifePrice: 30,
   maxLives: 3,
   lifeKeep: 0.5,
-  pilot: false,
+  pilot: 2,
   likeHeart: true,
   superAI: false,
   continuous: true,
@@ -247,6 +252,9 @@ export function sanitizeArenaSetting<K extends ArenaSettingName>(
       return listed(ARENA_PLAIN_EVERY, value) ? ok(value) : undefined;
     case 'plainAmount':
       return listed(ARENA_PLAIN_AMOUNTS, value) ? ok(value) : undefined;
+    case 'pilot':
+      if (typeof value === 'boolean') return ok(value ? 2 : 0);
+      return listed(ARENA_PILOTS, value) ? ok(value) : undefined;
     case 'livesMax':
       return listed(ARENA_LIVES_MAX, value) ? ok(value) : undefined;
     case 'idleRelease':
@@ -257,7 +265,6 @@ export function sanitizeArenaSetting<K extends ArenaSettingName>(
     case 'lifeOn':
     case 'likeBoost':
     case 'likeHeart':
-    case 'pilot':
     case 'superAI':
       return typeof value === 'boolean' ? ok(value) : undefined;
   }

@@ -81,6 +81,8 @@ export interface CrabWalks {
   readonly ease?: number;
   /** Height of the sand under a spot, above the line the feet keep: a crab stands on it. */
   readonly ground?: (x: number) => number;
+  /** The pictures the crabs hold, this many times their usual size (1 unless said). */
+  readonly photo?: number;
 }
 let managed: ({ spots: readonly CrabSpot[] } & CrabWalks) | null = null;
 /** A spot's tag text size, in game units: read on a phone, where the stream is 390 px wide. */
@@ -381,11 +383,11 @@ let toGame: DOMMatrix | null = null;
 export const crabFaces = (): ReadonlyMap<string, { x: number; y: number; r: number }> => drawnFaces;
 
 /** The picture just drawn at (0, cy) under the current transform, kept for this frame. */
-function noteFace(nickname: string | undefined, cy: number): void {
+function noteFace(nickname: string | undefined, cy: number, k = 1): void {
   if (!nickname || !toGame) return;
   const m = toGame.multiply(ctx.getTransform()),
     p = m.transformPoint({ x: 0, y: cy });
-  drawnFaces.set(nickname, { x: p.x, y: p.y, r: (FACE / 2) * Math.hypot(m.a, m.b) });
+  drawnFaces.set(nickname, { x: p.x, y: p.y, r: ((FACE * k) / 2) * Math.hypot(m.a, m.b) });
 }
 
 /** A viewer's animal leaves the beach at once (Snake Arena's own player, switched off). */
@@ -664,9 +666,11 @@ export function paintCrabs(t: number, rise: number, reduced: boolean, weather: W
     );
     g.restore();
     // The picture follows the arms without being squashed with them.
-    const fy = 12 + (-54 - kind.lift) * tall;
-    g.drawImage(face(crab), -FACE / 2, fy - FACE / 2, FACE, FACE);
-    noteFace(crab.nickname, fy);
+    const fy = 12 + (-54 - kind.lift) * tall,
+      fk = managed?.photo ?? 1,
+      fs = FACE * fk;
+    g.drawImage(face(crab), -fs / 2, fy - fs / 2, fs, fs);
+    noteFace(crab.nickname, fy, fk);
     const tag = spot?.tag;
     if (tag) {
       // A descriptive tag over the picture ("NEXT"), TAG_SIZE game units high at any animal size.
@@ -675,7 +679,7 @@ export function paintCrabs(t: number, rise: number, reduced: boolean, weather: W
       g.textAlign = 'center';
       g.textBaseline = 'middle';
       const tw = g.measureText(tag).width + 14 * u,
-        ty = fy - FACE / 2 - 14 * u;
+        ty = fy - fs / 2 - 14 * u;
       g.fillStyle = 'rgba(12,20,15,0.82)';
       g.beginPath();
       g.roundRect(-tw / 2, ty - 11 * u, tw, 22 * u, 11 * u);
@@ -697,7 +701,7 @@ export function paintCrabs(t: number, rise: number, reduced: boolean, weather: W
     }
     // The crown goes to whoever of the five has liked the most.
     if (crab === leader || spot?.crown)
-      crown(0, fy - 35 + Math.sin(t * 3) * 1.2, 0.95, { x: 0, y: fy, r: FACE / 2 });
+      crown(0, fy - 35 * fk + Math.sin(t * 3) * 1.2, 0.95 * fk, { x: 0, y: fy, r: fs / 2 });
     g.restore();
     // One heart per like, drifting up from the picture and fading: a like spree is a stream of them.
     crab.hearts = crab.hearts.filter((born) => t - born < HEART);

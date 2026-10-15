@@ -95,7 +95,7 @@ function battle(n = 8): void {
     ...ARENA_DEFAULTS,
     continuous: false,
     places: n,
-    pilot: false,
+    pilot: 0,
     wildSnakes: 0,
   });
   let s = 7;
@@ -401,7 +401,7 @@ describe('snake arena: the alert card and the like strip', () => {
       ...ARENA_DEFAULTS,
       continuous: false,
       places: 4,
-      pilot: false,
+      pilot: 0,
       wildSnakes: 0,
       giftSeats: true,
     });

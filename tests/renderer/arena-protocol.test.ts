@@ -38,7 +38,7 @@ describe('arena protocol', () => {
     expect(sanitizeArenaSetting('lifePrice', 0)).toBeUndefined();
     expect(sanitizeArenaSetting('lifeKeep', 0.6)).toBeUndefined();
     expect(sanitizeArenaSetting('backing', 'strong')).toBe('strong');
-    for (const name of ['giftEntry', 'lifeOn', 'likeBoost', 'pilot', 'superAI'] as const) {
+    for (const name of ['giftEntry', 'lifeOn', 'likeBoost', 'superAI'] as const) {
       expect(sanitizeArenaSetting(name, true)).toBe(true);
       expect(sanitizeArenaSetting(name, 'yes')).toBeUndefined();
     }
@@ -61,7 +61,7 @@ describe('arena protocol', () => {
       backing: 'strong',
       superAI: false,
       roundLength: 120,
-      pilot: false,
+      pilot: 2,
     });
   });
 
@@ -78,6 +78,16 @@ describe('arena protocol', () => {
       ...ARENA_DEFAULTS,
       continuous: false,
     });
+  });
+
+  it('pilot snakes: 0 to 4, 2 by default; the old switch reads on as 2, off as 0', () => {
+    expect(ARENA_DEFAULTS.pilot).toBe(2);
+    expect(sanitizeArenaSetting('pilot', 4)).toBe(4);
+    expect(sanitizeArenaSetting('pilot', 5)).toBeUndefined();
+    expect(sanitizeArenaSetting('pilot', true)).toBe(2);
+    expect(sanitizeArenaSetting('pilot', false)).toBe(0);
+    expect(readArenaSettings(JSON.stringify({ pilot: true })).pilot).toBe(2);
+    expect(readArenaSettings(JSON.stringify({ pilot: false })).pilot).toBe(0);
   });
 
   it('every default is a value the game accepts', () => {

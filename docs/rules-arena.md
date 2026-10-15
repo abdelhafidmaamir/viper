@@ -30,9 +30,10 @@ the game is the qualifying's, below, exactly as before. On (code in `continuous.
 | No life | A crash: the snake falls, its owner goes back to the beach, one like takes a snake again. A player with no life left and no like for `idleRelease` seconds gives the snake back: it leaves, the computer's hatches small at its place                                                                                                                       |
 | Hearts  | On the rim of the owner's photo, round its lower side, and under their crab when on the podium                                                                                                                                                                                                                                                              |
 | Crown   | On the longest player's snake; the podium shows the 3 longest, as in the battle                                                                                                                                                                                                                                                                             |
-| Beach   | Left of the podium, 5 places for viewers not playing: those in line first (their crab holds an egg), then the latest arrivals (a join, or a snake just lost), about 30 s each or until newer ones come. The sleeping crab shows anyone here, as on Feed; its heart holds the egg and the bolt in turn, 3 s each                                             |
+| Beach   | Left of the podium, 5 places for viewers not playing: those in line first, then the latest arrivals (a join, or a snake just lost), about 30 s each or until newer ones come. Every one of their crabs holds an egg. The sleeping crab shows anyone here, as on Feed; its heart holds the egg and the bolt in turn, 3 s each                                |
 | Line    | A like waiter with no like for `idleRelease` seconds leaves it; a gift waiter keeps their place                                                                                                                                                                                                                                                             |
 | Unused  | "Gifts buy seats" is hidden, no seat or paid queue exists. `wildSnakes` and `queueIdle` do nothing                                                                                                                                                                                                                                                          |
+| Alerts  | The like card shows all the time, after the game's own cards; the end screen shows the berries eaten, no seconds before the next round                                                                                                                                                                                                                      |
 | Journal | `takes a snake` (by like or by gift), `snake back to the computer` (crash or no like), `life used` (lives left), `round won` (length)                                                                                                                                                                                                                       |
 
 ## 1. The qualifying (30 s)
@@ -173,7 +174,7 @@ at once (an elimination, a speed boost, waiting or on screen) and the strip with
 the battle shows over the end screen.
 
 The like strip, in the battle only: one row of compact chips just under the board's bottom line,
-centred, one for every living player from GO (the pilot included), an empty ring included, in
+centred, one for every living player from GO (the pilots included), an empty ring included, in
 the qualifying's seat order for the whole battle (likes never reshuffle it). A player who falls
 loses their chip, eased out, and the others slide together. A chip is 1.24 times the base chip (88 by 86, the
 ringed photo's box, 76, with 6 each side), about 107 high: the photo and its thin ring fill its
@@ -200,20 +201,25 @@ ate, 0 included; the headline counts the same berries. No berry carries over: th
 board empty. A gift during the end screen locks nothing: while gifts buy seats, its giver joins
 the paid queue (with a seat price set, only the seat gift's giver).
 
-## Lives and the pilot
+## Lives and the pilots
 
 - The extra-life gift, set on the Money tab (`lifeOn`, off by default): a gift at `lifePrice`
   coins gives a life instead of berries, up to `maxLives`, shown as prod hearts by the photo and
   under the crab. A snake with a life that dies comes back from a new egg in the same colour with
   `lifeKeep` of its length. It buys a seat as any gift does while gifts buy seats and `seatPrice`
   is 0, never once a seat price is set.
-- `pilot` (off by default): the game's own player, "Skohlds", likes as an engaged viewer does
-  (`PILOT_LIKES` in `entry.ts`): in the qualifying bursts of 5 to 15 likes every 0.5 to 1 s; in the
+- `pilot`, "Pilot snakes" (0 to 4, 2 by default; a setting saved as on reads as 2, off as 0): the
+  game's own players. Each shows a top supporter's own picture and name, picked at random each
+  round among the lifetime supporters list's first 20 by berries whose picture is known: never two
+  pilots as one person, never someone playing for real (if that person comes to play, the pilot
+  shows someone else at its next snake), never initials; with fewer such supporters, fewer pilots
+  play. Each likes as an engaged viewer does (`PILOT_LIKES` in `entry.ts`): in the qualifying bursts of 5 to 15 likes every 0.5 to 1 s; in the
   battle a burst every 0.5 to 1 s, sized to fire a speed boost every 15 to 25 s, whatever
   `entryLikes` is. Its likes go the way a viewer's do: hearts round its photo and the like card in
   the qualifying, its ring and chip in the battle, where its boosts dash, grow its snake and show
-  the SPEED BOOST card under its name. It plays when it gets a seat. It never ranks, never wears
-  the crown, never wins, and has no journal row or supporters list entry.
+  the SPEED BOOST card under its name. It plays when it gets a seat, or in continuous play takes a
+  snake as a viewer does. It never ranks, never wears the crown, never wins, and has no journal
+  row or supporters list entry.
 
 ## Settings
 
@@ -227,7 +233,7 @@ apart, under `viper-arena-settings`, and do not travel with the supporters list.
 | `likeBoost`   | on, off               | on       | `wildSnakes`  | 0, 2, 4, 6                | 4       |
 | `boostCap`    | 3, 6, 10 s            | 6        | `speed`       | 5 to 9 cells/s            | 7       |
 | `queueIdle`   | 3, 5, 10, 15 s        | 5        | `superAI`     | on, off                   | off     |
-| `backing`     | off, light, strong    | `strong` | `pilot`       | on, off                   | off     |
+| `backing`     | off, light, strong    | `strong` | `pilot`       | 0 to 4                    | 2       |
 | `seatPrice`   | 0 to 50000 coins      | 0        | `lifePrice`   | 10, 20, 30, 99, 199 coins | 30      |
 | `giftSeats`   | on, off               | off      | `likeHeart`   | on, off                   | on      |
 | `plainAmount` | 0 to 6                | 3        | `plainEvery`  | 1, 2, 3, 5, 10, 15, 25 s  | 2       |
@@ -239,9 +245,6 @@ stays on the beach without a like. `plainAmount` is the plain berries the flower
 board, `plainEvery` the seconds before a new one after one is eaten. `giftEntry` is kept in the
 protocol but no longer used by the arena. `continuous` is "Continuous play", `livesMax` "Lives at
 most", `idleRelease` "Free snake back after".
-
-The pilot plays under skohlds' own TikTok picture, wherever it shows, as soon as the game knows it:
-from any event of skohlds on the live, or from the supporters list. Until then, its initials.
 
 The simulated audience (Rehearsal tab) is 10, 100 or 700 made-up viewers liking and giving at
 rates that scale with the room; during the qualifying it gives about one gift for a medium room.

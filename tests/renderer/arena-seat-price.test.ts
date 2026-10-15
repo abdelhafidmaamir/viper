@@ -70,7 +70,7 @@ function fresh(extra: Partial<ArenaSettings> = {}, seed = 7): void {
     ...ARENA_DEFAULTS,
     continuous: false,
     places: 6,
-    pilot: false,
+    pilot: 0,
     wildSnakes: 0,
     giftSeats: true,
     ...extra,

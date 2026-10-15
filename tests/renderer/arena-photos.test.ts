@@ -30,7 +30,7 @@ describe.skipIf(!SECONDS)('snake arena: photos and bodies, measured', () => {
       ...ARENA_DEFAULTS,
       continuous: false,
       places: 8,
-      pilot: false,
+      pilot: 0,
       wildSnakes: 0,
       roundLength: 120,
     });

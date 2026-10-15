@@ -14,7 +14,7 @@
 
 import { note, type Row } from '../feed/journal.ts';
 import { game, repay } from '../feed/state.ts';
-import { PILOT, playHooks, rings } from './entry.ts';
+import { isPilotKey, playHooks, rings } from './entry.ts';
 import {
   EMERGE,
   TUNING,
@@ -46,7 +46,7 @@ export const PLAY = {
 
 /** The game's own player writes no journal row. */
 function journal(row: Row): void {
-  if (row.nickname !== PILOT.key) note(row);
+  if (!isPilotKey(row.nickname ?? '')) note(row);
 }
 
 /** The computer's snakes out of their eggs: free to take. */
@@ -182,7 +182,7 @@ function fill(dt: number): void {
 
 /** A viewer arrived on the live: their animal shows on the beach a while (beach.ts). */
 export function arrive(nickname: string, avatar: string | undefined): void {
-  if (!arena.continuous || !nickname || nickname === PILOT.key) return;
+  if (!arena.continuous || !nickname || isPilotKey(nickname)) return;
   const i = arena.arrivals.findIndex((a) => a.nickname === nickname);
   if (i >= 0) arena.arrivals.splice(i, 1);
   arena.arrivals.push({ nickname, avatar, at: arena.clock });
@@ -233,7 +233,7 @@ export function stepPlay(dt: number): void {
   arena.breaks = arena.breaks.filter((b) => b.t < PLAY.heart && b.s.alive);
   if (arena.phase !== 'play') return;
   for (const s of alive()) {
-    if (s.wild || s.lives > 0 || s.nickname === PILOT.key) continue;
+    if (s.wild || s.lives > 0 || isPilotKey(s.nickname)) continue;
     const acts = arena.viewers.get(s.nickname)?.acts ?? [],
       last = Math.max(acts[acts.length - 1] ?? -Infinity, s.taken ?? -Infinity);
     if (now - last > TUNING.idleRelease) release(s);

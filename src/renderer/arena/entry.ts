@@ -11,15 +11,16 @@
 // line, the qualifying goes by likes alone and a gift gives what a gift gives. Comments do
 // nothing.
 //
-// The pilot player, "Skohlds", shows newcomers how it works: it likes as an engaged viewer does,
-// in bursts through the qualifying and steadily through the battle, and plays when it gets a seat.
-// Its likes and boosts show as a viewer's do (hearts, the like card, its chip, the SPEED BOOST
-// card), but it is the game's own: no ranking, no crown, no win, no journal row, no supporters
-// list.
+// The pilot players show newcomers how it works, each under a top supporter's picture and name:
+// they like as an engaged viewer does, in bursts through the qualifying and steadily through the
+// battle, and play when they get a seat or a snake. Their likes and boosts show as a viewer's do
+// (hearts, the like card, their chip, the SPEED BOOST card), but they are the game's own: no
+// ranking, no crown, no win, no journal row, nothing in the supporters list.
 
 import { alertViewer } from '../feed/alerts.ts';
+import { photo } from '../feed/paint.ts';
 import { photoOf } from '../feed/state.ts';
-import { supporterPhotoByName } from '../feed/supporters.ts';
+import { topSupporters } from '../feed/supporters.ts';
 import { crabFaces, crabGone, crabRun } from '../feed/crabs.ts';
 import { H, W } from '../engine/layout.ts';
 import {
@@ -40,30 +41,20 @@ import {
 } from './rules.ts';
 
 /**
- * The pilot player's name on screen. It plays under a key no viewer can have, an "S" and an
- * invisible space: its picture is the prod initials circle, "S".
+ * The pilot players ("Pilot snakes" in the control room, 0 to 4) show newcomers how it works. Each
+ * plays under a key no viewer can have, an "S" and one invisible space or more, and shows a top
+ * supporter's own picture and name (pickPilot): never initials, never two pilots as one person,
+ * never someone playing for real.
  */
-export const PILOT = { name: 'Skohlds', key: 'S​' };
-let pilotOn = false;
-
-/**
- * The pilot plays under skohlds' own TikTok picture, everywhere it shows: skohlds is a viewer of
- * the live, so the game knows the link once any event of theirs came in (Feed's photos by name),
- * or from the supporters list (by id or name), looked up again every `every` seconds until found.
- * Until then, the initials.
- */
-export const PILOT_PHOTO = { viewer: 'skohlds', every: 1 };
-let photoAskedAt = -Infinity,
-  photoFound: string | undefined;
-export function pilotAvatar(now = arena.clock): string | undefined {
-  const named = photoOf(PILOT_PHOTO.viewer) ?? photoOf(PILOT.name);
-  if (named) return (photoFound = named);
-  if (!photoFound && now - photoAskedAt >= PILOT_PHOTO.every) {
-    photoAskedAt = now;
-    photoFound = supporterPhotoByName(PILOT_PHOTO.viewer);
-  }
-  return photoFound;
-}
+export const PILOT_KEYS: readonly string[] = [
+  'S\u200b',
+  'S\u200b\u200b',
+  'S\u200b\u200b\u200b',
+  'S\u200b\u200b\u200b\u200b',
+];
+/** The first pilot, the one the tests of a single pilot follow. */
+export const PILOT = { key: PILOT_KEYS[0] ?? '' };
+export const isPilotKey = (nickname: string): boolean => PILOT_KEYS.includes(nickname);
 
 /**
  * The qualifying's own rules (qualify.ts), set there: likes count in its race, a gift locks a seat
@@ -251,7 +242,7 @@ export function updateFlights(dt: number): void {
  * do nothing on the board.
  */
 export function arenaLike(nickname: string, avatar: string | undefined, n: number): void {
-  if (!nickname || n <= 0 || nickname === PILOT.key) return;
+  if (!nickname || n <= 0 || isPilotKey(nickname)) return;
   const v = viewer(nickname, avatar);
   v.acts.push(arena.clock);
   likeLands(nickname, n);
@@ -306,7 +297,7 @@ export function joinPaidQueue(nickname: string, avatar: string | undefined): voi
   if (
     !TUNING.giftSeats ||
     arena.continuous ||
-    nickname === PILOT.key ||
+    isPilotKey(nickname) ||
     paidQueue.some((q) => q.nickname === nickname)
   )
     return;
@@ -370,7 +361,7 @@ function shield(v: Viewer, s: Snake | undefined): void {
  * price set, it buys neither: its berries are all it gives. A big gift gives a shield.
  */
 export function arenaGift(nickname: string, avatar: string | undefined, berries: number): void {
-  if (!nickname || berries <= 0 || nickname === PILOT.key) return;
+  if (!nickname || berries <= 0 || isPilotKey(nickname)) return;
   const v = viewer(nickname, avatar);
   v.acts.push(arena.clock);
   v.gifted += berries;
@@ -407,7 +398,7 @@ export const isSeatGift = (coins: number): boolean =>
  * gift for the seats: in the qualifying it locks one, outside it the giver joins the paid queue.
  */
 export function arenaLife(nickname: string, avatar: string | undefined, n: number): void {
-  if (!nickname || n <= 0 || nickname === PILOT.key) return;
+  if (!nickname || n <= 0 || isPilotKey(nickname)) return;
   const v = viewer(nickname, avatar);
   v.acts.push(arena.clock);
   if (arena.continuous && !snakeOf(nickname)) playHooks.take(v, true);
@@ -424,7 +415,7 @@ export function arenaLife(nickname: string, avatar: string | undefined, n: numbe
  * viewer, however many. In the battle it lifts the player's tier, as any gift does.
  */
 export function arenaSeat(nickname: string, avatar: string | undefined, n: number): void {
-  if (!nickname || n <= 0 || nickname === PILOT.key) return;
+  if (!nickname || n <= 0 || isPilotKey(nickname)) return;
   const v = viewer(nickname, avatar);
   v.acts.push(arena.clock);
   backs(v, n);
@@ -500,27 +491,28 @@ export function stepQueue(): void {
 export const queueOrder = (): string[] =>
   queue.filter((w): w is Waiting => !!w).map((w) => w.nickname);
 
-// ---- the pilot player ----------------------------------------------------------------------
+// ---- the pilot players --------------------------------------------------------------------
 
-export const isPilot = (s: Snake): boolean => !s.wild && s.nickname === PILOT.key;
-
-/** The control room's "Pilot player" switch. Off takes its snake away at once. */
-export function setPilot(on: boolean): void {
-  if (on === pilotOn) return;
-  pilotOn = on;
-  if (on) return;
-  const s = snakeOf(PILOT.key);
-  if (s) leave(s);
-  for (let i = flights.length - 1; i >= 0; i--)
-    if (flights[i]?.nickname === PILOT.key) flights.splice(i, 1);
-  arena.viewers.delete(PILOT.key);
-  crabGone(PILOT.key);
-}
-
-export const pilotPlaying = (): boolean => pilotOn;
+export const isPilot = (s: Snake): boolean => !s.wild && isPilotKey(s.nickname);
 
 /**
- * How the pilot likes, as an engaged viewer does: in the qualifying, bursts of `burst` likes (from
+ * Where the pilots' faces come from: the lifetime supporters list's first `top` by berries, those
+ * whose picture is known, and whether a picture has loaded. Tests set their own.
+ */
+export const PILOTS = { top: 20 };
+export const pilotHooks: {
+  pool: () => readonly { nickname: string; avatar?: string | undefined }[];
+  ready: (url: string) => boolean;
+} = {
+  pool: () =>
+    topSupporters(PILOTS.top)
+      .filter((s) => s.berries > 0)
+      .map((s) => ({ nickname: s.nickname, avatar: s.avatar ?? photoOf(s.nickname) })),
+  ready: (url) => photo(url) === 'ready',
+};
+
+/**
+ * How a pilot likes, as an engaged viewer does: in the qualifying, bursts of `burst` likes (from
  * the first number to the second) every `gap` seconds; in the battle, a burst every `gap` seconds
  * too, sized so that its likes fire a speed boost every `boostEvery` seconds, whatever the likes
  * for a boost are set to. Each range is drawn from anew: a burst's size, the next gap, and the
@@ -536,42 +528,129 @@ export const PILOT_LIKES = {
 const between = (range: readonly [number, number]): number =>
   range[0] + (range[1] - range[0]) * arena.rand();
 
-/** The pilot's pace: seconds to its next burst, likes owed in the battle, the boost it aims at. */
-const pilot = { wait: 0, owed: 0, period: 20, boost: -Infinity };
+/**
+ * A pilot: its key, the supporter it shows, its pace (seconds to its next burst, likes owed in the
+ * battle, the boost it aims at), and whether it must show someone else at its next snake.
+ */
+interface Pilot {
+  readonly key: string;
+  who: { nickname: string; avatar: string } | null;
+  wait: number;
+  owed: number;
+  period: number;
+  boost: number;
+  repick: boolean;
+}
+const pilots: Pilot[] = PILOT_KEYS.map((key) => ({
+  key,
+  who: null,
+  wait: 0,
+  owed: 0,
+  period: 20,
+  boost: -Infinity,
+  repick: false,
+}));
+let pilotCount = 0;
+
+const active = (): Pilot[] => pilots.slice(0, pilotCount);
 
 /**
- * The pilot likes as a viewer would, through the same path: hearts round its picture and the like
- * card in the qualifying, its ring on the beach and on the strip in the battle.
+ * The pilot shows another supporter, at random among the pool's with a picture: never one another
+ * pilot shows, never one playing for real. None left: it sits out.
+ */
+function pickPilot(p: Pilot): void {
+  p.repick = false;
+  const taken = new Set(
+      active()
+        .filter((o) => o !== p && o.who)
+        .map((o) => o.who?.nickname),
+    ),
+    free = pilotHooks
+      .pool()
+      .filter(
+        (c): c is { nickname: string; avatar: string } =>
+          !!c.avatar && !!c.nickname && !taken.has(c.nickname) && !snakeOf(c.nickname),
+      );
+  const c = free[Math.floor(arena.rand() * free.length)];
+  p.who = c ? { nickname: c.nickname, avatar: c.avatar } : null;
+  if (c) viewer(p.key).avatar = c.avatar;
+}
+
+/** Each round start: every pilot shows a new supporter. */
+export function pickPilots(): void {
+  for (const p of active()) p.who = null;
+  for (const p of active()) pickPilot(p);
+}
+
+/** The control room's "Pilot snakes": that many play; the ones past it leave at once. */
+export function setPilots(n: number): void {
+  const count = Math.max(0, Math.min(PILOT_KEYS.length, Math.round(n)));
+  if (count === pilotCount) return;
+  for (const p of pilots.slice(count)) {
+    const s = snakeOf(p.key);
+    if (s) leave(s);
+    for (let i = flights.length - 1; i >= 0; i--)
+      if (flights[i]?.nickname === p.key) flights.splice(i, 1);
+    arena.viewers.delete(p.key);
+    crabGone(p.key);
+    p.who = null;
+  }
+  pilotCount = count;
+}
+
+export const pilotPlaying = (): boolean => pilotCount > 0;
+
+/**
+ * Each pilot likes as a viewer would, through the same path: hearts round its picture and the like
+ * card, its ring on the beach and on the strip in the battle; in continuous play its likes take it
+ * a snake. A pilot whose supporter came to play for real shows someone else at its next snake; it
+ * likes only once its picture has loaded.
  */
 export function updatePilot(dt: number): void {
   const battle = arena.phase === 'play';
-  if (!pilotOn || (!qualifying() && !battle)) return;
-  const me = viewer(PILOT.key, pilotAvatar()),
-    mine = snakeOf(PILOT.key);
-  if (mine && me.avatar) mine.avatar = me.avatar;
-  const boosted = fired.get(PILOT.key) ?? -Infinity;
-  if (battle && boosted !== pilot.boost) {
-    // A boost fired (or the battle began): the next one in a new while.
-    pilot.boost = boosted;
-    pilot.period = between(PILOT_LIKES.boostEvery);
+  if (!qualifying() && !battle) return;
+  for (const p of active()) {
+    const mine = snakeOf(p.key);
+    if (p.who && snakeOf(p.who.nickname)) p.repick = true;
+    if (!mine && (!p.who || p.repick)) pickPilot(p);
+    const who = p.who;
+    if (!who || !pilotHooks.ready(who.avatar)) continue;
+    viewer(p.key, who.avatar);
+    likePilot(p, who, battle, dt);
   }
-  // Likes owed in the battle only: none carry over from the qualifying or a round before.
-  pilot.owed = battle ? pilot.owed + (BOOST.likes / pilot.period) * dt : 0;
-  pilot.wait -= dt;
-  if (pilot.wait > 0) return;
-  pilot.wait = between(PILOT_LIKES.gap);
-  let n: number;
-  if (battle) {
-    n = Math.floor(pilot.owed);
-    pilot.owed -= n;
-  } else n = Math.round(between(PILOT_LIKES.burst));
-  if (n <= 0) return;
-  likeLands(PILOT.key, n);
-  // The like card, as a viewer's like gets one (only while the arena shows like cards).
-  alertViewer('like', PILOT.name, me.avatar, n);
 }
 
-/** The name under a picture. */
-export const nameOf = (nickname: string): string =>
-  nickname === PILOT.key ? PILOT.name : nickname;
+function likePilot(
+  p: Pilot,
+  who: { nickname: string; avatar: string },
+  battle: boolean,
+  dt: number,
+): void {
+  const boosted = fired.get(p.key) ?? -Infinity;
+  if (battle && boosted !== p.boost) {
+    // A boost fired (or the battle began): the next one in a new while.
+    p.boost = boosted;
+    p.period = between(PILOT_LIKES.boostEvery);
+  }
+  // Likes owed in the battle only: none carry over from the qualifying or a round before.
+  p.owed = battle ? p.owed + (BOOST.likes / p.period) * dt : 0;
+  p.wait -= dt;
+  if (p.wait > 0) return;
+  p.wait = between(PILOT_LIKES.gap);
+  let n: number;
+  if (battle) {
+    n = Math.floor(p.owed);
+    p.owed -= n;
+  } else n = Math.round(between(PILOT_LIKES.burst));
+  if (n <= 0) return;
+  likeLands(p.key, n);
+  // The like card, as a viewer's like gets one (only while the arena shows like cards).
+  alertViewer('like', who.nickname, who.avatar, n);
+}
+
+/** The name under a picture: a pilot's is its supporter's. */
+export function nameOf(nickname: string): string {
+  if (!isPilotKey(nickname)) return nickname;
+  return pilots.find((p) => p.key === nickname)?.who?.nickname ?? '';
+}
 export const shownName = (s: Snake): string => nameOf(s.nickname);

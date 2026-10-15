@@ -27,7 +27,7 @@ describe.skipIf(!BATTLES)('snake arena: heads through bodies, measured', () => {
       ...ARENA_DEFAULTS,
       continuous: false,
       places: 8,
-      pilot: false,
+      pilot: 0,
       wildSnakes: 0,
       roundLength: 120,
     });

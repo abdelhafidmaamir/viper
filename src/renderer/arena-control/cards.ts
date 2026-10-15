@@ -15,6 +15,7 @@ import {
   ARENA_MAX_LIVES,
   ARENA_PLACES,
   ARENA_PLAIN_AMOUNTS,
+  ARENA_PILOTS,
   ARENA_PLAIN_EVERY,
   ARENA_ROUND_LENGTHS,
   ARENA_SHIELD_GIFTS,
@@ -288,6 +289,13 @@ export function arenaCard(arena: ArenaSide, reason: Reason): FeedView {
     ),
     tuning(
       arena,
+      'pilot',
+      'Pilot snakes',
+      ARENA_PILOTS.map((value) => ({ value, label: value === 0 ? 'None' : String(value) })),
+      "The game's own players show how it works, each under the picture and name of one of the top 20 supporters, picked at random each round.",
+    ),
+    tuning(
+      arena,
       'backing',
       'Gifts make a snake smarter and safer',
       ARENA_BACKING.map((value) => ({ value, label: BACKING_LABELS[value] })),
@@ -302,7 +310,6 @@ export function arenaCard(arena: ArenaSide, reason: Reason): FeedView {
       'The board always plays: a like takes a free snake, a round starts again right after its end screen. Off: the qualifying, the eggs and the 3, 2, 1. Applies from the next round.',
     ),
     toggle(arena, 'likeBoost', 'Likes speed up the snake'),
-    toggle(arena, 'pilot', 'Pilot player', "The game's own player, Skohlds, shows how it works."),
     toggle(
       arena,
       'likeHeart',
@@ -331,7 +338,7 @@ export function arenaCard(arena: ArenaSide, reason: Reason): FeedView {
       setText(
         status,
         snakes
-          ? `On the board: ${String(snakes.viewers)} viewers, ${String(snakes.wild)} wild${snakes.pilot ? ', the pilot' : ''} · ${String(board.trapped ?? 0)} boxed in by their own body this round`
+          ? `On the board: ${String(snakes.viewers)} viewers, ${String(snakes.wild)} wild${snakes.pilot ? ', pilots' : ''} · ${String(board.trapped ?? 0)} boxed in by their own body this round`
           : '',
       );
     },

@@ -21,6 +21,8 @@ import {
   BOOST,
   PILOT,
   PILOT_LIKES,
+  nameOf,
+  pilotHooks,
   arenaLike,
   fired,
   flights,
@@ -139,7 +141,7 @@ function fresh(extra: Partial<ArenaSettings> = {}): void {
     ...ARENA_DEFAULTS,
     continuous: false,
     places: 6,
-    pilot: false,
+    pilot: 0,
     wildSnakes: 0,
     ...extra,
   });
@@ -403,7 +405,7 @@ describe('snake arena: "Gifts buy seats", off by default', () => {
       ...ARENA_DEFAULTS,
       continuous: false,
       places: 6,
-      pilot: false,
+      pilot: 0,
       wildSnakes: 0,
     });
     expect(paidQueue).toHaveLength(0);
@@ -412,6 +414,9 @@ describe('snake arena: "Gifts buy seats", off by default', () => {
 
 describe('snake arena: the pilot likes as an engaged viewer', () => {
   beforeAll(() => {
+    // A supporter with a loaded picture for the pilot to show.
+    pilotHooks.pool = () => [{ nickname: 'Skohlds', avatar: 'https://p.test/skohlds.jpg' }];
+    pilotHooks.ready = () => true;
     hooks.round = () => {
       newArenaRound();
     };
@@ -419,7 +424,7 @@ describe('snake arena: the pilot likes as an engaged viewer', () => {
   });
 
   it('bursts of 5 to 15 likes every 0.5 to 1 s in the qualifying, hearts round its picture', () => {
-    fresh({ pilot: true });
+    fresh({ pilot: 1 });
     let pops = 0;
     for (let i = 0; i < Math.round((QUALIFY.time - 1) / STEP); i++) {
       advanceArena(STEP);
@@ -433,11 +438,11 @@ describe('snake arena: the pilot likes as an engaged viewer', () => {
     expect(likes).toBeLessThanOrEqual((seconds / PILOT_LIKES.gap[0] + 1) * PILOT_LIKES.burst[1]);
     expect(holders()).toContain(PILOT.key);
     expect(pops).toBeGreaterThan(0);
-    setArenaSettings({ ...ARENA_DEFAULTS, continuous: false, pilot: false });
+    setArenaSettings({ ...ARENA_DEFAULTS, continuous: false, pilot: 0 });
   });
 
   it("its likes get the like card in the qualifying, as a viewer's do", () => {
-    fresh({ pilot: true });
+    fresh({ pilot: 1 });
     setAlertsOn(true);
     setAlertLook(ARENA_ALERTS);
     setLikeAlerts(true);
@@ -446,13 +451,13 @@ describe('snake arena: the pilot likes as an engaged viewer', () => {
     updateAlerts(0.01);
     const card = alertsState().current;
     expect(card?.kind).toBe('like');
-    expect(card?.nickname).toBe(PILOT.name);
+    expect(card?.nickname).toBe(nameOf(PILOT.key));
     setLikeAlerts(false);
-    setArenaSettings({ ...ARENA_DEFAULTS, continuous: false, pilot: false });
+    setArenaSettings({ ...ARENA_DEFAULTS, continuous: false, pilot: 0 });
   });
 
   it('in the battle, a speed boost every 15 to 25 s, its chip on the strip', () => {
-    fresh({ pilot: true });
+    fresh({ pilot: 1 });
     like('ana', 3);
     run(QUALIFY.time + QUALIFY.freeze + READY_TIME + 0.5);
     expect(arena.phase).toBe('play');
@@ -476,7 +481,7 @@ describe('snake arena: the pilot likes as an engaged viewer', () => {
     expect(stripState().find((c) => c.nickname === PILOT.key)?.full).toBe(true);
     updateAlerts(0.01);
     expect(alertsState().current?.kind).toBe('boost');
-    expect(alertsState().current?.nickname).toBe(PILOT.name);
+    expect(alertsState().current?.nickname).toBe(nameOf(PILOT.key));
     // Its pace alone, the board held still: the boosts it fires over 100 s.
     BOOST.likes = 100;
     const boosts: number[] = [];
@@ -495,7 +500,7 @@ describe('snake arena: the pilot likes as an engaged viewer', () => {
       expect(gap).toBeGreaterThanOrEqual(PILOT_LIKES.boostEvery[0] - 1.5);
       expect(gap).toBeLessThanOrEqual(PILOT_LIKES.boostEvery[1] + 1.5);
     }
-    setArenaSettings({ ...ARENA_DEFAULTS, continuous: false, pilot: false });
+    setArenaSettings({ ...ARENA_DEFAULTS, continuous: false, pilot: 0 });
   });
 });
 

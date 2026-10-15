@@ -29,7 +29,7 @@ const run = (seconds: number): void => {
 
 /** A new continuous round, seeded, its eggs hatched. */
 function fresh(extra: Partial<ArenaSettings> = {}, seed = 7): void {
-  setArenaSettings({ ...ARENA_DEFAULTS, pilot: false, ...extra });
+  setArenaSettings({ ...ARENA_DEFAULTS, pilot: 0, ...extra });
   let s = seed;
   arena.rand = () => ((s = (s * 16807) % 2147483647) - 1) / 2147483646;
   arena.viewers.clear();
@@ -296,7 +296,7 @@ describe('snake arena: continuous play', () => {
 
   it('switched off, the next round is the qualifying', () => {
     fresh({ roundLength: 60 });
-    setArenaSettings({ ...ARENA_DEFAULTS, pilot: false, roundLength: 60, continuous: false });
+    setArenaSettings({ ...ARENA_DEFAULTS, pilot: 0, roundLength: 60, continuous: false });
     expect(arena.continuous).toBe(true);
     run(60 + roundHold() + 0.2);
     expect(qualifying()).toBe(true);
@@ -313,26 +313,59 @@ describe('snake arena: continuous play', () => {
   });
 });
 
-describe("snake arena: the pilot shows skohlds' own picture", () => {
-  it('found by name among the photos the live sent, else in the supporters list, else none', async () => {
-    const { PILOT, pilotAvatar } = await import('../../src/renderer/arena/entry.ts');
-    const { notePhoto } = await import('../../src/renderer/feed/state.ts');
-    const { restoreSupporters } = await import('../../src/renderer/feed/supporters.ts');
-    expect(pilotAvatar(0)).toBeUndefined();
-    restoreSupporters(
-      JSON.stringify({
-        savedAt: 1,
-        supporters: [
-          { id: 'skohlds', nickname: 'skohlds', berries: 3, avatar: 'https://p.test/kept.jpg' },
-        ],
-      }),
-    );
-    // Asked again a second later: the list has it now.
-    expect(pilotAvatar(2)).toBe('https://p.test/kept.jpg');
-    // An event from skohlds on the live: the latest link wins.
-    notePhoto('skohlds', 'https://p.test/live.jpg');
-    expect(pilotAvatar(3)).toBe('https://p.test/live.jpg');
-    expect(PILOT.name.toLowerCase()).toBe('skohlds');
+describe('snake arena: pilot snakes under top supporters', () => {
+  it('each shows a different top supporter with a picture, never one playing for real; fewer when short', async () => {
+    const { PILOT_KEYS, nameOf, pilotHooks } = await import('../../src/renderer/arena/entry.ts');
+    const was = { ...pilotHooks };
+    pilotHooks.pool = () => [
+      { nickname: 'tomy', avatar: 'https://p.test/tomy.jpg' },
+      { nickname: 'kapa', avatar: 'https://p.test/kapa.jpg' },
+      { nickname: 'nopic', avatar: undefined },
+      { nickname: 'ana', avatar: 'https://p.test/ana.jpg' },
+    ];
+    pilotHooks.ready = () => true;
+    try {
+      fresh({ pilot: 0 });
+      board.like('ana', undefined, 1);
+      setArenaSettings({ ...ARENA_DEFAULTS, pilot: 4 });
+      newRound();
+      run(3);
+      const shown = PILOT_KEYS.map((k) => nameOf(k)).filter(Boolean);
+      // Four pilots asked, two supporters free with a picture: ana plays for real, nopic has none.
+      expect(shown.sort()).toEqual(['kapa', 'tomy']);
+      const playing = PILOT_KEYS.filter((k) => snakeOf(k));
+      expect(playing).toHaveLength(2);
+      for (const k of playing) expect(snakeOf(k)?.avatar).toMatch(/^https:/);
+    } finally {
+      Object.assign(pilotHooks, was);
+      setArenaSettings({ ...ARENA_DEFAULTS, pilot: 0 });
+    }
+  });
+
+  it('their likes and snakes write nothing to the journal or the supporters list', async () => {
+    const { PILOT_KEYS, pilotHooks } = await import('../../src/renderer/arena/entry.ts');
+    const { supportersText, topSupporters } = await import('../../src/renderer/feed/supporters.ts');
+    const was = { ...pilotHooks };
+    pilotHooks.pool = () => [
+      { nickname: 'tomy', avatar: 'https://p.test/tomy.jpg' },
+      { nickname: 'kapa', avatar: 'https://p.test/kapa.jpg' },
+    ];
+    pilotHooks.ready = () => true;
+    try {
+      fresh({ pilot: 2 });
+      const before = JSON.stringify(topSupporters(50));
+      supportersText();
+      drainJournal(false);
+      run(20);
+      expect(PILOT_KEYS.filter((k) => snakeOf(k)).length).toBe(2);
+      const rows = drainJournal(false);
+      for (const name of ['tomy', 'kapa', ...PILOT_KEYS]) expect(rows).not.toContain(`;${name};`);
+      expect(JSON.stringify(topSupporters(50))).toBe(before);
+      expect(supportersText()).toBeNull();
+    } finally {
+      Object.assign(pilotHooks, was);
+      setArenaSettings({ ...ARENA_DEFAULTS, pilot: 0 });
+    }
   });
 });
 
@@ -377,5 +410,29 @@ describe('snake arena: continuous play on screen', () => {
     }
     expect(texts.some((t) => t.includes('26'))).toBe(true);
     expect(texts.some((t) => /next round|\ds\b/.test(t))).toBe(false);
+  });
+});
+
+describe('snake arena: like cards', () => {
+  it('on all the time in continuous play; switched off, in the qualifying only', async () => {
+    const { likeCards } = await import('../../src/renderer/arena/arena.ts');
+    const { QUALIFY } = await import('../../src/renderer/arena/qualify.ts');
+    fresh();
+    expect(likeCards()).toBe(true);
+    run(5);
+    expect(likeCards()).toBe(true);
+    const was = QUALIFY.time;
+    QUALIFY.time = 30;
+    try {
+      setArenaSettings({ ...ARENA_DEFAULTS, pilot: 0, continuous: false });
+      newRound();
+      expect(qualifying()).toBe(true);
+      expect(likeCards()).toBe(true);
+      run(30 + QUALIFY.freeze + 4);
+      expect(arena.phase).toBe('play');
+      expect(likeCards()).toBe(false);
+    } finally {
+      QUALIFY.time = was;
+    }
   });
 });
