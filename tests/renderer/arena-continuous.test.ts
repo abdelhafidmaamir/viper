@@ -335,3 +335,47 @@ describe("snake arena: the pilot shows skohlds' own picture", () => {
     expect(PILOT.name.toLowerCase()).toBe('skohlds');
   });
 });
+
+describe('snake arena: continuous play on screen', () => {
+  it("a player's hearts sit on the rim of their own photo", async () => {
+    const { HEART, rimHeart } = await import('../../src/renderer/arena/lives.ts');
+    const r = TUNING.photoR;
+    for (let i = 0; i < 5; i++)
+      for (const x of [300, 1050]) {
+        const p = rimHeart(x, 600, r, i);
+        expect(Math.hypot(p.x - x, p.y - 600)).toBeLessThanOrEqual(r + HEART.board / 2);
+        expect(p.y).toBeGreaterThan(600);
+      }
+  });
+
+  it('the end screen shows the berries eaten, no seconds before the next round', async () => {
+    const { setCtx } = await import('../../src/renderer/engine/canvas.ts');
+    const { paintRoundEnd } = await import('../../src/renderer/feed/leaderboard.ts');
+    const texts: string[] = [];
+    const fake = new Proxy(
+      {},
+      {
+        get: (_t, key) =>
+          key === 'fillText'
+            ? (text: string) => texts.push(text)
+            : key === 'measureText'
+              ? () => ({ width: 10 })
+              : key === 'createLinearGradient' || key === 'createRadialGradient'
+                ? () => ({ addColorStop: () => undefined })
+                : () => undefined,
+        set: () => true,
+      },
+    );
+    const was = setCtx(fake as unknown as CanvasRenderingContext2D);
+    game.full = 1;
+    game.eaten = 26;
+    try {
+      paintRoundEnd(1, 0, 'GUS WINS', [], false);
+    } finally {
+      setCtx(was);
+      game.full = -1;
+    }
+    expect(texts.some((t) => t.includes('26'))).toBe(true);
+    expect(texts.some((t) => /next round|\ds\b/.test(t))).toBe(false);
+  });
+});

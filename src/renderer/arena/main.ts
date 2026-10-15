@@ -259,8 +259,10 @@ function step(dt: number): void {
     paintArenaBeach(t);
     paintFlower(t);
     paintArenaTime();
-    // No berry carries over in the arena: the end screen shows the battle's ranking.
-    if (game.full >= 0) paintRoundEnd(performance.now() / 1000, 0, arenaHeadline(), arenaPodium());
+    // No berry carries over in the arena: the end screen shows the battle's ranking, and no
+    // seconds before the next round.
+    if (game.full >= 0)
+      paintRoundEnd(performance.now() / 1000, 0, arenaHeadline(), arenaPodium(), false);
     paintReady();
     paintSupporters(t);
     paintAlerts();

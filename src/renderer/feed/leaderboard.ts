@@ -224,6 +224,8 @@ export function paintRoundEnd(
   carried: number,
   headline?: string,
   podiumLines?: readonly Line[],
+  /** Snake Arena shows no seconds before the next round: false leaves them out. */
+  countdown = true,
 ): void {
   const c = ctx,
     a = game.full;
@@ -250,7 +252,9 @@ export function paintRoundEnd(
   c.fillStyle = 'rgba(255,255,255,0.85)';
   c.font = `700 26px ${FONT}`;
   c.fillText(
-    tr('feed.next', { n: game.eaten, q: String(Math.max(0, Math.ceil(roundHold() - a))) }),
+    countdown
+      ? tr('feed.next', { n: game.eaten, q: String(Math.max(0, Math.ceil(roundHold() - a))) })
+      : tr('arena.eaten', { n: game.eaten }),
     W / 2,
     298,
   );

@@ -614,6 +614,8 @@ function useLife(s: Snake, by: Snake | null): void {
   v.state = 'out';
   const next = spawn(v, s.colour);
   if (next) lifeHooks.reborn(next, photoAt(s));
+  // Continuous play: a life used, for the journal, whichever way it saved the snake.
+  if (next && arena.continuous) lifeHooks.absorbed(next);
   else arena.outs.push({ nickname: s.nickname, avatar: s.avatar });
 }
 
