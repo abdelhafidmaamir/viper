@@ -1,12 +1,13 @@
 // Snake Arena, continuous play (the control room's "Continuous play", on by default). The board
 // never empties: `places()` snakes always play, and a snake nobody owns is the computer's, a white
-// egg in its picture's circle and no name. A like from a viewer without a snake takes a free one at once: the computer's
-// snake leaves the board, an egg comes at its place and the viewer's snake hatches from it at the
-// starting length, their picture over it. With no snake free they wait in line, first like first,
-// and a gift goes ahead of the line. Each gift gives a life, up to "Lives at most", and a life
-// takes a crash for the snake (rules.ts absorb). A player with no life left who stops liking for
-// "Free snake back after" seconds gives the snake back to the computer (the same way: it leaves,
-// the computer's hatches small at its place), and so does a crash with no life left. A round ends
+// egg in its picture's circle and no name. A like from a viewer without a snake takes a free one
+// at once: the computer's snake leaves the board, an egg comes at its place and the viewer's snake
+// hatches from it at the starting length, their picture over it. With no snake free they wait in
+// line, first like first, and a gift goes ahead of the line. A life comes from the extra-life gift
+// alone (Money tab, when on), up to "Lives at most", and takes a crash for the snake (rules.ts
+// absorb). A player with no life left who has neither liked nor given for "Free snake back after"
+// seconds gives the snake back to the computer (the same way: it leaves, the computer's hatches
+// small at its place), and so does a crash with no life left. A round ends
 // on the clock alone; after its end screen the next one starts at once (round.ts): every snake
 // small again, every owner with their snake, its colour and their lives. The beach left of the
 // podium is for the viewers not playing: those in line first, holding an egg, then the latest

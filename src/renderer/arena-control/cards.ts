@@ -257,14 +257,14 @@ export function arenaCard(arena: ArenaSide, reason: Reason): FeedView {
       'livesMax',
       'Lives at most',
       ARENA_LIVES_MAX.map((value) => ({ value, label: String(value) })),
-      'In continuous play each gift gives one life, up to this many. A life takes a crash for the snake.',
+      'In continuous play the extra-life gift (Money tab) gives one life, up to this many. A life takes a crash for the snake.',
     ),
     tuning(
       arena,
       'idleRelease',
       'Free snake back after',
       ARENA_IDLE_RELEASES.map((value) => ({ value, label: `${String(value)} s` })),
-      'In continuous play, a player with no life left who stops liking gives their snake back to the computer.',
+      'In continuous play, a player with no life left who neither likes nor gives for this long gives their snake back to the computer.',
     ),
     tuning(
       arena,

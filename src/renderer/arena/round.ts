@@ -138,6 +138,8 @@ export function arenaRound(roundTime: number): void {
   seatCards.length = 0;
   cardShown.clear();
   if (owners) {
+    // Every gift in the flower now was shown when it came: its berries pour without a card.
+    silent.upTo = game.pours;
     startPlay(owners);
     return;
   }
@@ -250,7 +252,7 @@ function flower(dt: number): void {
   const outsider = (): Pour | undefined => {
     if (game.pour && shownGifts.has(game.pour.id) && game.pourT < OUTSIDER_SHOW) return game.pour;
     return game.queue.find(
-      (p) => p.nickname !== '' && !snakeOf(p.nickname) && !shownGifts.has(p.id),
+      (p) => p.nickname !== '' && !snakeOf(p.nickname) && !shownGifts.has(p.id) && !quiet(p),
     );
   };
   const seatCard = (): Pour | undefined =>
@@ -260,7 +262,7 @@ function flower(dt: number): void {
   const gift = qualifying()
     ? (showing() ?? (anyGiftBuys() ? null : outsider()))
     : (seatCard() ??
-      game.queue.find((p) => p.nickname !== '' && snakeOf(p.nickname)) ??
+      game.queue.find((p) => p.nickname !== '' && snakeOf(p.nickname) && !quiet(p)) ??
       outsider());
   // A gift has the flower first; with none, plain berries due open it with nobody's picture.
   const q = gift ?? plainOpening();
@@ -291,6 +293,32 @@ function flower(dt: number): void {
   }
   if (arena.dropT > every) arena.dropT = every;
   if (q && q === plain.pour) dropPlain(dt);
+  pourQuietly(dt);
+}
+
+/**
+ * Continuous play: gifts given before this round started (the round before, its end screen), and
+ * those of a giver who waited for a snake, were shown by the flower when they came. Their berries pour
+ * to their giver's snake at the flower's pace, the flower left as it is, without a second card.
+ */
+const silent = { upTo: 0, t: 0 };
+const quiet = (p: Pour): boolean =>
+  arena.continuous && p.id > 0 && (p.id <= silent.upTo || shownGifts.has(p.id));
+function pourQuietly(dt: number): void {
+  if (!arena.continuous || arena.phase !== 'play') return;
+  silent.t += dt;
+  const q = game.queue.find((p) => quiet(p) && p.n > 0 && snakeOf(p.nickname)?.in),
+    s = q ? snakeOf(q.nickname) : undefined;
+  if (!q || !s) {
+    silent.t = 0;
+    return;
+  }
+  const every = dripEvery(q.n);
+  while (silent.t >= every && q.n > 0) {
+    silent.t -= every;
+    dropNear(s, q.nickname);
+    if (--q.n <= 0) game.queue.splice(game.queue.indexOf(q), 1);
+  }
 }
 
 /**

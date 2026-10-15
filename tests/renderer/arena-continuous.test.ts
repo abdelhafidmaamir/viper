@@ -18,7 +18,7 @@ import {
   snakeOf,
   type Snake,
 } from '../../src/renderer/arena/rules.ts';
-import { board } from '../../src/renderer/feed/control-link.ts';
+import { board, receiveFeedEvent } from '../../src/renderer/feed/control-link.ts';
 import { drainJournal } from '../../src/renderer/feed/journal.ts';
 import { game, hooks, newRound, roundHold } from '../../src/renderer/feed/state.ts';
 
@@ -175,13 +175,23 @@ describe('snake arena: continuous play', () => {
     expect(alive()).toHaveLength(6);
   });
 
-  it('each gift gives a life up to "Lives at most"; a life takes a crash, the snake plays on', () => {
-    fresh({ livesMax: 2 });
+  it('a gift gives berries and no life; with the life gift off, a gift at its price neither', () => {
+    fresh({ lifeOn: false, lifePrice: 30 });
+    board.gift('zoe', undefined, 5);
+    receiveFeedEvent({ type: 'gift', name: 'Hat', value: 30, nickname: 'zoe' });
+    const s = snakeOf('zoe');
+    expect(s).toBeDefined();
+    expect(s?.lives).toBe(0);
+    expect(arena.viewers.get('zoe')?.lives ?? 0).toBe(0);
+  });
+
+  it('only the life gift gives a life, up to "Lives at most"; a life takes a crash, the snake plays on', () => {
+    fresh({ livesMax: 2, lifeOn: true, lifePrice: 30 });
     board.gift('zoe', undefined, 5);
     const s = snakeOf('zoe');
-    expect(s?.lives).toBe(1);
-    board.gift('zoe', undefined, 5);
-    board.gift('zoe', undefined, 5);
+    expect(s?.lives).toBe(0);
+    for (let i = 0; i < 3; i++)
+      receiveFeedEvent({ type: 'gift', name: 'Hat', value: 30, nickname: 'zoe' });
     expect(s?.lives).toBe(2);
     const other = computer()[0];
     if (!s || !other) throw new Error('no snakes');
@@ -245,7 +255,7 @@ describe('snake arena: continuous play', () => {
     expect(s.grow).toBe(grow);
   });
 
-  it('a player with no life left who stops liking gives the snake back; with a life, never', () => {
+  it('a player with no life who stops liking gives the snake back; a gift keeps it as long as a like', () => {
     fresh({ idleRelease: 30 });
     board.like('idle', undefined, 1);
     board.gift('kept', undefined, 1);
@@ -253,12 +263,15 @@ describe('snake arena: continuous play', () => {
       kept = snakeOf('kept');
     run(1);
     expect(idle && snakeOf('idle')).toBe(idle);
-    // 31 s since either liked or gave.
-    for (const name of ['idle', 'kept']) {
+    // 31 s since 'idle' liked, 10 s since 'kept' gave.
+    for (const [name, ago] of [
+      ['idle', 31],
+      ['kept', 10],
+    ] as const) {
       const v = arena.viewers.get(name),
         s = snakeOf(name);
       if (!v || !s) throw new Error('no snake');
-      v.acts = [arena.clock - 31];
+      v.acts = [arena.clock - ago];
       s.taken = arena.clock - 31;
     }
     run(STEP);
@@ -266,11 +279,17 @@ describe('snake arena: continuous play', () => {
     expect(snakeOf('idle')).toBeUndefined();
     expect(kept && snakeOf('kept')).toBe(kept);
     expect(events()).toContain('snake back to the computer idle');
+    // No life to hold it: 30 s after the gift, it goes back too.
+    const v = arena.viewers.get('kept');
+    if (v) v.acts = [arena.clock - 31];
+    run(STEP);
+    expect(snakeOf('kept')).toBeUndefined();
   });
 
   it('the clock alone ends the round; the next starts at once, small, owners and lives kept', () => {
-    fresh({ roundLength: 60 });
+    fresh({ roundLength: 60, lifeOn: true, lifePrice: 30 });
     board.gift('zoe', undefined, 1);
+    receiveFeedEvent({ type: 'gift', name: 'Hat', value: 30, nickname: 'zoe' });
     const was = snakeOf('zoe');
     if (!was) throw new Error('no snake');
     was.len = 30;
@@ -433,6 +452,56 @@ describe('snake arena: like cards', () => {
       expect(likeCards()).toBe(false);
     } finally {
       QUALIFY.time = was;
+    }
+  });
+});
+
+describe('snake arena: continuous play, the flower and the pictures', () => {
+  beforeAll(() => {
+    hooks.round = () => {
+      newArenaRound();
+    };
+    countOnArena();
+  });
+
+  it('a gift is shown once: at the next round its berries pour without a second card', () => {
+    fresh({ roundLength: 60 });
+    board.like('zoe', undefined, 1);
+    run(1.5);
+    run(58);
+    // A gift on the end screen: thanked as it comes, its berries for the round after.
+    board.gift('zoe', undefined, 6);
+    const shown = new Set<string>();
+    run(roundHold() + 0.2);
+    expect(arena.phase).toBe('play');
+    for (let i = 0; i < Math.round(4 / STEP); i++) {
+      advanceArena(STEP);
+      if (game.pour?.nickname) shown.add(game.pour.nickname);
+    }
+    expect(shown.has('zoe')).toBe(false);
+    expect(
+      arena.food.filter((f) => f.by === 'zoe').length + (snakeOf('zoe')?.eaten ?? 0),
+    ).toBeGreaterThan(0);
+  });
+
+  it('pictures never lie on top of each other, not even on the frame an egg is laid', async () => {
+    const { placePhotos, photoPlace } = await import('../../src/renderer/arena/board-paint.ts');
+    fresh({ places: 8 });
+    for (const n of ['a', 'b', 'c', 'd', 'e', 'f', 'g', 'h']) board.like(n, undefined, 1);
+    for (let i = 0; i < Math.round(3 / STEP); i++) {
+      advanceArena(STEP);
+      const heads = placePhotos(arena.clock);
+      for (let p = 0; p < heads.length; p++)
+        for (let q = p + 1; q < heads.length; q++) {
+          const sp = heads[p],
+            sq = heads[q],
+            a = sp && photoPlace(sp),
+            b = sq && photoPlace(sq);
+          if (!a || !b) continue;
+          expect(Math.hypot(a.x - b.x, a.y - b.y)).toBeGreaterThanOrEqual(
+            2 * TUNING.photoR * 0.9 - 0.5,
+          );
+        }
     }
   });
 });

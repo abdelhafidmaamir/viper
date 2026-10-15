@@ -44,7 +44,7 @@ export const TUNING = {
   lifeKeep: 0.5,
   /**
    * Continuous play (continuous.ts), as the control room last set it: the next round plays it
-   * (arena.continuous is this round's). Its lives at most, one per gift, and the seconds without a
+   * (arena.continuous is this round's). Its lives at most, from the life gift, and the seconds without a
    * like before a player with no life left gives their snake back.
    */
   continuous: false,

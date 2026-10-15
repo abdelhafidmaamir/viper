@@ -43,7 +43,7 @@ export const ARENA_LIFE_KEEPS = [0.25, 0.5, 0.75, 1] as const;
 export const ARENA_QUEUE_IDLES = [3, 5, 10, 15] as const;
 /** Pilot snakes: the game's own players, each under a top supporter's picture and name. */
 export const ARENA_PILOTS = [0, 1, 2, 3, 4] as const;
-/** Lives a player's snake holds at most in continuous play, one more per gift. */
+/** Lives a player's snake holds at most in continuous play, one more per extra-life gift. */
 export const ARENA_LIVES_MAX = [1, 2, 3, 4, 5] as const;
 /** Seconds without a like before a player with no life left gives their snake back. */
 export const ARENA_IDLE_RELEASES = [30, 60, 90, 120] as const;
@@ -114,7 +114,7 @@ export interface ArenaSettings {
    * from the next round.
    */
   readonly continuous: boolean;
-  /** In continuous play, the most lives a snake holds, one per gift (ARENA_LIVES_MAX). */
+  /** In continuous play, the most lives a snake holds, from the life gift (ARENA_LIVES_MAX). */
   readonly livesMax: number;
   /** In continuous play, seconds without a like before a snake goes back (ARENA_IDLE_RELEASES). */
   readonly idleRelease: number;

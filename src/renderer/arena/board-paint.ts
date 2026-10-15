@@ -427,6 +427,36 @@ function layOutHeads(heads: readonly Snake[], t: number): void {
       oy = prev ? prev.y + (w.y - prev.y) * k : w.y;
     return { s, x: b.x + ox, y: b.y + oy, ox, oy, prev, k };
   });
+  // The eased push may lag behind a picture that has just come (a hatch, a snake taken): the
+  // pictures are moved apart at once wherever they still overlap by more than OVERLAP, and the
+  // ease goes on from there, so two never lie on top of each other, not even for a frame.
+  for (let pass = 0; pass < 4; pass++)
+    for (let i = 0; i < placed.length; i++)
+      for (let j = i + 1; j < placed.length; j++) {
+        const a = placed[i],
+          b = placed[j];
+        if (!a || !b) continue;
+        let dx = b.x - a.x,
+          dy = b.y - a.y;
+        const d = Math.hypot(dx, dy);
+        if (d >= min) continue;
+        if (d < 0.01) {
+          dx = 1;
+          dy = 0;
+        } else {
+          dx /= d;
+          dy /= d;
+        }
+        const push = (min - d) / 2;
+        a.x -= dx * push;
+        a.y -= dy * push;
+        a.ox -= dx * push;
+        a.oy -= dy * push;
+        b.x += dx * push;
+        b.y += dy * push;
+        b.ox += dx * push;
+        b.oy += dy * push;
+      }
   for (const p of placed) {
     const mine = label(p.x, p.y, p.s.wild ? '' : shownName(p.s)),
       hidden = placed.some((o) => {
@@ -679,11 +709,15 @@ export function placePhotos(t: number): Snake[] {
   // In continuous play the computer's snakes show their egg pictures with the players' photos.
   const heads = alive()
     .sort((p, q) => p.len - q.len)
-    .filter((s) => s.in && (!s.wild || arena.continuous))
+    .filter((s) => (s.in || eggPhoto(s)) && (!s.wild || arena.continuous))
     .sort((p, q) => Number(p.id === arena.crown) - Number(q.id === arena.crown));
   layOutHeads(heads, t);
   return heads;
 }
+
+/** Continuous play: a viewer's egg shows their picture over it, laid out with the others. */
+const eggPhoto = (s: Snake): boolean =>
+  arena.continuous && !s.wild && !!s.seat && !!s.egg && !s.egg.hatched;
 
 /** Where a snake's picture was laid out this frame, if it shows. */
 export const photoPlace = (s: Snake): { x: number; y: number } | undefined => laidOut.get(s);
@@ -730,7 +764,8 @@ function paintEggOf(c: CanvasRenderingContext2D, s: Snake): void {
       paintEgg(c, 0, 0, egg.t, egg.t / HATCH_TIME);
       c.restore();
     }
-    if (!s.wild) paintFace(s, p.x, p.y - 84, TUNING.photoR);
+    // In continuous play the egg's picture is laid out with the snakes' (placePhotos).
+    if (!s.wild && !arena.continuous) paintFace(s, p.x, p.y - 84, TUNING.photoR);
     return;
   }
   if (egg.t < 0) {

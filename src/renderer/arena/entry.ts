@@ -367,11 +367,8 @@ export function arenaGift(nickname: string, avatar: string | undefined, berries:
   v.gifted += berries;
   backs(v, berries);
   if (anyGiftBuys()) buySeat(v);
-  // Continuous play: a gift takes a snake ahead of the line, and gives a life.
-  if (arena.continuous) {
-    if (!snakeOf(nickname)) playHooks.take(v, true);
-    addLives(v, 1);
-  }
+  // Continuous play: a gift takes a snake ahead of the line. Lives come from the life gift alone.
+  if (arena.continuous && !snakeOf(nickname)) playHooks.take(v, true);
   const s = snakeOf(nickname);
   if (s) s.idle = 0;
   if (TUNING.shieldGift > 0 && berries >= TUNING.shieldGift) shield(v, s);
