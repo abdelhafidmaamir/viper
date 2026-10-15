@@ -8,8 +8,32 @@ Everything around the board is Feed's, imported as it is: the forest on the beac
 alerts, the supporter entrances and gift thanks, the end screen with its Hall of Fame, the journal
 and the supporters list. See [rules-feed.md](rules-feed.md).
 
-A round is three steps and nothing else: the QUALIFYING seats the players, the BATTLE plays them,
-the RESULT ranks them. Then the next qualifying opens.
+By default the arena plays continuously (see "Continuous play" just below): the board is always
+full and one round follows the other. With "Continuous play" off, a round is three steps and
+nothing else: the QUALIFYING seats the players, the BATTLE plays them, the RESULT ranks them. Then
+the next qualifying opens.
+
+## Continuous play (`continuous`, on by default)
+
+The control room's "Continuous play" switch, on the Arena card, applies from the next round. Off,
+the game is the qualifying's, below, exactly as before. On (code in `continuous.ts`):
+
+| Element | Rule                                                                                                                                                                                                                                                                                                                                                        |
+| ------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Board   | `places` snakes always play. A snake nobody owns is the computer's: AI driven, the arena's white egg in its picture's circle, no name, no chip. A computer snake that falls comes back from an egg 1.5 s later                                                                                                                                              |
+| Round   | `roundLength`, shown by the ring alone; only the clock ends it. Its end screen shows for the end screen's time, then the next round starts at once: no qualifying, no 3, 2, 1, every snake small again from an egg in its colour                                                                                                                            |
+| Owners  | Keep their snake from round to round, its colour and their lives. Their berries left on the board go back into the flower and pour again                                                                                                                                                                                                                    |
+| Like    | A viewer without a snake takes a free computer snake at once: it leaves the board, an egg comes on the free cell nearest its head, never on a body, and theirs hatches from it 0.6 s later at the starting length, their photo over the egg. None free: they wait in line, first like first. On the end screen, a like puts them in line for the next round |
+| Boost   | Every `entryLikes` likes of a player give 2 s of speed and no length                                                                                                                                                                                                                                                                                        |
+| Gift    | Berries in the giver's colour, dropped just ahead of their snake, for their snake alone (whatever `giftBerries` says): another head leaves them in place. A viewer without a snake takes one at once, ahead of the line. Each gift gives a life, up to `livesMax`                                                                                           |
+| Life    | A crash with a life left: a white ring bursts round the photo, a heart on its rim breaks in two, the snake turns away and plays on with the newborn's grace. Cornered with no way at all, a life brings it back from an egg instead                                                                                                                         |
+| No life | A crash: the snake falls, its owner goes back to the beach, one like takes a snake again. A player with no life left and no like for `idleRelease` seconds gives the snake back: it leaves, the computer's hatches small at its place                                                                                                                       |
+| Hearts  | On the rim of the owner's photo, round its lower side, and under their crab when on the podium                                                                                                                                                                                                                                                              |
+| Crown   | On the longest player's snake; the podium shows the 3 longest, as in the battle                                                                                                                                                                                                                                                                             |
+| Beach   | Left of the podium, 5 places for viewers not playing: those in line first (their crab holds an egg), then the latest arrivals (a join, or a snake just lost), about 30 s each or until newer ones come. The sleeping crab shows anyone here, as on Feed; its heart holds the egg and the bolt in turn, 3 s each                                             |
+| Line    | A like waiter with no like for `idleRelease` seconds leaves it; a gift waiter keeps their place                                                                                                                                                                                                                                                             |
+| Unused  | "Gifts buy seats" is hidden, no seat or paid queue exists. `wildSnakes` and `queueIdle` do nothing                                                                                                                                                                                                                                                          |
+| Journal | `takes a snake` (by like or by gift), `snake back to the computer` (crash or no like), `life used` (lives left), `round won` (length)                                                                                                                                                                                                                       |
 
 ## 1. The qualifying (30 s)
 
@@ -207,11 +231,17 @@ apart, under `viper-arena-settings`, and do not travel with the supporters list.
 | `seatPrice`   | 0 to 50000 coins      | 0        | `lifePrice`   | 10, 20, 30, 99, 199 coins | 30      |
 | `giftSeats`   | on, off               | off      | `likeHeart`   | on, off                   | on      |
 | `plainAmount` | 0 to 6                | 3        | `plainEvery`  | 1, 2, 3, 5, 10, 15, 25 s  | 2       |
+| `continuous`  | on, off               | on       | `livesMax`    | 1 to 5                    | 3       |
+| `idleRelease` | 30, 60, 90, 120 s     | 60       |               |                           |         |
 
 `entryLikes` is now the likes for one speed boost; `queueIdle` the time a qualifying liker's crab
 stays on the beach without a like. `plainAmount` is the plain berries the flower keeps on the
 board, `plainEvery` the seconds before a new one after one is eaten. `giftEntry` is kept in the
-protocol but no longer used by the arena.
+protocol but no longer used by the arena. `continuous` is "Continuous play", `livesMax` "Lives at
+most", `idleRelease` "Free snake back after".
+
+The pilot plays under skohlds' own TikTok picture, wherever it shows, as soon as the game knows it:
+from any event of skohlds on the live, or from the supporters list. Until then, its initials.
 
 The simulated audience (Rehearsal tab) is 10, 100 or 700 made-up viewers liking and giving at
 rates that scale with the room; during the qualifying it gives about one gift for a medium room.
