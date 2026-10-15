@@ -60,6 +60,7 @@ const run = (seconds: number): void => {
 function fresh(extra: Partial<ArenaSettings> = {}, seed = 7): void {
   setArenaSettings({
     ...ARENA_DEFAULTS,
+    continuous: false,
     places: 6,
     pilot: false,
     wildSnakes: 0,

@@ -306,7 +306,7 @@ describe('Arena and Feed control room screens', () => {
   describe('Arena Money tab: seat price', () => {
     const arenaSide = (settings: Partial<ArenaSettings>): ArenaSide => ({
       state: () => ({
-        settings: { ...ARENA_DEFAULTS, giftSeats: true, ...settings },
+        settings: { ...ARENA_DEFAULTS, continuous: false, giftSeats: true, ...settings },
         secondsLeft: 60,
       }),
       pending: () => ({}),
@@ -336,7 +336,7 @@ describe('Arena and Feed control room screens', () => {
       const sent: unknown[] = [];
       const side = (on: boolean): ArenaSide => ({
         state: () => ({
-          settings: { ...ARENA_DEFAULTS, giftSeats: on, seatPrice: 99 },
+          settings: { ...ARENA_DEFAULTS, continuous: false, giftSeats: on, seatPrice: 99 },
           secondsLeft: 60,
           paidQueue: ['ana'],
         }),
@@ -388,6 +388,35 @@ describe('Arena and Feed control room screens', () => {
       for (const label of ['1 s', '2 s', '3 s', '5 s', '10 s', '15 s', '25 s'])
         expect(text).toContain(label);
       expect(text).toContain('Heart on like counts');
+    });
+
+    it('continuous play, on by default: "Gifts buy seats" hidden, the seat price greyed, its switch and two settings in the Arena card', () => {
+      const find = (el: MockEl, tag: string): MockEl | undefined =>
+        el.tagName === tag ? el : el.children.map((c) => find(c, tag)).find(Boolean);
+      expect(ARENA_DEFAULTS.continuous).toBe(true);
+      const side: ArenaSide = {
+        state: () => ({
+          settings: { ...ARENA_DEFAULTS, giftSeats: true, seatPrice: 99 },
+          secondsLeft: 60,
+          paidQueue: ['ana'],
+        }),
+        pending: () => ({}),
+        send: () => undefined,
+      };
+      const toggle = giftSeatsCard(side, () => null),
+        seat = seatCard(side, () => undefined),
+        line = paidQueueCard(side),
+        card = arenaCard(side, () => null);
+      for (const view of [toggle, seat, line, card]) view.update(linked);
+      expect((toggle.el as unknown as MockEl).hidden).toBe(true);
+      expect((line.el as unknown as MockEl).hidden).toBe(true);
+      expect(find(seat.el as unknown as MockEl, 'INPUT')?.disabled).toBe(true);
+      const text = allText(card.el as unknown as MockEl);
+      for (const label of ['Continuous play', 'Lives at most', 'Free snake back after'])
+        expect(text).toContain(label);
+      for (const label of ['30 s', '60 s', '90 s', '120 s']) expect(text).toContain(label);
+      expect(text).toContain('Plain berries on the board');
+      expect(text).toContain('Plain berry delay');
     });
 
     it('0 reads as any gift; the same price as the life gift is flagged', () => {

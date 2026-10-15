@@ -25,6 +25,7 @@ describe.skipIf(!BATTLES)('snake arena: heads through bodies, measured', () => {
     countOnArena();
     setArenaSettings({
       ...ARENA_DEFAULTS,
+      continuous: false,
       places: 8,
       pilot: false,
       wildSnakes: 0,

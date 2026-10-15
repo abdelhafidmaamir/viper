@@ -48,7 +48,14 @@ const run = (seconds: number): void => {
 
 /** A new round on an empty board, seeded, past GET READY, the life gift on. */
 function fresh(extra: Partial<ArenaSettings> = {}, seed = 7): void {
-  setArenaSettings({ ...ARENA_DEFAULTS, pilot: false, wildSnakes: 0, lifeOn: true, ...extra });
+  setArenaSettings({
+    ...ARENA_DEFAULTS,
+    continuous: false,
+    pilot: false,
+    wildSnakes: 0,
+    lifeOn: true,
+    ...extra,
+  });
   let s = seed;
   arena.rand = () => ((s = (s * 16807) % 2147483647) - 1) / 2147483646;
   arena.viewers.clear();

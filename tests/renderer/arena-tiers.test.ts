@@ -26,7 +26,13 @@ describe.skipIf(!ROUNDS)('snake arena: survival tiers, measured', () => {
       newArenaRound();
     };
     countOnArena();
-    setArenaSettings({ ...ARENA_DEFAULTS, pilot: false, wildSnakes: 0, roundLength: 120 });
+    setArenaSettings({
+      ...ARENA_DEFAULTS,
+      continuous: false,
+      pilot: false,
+      wildSnakes: 0,
+      roundLength: 120,
+    });
     QUALIFY.time = 2;
     // Cells a full likes ring grows a snake by (ARENA_BOOST_CELLS, the game's default otherwise).
     BOOST.cells = Number(process.env.ARENA_BOOST_CELLS ?? BOOST.cells);

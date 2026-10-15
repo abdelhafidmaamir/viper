@@ -65,6 +65,21 @@ describe('arena protocol', () => {
     });
   });
 
+  it('plays continuously by default: 3 lives at most, a free snake back after a minute', () => {
+    expect(ARENA_DEFAULTS).toMatchObject({ continuous: true, livesMax: 3, idleRelease: 60 });
+    expect(sanitizeArenaSetting('continuous', false)).toBe(false);
+    expect(sanitizeArenaSetting('continuous', 'off')).toBeUndefined();
+    expect(sanitizeArenaSetting('livesMax', 5)).toBe(5);
+    expect(sanitizeArenaSetting('livesMax', 0)).toBeUndefined();
+    expect(sanitizeArenaSetting('livesMax', 6)).toBeUndefined();
+    expect(sanitizeArenaSetting('idleRelease', 120)).toBe(120);
+    expect(sanitizeArenaSetting('idleRelease', 45)).toBeUndefined();
+    expect(readArenaSettings(JSON.stringify({ continuous: false, livesMax: 9 }))).toEqual({
+      ...ARENA_DEFAULTS,
+      continuous: false,
+    });
+  });
+
   it('every default is a value the game accepts', () => {
     for (const [name, value] of Object.entries(ARENA_DEFAULTS))
       expect(sanitizeArenaSetting(name as keyof typeof ARENA_DEFAULTS, value)).toBe(value);

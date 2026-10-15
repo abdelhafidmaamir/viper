@@ -91,7 +91,13 @@ function shownInTurn(): string[] {
 
 /** A battle of `n` players (4, 6 or 8), each in their seat. */
 function battle(n = 8): void {
-  setArenaSettings({ ...ARENA_DEFAULTS, places: n, pilot: false, wildSnakes: 0 });
+  setArenaSettings({
+    ...ARENA_DEFAULTS,
+    continuous: false,
+    places: n,
+    pilot: false,
+    wildSnakes: 0,
+  });
   let s = 7;
   arena.rand = () => ((s = (s * 16807) % 2147483647) - 1) / 2147483646;
   arena.viewers.clear();
@@ -329,9 +335,9 @@ describe('snake arena: the alert card and the like strip', () => {
   });
 
   it('rounds to play: the next round within the places, then one more round for each batch', () => {
-    setArenaSettings({ ...ARENA_DEFAULTS, places: 6 });
+    setArenaSettings({ ...ARENA_DEFAULTS, continuous: false, places: 6 });
     expect([1, 6, 7, 12, 13, 19].map(roundsToPlay)).toEqual([1, 1, 2, 2, 3, 4]);
-    setArenaSettings({ ...ARENA_DEFAULTS, places: 8 });
+    setArenaSettings({ ...ARENA_DEFAULTS, continuous: false, places: 8 });
     expect([8, 9, 16, 17].map(roundsToPlay)).toEqual([1, 2, 2, 3]);
   });
 
@@ -393,6 +399,7 @@ describe('snake arena: the alert card and the like strip', () => {
     battle(4);
     setArenaSettings({
       ...ARENA_DEFAULTS,
+      continuous: false,
       places: 4,
       pilot: false,
       wildSnakes: 0,

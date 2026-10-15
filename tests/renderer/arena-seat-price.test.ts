@@ -68,6 +68,7 @@ function deps(): FeedLinkDeps {
 function fresh(extra: Partial<ArenaSettings> = {}, seed = 7): void {
   setArenaSettings({
     ...ARENA_DEFAULTS,
+    continuous: false,
     places: 6,
     pilot: false,
     wildSnakes: 0,
@@ -146,7 +147,7 @@ describe('snake arena: the seat price', () => {
 
   it('is saved under the game key and read back after a restart', () => {
     const map = new Map<string, string>();
-    Object.assign(arenaSettings, ARENA_DEFAULTS);
+    Object.assign(arenaSettings, ARENA_DEFAULTS, { continuous: false });
     applyArenaCommand(
       { cmd: 'arena-setting', name: 'seatPrice', value: 99 },
       { storage: store(map) },
@@ -157,10 +158,10 @@ describe('snake arena: the seat price', () => {
     );
     expect(arenaSettings.seatPrice).toBe(99);
     expect(JSON.parse(map.get(ARENA_STORAGE_KEY) ?? '{}')).toMatchObject({ seatPrice: 99 });
-    Object.assign(arenaSettings, ARENA_DEFAULTS);
+    Object.assign(arenaSettings, ARENA_DEFAULTS, { continuous: false });
     restoreArenaSettings(store(map));
     expect(arenaSettings.seatPrice).toBe(99);
-    Object.assign(arenaSettings, ARENA_DEFAULTS);
+    Object.assign(arenaSettings, ARENA_DEFAULTS, { continuous: false });
     setArenaSettings({ ...ARENA_DEFAULTS });
   });
 

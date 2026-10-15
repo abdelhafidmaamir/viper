@@ -217,7 +217,13 @@ const face = (f: Frame | undefined, n: string): { x: number; y: number; r: numbe
 };
 
 function fresh(): void {
-  setArenaSettings({ ...ARENA_DEFAULTS, pilot: false, wildSnakes: 0, places: 8 });
+  setArenaSettings({
+    ...ARENA_DEFAULTS,
+    continuous: false,
+    pilot: false,
+    wildSnakes: 0,
+    places: 8,
+  });
   let s = 7;
   arena.rand = () => ((s = (s * 16807) % 2147483647) - 1) / 2147483646;
   arena.viewers.clear();

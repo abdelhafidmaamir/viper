@@ -41,6 +41,10 @@ export const ARENA_MAX_LIVES = [1, 2, 3, 5] as const;
 export const ARENA_LIFE_KEEPS = [0.25, 0.5, 0.75, 1] as const;
 /** Seconds without a like before a waiting animal leaves its queue spot. */
 export const ARENA_QUEUE_IDLES = [3, 5, 10, 15] as const;
+/** Lives a player's snake holds at most in continuous play, one more per gift. */
+export const ARENA_LIVES_MAX = [1, 2, 3, 4, 5] as const;
+/** Seconds without a like before a player with no life left gives their snake back. */
+export const ARENA_IDLE_RELEASES = [30, 60, 90, 120] as const;
 /** How much a viewer's gifts make their snake smarter and safer, against likes-only ones. */
 export const ARENA_BACKING = ['off', 'light', 'strong'] as const;
 export type ArenaBacking = (typeof ARENA_BACKING)[number];
@@ -99,6 +103,16 @@ export interface ArenaSettings {
   readonly likeHeart: boolean;
   /** Every snake plays the strong brain; off, the calm one. */
   readonly superAI: boolean;
+  /**
+   * Continuous play: the board is always full, a like takes a free snake, a round restarts at once
+   * after its end screen. Off: the qualifying, the eggs and the 3, 2, 1 before each round. Applies
+   * from the next round.
+   */
+  readonly continuous: boolean;
+  /** In continuous play, the most lives a snake holds, one per gift (ARENA_LIVES_MAX). */
+  readonly livesMax: number;
+  /** In continuous play, seconds without a like before a snake goes back (ARENA_IDLE_RELEASES). */
+  readonly idleRelease: number;
 }
 
 export type ArenaSettingName = keyof ArenaSettings;
@@ -127,6 +141,9 @@ export const ARENA_DEFAULTS: ArenaSettings = {
   pilot: false,
   likeHeart: true,
   superAI: false,
+  continuous: true,
+  livesMax: 3,
+  idleRelease: 60,
 };
 
 /** One of the game's tuning values; the Feed settings travel as Feed commands. */
@@ -230,6 +247,11 @@ export function sanitizeArenaSetting<K extends ArenaSettingName>(
       return listed(ARENA_PLAIN_EVERY, value) ? ok(value) : undefined;
     case 'plainAmount':
       return listed(ARENA_PLAIN_AMOUNTS, value) ? ok(value) : undefined;
+    case 'livesMax':
+      return listed(ARENA_LIVES_MAX, value) ? ok(value) : undefined;
+    case 'idleRelease':
+      return listed(ARENA_IDLE_RELEASES, value) ? ok(value) : undefined;
+    case 'continuous':
     case 'giftEntry':
     case 'giftSeats':
     case 'lifeOn':

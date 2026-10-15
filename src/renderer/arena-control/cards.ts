@@ -8,7 +8,9 @@ import {
   ARENA_DEFAULTS,
   ARENA_ENTRY_LIKES,
   ARENA_GIFT_BERRIES,
+  ARENA_IDLE_RELEASES,
   ARENA_LIFE_KEEPS,
+  ARENA_LIVES_MAX,
   ARENA_LIFE_PRICES,
   ARENA_MAX_LIVES,
   ARENA_PLACES,
@@ -205,7 +207,7 @@ export function arenaCard(arena: ArenaSide, reason: Reason): FeedView {
       'entryLikes',
       'Likes for a speed boost',
       ARENA_ENTRY_LIKES.map((value) => ({ value, label: String(value) })),
-      "In the battle, a player's likes fill the ring round their animal on the beach; a full ring gives 4 s of speed and 3 cells of length.",
+      "A player's likes fill the ring on their chip under the board. In continuous play a full ring gives 2 s of speed; otherwise 4 s of speed and 3 cells of length.",
     ),
     tuning(
       arena,
@@ -251,6 +253,20 @@ export function arenaCard(arena: ArenaSide, reason: Reason): FeedView {
     ),
     tuning(
       arena,
+      'livesMax',
+      'Lives at most',
+      ARENA_LIVES_MAX.map((value) => ({ value, label: String(value) })),
+      'In continuous play each gift gives one life, up to this many. A life takes a crash for the snake.',
+    ),
+    tuning(
+      arena,
+      'idleRelease',
+      'Free snake back after',
+      ARENA_IDLE_RELEASES.map((value) => ({ value, label: `${String(value)} s` })),
+      'In continuous play, a player with no life left who stops liking gives their snake back to the computer.',
+    ),
+    tuning(
+      arena,
       'wildSnakes',
       'Wild snakes while few play',
       ARENA_WILD_SNAKES.map((value) => ({
@@ -279,6 +295,12 @@ export function arenaCard(arena: ArenaSide, reason: Reason): FeedView {
     ),
   ];
   const switches: Switch[] = [
+    toggle(
+      arena,
+      'continuous',
+      'Continuous play',
+      'The board always plays: a like takes a free snake, a round starts again right after its end screen. Off: the qualifying, the eggs and the 3, 2, 1. Applies from the next round.',
+    ),
     toggle(arena, 'likeBoost', 'Likes speed up the snake'),
     toggle(arena, 'pilot', 'Pilot player', "The game's own player, Skohlds, shows how it works."),
     toggle(
@@ -316,10 +338,23 @@ export function arenaCard(arena: ArenaSide, reason: Reason): FeedView {
   };
 }
 
-/** Gifts buy seats, as the board last confirmed it or as sent and still pending. */
+/** Continuous play, as the board last confirmed it or as sent and still pending. */
+function continuousOn(state: FeedControlState, arena: ArenaSide): boolean {
+  const p = resolvePending(
+    arena.state()?.settings.continuous,
+    arena.pending().continuous,
+    state.now,
+  );
+  return p.value === true;
+}
+
+/**
+ * Gifts buy seats, as the board last confirmed it or as sent and still pending. Never in
+ * continuous play: there is no seat to buy.
+ */
 function giftSeatsOn(state: FeedControlState, arena: ArenaSide): boolean {
   const p = resolvePending(arena.state()?.settings.giftSeats, arena.pending().giftSeats, state.now);
-  return p.value === true;
+  return p.value === true && !continuousOn(state, arena);
 }
 
 /**
@@ -364,6 +399,7 @@ export function paidQueueCard(arena: ArenaSide): FeedView {
 /**
  * Whether gifts buy seats at all, above the seat price: off, the default, no gift buys a seat or a
  * place in the paid queue, the qualifying goes by likes alone, and the seat price waits greyed.
+ * Hidden in continuous play, where it means nothing.
  */
 export function giftSeatsCard(arena: ArenaSide, reason: Reason): FeedView {
   const switches: Switch[] = [
@@ -381,6 +417,7 @@ export function giftSeatsCard(arena: ArenaSide, reason: Reason): FeedView {
   return {
     el: card.el,
     update(state) {
+      setHidden(card.el, continuousOn(state, arena));
       updateTuning(state, arena, reason(), [], switches);
     },
   };

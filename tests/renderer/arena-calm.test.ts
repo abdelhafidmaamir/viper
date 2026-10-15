@@ -135,7 +135,14 @@ const run = (seconds: number): void => {
 
 /** A new round, seeded; gifts buy no seats unless `extra` says so (the default). */
 function fresh(extra: Partial<ArenaSettings> = {}): void {
-  setArenaSettings({ ...ARENA_DEFAULTS, places: 6, pilot: false, wildSnakes: 0, ...extra });
+  setArenaSettings({
+    ...ARENA_DEFAULTS,
+    continuous: false,
+    places: 6,
+    pilot: false,
+    wildSnakes: 0,
+    ...extra,
+  });
   let s = 7;
   arena.rand = () => ((s = (s * 16807) % 2147483647) - 1) / 2147483646;
   arena.viewers.clear();
@@ -392,7 +399,13 @@ describe('snake arena: "Gifts buy seats", off by default', () => {
     run(QUALIFY.time + QUALIFY.freeze + READY_TIME + 0.5);
     give('stranger', 10);
     expect(paidQueue.map((q) => q.nickname)).toEqual(['stranger']);
-    setArenaSettings({ ...ARENA_DEFAULTS, places: 6, pilot: false, wildSnakes: 0 });
+    setArenaSettings({
+      ...ARENA_DEFAULTS,
+      continuous: false,
+      places: 6,
+      pilot: false,
+      wildSnakes: 0,
+    });
     expect(paidQueue).toHaveLength(0);
   });
 });
@@ -420,7 +433,7 @@ describe('snake arena: the pilot likes as an engaged viewer', () => {
     expect(likes).toBeLessThanOrEqual((seconds / PILOT_LIKES.gap[0] + 1) * PILOT_LIKES.burst[1]);
     expect(holders()).toContain(PILOT.key);
     expect(pops).toBeGreaterThan(0);
-    setArenaSettings({ ...ARENA_DEFAULTS, pilot: false });
+    setArenaSettings({ ...ARENA_DEFAULTS, continuous: false, pilot: false });
   });
 
   it("its likes get the like card in the qualifying, as a viewer's do", () => {
@@ -435,7 +448,7 @@ describe('snake arena: the pilot likes as an engaged viewer', () => {
     expect(card?.kind).toBe('like');
     expect(card?.nickname).toBe(PILOT.name);
     setLikeAlerts(false);
-    setArenaSettings({ ...ARENA_DEFAULTS, pilot: false });
+    setArenaSettings({ ...ARENA_DEFAULTS, continuous: false, pilot: false });
   });
 
   it('in the battle, a speed boost every 15 to 25 s, its chip on the strip', () => {
@@ -482,7 +495,7 @@ describe('snake arena: the pilot likes as an engaged viewer', () => {
       expect(gap).toBeGreaterThanOrEqual(PILOT_LIKES.boostEvery[0] - 1.5);
       expect(gap).toBeLessThanOrEqual(PILOT_LIKES.boostEvery[1] + 1.5);
     }
-    setArenaSettings({ ...ARENA_DEFAULTS, pilot: false });
+    setArenaSettings({ ...ARENA_DEFAULTS, continuous: false, pilot: false });
   });
 });
 

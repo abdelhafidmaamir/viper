@@ -70,9 +70,15 @@ describe('arena link', () => {
   });
 
   beforeEach(() => {
-    Object.assign(arenaSettings, ARENA_DEFAULTS);
+    Object.assign(arenaSettings, ARENA_DEFAULTS, { continuous: false });
     // Gifts buy seats on the board here (the Money tab's switch on), unless a test says otherwise.
-    setArenaSettings({ ...ARENA_DEFAULTS, pilot: false, wildSnakes: 0, giftSeats: true });
+    setArenaSettings({
+      ...ARENA_DEFAULTS,
+      continuous: false,
+      pilot: false,
+      wildSnakes: 0,
+      giftSeats: true,
+    });
     arena.viewers.clear();
     rings.clear();
     queue.length = 0;
@@ -134,6 +140,7 @@ describe('arena link', () => {
     expect(arena.viewers.get('off')?.lives ?? 0).toBe(0);
     setArenaSettings({
       ...ARENA_DEFAULTS,
+      continuous: false,
       pilot: false,
       wildSnakes: 0,
       giftSeats: true,
@@ -154,13 +161,15 @@ describe('arena link', () => {
     expect(arenaSettings.places).toBe(8);
     expect(JSON.parse(map.get(ARENA_STORAGE_KEY) ?? '{}')).toEqual({
       ...ARENA_DEFAULTS,
+      continuous: false,
       places: 8,
       giftBerries: 'shared',
     });
-    Object.assign(arenaSettings, ARENA_DEFAULTS);
+    Object.assign(arenaSettings, ARENA_DEFAULTS, { continuous: false });
     restoreArenaSettings(store(map));
     expect(arenaSnapshot().settings).toEqual({
       ...ARENA_DEFAULTS,
+      continuous: false,
       places: 8,
       giftBerries: 'shared',
     });
@@ -221,7 +230,9 @@ describe('arena link', () => {
 
   it('the paid queue is saved as it changes, read back after a reload and shown to the room', () => {
     vi.useFakeTimers();
-    const map = new Map<string, string>([[ARENA_STORAGE_KEY, JSON.stringify({ giftSeats: true })]]),
+    const map = new Map<string, string>([
+        [ARENA_STORAGE_KEY, JSON.stringify({ giftSeats: true, continuous: false })],
+      ]),
       sent: unknown[] = [];
     const stop = linkArenaControl(
       { storage: store(map) },
