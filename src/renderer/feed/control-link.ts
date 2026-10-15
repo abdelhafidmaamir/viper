@@ -170,6 +170,8 @@ export const board: {
   instead?: (coins: number) => boolean;
   /** A gift that gives no berries, `n` of it at `coins` each: true when it was used anyway. */
   unpriced?: (nickname: string, avatar: string | undefined, coins: number, n: number) => boolean;
+  /** A viewer joined the live (Snake Arena's beach shows the latest arrivals; Feed: nothing). */
+  joined?: (nickname: string, avatar: string | undefined) => void;
 } = { gift, like };
 
 export interface FrameMetrics {
@@ -361,6 +363,7 @@ export function receiveFeedEvent(ev: AudienceEvent | null | undefined): number {
     perfJoin();
     welcome(ev, id, who);
     crabSeen(who, ev.avatar === '' ? undefined : ev.avatar, true);
+    board.joined?.(who, ev.avatar === '' ? undefined : ev.avatar);
   }
   // Anything else they do only tells us the viewer is still here: a sleeping crab may show them.
   if (

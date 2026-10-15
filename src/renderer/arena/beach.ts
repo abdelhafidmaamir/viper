@@ -42,6 +42,7 @@ import {
   rings,
 } from './entry.ts';
 import { bigHeart } from '../feed/alert-fx.ts';
+import { beachCrowd } from './continuous.ts';
 import { QUALIFY, actors, challengers, qualLeft, qualifying, seatOf } from './qualify.ts';
 import { TUNING, alive, arena } from './rules.ts';
 
@@ -322,9 +323,10 @@ export function layOutBeach(): void {
     width = right - margin,
     spots: CrabSpot[] = [];
   raisePodium();
-  // In the battle the sleepers show the players who have not liked lately: a like is speed.
+  // In the battle the sleepers show the players who have not liked lately: a like is speed. In
+  // continuous play they show anyone here, as on Feed.
   setSleeperPool(
-    qualifying()
+    qualifying() || arena.continuous
       ? null
       : alive()
           .filter((s) => !s.wild)
@@ -351,7 +353,13 @@ export function layOutBeach(): void {
   const players = alive()
     .filter((s) => !s.wild)
     .sort((p, q) => p.id - q.id);
-  const size = podiumFor(players.length, 20, Math.min(W, sleepersFrom()));
+  // Continuous play: the podium's three alone, and left of it the viewers not playing.
+  const crowd = arena.continuous ? beachCrowd() : [],
+    size = podiumFor(
+      arena.continuous ? 3 + crowd.length : players.length,
+      20,
+      Math.min(W, sleepersFrom()),
+    );
   podium.x1 = size.x1;
   podium.u = size.u;
   podium.scale = size.scale;
@@ -374,8 +382,11 @@ export function layOutBeach(): void {
   }
   ranking.forEach((nickname, i) => {
     const s = players.find((p) => p.nickname === nickname);
-    if (!s) return;
+    if (!s || (arena.continuous && i >= 3)) return;
     spots.push({ nickname, avatar: s.avatar, x: podiumX(i), ring: COLOURS[s.colour] });
+  });
+  crowd.forEach((c, i) => {
+    spots.push({ nickname: c.nickname, avatar: c.avatar, x: podiumX(3 + i) });
   });
   setCrabSpots(spots, { scale: podium.scale, lane: 0, step: podium.u, ...walks });
 }
@@ -474,6 +485,8 @@ export function paintBeachRings(t: number): void {
 
 /** 0 in the qualifying (an egg in the sleeper's heart), 1 in the battle (a bolt), eased. */
 const heartIcon = { k: 0, at: -1 };
+/** Continuous play: seconds the sleeper's heart holds the egg, then the bolt, in turn. */
+const HEART_TURN = 3;
 
 /**
  * The sleeping crab's heart holds what a like does now: a small egg in the qualifying (a like is
@@ -481,7 +494,8 @@ const heartIcon = { k: 0, at: -1 };
  */
 export function paintSleeperHeart(): void {
   const dt = heartIcon.at < 0 ? 1 : Math.min(0.1, Math.max(0, arena.clock - heartIcon.at)),
-    want = qualifying() ? 0 : 1;
+    // Continuous play: a like takes a snake (the egg), and gives speed (the bolt), in turn.
+    want = arena.continuous ? Math.floor(arena.clock / HEART_TURN) % 2 : qualifying() ? 0 : 1;
   heartIcon.at = arena.clock;
   heartIcon.k += Math.sign(want - heartIcon.k) * Math.min(Math.abs(want - heartIcon.k), dt / 0.5);
   const k = heartIcon.k,
@@ -500,6 +514,27 @@ export function paintSleeperHeart(): void {
 }
 /** The arena's egg is about this tall at its own size (board-paint.ts paintStillEgg). */
 const EGG_TALL = 54;
+
+/**
+ * Continuous play: a viewer waiting in line for a snake holds an egg, by their animal's picture on
+ * the beach, at its upper right.
+ */
+export function paintLineEggs(): void {
+  if (!arena.continuous) return;
+  const c = ctx,
+    faces = crabFaces();
+  for (const w of arena.line) {
+    const f = faces.get(w.nickname);
+    if (!f) continue;
+    const r = f.r * CRAB_PHOTO,
+      k = (r * 0.95) / EGG_TALL;
+    c.save();
+    c.translate(f.x + r * 1.05, f.y - r * 0.35);
+    c.scale(k, k);
+    paintStillEgg(c, 0, 0, arena.clock + f.x);
+    c.restore();
+  }
+}
 
 /**
  * Each like on the qualifying board: prod hearts pop round the liker's picture, each leaving its

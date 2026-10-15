@@ -40,6 +40,22 @@ export function boardHeart(x: number, y: number, r: number, i: number, n: number
   return { x: right ? x + k : x - k, y: y - r * 0.15 };
 }
 
+/**
+ * Continuous play: the i-th heart on the rim of a snake's picture (x, y its centre, r its radius),
+ * round its lower side from the right, half over the outline: it belongs to that picture and no
+ * other, however close another stands. A heart only on the side away from the screen's edge.
+ */
+export function rimHeart(x: number, y: number, r: number, i: number): Point {
+  const turn = ((20 + i * 32) * Math.PI) / 180,
+    side = x + r + HEART.board > W - 8 ? -1 : 1,
+    d = r + 4;
+  return { x: x + side * Math.cos(turn) * d, y: y + Math.sin(turn) * d };
+}
+
+/** Where the i-th heart of `n` stands by a snake's picture, in the round's own way. */
+const heartAt = (x: number, y: number, r: number, i: number, n: number): Point =>
+  arena.continuous ? rimHeart(x, y, r, i) : boardHeart(x, y, r, i, n);
+
 /** A row of `n` prod hearts at the places `at` gives, `size` across. */
 export function paintHearts(n: number, size: number, at: (i: number) => Point): void {
   if (n <= 0) return;
@@ -86,7 +102,42 @@ export function paintBeachHearts(): void {
 
 /** The hearts by a snake's picture on the board. */
 export function paintSnakeHearts(s: Snake, x: number, y: number, r: number): void {
-  paintHearts(shownLives(s.nickname), HEART.board, (i) => boardHeart(x, y, r, i, s.lives));
+  paintHearts(shownLives(s.nickname), HEART.board, (i) => heartAt(x, y, r, i, s.lives));
+}
+
+/**
+ * Continuous play, a life used and the snake playing on: a white ring bursts round its picture at
+ * (x, y), and the heart it lost, the last of those on its rim, shown bigger, breaks in two halves
+ * that tilt apart, drop and fade. `u` runs from 0 to 1.
+ */
+export function paintLostHeart(s: Snake, x: number, y: number, u: number): void {
+  const r = TUNING.photoR,
+    p = rimHeart(x, y, r, s.lives),
+    size = HEART.board * 1.6,
+    heart = bigHeart(true),
+    c = ctx;
+  c.save();
+  if (u < 0.6) {
+    const k = u / 0.6;
+    c.globalAlpha = 0.9 * (1 - k);
+    c.strokeStyle = '#fff';
+    c.lineWidth = 6 * (1 - k * 0.5);
+    c.beginPath();
+    c.arc(x, y, r * (1.05 + 0.45 * k), 0, Math.PI * 2);
+    c.stroke();
+  }
+  c.globalAlpha = Math.max(0, 1 - u * u);
+  for (const side of [-1, 1]) {
+    c.save();
+    c.translate(p.x + side * 14 * u, p.y + 50 * u * u);
+    c.rotate(side * 0.6 * u);
+    c.beginPath();
+    c.rect(side < 0 ? -size / 2 : 0, -size / 2, size / 2, size);
+    c.clip();
+    c.drawImage(heart, -size / 2, -size / 2, size, size);
+    c.restore();
+  }
+  c.restore();
 }
 
 /**

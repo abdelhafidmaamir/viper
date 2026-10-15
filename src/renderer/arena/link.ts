@@ -20,6 +20,7 @@ import { board, type FeedLinkDeps } from '../feed/control-link.ts';
 import { note } from '../feed/journal.ts';
 import { gift, like } from '../feed/state.ts';
 import { arenaGift, arenaLike, arenaStatus, setArenaSettings } from './arena.ts';
+import { arrive } from './continuous.ts';
 import {
   arenaLife,
   arenaSeat,
@@ -79,6 +80,8 @@ export function countOnArena(): void {
     like(nickname, avatar, n);
     arenaLike(nickname, avatar, n);
   };
+  // In continuous play the beach shows the latest arrivals.
+  board.joined = arrive;
 }
 
 export const arenaSettings: { -readonly [K in ArenaSettingName]: ArenaSettings[K] } = {

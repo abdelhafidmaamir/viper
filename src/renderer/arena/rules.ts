@@ -42,6 +42,14 @@ export const TUNING = {
   lifePrice: 30,
   maxLives: 3,
   lifeKeep: 0.5,
+  /**
+   * Continuous play (continuous.ts), as the control room last set it: the next round plays it
+   * (arena.continuous is this round's). Its lives at most, one per gift, and the seconds without a
+   * like before a player with no life left gives their snake back.
+   */
+  continuous: false,
+  livesMax: 3,
+  idleRelease: 60,
   /** A gift of at least this many berries gives a shield for shieldSeconds (0: never). */
   shieldGift: 30,
   shieldSeconds: 10,
@@ -141,6 +149,8 @@ export interface Snake {
   seat?: boolean;
   /** Its seat was paid for (a gift in the qualifying, or berries owed from the round before). */
   paid?: boolean;
+  /** Continuous play: when its viewer took it from the computer. */
+  taken?: number | undefined;
 }
 
 export interface Food {
@@ -191,8 +201,15 @@ export interface Dying {
 export const DEATH_TIME = 1;
 
 /** A life brings the snake back: entry.ts flies its picture from where it died to the new egg. */
-export const lifeHooks: { reborn: (s: Snake, from: { x: number; y: number }) => void } = {
+export const lifeHooks: {
+  reborn: (s: Snake, from: { x: number; y: number }) => void;
+  /** Continuous play: a life took a crash (the snake plays on), or a crash with none left. */
+  absorbed: (s: Snake) => void;
+  fell: (s: Snake) => void;
+} = {
   reborn: () => undefined,
+  absorbed: () => undefined,
+  fell: () => undefined,
 };
 
 export interface RoundRecord {
@@ -239,6 +256,15 @@ export const arena = {
   played: new Map<string, boolean>(),
   nextId: 1,
   rand: Math.random,
+  /** This round plays continuously (continuous.ts): set as it starts, from TUNING.continuous. */
+  continuous: false,
+  /**
+   * Continuous play: viewers waiting for a free snake, in turn (gifts ahead of likes); the latest
+   * arrivals on the live; hearts breaking by a picture, a life used.
+   */
+  line: [] as { nickname: string; avatar?: string | undefined; gift: boolean; liked: number }[],
+  arrivals: [] as { nickname: string; avatar?: string | undefined; at: number }[],
+  breaks: [] as { s: Snake; t: number }[],
 };
 
 /** The flower's mouth, in cells: where berries fall from. */
@@ -505,7 +531,7 @@ function dieSlowly(s: Snake, lifeUsed: boolean): void {
 }
 
 /** The snake's own paid berries on the board or falling fade off it, back into the flower. */
-function handBack(s: Snake): void {
+export function handBack(s: Snake): void {
   if (s.wild) return;
   let mine = 0;
   for (const f of [...arena.food])
@@ -527,6 +553,10 @@ export const waitingFor = (nickname: string): number =>
  */
 export function kill(s: Snake, by: Snake | null, cause: Cause): void {
   if (!s.alive) return;
+  if (arena.continuous && !s.wild && s.lives > 0 && cause !== 'boxed' && s.safe <= 0) {
+    absorb(s);
+    return;
+  }
   if (s.lives > 0 && !s.wild) {
     useLife(s, by);
     return;
@@ -549,6 +579,19 @@ export function kill(s: Snake, by: Snake | null, cause: Cause): void {
   // Only in the battle: nothing of it shows over the end screen.
   if (!s.wild && arena.phase === 'play') alertKill(s, by && !by.wild ? by : null);
   if (arena.crown === s.id) arena.crown = -1;
+  if (arena.continuous && !s.wild) lifeHooks.fell(s);
+}
+
+/**
+ * Continuous play: a life takes the crash. The snake plays on where it is, one heart breaking by
+ * its picture; for the newborn's grace it blinks, cannot be hurt and turns away from any body.
+ */
+function absorb(s: Snake): void {
+  s.lives--;
+  s.safe = TUNING.safeTime;
+  s.born = 0;
+  arena.breaks.push({ s, t: 0 });
+  lifeHooks.absorbed(s);
 }
 
 /**
@@ -576,9 +619,42 @@ function useLife(s: Snake, by: Snake | null): void {
 
 /** The extra-life gift: one more life per gift, up to the most a snake holds. */
 export function addLives(v: Viewer, n: number): void {
-  const s = snakeOf(v.nickname);
-  if (s) s.lives = Math.min(TUNING.maxLives, s.lives + n);
-  else v.lives = Math.min(TUNING.maxLives, v.lives + n);
+  const s = snakeOf(v.nickname),
+    most = arena.continuous ? TUNING.livesMax : TUNING.maxLives;
+  if (s) s.lives = Math.min(most, s.lives + n);
+  else v.lives = Math.min(most, v.lives + n);
+}
+
+/**
+ * Continuous play: the snake leaves the board, its body popping as at a death and its paid
+ * berries back to the flower, for a new one from an egg at its place (continuous.ts). No death is
+ * counted, no card shows.
+ */
+export function retire(s: Snake): void {
+  if (!s.alive) return;
+  s.alive = false;
+  dieSlowly(s, false);
+  if (arena.crown === s.id) arena.crown = -1;
+}
+
+/**
+ * A free cell for an egg nearest `head`, never on a body (`also`, a body still popping, included),
+ * a berry or a cell a head is sliding into; -1 when none.
+ */
+export function eggNear(head: number, also: readonly number[] = []): number {
+  const { occ, reserved } = occupancy(),
+    busy = new Set(also);
+  let best = -1,
+    far = Infinity;
+  for (let c = 0; c < TOTAL; c++) {
+    if (occ[c] || reserved[c] || busy.has(c) || arena.foodAt.has(c)) continue;
+    const d = Math.abs(cellX(c) - cellX(head)) + Math.abs(cellY(c) - cellY(head));
+    if (d < far) {
+      far = d;
+      best = c;
+    }
+  }
+  return best;
 }
 
 /**
@@ -597,8 +673,9 @@ export function leave(s: Snake): void {
   if (arena.crown === s.id) arena.crown = -1;
 }
 
+/** In continuous play a gift's berries are always their giver's alone. */
 export const edibleBy = (f: Food, s: Snake): boolean =>
-  !options.ownerOnly || f.by === '' || f.by === s.nickname;
+  (!options.ownerOnly && !arena.continuous) || f.by === '' || f.by === s.nickname;
 
 export const toPx = (x: number, y: number): { x: number; y: number } => ({
   x: FX0 + (x + 0.5) * FCELL,

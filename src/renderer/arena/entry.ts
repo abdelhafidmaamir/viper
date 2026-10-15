@@ -18,6 +18,8 @@
 // list.
 
 import { alertViewer } from '../feed/alerts.ts';
+import { photoOf } from '../feed/state.ts';
+import { supporterPhotoByName } from '../feed/supporters.ts';
 import { crabFaces, crabGone, crabRun } from '../feed/crabs.ts';
 import { H, W } from '../engine/layout.ts';
 import {
@@ -45,10 +47,35 @@ export const PILOT = { name: 'Skohlds', key: 'S​' };
 let pilotOn = false;
 
 /**
+ * The pilot plays under skohlds' own TikTok picture, everywhere it shows: skohlds is a viewer of
+ * the live, so the game knows the link once any event of theirs came in (Feed's photos by name),
+ * or from the supporters list (by id or name), looked up again every `every` seconds until found.
+ * Until then, the initials.
+ */
+export const PILOT_PHOTO = { viewer: 'skohlds', every: 1 };
+let photoAskedAt = -Infinity,
+  photoFound: string | undefined;
+export function pilotAvatar(now = arena.clock): string | undefined {
+  const named = photoOf(PILOT_PHOTO.viewer) ?? photoOf(PILOT.name);
+  if (named) return (photoFound = named);
+  if (!photoFound && now - photoAskedAt >= PILOT_PHOTO.every) {
+    photoAskedAt = now;
+    photoFound = supporterPhotoByName(PILOT_PHOTO.viewer);
+  }
+  return photoFound;
+}
+
+/**
  * The qualifying's own rules (qualify.ts), set there: likes count in its race, a gift locks a seat
  * (false when it cannot: the clock is out, or every seat is paid). `entry` is the seat gift: it
  * brings no berries, so the flower shows it on a card of its own.
  */
+/**
+ * Continuous play (continuous.ts), set there: a viewer without a snake takes a free one by a like
+ * or a gift, or waits in line for one.
+ */
+export const playHooks: { take: (v: Viewer, gift: boolean) => void } = { take: () => undefined };
+
 export const qualHooks: {
   like: (nickname: string, n: number) => void;
   gift: (v: Viewer, entry?: boolean) => boolean;
@@ -152,6 +179,8 @@ let turn = 0;
  * by `cells`, as berries do: likes count in the race for size.
  */
 export const BOOST = { likes: 100, seconds: 4, cells: 3 };
+/** In continuous play a boost is shorter and grows nothing: gifts make the size. */
+export const PLAY_BOOST = { seconds: 2, cells: 0 };
 /** Likes toward each player's next boost: the red ring round their animal's picture. */
 export const rings = new Map<string, number>();
 /** When each player's last boost fired: its ring flashes. */
@@ -168,11 +197,12 @@ function land(nickname: string, n: number): void {
   const s = snakeOf(nickname);
   if (!s || qualifying() || !options.likeBoost) return;
   let ring = (rings.get(nickname) ?? 0) + n;
+  const boost = arena.continuous ? PLAY_BOOST : BOOST;
   while (ring >= BOOST.likes) {
     ring -= BOOST.likes;
-    s.boost = Math.min(TUNING.boostCap, s.boost + BOOST.seconds);
-    s.grow += BOOST.cells;
-    s.gulps.push(0);
+    s.boost = Math.min(TUNING.boostCap, s.boost + boost.seconds);
+    s.grow += boost.cells;
+    if (boost.cells > 0) s.gulps.push(0);
     fired.set(nickname, arena.clock);
     crabRun(nickname);
   }
@@ -236,7 +266,11 @@ function likeLands(nickname: string, n: number): void {
     return;
   }
   const s = snakeOf(nickname);
-  if (!s) return;
+  if (!s) {
+    // Continuous play: a like takes a free snake at once, or a place in line for one.
+    if (arena.continuous) playHooks.take(viewer(nickname), false);
+    return;
+  }
   s.idle = 0;
   land(nickname, n);
   likeHooks.battle(nickname, n);
@@ -269,7 +303,12 @@ export const paidHooks: {
  * the flower thanks them as for any gift, and the control room lists the queue.
  */
 export function joinPaidQueue(nickname: string, avatar: string | undefined): void {
-  if (!TUNING.giftSeats || nickname === PILOT.key || paidQueue.some((q) => q.nickname === nickname))
+  if (
+    !TUNING.giftSeats ||
+    arena.continuous ||
+    nickname === PILOT.key ||
+    paidQueue.some((q) => q.nickname === nickname)
+  )
     return;
   paidQueue.push({ nickname, avatar });
   paidHooks.changed();
@@ -287,7 +326,7 @@ export const roundsToPlay = (place: number): number => Math.max(1, Math.ceil(pla
 
 /** This round's paid seats: the first `places()` of the queue, which leave it. */
 export function takePaidBatch(): Queued[] {
-  if (!TUNING.giftSeats) return [];
+  if (!TUNING.giftSeats || arena.continuous) return [];
   const batch = paidQueue.splice(0, places());
   if (batch.length) paidHooks.changed();
   return batch;
@@ -297,7 +336,8 @@ export function takePaidBatch(): Queued[] {
  * Gifts buy seats and the seat has no gift of its own (`seatPrice` 0, the default): any gift buys
  * it. Else only the seat gift does (isSeatGift), or none at all while gifts buy no seats.
  */
-export const anyGiftBuys = (): boolean => TUNING.giftSeats && TUNING.seatPrice <= 0;
+export const anyGiftBuys = (): boolean =>
+  TUNING.giftSeats && TUNING.seatPrice <= 0 && !arena.continuous;
 
 /**
  * What a gift buys for the seats: in the qualifying a seat, while one can be locked; else a place
@@ -305,7 +345,7 @@ export const anyGiftBuys = (): boolean => TUNING.giftSeats && TUNING.seatPrice <
  * on a card of its own, since it brings no berries.
  */
 function buySeat(v: Viewer, entry = false): void {
-  if (!TUNING.giftSeats) return;
+  if (!TUNING.giftSeats || arena.continuous) return;
   if (qualifying()) {
     if (qualHooks.gift(v, entry)) return;
   } else if (entry) paidHooks.card(v.nickname, v.avatar);
@@ -336,6 +376,11 @@ export function arenaGift(nickname: string, avatar: string | undefined, berries:
   v.gifted += berries;
   backs(v, berries);
   if (anyGiftBuys()) buySeat(v);
+  // Continuous play: a gift takes a snake ahead of the line, and gives a life.
+  if (arena.continuous) {
+    if (!snakeOf(nickname)) playHooks.take(v, true);
+    addLives(v, 1);
+  }
   const s = snakeOf(nickname);
   if (s) s.idle = 0;
   if (TUNING.shieldGift > 0 && berries >= TUNING.shieldGift) shield(v, s);
@@ -350,7 +395,11 @@ export const isLifeGift = (coins: number): boolean => TUNING.lifeOn && coins ===
  * a gift like any other, priced in berries.
  */
 export const isSeatGift = (coins: number): boolean =>
-  TUNING.giftSeats && TUNING.seatPrice > 0 && coins === TUNING.seatPrice && !isLifeGift(coins);
+  TUNING.giftSeats &&
+  !arena.continuous &&
+  TUNING.seatPrice > 0 &&
+  coins === TUNING.seatPrice &&
+  !isLifeGift(coins);
 
 /**
  * Extra-life gifts, `n` of them: one more life each for the giver's snake, up to the most a snake
@@ -361,6 +410,7 @@ export function arenaLife(nickname: string, avatar: string | undefined, n: numbe
   if (!nickname || n <= 0 || nickname === PILOT.key) return;
   const v = viewer(nickname, avatar);
   v.acts.push(arena.clock);
+  if (arena.continuous && !snakeOf(nickname)) playHooks.take(v, true);
   addLives(v, n);
   backs(v, n);
   if (anyGiftBuys()) buySeat(v);
@@ -496,7 +546,9 @@ const pilot = { wait: 0, owed: 0, period: 20, boost: -Infinity };
 export function updatePilot(dt: number): void {
   const battle = arena.phase === 'play';
   if (!pilotOn || (!qualifying() && !battle)) return;
-  viewer(PILOT.key);
+  const me = viewer(PILOT.key, pilotAvatar()),
+    mine = snakeOf(PILOT.key);
+  if (mine && me.avatar) mine.avatar = me.avatar;
   const boosted = fired.get(PILOT.key) ?? -Infinity;
   if (battle && boosted !== pilot.boost) {
     // A boost fired (or the battle began): the next one in a new while.
@@ -516,7 +568,7 @@ export function updatePilot(dt: number): void {
   if (n <= 0) return;
   likeLands(PILOT.key, n);
   // The like card, as a viewer's like gets one (only while the arena shows like cards).
-  alertViewer('like', PILOT.name, undefined, n);
+  alertViewer('like', PILOT.name, me.avatar, n);
 }
 
 /** The name under a picture. */

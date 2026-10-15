@@ -26,6 +26,7 @@ import {
   clearQueue,
   faceOf,
   leaveQueue,
+  pilotAvatar,
   pilotPlaying,
   qualHooks,
   queueLike,
@@ -568,7 +569,7 @@ export function stepQualifying(dt: number): void {
   qual.swapT += dt;
   qual.reorderT += dt;
   updatePilot(dt);
-  if (pilotPlaying() && !arena.viewers.has(PILOT.key)) viewer(PILOT.key);
+  if (pilotPlaying() && !arena.viewers.has(PILOT.key)) viewer(PILOT.key, pilotAvatar());
   // Empty seats go to the best likers at once.
   for (const seat of seats) {
     if (seat.holder) continue;

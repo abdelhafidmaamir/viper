@@ -220,6 +220,20 @@ export function claimSeed(id: string, nickname: string, now = Date.now()): void 
 }
 
 /** The whole list to save, or null when nothing changed since the last save. */
+/**
+ * A supporter's photo link found by their TikTok id or their name, in any case (Snake Arena's
+ * pilot plays under a real viewer's picture). Feed never asks.
+ */
+export function supporterPhotoByName(name: string): string | undefined {
+  const k = key(name.replace(/^@/, ''));
+  if (!k) return undefined;
+  const direct = all.get(k)?.avatar;
+  if (direct) return direct;
+  for (const s of all.values())
+    if (s.avatar && s.nickname.trim().toLowerCase() === k) return s.avatar;
+  return undefined;
+}
+
 /** Keeps a viewer's latest photo link with their entry. */
 export function supporterPhoto(id: string, url: string | undefined): void {
   const s = all.get(key(id));

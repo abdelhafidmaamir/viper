@@ -15,6 +15,7 @@ import {
   paintArenaTime,
   paintBeachRings,
   paintFlags,
+  paintLineEggs,
   paintSleeperHeart,
   paintPodiumCrown,
   paintFlights,
@@ -49,6 +50,10 @@ export function setArenaSettings(next: ArenaSettings): void {
   TUNING.lifePrice = next.lifePrice;
   TUNING.maxLives = next.maxLives;
   TUNING.lifeKeep = next.lifeKeep;
+  // Continuous play from the next round; its lives and idle time at once.
+  TUNING.continuous = next.continuous;
+  TUNING.livesMax = next.livesMax;
+  TUNING.idleRelease = next.idleRelease;
   // The flower's plain berries, applied at once: how many it keeps out, how soon a new one comes.
   FIELD.count = next.plainAmount;
   FIELD.delay = next.plainEvery;
@@ -101,6 +106,7 @@ export function paintArenaBeach(t: number): void {
   paintBeachRings(t);
   paintSleeperHeart();
   paintBeachHearts();
+  paintLineEggs();
   paintActors(t);
   paintLikePops();
   paintFlights();

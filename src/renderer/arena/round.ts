@@ -8,6 +8,7 @@
 
 import { clearGameAlerts } from '../feed/alerts.ts';
 import { FCOLS, FROWS } from '../feed/grid.ts';
+import { note } from '../feed/journal.ts';
 import { stepInto } from '../feed/path.ts';
 import {
   FALL_TIME,
@@ -28,6 +29,7 @@ import {
   updateMode,
   type Sight,
 } from './ai.ts';
+import { clearPlay, keepOwners, startPlay, stepPlay } from './continuous.ts';
 import {
   anyGiftBuys,
   fired,
@@ -96,8 +98,14 @@ function pourOf({ nickname, avatar }: Queued, id: number): Pour {
  * Feed's round keeps its own carry-over; here its flower is emptied after it.
  */
 export function arenaRound(roundTime: number): void {
+  // Continuous play (continuous.ts) from this round on, or the qualifying's rounds: the switch
+  // applies here. Owners keep their snakes, and their berries left on the board pour again.
+  const owners = TUNING.continuous ? keepOwners() : null;
+  arena.continuous = owners !== null;
+  if (!owners) clearPlay();
   const owed: Pour[] = takePaidBatch().map((q, i) => pourOf(q, -2000 - i));
-  game.queue = [];
+  // In continuous play the flower keeps what it owes (gifts of the end screen included).
+  if (!owners) game.queue = [];
   game.pour = null;
   arena.round++;
   arena.time = 0;
@@ -123,10 +131,14 @@ export function arenaRound(roundTime: number): void {
     v.gifted = 0;
     v.battle = 0;
   }
-  startQualifying(owed);
   shownGifts.clear();
   seatCards.length = 0;
   cardShown.clear();
+  if (owners) {
+    startPlay(owners);
+    return;
+  }
+  startQualifying(owed);
   if (QUALIFY.time <= 0) endQualifying();
 }
 
@@ -536,6 +548,11 @@ function stepCell(s: Snake, sight: Sight): void {
         if (!oBig && other.shield <= 0 && other.safe <= 0) kill(other, s, 'headon');
         if (!sBig && s.shield <= 0 && s.safe <= 0) {
           kill(s, other, 'headon');
+          // A life took the crash (continuous play): the head turns away.
+          if (stillAlive(s)) {
+            s.sub = 0;
+            replan(s, sight);
+          }
           return;
         }
         if (stillAlive(other)) {
@@ -559,6 +576,10 @@ function stepCell(s: Snake, sight: Sight): void {
               ? 'cutoff'
               : 'accident';
         kill(s, other, cause);
+        if (stillAlive(s)) {
+          s.sub = 0;
+          replan(s, sight);
+        }
         return;
       }
     }
@@ -655,10 +676,13 @@ function move(
  */
 function crown(): void {
   const inPlay = alive().filter((s) => s.in && !s.wild && !isPilot(s)),
-    holder = inPlay.find((s) => s.id === arena.crown);
+    holder = inPlay.find((s) => s.id === arena.crown),
+    // In continuous play a snake taken from the computer may be long before it eats.
+    grown = (s: Snake): boolean =>
+      s.eaten > 0 || (arena.continuous && s.len > TUNING.startLen + 0.5);
   // All equal at GO: nobody wears it until a snake has eaten; a tie keeps it where it is.
   let best: Snake | undefined;
-  for (const s of inPlay) if (s.eaten > 0 && (!best || s.len > best.len)) best = s;
+  for (const s of inPlay) if (grown(s) && (!best || s.len > best.len)) best = s;
   if (!best) {
     arena.crown = holder ? holder.id : -1;
     return;
@@ -722,6 +746,12 @@ function finish(): void {
   if (best) {
     const v = arena.viewers.get(best.nickname);
     if (v) v.wins++;
+    if (arena.continuous && !isPilot(best))
+      note({
+        event: 'round won',
+        nickname: best.nickname,
+        detail: `length ${String(Math.round(best.len))}`,
+      });
   }
   let backed = 0;
   for (const b of arena.played.values()) if (b) backed++;
@@ -832,10 +862,12 @@ export function stepArena(dt: number): void {
   for (const f of arena.food) f.t += dt;
   flower(dt);
   updateFlights(dt);
-  // The end screen: the snakes keep moving under it until the next round starts.
+  // The end screen: the snakes keep moving under it until the next round starts; in continuous
+  // play they hold still, so nobody loses a snake or a life where it cannot be seen.
   if (game.full >= 0) {
     game.full += dt;
-    moveAll(dt);
+    if (arena.continuous) stepPlay(dt);
+    moveAll(dt, arena.continuous);
     if (game.full > roundHold()) newRound();
     return;
   }
@@ -858,6 +890,8 @@ export function stepArena(dt: number): void {
   updatePilot(dt);
   house(dt);
   moveAll(dt);
+  if (arena.continuous) stepPlay(dt);
   crown();
-  if (arena.time >= TUNING.roundTime || lastStanding(dt)) finish();
+  // In continuous play the board never empties: the clock alone ends the round.
+  if (arena.time >= TUNING.roundTime || (!arena.continuous && lastStanding(dt))) finish();
 }

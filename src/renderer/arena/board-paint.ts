@@ -35,9 +35,10 @@ import {
 } from '../feed/paint.ts';
 import { flowerHooks } from '../feed/flower.ts';
 import { FALL_TIME, game } from '../feed/state.ts';
+import { PLAY } from './continuous.ts';
 import { bumps, faceOf, fired, shownName } from './entry.ts';
 import { FADE_OUT } from './round.ts';
-import { paintBrokenHeart, paintSnakeHearts } from './lives.ts';
+import { paintBrokenHeart, paintLostHeart, paintSnakeHearts } from './lives.ts';
 import {
   DEATH_TIME,
   TUNING,
@@ -139,7 +140,7 @@ export function paintFood(t: number): void {
       const k = f.t - FALL_TIME,
         bounce = k < 0.3 ? Math.sin((k / 0.3) * Math.PI) * 8 * (1 - k / 0.3) : 0;
       berry(to.x, to.y - bounce, t + f.x, colour);
-      if (colour && options.ownerOnly) {
+      if (colour && (options.ownerOnly || arena.continuous)) {
         // When berries are their giver's alone: a ring in the giver's colour says whose.
         c.save();
         c.strokeStyle = COLOURS[colour];
@@ -269,6 +270,10 @@ function paintPhoto(s: Snake, t: number): void {
     head = toPx(s.x, s.y),
     colour = COLOURS[s.colour],
     { x: fx, y: fy, r, name: shown } = photoOf(s, t);
+  if (s.wild) {
+    paintComputer(s, head, fx, fy, r);
+    return;
+  }
   c.save();
   if (s.safe > 0) c.globalAlpha = 0.5 + 0.5 * Math.abs(Math.sin(s.born * 11));
   c.strokeStyle = colour;
@@ -304,6 +309,43 @@ function paintPhoto(s: Snake, t: number): void {
     c.fillStyle = '#fff';
     c.fillText(name, fx, fy - r - 6);
   }
+  c.restore();
+}
+
+/**
+ * A computer snake's picture (continuous play) on its stem: the arena's white egg on the dark disc
+ * of a photo, the same size, outlined in the snake's colour, no name. It says the snake is free.
+ */
+function paintComputer(
+  s: Snake,
+  head: { x: number; y: number },
+  fx: number,
+  fy: number,
+  r: number,
+): void {
+  const c = ctx,
+    colour = COLOURS[s.colour];
+  c.save();
+  if (s.safe > 0) c.globalAlpha *= 0.5 + 0.5 * Math.abs(Math.sin(s.born * 11));
+  c.strokeStyle = colour;
+  c.lineWidth = STEM;
+  c.lineCap = 'round';
+  c.beginPath();
+  c.moveTo(head.x, head.y - 8);
+  c.lineTo(fx, fy + r);
+  c.stroke();
+  c.fillStyle = 'rgba(14,16,20,0.92)';
+  c.beginPath();
+  c.arc(fx, fy, r, 0, Math.PI * 2);
+  c.fill();
+  c.lineWidth = Math.max(2, r * 0.13);
+  c.strokeStyle = colour;
+  c.stroke();
+  // The arena's egg, white, filling the circle: one like hatches a snake of one's own here.
+  const k = (r * 1.25) / EGG_TALL;
+  c.translate(fx, fy + r * 0.04);
+  c.scale(k, k);
+  paintStillEgg(c, 0, 0, arena.clock + s.id);
   c.restore();
 }
 
@@ -386,10 +428,10 @@ function layOutHeads(heads: readonly Snake[], t: number): void {
     return { s, x: b.x + ox, y: b.y + oy, ox, oy, prev, k };
   });
   for (const p of placed) {
-    const mine = label(p.x, p.y, shownName(p.s)),
+    const mine = label(p.x, p.y, p.s.wild ? '' : shownName(p.s)),
       hidden = placed.some((o) => {
         if (o === p || o.s.len < p.s.len || (o.s.len === p.s.len && o.s.id > p.s.id)) return false;
-        const other = label(o.x, o.y, shownName(o.s)),
+        const other = label(o.x, o.y, o.s.wild ? '' : shownName(o.s)),
           // The other picture's square, its name over it.
           face: [number, number, number, number] = [o.x - r, o.y - r, o.x + r, o.y + r],
           meets = (q: [number, number, number, number]): boolean =>
@@ -620,8 +662,13 @@ export function paintSnakes(
   // A picture shows once its snake is out of the egg; the crowned picture last, on top.
   const heads = placePhotos(t);
   for (const s of heads) paintPhoto(s, t);
-  for (const s of live) if (s.in && s.wild) paintHeadMarks(s, t);
+  for (const s of live) if (s.in && s.wild && !arena.continuous) paintHeadMarks(s, t);
   for (const s of heads) paintHeadMarks(s, t);
+  // Continuous play: a life used, its heart breaking by the picture.
+  for (const b of arena.breaks) {
+    const at = laidOut.get(b.s);
+    if (at) paintLostHeart(b.s, at.x, at.y, Math.min(1, b.t / PLAY.heart));
+  }
 }
 
 /**
@@ -629,9 +676,10 @@ export function paintSnakes(
  * picture laid out for this frame (`photoPlace`).
  */
 export function placePhotos(t: number): Snake[] {
+  // In continuous play the computer's snakes show their egg pictures with the players' photos.
   const heads = alive()
     .sort((p, q) => p.len - q.len)
-    .filter((s) => s.in && !s.wild)
+    .filter((s) => s.in && (!s.wild || arena.continuous))
     .sort((p, q) => Number(p.id === arena.crown) - Number(q.id === arena.crown));
   layOutHeads(heads, t);
   return heads;
