@@ -232,9 +232,20 @@ export function setSnakeColour(colour: SnakeColour): void {
   if (colour === snakeColour) return;
   snakeColour = colour;
   tones = colour === 'sand' ? SAND_TONES : tonesFor(COLOURS[colour]);
-  scaleCanvas = null; // the chevron sprite was drawn in the old shade
+  scaleCanvas = keptSprites?.get(colour) ?? null; // the chevron sprite was drawn in the old shade
+}
+
+/**
+ * Chevron sprites kept per colour once drawn, for a board where snakes of every colour are
+ * painted each frame (Snake Arena). Feed paints one colour and never turns this on.
+ */
+let keptSprites: Map<SnakeColour, HTMLCanvasElement> | null = null;
+export function keepScaleSprites(): void {
+  keptSprites ??= new Map();
 }
 export const currentSnakeColour = (): SnakeColour => snakeColour;
+/** The skin's shades for the current colour, 'r,g,b' strings. */
+export const snakeTones = (): typeof SAND_TONES => tones;
 /** The body's colour, as the ambience's snake painter takes it. */
 export const snakeTint = (): string => COLOURS[snakeColour];
 
@@ -378,6 +389,7 @@ function scaleSprite(): HTMLCanvasElement {
     g.fill();
   }
   scaleCanvas = cv;
+  keptSprites?.set(snakeColour, cv);
   return cv;
 }
 
@@ -416,10 +428,11 @@ export function paintHead(head: Point, t: number): void {
     crown(head.x, head.y - 24 + Math.sin(t * 4) * 2, 0.8, { x: head.x, y: head.y, r: 16 });
     return;
   }
-  const r = 40 * squash,
+  // Radius 48, the size Snake Arena gives the pictures over its snakes.
+  const r = 48 * squash,
     bob = Math.sin(t * 3) * 3,
     fx = Math.min(W - 60, Math.max(60, head.x)),
-    fy = Math.max(r + 70, head.y - 64 + bob);
+    fy = Math.max(r + 70, head.y - 72 + bob);
   // Stem from the head up to the face.
   c.save();
   c.strokeStyle = 'rgba(242,197,124,0.7)';
@@ -434,7 +447,7 @@ export function paintHead(head: Point, t: number): void {
   c.fill();
   c.restore();
   paintFace(king, fx, fy, r);
-  crown(fx, fy - r - 12, 1.2, { x: fx, y: fy, r });
+  crown(fx, fy - r - 14, 1.4, { x: fx, y: fy, r });
 }
 
 // ---- berries -------------------------------------------------------------------------------
@@ -445,7 +458,44 @@ const BERRY_R = 44,
   BERRY_FRAMES = 32,
   berrySprites: HTMLCanvasElement[] = [];
 
-export function berrySprite(phase: number): HTMLCanvasElement {
+/**
+ * Who gave a berry, as a colour: Snake Arena draws a paid berry in its giver's snake colour.
+ * Feed sets nothing and its berries keep their own colour.
+ */
+let berryColourOf: ((giver: string) => string | null) | null = null;
+export function setBerryColours(of: ((giver: string) => string | null) | null): void {
+  berryColourOf = of;
+}
+
+/**
+ * The berry in another colour: the same sprite, its hue and saturation taken from `hex`, its
+ * light and shade kept. Drawn once per colour and frame of the beat.
+ */
+const tintedSprites = new Map<string, HTMLCanvasElement>();
+export function tintedBerrySprite(phase: number, hex: string): HTMLCanvasElement {
+  const key = `${hex}:${String(phase)}`,
+    kept = tintedSprites.get(key);
+  if (kept) return kept;
+  const base = berrySprite(phase),
+    cv = document.createElement('canvas');
+  cv.width = base.width;
+  cv.height = base.height;
+  const g = cv.getContext('2d');
+  if (g) {
+    g.drawImage(base, 0, 0);
+    g.globalCompositeOperation = 'color';
+    g.fillStyle = hex;
+    g.fillRect(0, 0, cv.width, cv.height);
+    g.globalCompositeOperation = 'destination-in';
+    g.drawImage(base, 0, 0);
+  }
+  tintedSprites.set(key, cv);
+  return cv;
+}
+
+export function berrySprite(phase: number, giver?: string): HTMLCanvasElement {
+  const colour = giver && berryColourOf ? berryColourOf(giver) : null;
+  if (colour) return tintedBerrySprite(phase, colour);
   const cached = berrySprites[phase];
   if (cached) return cached;
   const sprite = document.createElement('canvas');

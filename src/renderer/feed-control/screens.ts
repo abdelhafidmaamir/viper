@@ -351,6 +351,12 @@ export function createSetupScreen(dispatch: Dispatch, reason: Reason): FeedView 
       dispatch({ cmd: 'setting', name: 'snakeSkin', value });
     },
   });
+  const board3d = createToggle({
+    label: '3D board',
+    onToggle: (value) => {
+      dispatch({ cmd: 'setting', name: 'board3d', value });
+    },
+  });
   const snakeColour = createSegmented({
     label: 'Snake colour',
     options: SNAKE_COLOURS.map((value) => ({ value, label: COLOUR_LABELS[value] })),
@@ -369,7 +375,16 @@ export function createSetupScreen(dispatch: Dispatch, reason: Reason): FeedView 
     },
   });
   const ambienceSoundCard = createCard({ title: 'Ambience sound' }, [rainSound.el]);
-  const crownCard = createCard({ title: 'Look' }, [snakeColour.el, snakeSkin.el, crownStyle.el]);
+  const crownCard = createCard({ title: 'Look' }, [
+    snakeColour.el,
+    snakeSkin.el,
+    board3d.el,
+    h('p', {
+      class: 'field__caption',
+      text: 'The snake and the berries in relief, with their shadows. Everything else stays as is.',
+    }),
+    crownStyle.el,
+  ]);
   const journal = createButton({
     label: 'Open journal folder',
     variant: 'secondary',
@@ -548,6 +563,12 @@ export function createSetupScreen(dispatch: Dispatch, reason: Reason): FeedView 
         state.pending.snakeSkin,
         state.now,
       );
+      const b3 = resolvePending(
+        state.gameState?.settings.board3d,
+        state.pending.board3d,
+        state.now,
+      );
+      board3d.update({ on: b3.value === true, status: b3.status, reason: r });
       snakeSkin.update({
         value: typeof sk.value === 'string' ? sk.value : undefined,
         status: sk.status,

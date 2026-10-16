@@ -181,6 +181,8 @@ export interface FeedSettings {
   readonly snakeSkin: SnakeSkin;
   /** The snake's colour (SNAKE_COLOURS). */
   readonly snakeColour: SnakeColour;
+  /** The snake and the berries drawn in 3D over the 2D board. */
+  readonly board3d: boolean;
   /** The rain's sound (RAIN_SOUNDS). */
   readonly rainSound: RainSound;
   /** Ranked welcome threshold (RANKED_WELCOME_LEVELS). */
@@ -359,6 +361,7 @@ export function sanitizeSetting<K extends FeedSettingName>(
     case 'pricing':
       return normalizePricing(value) as FeedSettings[K] | undefined;
     case 'likeCount':
+    case 'board3d':
     case 'giftTitles':
     case 'otherGifts':
       return typeof value === 'boolean' ? ok(value) : undefined;

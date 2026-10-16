@@ -10,8 +10,9 @@ import '../game/game.css';
 import { bindCanvas, ctx } from '../engine/canvas.ts';
 import { CELL, H, OX, W, WF } from '../engine/layout.ts';
 import { paintAlerts, updateAlerts } from './alerts.ts';
-import { crabLike, paintCrabs } from './crabs.ts';
+import { crabLike, paintCrabs, setCrabPhoto, setSleeperSpot } from './crabs.ts';
 import { paintFlower } from './flower.ts';
+import { paintBoard3d } from './board-3d.ts';
 import { FCELL, FCOLS, FROWS, FX0, FY0, K } from './grid.ts';
 import type { Ambience, AmbienceFrame } from '../engine/types-api.ts';
 import { paintFull, paintReady, paintRing } from './hud.ts';
@@ -274,10 +275,12 @@ function step(dt: number): void {
       e = frame(head, dt);
     a.paintBack(c, e);
     paintRing(t);
-    paintBerries();
-    if (game.ready >= 0 || game.full >= 0) paintStillBody(c, a, trace, e);
-    else paintBody(c, a, trace, e);
-    paintGulps(trace);
+    if (!paintBoard3d(c, trace)) {
+      paintBerries();
+      if (game.ready >= 0 || game.full >= 0) paintStillBody(c, a, trace, e);
+      else paintBody(c, a, trace, e);
+      paintGulps(trace);
+    }
     paintHead(head, t);
     paintBites();
     a.paintFront(c, e);
@@ -328,6 +331,9 @@ function start(): void {
     rollAmbience();
     snap = true;
   };
+  // As in the Snake Arena update: bigger pictures on the beach, the sleeper above the board.
+  setCrabPhoto(1.25);
+  setSleeperSpot({ x: 966, y: 263, scale: 1.05 });
   newRound();
   // The app saves the round every second and hands it back here on the next launch, so a sudden
   // shutdown mid-live loses nothing (src/main/feed-backup.ts).
