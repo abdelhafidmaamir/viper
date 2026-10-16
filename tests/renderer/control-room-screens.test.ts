@@ -168,6 +168,7 @@ function makeGameState(overrides: Partial<FeedState> = {}): FeedState {
       crownStyle: 'classic',
       snakeSkin: 'classic',
       snakeColour: 'sand',
+      board3d: false,
       rainSound: 'off',
       rankedWelcome: 0,
       pricing: '1:5,10:55',

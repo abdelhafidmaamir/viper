@@ -102,6 +102,11 @@ export function sleepersFrom(): number {
  * the line its shadow lies on, `scale` its size there. Null: on the beach, as on Feed.
  */
 let sleeperSpot: { x: number; y: number; scale: number } | null = null;
+/** Feed's own beach: the pictures the animals hold, this many times their usual size. */
+let feedPhoto = 1;
+export function setCrabPhoto(k: number): void {
+  feedPhoto = k;
+}
 export function setSleeperSpot(spot: { x: number; y: number; scale: number } | null): void {
   sleeperSpot = spot;
   buildSleepers();
@@ -667,7 +672,7 @@ export function paintCrabs(t: number, rise: number, reduced: boolean, weather: W
     g.restore();
     // The picture follows the arms without being squashed with them.
     const fy = 12 + (-54 - kind.lift) * tall,
-      fk = managed?.photo ?? 1,
+      fk = managed?.photo ?? feedPhoto,
       fs = FACE * fk;
     g.drawImage(face(crab), -fs / 2, fy - fs / 2, fs, fs);
     noteFace(crab.nickname, fy, fk);

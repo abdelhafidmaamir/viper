@@ -243,7 +243,14 @@ let keptSprites: Map<SnakeColour, HTMLCanvasElement> | null = null;
 export function keepScaleSprites(): void {
   keptSprites ??= new Map();
 }
+/** How far the head's picture and crown sit higher: the 3D head is taller, its eyes must show. */
+let headLift = 0;
+export function setHeadLift(px: number): void {
+  headLift = px;
+}
 export const currentSnakeColour = (): SnakeColour => snakeColour;
+/** The skin's shades for the current colour, 'r,g,b' strings. */
+export const snakeTones = (): typeof SAND_TONES => tones;
 /** The body's colour, as the ambience's snake painter takes it. */
 export const snakeTint = (): string => COLOURS[snakeColour];
 
@@ -423,13 +430,18 @@ export function paintHead(head: Point, t: number): void {
   const b = game.bite,
     squash = b < 0.25 ? 1 + 0.22 * Math.sin((b / 0.25) * Math.PI) * (1 - b / 0.25) : 1;
   if (!king) {
-    crown(head.x, head.y - 24 + Math.sin(t * 4) * 2, 0.8, { x: head.x, y: head.y, r: 16 });
+    crown(head.x, head.y - 24 - headLift + Math.sin(t * 4) * 2, 0.8, {
+      x: head.x,
+      y: head.y,
+      r: 16,
+    });
     return;
   }
-  const r = 40 * squash,
+  // Radius 48, the size Snake Arena gives the pictures over its snakes.
+  const r = 48 * squash,
     bob = Math.sin(t * 3) * 3,
     fx = Math.min(W - 60, Math.max(60, head.x)),
-    fy = Math.max(r + 70, head.y - 64 + bob);
+    fy = Math.max(r + 70, head.y - 72 - headLift + bob);
   // Stem from the head up to the face.
   c.save();
   c.strokeStyle = 'rgba(242,197,124,0.7)';
@@ -444,7 +456,7 @@ export function paintHead(head: Point, t: number): void {
   c.fill();
   c.restore();
   paintFace(king, fx, fy, r);
-  crown(fx, fy - r - 12, 1.2, { x: fx, y: fy, r });
+  crown(fx, fy - r - 14, 1.4, { x: fx, y: fy, r });
 }
 
 // ---- berries -------------------------------------------------------------------------------

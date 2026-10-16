@@ -1,6 +1,7 @@
 // The Feed the Snake window's end of its control room: settings (ambience, language) restored
 // from the last session, commands applied, and the round published twice a second.
 
+import { setBoard3d } from './board-3d.ts';
 import {
   CROWD_LEVELS,
   ONCE_PER_LIVE,
@@ -132,6 +133,7 @@ export const settings: { -readonly [K in FeedSettingName]: FeedSettings[K] } = {
   sleeperLife: 'shuffle',
   crownStyle: 'classic',
   snakeSkin: 'classic',
+  board3d: false,
   snakeColour: 'sand',
   rainSound: 'off',
   rankedWelcome: 0,
@@ -239,6 +241,7 @@ function apply(name: FeedSettingName, value: unknown): boolean {
   if (name === 'sleeperLife') setSleeperLife(settings.sleeperLife);
   if (name === 'crownStyle') setCrownStyle(settings.crownStyle);
   if (name === 'snakeSkin') setSnakeSkin(settings.snakeSkin);
+  if (name === 'board3d') setBoard3d(settings.board3d);
   if (name === 'snakeColour') setSnakeColour(settings.snakeColour);
   if (name === 'roundHold') setRoundHold(settings.roundHold);
   if (name === 'entranceGap') {
@@ -271,6 +274,7 @@ const SHARED: readonly FeedSettingName[] = [
   'sleeperLife',
   'crownStyle',
   'snakeSkin',
+  'board3d',
   'snakeColour',
   'rainSound',
   'rankedWelcome',

@@ -372,6 +372,12 @@ export function createSetupScreen(
       dispatch({ cmd: 'setting', name: 'snakeSkin', value });
     },
   });
+  const board3d = createToggle({
+    label: '3D board',
+    onToggle: (value) => {
+      dispatch({ cmd: 'setting', name: 'board3d', value });
+    },
+  });
   const snakeColour = createSegmented({
     label: 'Snake colour',
     options: SNAKE_COLOURS.map((value) => ({ value, label: COLOUR_LABELS[value] })),
@@ -392,7 +398,18 @@ export function createSetupScreen(
   const ambienceSoundCard = createCard({ title: 'Ambience sound' }, [rainSound.el]);
   const crownCard = createCard(
     { title: 'Look' },
-    snakeAppearance ? [snakeColour.el, snakeSkin.el, crownStyle.el] : [crownStyle.el],
+    snakeAppearance
+      ? [
+          snakeColour.el,
+          snakeSkin.el,
+          board3d.el,
+          h('p', {
+            class: 'field__caption',
+            text: 'The snake and the berries in relief, with their shadows. Everything else stays as is.',
+          }),
+          crownStyle.el,
+        ]
+      : [crownStyle.el],
   );
   const journal = createButton({
     label: 'Open journal folder',
@@ -591,6 +608,12 @@ export function createSetupScreen(
           status: sc.status,
           reason: r,
         });
+        const b3 = resolvePending(
+          state.gameState?.settings.board3d,
+          state.pending.board3d,
+          state.now,
+        );
+        board3d.update({ on: b3.value === true, status: b3.status, reason: r });
       }
       const rs = resolvePending(
         state.gameState?.settings.rainSound,
